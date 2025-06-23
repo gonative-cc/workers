@@ -1,0 +1,11 @@
+{
+	"name": "btcindexer",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"dev": "wrangler dev --test-scheduled",
+		"start": "wrangler dev --test-scheduled",
+		"typegen": "wrangler types"
+	},
+	"devDependencies": {}
+}

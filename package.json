@@ -1,0 +1,17 @@
+{
+	"name": "workers",
+	"license": "MPL-2.0",
+	"private": true,
+	"sideEffects": false,
+	"type": "module",
+	"packageManager": "pnpm@10.12.1",
+	"scripts": {
+		"build": "pnpm recursive run build",
+		"dev": "pnpm recursive run dev",
+		"test": "pnpm recursive run test"
+	},
+	"devDependencies": {
+		"typescript": "^5.8.3",
+		"wrangler": "^4.20.5"
+	}
+}

@@ -38,6 +38,10 @@ To apply migrations to the local Cloudflare env:
 pnpm run db:migrate:local
 ```
 
+### Using pnpm workspace
+
+- [linking dependencies](https://pnpm.io/workspaces#publishing-workspace-packages)
+
 ### Typegen
 
 Generate types for your Cloudflare bindings in `wrangler.toml`:

@@ -1,0 +1,5 @@
+# Ignore artifacts:
+build
+.github
+pnpm-lock.yaml
+node_modules

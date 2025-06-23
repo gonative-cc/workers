@@ -7,5 +7,7 @@
 		"start": "wrangler dev --test-scheduled",
 		"typegen": "wrangler types"
 	},
-	"devDependencies": {}
+	"dependencies": {
+		"itty-router": "^5.0.18"
+	}
 }

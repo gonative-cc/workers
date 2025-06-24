@@ -1,7 +1,6 @@
 import type { AppRouter } from './routertype';
 
 export default function addExampleRoutes(router: AppRouter) {
-	// example: withParams middleware
 	router.get('/users/:id', (req) => new Response(`User ID: ${req.params.id}`));
 
 	// example: return JSON response:

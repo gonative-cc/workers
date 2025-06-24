@@ -1,5 +1,14 @@
+export interface Tx {
+	id: string;
+
+	raw: Uint8Array; // raw tx bytes
+}
+
 export interface Block {
 	id: string;
+	txs: Tx[];
+
+	// should not be serialized to JSON
 	raw: Uint8Array; // raw block bytes
 }
 

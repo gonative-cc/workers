@@ -57,5 +57,12 @@
 			"migrations_table": "migrations",
 			"migrations_dir": "./db/migrations/"
 		}
+	],
+
+	"kv_namespaces": [
+		{
+			"binding": "btcblocks",
+			"id": "<YOUR_BINDING_ID>"
+		}
 	]
 }

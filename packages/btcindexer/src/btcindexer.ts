@@ -14,7 +14,7 @@ export class Indexer {
 	// returns number of processed and add blocks
 	async putBlocks(blocks: Block[]): Promise<number> {
 		for (const b of blocks) {
-			this.blocksDB.put(b.id, b.raw);
+			this.blocksDB.put(b.getId(), b.toBuffer());
 			// TODO: index nBTC txs
 		}
 		return 0;

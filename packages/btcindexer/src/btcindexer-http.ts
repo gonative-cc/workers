@@ -11,7 +11,7 @@ export class HIndexer {
 
 	// NOTE: we may need to put this to a separate worker
 	async putBlocks(req: IRequest, env: Env) {
-		const blocks = parseBlocks(req.body);
+		const blocks = await parseBlocks(req.body);
 		const i = new Indexer(env, this.nbtcAddr);
 		return { number: await i.putBlocks(blocks) };
 	}

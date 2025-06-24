@@ -6,7 +6,7 @@
 	"type": "module",
 	"packageManager": "pnpm@10.12.1",
 	"scripts": {
-		"typecheck": "tsc",
+		"typecheck": "pnpm recursive run typecheck",
 		"lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
 		"format": "prettier --write .",
 		"build": "pnpm recursive run build",

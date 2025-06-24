@@ -12,7 +12,7 @@
 	},
 	"triggers": {
 		"crons": ["* * * * *"]
-	}
+	},
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -47,4 +47,15 @@
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
 	 */
 	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
+	//
+
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "btc-indexer",
+			"database_id": "e0772a14-1734-4eab-b193-84675dd08a20",
+			"migrations_table": "migrations",
+			"migrations_dir": "./db/migrations/"
+		}
+	]
 }

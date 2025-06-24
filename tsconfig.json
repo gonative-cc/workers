@@ -34,7 +34,8 @@
 		"strict": true,
 
 		/* Skip type checking all .d.ts files. */
-		"skipLibCheck": true,
-		"types": ["./packages/btcindexer/worker-configuration.d.ts"]
+		"skipLibCheck": true
+		// extra type definitions
+		// "types": ["./packages/btcindexer/worker-configuration.d.ts"]
 	}
 }

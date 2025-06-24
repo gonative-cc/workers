@@ -4,7 +4,7 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev --test-scheduled",
-		"start": "wrangler dev --test-scheduled",
+		"typecheck": "tsc",
 		"typegen": "wrangler types"
 	},
 	"dependencies": {

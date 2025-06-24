@@ -6,6 +6,7 @@
 	"type": "module",
 	"packageManager": "pnpm@10.12.1",
 	"scripts": {
+		"prepare": "cd .git/hooks; ln -s -f ../../contrib/git-hooks/pre-commit ./",
 		"typecheck": "pnpm recursive run typecheck",
 		"lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
 		"format": "prettier --write .",
@@ -15,7 +16,17 @@
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20250620.0",
+		"lint-staged": "^16.1.2",
 		"typescript": "^5.8.3",
 		"wrangler": "^4.20.5"
+	},
+	"lint-staged": {
+		"*.{js,cjs,mjs,jsx,ts,tsx}": [
+			"prettier --write --ignore-unknown",
+			"eslint --cache --cache-location ./node_modules/.cache/eslint --fix"
+		],
+		"*.{json,html}": [
+			"prettier --write --ignore-unknown"
+		]
 	}
 }

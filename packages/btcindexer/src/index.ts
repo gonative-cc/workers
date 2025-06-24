@@ -3,23 +3,13 @@
  * configurable interval and has HTTP server:
  * https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
  *
- * - Run `pnpm run dev` in your terminal to start a development server
- * - Run `curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"` to see your Worker in action
- *
  * Bind resources to your Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
  * `Env` object can be regenerated with `pnpm run typegen`.
  */
 
-// const app = new Hono<{ Bindings: CloudflareBindings }>();
-
 import router from './router';
 
 export default {
-	// async fetch(req, env, ctx) {
-	// 	return router.fetch(req, env, ctx);
-	// 	// return new Response('hello world');
-	// },
-
 	fetch: router.fetch,
 
 	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's

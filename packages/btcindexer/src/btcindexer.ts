@@ -26,6 +26,7 @@ export class Indexer {
 		// 1. check if tx is nBTC segwit payment
 		// 2. check if not duplicated
 		// 3. insert in D1
+		//
 
 		return true;
 	}

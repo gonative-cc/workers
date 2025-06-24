@@ -16,8 +16,11 @@
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20250620.0",
+		"@eslint/js": "^9.29.0",
+		"eslint": "^9.29.0",
 		"lint-staged": "^16.1.2",
 		"typescript": "^5.8.3",
+		"typescript-eslint": "^8.35.0",
 		"wrangler": "^4.20.5"
 	},
 	"lint-staged": {
@@ -25,6 +28,8 @@
 			"prettier --write --ignore-unknown",
 			"eslint --cache --cache-location ./node_modules/.cache/eslint --fix"
 		],
-		"*.{json,html}": ["prettier --write --ignore-unknown"]
+		"*.{json,html}": [
+			"prettier --write --ignore-unknown"
+		]
 	}
 }

@@ -17,6 +17,6 @@ const btcIndexer = new HIndexer();
 router.put('/bitcoin/blocks', btcIndexer.putBlocks.bind({}));
 router.put('/nbtc', btcIndexer.putNbtcTx.bind({}));
 
-router.all('/*', () => error(404));
+router.all('/*', () => error(404, "Wrong Endpoint"));
 
 export default router;

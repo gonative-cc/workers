@@ -14,7 +14,8 @@ const router = Router<IRequest, CFArgs>({
 addExampleRoutes(router);
 
 const btcIndexer = new HIndexer();
-router.put('/bitcoin/blocks', btcIndexer.putBlocks);
+router.put('/bitcoin/blocks', btcIndexer.putBlocks.bind({}));
+router.put('/nbtc', btcIndexer.putNbtcTx.bind({}));
 
 router.all('/*', () => error(404));
 

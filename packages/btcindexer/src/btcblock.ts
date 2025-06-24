@@ -5,5 +5,6 @@ export interface Block {
 
 export function parseBlocks(body: ReadableStream | null): Block[] {
 	// TODO: use msgPack or the default Bitcoin serializer
+	console.log('parsing blocks', body);
 	return [];
 }

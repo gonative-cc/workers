@@ -1,5 +1,5 @@
 import { describe, it, assert } from 'vitest';
-import { parseBlocks } from '../src/btcblock';
+import { parseBlocks } from './btcblock';
 
 function bufferToStream(buffer: Buffer): ReadableStream {
 	return new ReadableStream({
@@ -22,6 +22,7 @@ describe('parseBlocks', () => {
 
 		assert(parsedBlocks.length == 1);
 		assert(parsedBlocks[0].getId() == '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f');
+		assert(parsedBlocks[0].raw.equals(blockBuffer));
 	});
 
 	it('should parse multiple blocks from stream', async () => {
@@ -33,6 +34,7 @@ describe('parseBlocks', () => {
 		assert(parsedBlocks.length == 2);
 		assert(parsedBlocks[0].getId() == '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f');
 		assert(parsedBlocks[1].getId() == '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f');
+		assert(parsedBlocks[0].raw.equals(blockBuffer));
 	});
 
 	it('should return an empty array for empty stream', async () => {

@@ -1,4 +1,4 @@
-import { Block, Tx } from './btcblock';
+import { Block, Transaction } from './btcblock';
 
 export class Indexer {
 	d1: D1Database; // SQL DB
@@ -25,8 +25,8 @@ export class Indexer {
 		return 0;
 	}
 
-	async saveNbtcTx(tx: Tx) {
-		return this.nbtcTxDB.put(tx.id, tx.raw);
+	async saveNbtcTx(tx: Transaction) {
+		return this.nbtcTxDB.put(tx.getId(), tx.toBuffer());
 	}
 
 	// returns true if tx has not been processed yet, false if it was already inserted

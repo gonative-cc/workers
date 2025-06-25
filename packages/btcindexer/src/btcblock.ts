@@ -1,6 +1,10 @@
 import { Block } from 'bitcoinjs-lib';
 
-export async function parseBlocks(body: ReadableStream | null): Promise<Block[]> {
+export interface ExtendedBlock extends Block {
+	raw: Buffer;
+}
+
+export async function parseBlocks(body: ReadableStream | null): Promise<ExtendedBlock[]> {
 	if (!body) {
 		return [];
 	}
@@ -24,12 +28,15 @@ export async function parseBlocks(body: ReadableStream | null): Promise<Block[]>
 
 	const nodeBuffer = Buffer.from(fullBuffer);
 
-	const blocks: Block[] = [];
+	const blocks: ExtendedBlock[] = [];
 	let parseOffset = 0;
 	while (parseOffset < nodeBuffer.length) {
 		try {
 			const block = Block.fromBuffer(nodeBuffer.subarray(parseOffset));
-			blocks.push(block);
+			const rawBlockBuffer = nodeBuffer.subarray(0, block.byteLength());
+			const extendedBlock = block as ExtendedBlock;
+			extendedBlock.raw = rawBlockBuffer;
+			blocks.push(extendedBlock);
 			parseOffset += block.byteLength();
 		} catch (e) {
 			console.error('Failed to parse Bitcoin block', e);

@@ -1,13 +1,15 @@
-import { Block } from './btcblock';
+import { Block, Tx } from './btcblock';
 
 export class Indexer {
-	d1: D1Database;
+	d1: D1Database; // SQL DB
 	blocksDB: KVNamespace;
+	nbtcTxDB: KVNamespace;
 	nbtcAddr: string;
 
 	constructor(env: Env, nbtcAddr: string) {
 		this.d1 = env.DB;
-		this.blocksDB = env.btcblocks;
+		this.blocksDB = env.btc_blocks;
+		this.nbtcTxDB = env.nbtc_txs;
 		this.nbtcAddr = nbtcAddr;
 	}
 
@@ -16,8 +18,15 @@ export class Indexer {
 		for (const b of blocks) {
 			this.blocksDB.put(b.getId(), b.toBuffer());
 			// TODO: index nBTC txs
+			// TODO: save light blocks in d1
+			// TODO: index nBTC txs in d1
+			// TODO: save raw nBTC txs in DB
 		}
 		return 0;
+	}
+
+	async saveNbtcTx(tx: Tx) {
+		return this.nbtcTxDB.put(tx.id, tx.raw);
 	}
 
 	// returns true if tx has not been processed yet, false if it was already inserted
@@ -26,7 +35,8 @@ export class Indexer {
 		// 1. check if tx is nBTC segwit payment
 		// 2. check if not duplicated
 		// 3. insert in D1
-		//
+		// 4. insert in nbtcTxDB
+		//    this.saveNbtcTx(tx)
 
 		return true;
 	}

@@ -61,7 +61,11 @@
 
 	"kv_namespaces": [
 		{
-			"binding": "btcblocks",
+			"binding": "btc_blocks",
+			"id": "<YOUR_BINDING_ID>"
+		},
+		{
+			"binding": "nbtc_txs",
 			"id": "<YOUR_BINDING_ID>"
 		}
 	]

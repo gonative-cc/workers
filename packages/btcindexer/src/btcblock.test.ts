@@ -1,5 +1,5 @@
 import { describe, it, assert } from 'vitest';
-import { parseBlocks } from './btcblock';
+import { parseBlocksFromStream } from './btcblock';
 
 function bufferToStream(buffer: Buffer): ReadableStream {
 	return new ReadableStream({
@@ -18,7 +18,7 @@ describe('parseBlocks', () => {
 
 	it('should parse a single block from a stream', async () => {
 		const stream = bufferToStream(blockBuffer);
-		const parsedBlocks = await parseBlocks(stream);
+		const parsedBlocks = await parseBlocksFromStream(stream);
 
 		assert(parsedBlocks.length == 1);
 		assert(parsedBlocks[0].getId() == '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f');
@@ -29,7 +29,7 @@ describe('parseBlocks', () => {
 		// for simplicity we concatenate the genesis block with itself
 		const concatBuffer = Buffer.concat([blockBuffer, blockBuffer]);
 		const stream = bufferToStream(concatBuffer);
-		const parsedBlocks = await parseBlocks(stream);
+		const parsedBlocks = await parseBlocksFromStream(stream);
 
 		assert(parsedBlocks.length == 2);
 		assert(parsedBlocks[0].getId() == '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f');
@@ -38,7 +38,18 @@ describe('parseBlocks', () => {
 	});
 
 	it('should return an empty array for empty stream', async () => {
-		const parsedBlocks = await parseBlocks(null);
+		const parsedBlocks = await parseBlocksFromStream(null);
 		assert(parsedBlocks.length == 0);
+	});
+
+	it('should return valid block and abort on the invalid block', async () => {
+		// first valid block, second invalid
+		const concatBuffer = Buffer.concat([blockBuffer, Buffer.from('0101', 'hex')]);
+		const stream = bufferToStream(concatBuffer);
+		const parsedBlocks = await parseBlocksFromStream(stream);
+
+		assert(parsedBlocks.length == 1);
+		assert(parsedBlocks[0].getId() == '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f');
+		assert(parsedBlocks[0].raw.equals(blockBuffer));
 	});
 });

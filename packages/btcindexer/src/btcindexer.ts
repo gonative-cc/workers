@@ -1,4 +1,4 @@
-import { Block, Transaction } from './btcblock';
+import { ExtendedBlock, Transaction } from './btcblock';
 
 export class Indexer {
 	d1: D1Database; // SQL DB
@@ -14,15 +14,21 @@ export class Indexer {
 	}
 
 	// returns number of processed and add blocks
-	async putBlocks(blocks: Block[]): Promise<number> {
-		for (const b of blocks) {
-			this.blocksDB.put(b.getId(), b.toBuffer());
-			// TODO: index nBTC txs
-			// TODO: save light blocks in d1
-			// TODO: index nBTC txs in d1
-			// TODO: save raw nBTC txs in DB
+	async putBlocks(blocks: ExtendedBlock[]): Promise<number> {
+		if (!blocks || blocks.length === 0) {
+			return 0;
 		}
-		return 0;
+		const putPromises = blocks.map((b) => this.blocksDB.put(b.getId(), b.raw));
+		try {
+			await Promise.all(putPromises);
+		} catch (e) {
+			console.error(`Failed to store one or more blocks in KV:`, e);
+		}
+		// TODO: index nBTC txs
+		// TODO: save light blocks in d1
+		// TODO: index nBTC txs in d1
+		// TODO: save raw nBTC txs in DB
+		return blocks.length;
 	}
 
 	async saveNbtcTx(tx: Transaction) {

@@ -4,7 +4,7 @@ export interface Tx {
 	raw: Uint8Array; // raw tx bytes
 }
 
-export interface Block {
+interface Block {
 	id: string;
 	txs: Tx[];
 
@@ -17,3 +17,5 @@ export function parseBlocks(body: ReadableStream | null): Block[] {
 	console.log('parsing blocks', body);
 	return [];
 }
+
+export { Block, Transaction, } from 'bitcoinjs-lib';

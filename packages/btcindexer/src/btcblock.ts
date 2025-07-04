@@ -17,11 +17,12 @@ async function streamToBuffer(body: ReadableStream | null): Promise<Buffer> {
 		chunks.push(value);
 	}
 
+	// TODO: find a way to avoid reading the whole stream to make a buffer
 	return Buffer.concat(chunks);
 }
 
-function parseBlocksFromBuffer(buffer: Buffer): ExtendedBlock[] {
-	const blocks: ExtendedBlock[] = [];
+function parseBlocksFromBuffer(buffer: Buffer): ExtBlock[] {
+	const blocks: ExtBlock[] = [];
 	let parseOffset = 0;
 
 	while (parseOffset < buffer.length) {
@@ -30,7 +31,7 @@ function parseBlocksFromBuffer(buffer: Buffer): ExtendedBlock[] {
 			const block = Block.fromBuffer(remainingBuffer);
 			const blockByteLength = block.byteLength();
 			const rawBlockBuffer = remainingBuffer.subarray(0, blockByteLength);
-			const extendedBlock = block as ExtendedBlock;
+			const extendedBlock = block as ExtBlock;
 			extendedBlock.raw = rawBlockBuffer;
 			blocks.push(extendedBlock);
 			parseOffset += blockByteLength;
@@ -52,7 +53,7 @@ function parseBlocksFromBuffer(buffer: Buffer): ExtendedBlock[] {
  * @param body The ReadableStream from the request.
  * @returns A promise that resolves to an array of successfully parsed ExtendedBlock's.
  */
-export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtendedBlock[]> {
+export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtBlock[]> {
 	const fullBuffer = await streamToBuffer(body);
 	if (fullBuffer.length === 0) {
 		return [];

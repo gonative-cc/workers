@@ -1,6 +1,6 @@
 import { Block } from 'bitcoinjs-lib';
 
-export interface ExtendedBlock extends Block {
+export interface ExtBlock extends Block {
 	raw: Buffer;
 }
 

@@ -3,12 +3,13 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"test": "vitest",
 		"dev": "wrangler dev --test-scheduled",
 		"typecheck": "tsc",
-		"typegen": "wrangler types"
+		"typegen": "wrangler types",
+		"test": "vitest run"
 	},
 	"dependencies": {
+		"bitcoinjs-lib": "^6.1.7",
 		"itty-router": "^5.0.18"
 	}
 }

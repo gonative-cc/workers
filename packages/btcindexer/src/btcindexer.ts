@@ -1,4 +1,4 @@
-import { Block, Tx } from './btcblock';
+import { Block, Transaction } from './btcblock';
 
 export class Indexer {
 	d1: D1Database; // SQL DB
@@ -16,7 +16,8 @@ export class Indexer {
 	// returns number of processed and add blocks
 	async putBlocks(blocks: Block[]): Promise<number> {
 		for (const b of blocks) {
-			this.blocksDB.put(b.id, b.raw);
+			this.blocksDB.put(b.getId(), b.toBuffer());
+			// TODO: index nBTC txs
 			// TODO: save light blocks in d1
 			// TODO: index nBTC txs in d1
 			// TODO: save raw nBTC txs in DB
@@ -24,8 +25,8 @@ export class Indexer {
 		return 0;
 	}
 
-	async saveNbtcTx(tx: Tx) {
-		return this.nbtcTxDB.put(tx.id, tx.raw);
+	async saveNbtcTx(tx: Transaction) {
+		return this.nbtcTxDB.put(tx.getId(), tx.toBuffer());
 	}
 
 	// returns true if tx has not been processed yet, false if it was already inserted

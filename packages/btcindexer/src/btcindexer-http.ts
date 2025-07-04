@@ -1,5 +1,5 @@
 import type { IRequest } from 'itty-router';
-import { parseBlocks } from './btcblock';
+import { parseBlocksFromStream } from './btcblock';
 import { Indexer } from './btcindexer';
 
 export class HIndexer {
@@ -16,7 +16,7 @@ export class HIndexer {
 
 	// NOTE: we may need to put this to a separate worker
 	async putBlocks(req: IRequest, env: Env) {
-		const blocks = parseBlocks(req.body);
+		const blocks = await parseBlocksFromStream(req.body);
 		const i = this.newIndexer(env);
 		return { number: await i.putBlocks(blocks) };
 	}

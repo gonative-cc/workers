@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Workers
 
 Backend workers and indexers for BYield services

@@ -2,6 +2,8 @@
 
 Backend workers and indexers for BYield services
 
+- [btcindexer](./packages/btcindexer/) - Bitcoin indexer for nBTC and SPV prover.
+
 ## Development
 
 ### Dependencies

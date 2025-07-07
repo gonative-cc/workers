@@ -66,6 +66,5 @@ export async function parseBlocksFromStream(body: ReadableStream | null): Promis
 		return [];
 	}
 	return parseBlocksFromPayload(payload);
-}
 
 export type { Block, Transaction, TxInput, TxOutput } from 'bitcoinjs-lib';

@@ -1,50 +1,57 @@
 import { Block } from 'bitcoinjs-lib';
 
+/**
+ * Extends the Block type to include raw Buffer and height
+ */
 export interface ExtBlock extends Block {
+	height: number;
 	raw: Buffer;
 }
 
-async function streamToBuffer(body: ReadableStream | null): Promise<Buffer> {
+/**
+ * Defines the structure of the JSON object we expect from the relayer
+ */
+interface BlockPayload {
+	height: number;
+	rawBlockHex: string;
+}
+
+async function parseBlockPayload(body: ReadableStream | null): Promise<BlockPayload[]> {
 	if (!body) {
-		return Buffer.alloc(0);
+		return [];
 	}
 
 	const reader = body.getReader();
-	const chunks: Uint8Array[] = [];
+	const decoder = new TextDecoder();
+	let jsonString = ``;
 	while (true) {
 		const { done, value } = await reader.read();
 		if (done) break;
-		chunks.push(value);
+		jsonString += decoder.decode(value, { stream: true });
 	}
 
-	// TODO: find a way to avoid reading the whole stream to make a buffer
-	return Buffer.concat(chunks);
+	return JSON.parse(jsonString);
 }
 
-function parseBlocksFromBuffer(buffer: Buffer): ExtBlock[] {
+function parseBlocksFromPayload(payload: BlockPayload[]): ExtBlock[] {
 	const blocks: ExtBlock[] = [];
-	let parseOffset = 0;
-
-	while (parseOffset < buffer.length) {
-		const remainingBuffer = buffer.subarray(parseOffset);
+	for (const entry of payload)
 		try {
-			const block = Block.fromBuffer(remainingBuffer);
-			const blockByteLength = block.byteLength();
-			const rawBlockBuffer = remainingBuffer.subarray(0, blockByteLength);
+			const rawBlockBuffer = Buffer.from(entry.rawBlockHex, 'hex');
+			const block = Block.fromBuffer(rawBlockBuffer);
 			const extendedBlock = block as ExtBlock;
+			extendedBlock.height = entry.height;
 			extendedBlock.raw = rawBlockBuffer;
 			blocks.push(extendedBlock);
-			parseOffset += blockByteLength;
 		} catch (e) {
 			// on an invalid block we stop parsing, log the error and break the loop returning the already parsed blocks
 			console.error(
-				`Failed to parse an invalid bitcoin block at offset ${parseOffset}. ` +
+				`Failed to parse an invalid bitcoin block at height ${entry.height}. ` +
 					`Returning ${blocks.length} successfully parsed blocks:`,
 				e
 			);
 			break;
 		}
-	}
 	return blocks;
 }
 
@@ -54,11 +61,10 @@ function parseBlocksFromBuffer(buffer: Buffer): ExtBlock[] {
  * @returns A promise that resolves to an array of successfully parsed ExtendedBlock's.
  */
 export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtBlock[]> {
-	const fullBuffer = await streamToBuffer(body);
-	if (fullBuffer.length === 0) {
+	const payload = await parseBlockPayload(body);
+	if (payload.length === 0) {
 		return [];
 	}
-	return parseBlocksFromBuffer(fullBuffer);
+	return parseBlocksFromPayload(payload);
 }
-
 export type { Block, Transaction, TxInput, TxOutput } from 'bitcoinjs-lib';

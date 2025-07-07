@@ -1,4 +1,4 @@
-name: Lint
+name: Markdown
 on:
   merge_group:
     types: [checks_requested]
@@ -10,8 +10,7 @@ concurrency:
 
 jobs:
 
-  markdown-lint:
-    name: markdown-lint
+  Lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

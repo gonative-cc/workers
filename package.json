@@ -17,6 +17,7 @@
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20250620.0",
 		"@eslint/js": "^9.29.0",
+		"@types/node": "^24.0.10",
 		"config": "link:@cloudflare/vitest-pool-workers/config",
 		"eslint": "^9.29.0",
 		"lint-staged": "^16.1.2",

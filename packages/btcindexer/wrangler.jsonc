@@ -8,10 +8,10 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2025-06-20",
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
 	"triggers": {
-		"crons": ["* * * * *"]
+		"crons": ["* * * * *"],
 	},
 	/**
 	 * Smart Placement
@@ -55,18 +55,18 @@
 			"database_name": "btc-indexer",
 			"database_id": "e0772a14-1734-4eab-b193-84675dd08a20",
 			"migrations_table": "migrations",
-			"migrations_dir": "./db/migrations/"
-		}
+			"migrations_dir": "./db/migrations/",
+		},
 	],
 
 	"kv_namespaces": [
 		{
 			"binding": "btc_blocks",
-			"id": "<YOUR_BINDING_ID>"
+			"id": "<YOUR_BINDING_ID>",
 		},
 		{
 			"binding": "nbtc_txs",
-			"id": "<YOUR_BINDING_ID>"
-		}
-	]
+			"id": "<YOUR_BINDING_ID>",
+		},
+	],
 }

@@ -1,4 +1,5 @@
 name: Lint-Title
+
 on:
   merge_group:
   pull_request_target:

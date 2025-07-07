@@ -6,7 +6,8 @@ import { HIndexer } from './btcindexer-http';
 
 const router = Router<IRequest, CFArgs>({
 	catch: error,
-	// convert non Response objects to JSON Responses
+	// convert non `Response` objects to JSON Responses. If a handler returns `Response` object then it will
+	// be directly returned.
 	finally: [json],
 });
 

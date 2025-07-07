@@ -44,10 +44,6 @@ importers:
       itty-router:
         specifier: ^5.0.18
         version: 5.0.18
-    devDependencies:
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.4(yaml@2.8.0)
 
 packages:
 

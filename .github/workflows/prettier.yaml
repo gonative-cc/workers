@@ -22,3 +22,9 @@ jobs:
         with:
           prettier_options: -c .
           only_changed: true
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: placeholder
+        run: echo OK

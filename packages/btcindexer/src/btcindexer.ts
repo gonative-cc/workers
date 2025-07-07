@@ -1,4 +1,4 @@
-import { ExtendedBlock, Transaction } from './btcblock';
+import { ExtBlock, Transaction } from './btcblock';
 
 export class Indexer {
 	d1: D1Database; // SQL DB
@@ -14,7 +14,7 @@ export class Indexer {
 	}
 
 	// returns number of processed and add blocks
-	async putBlocks(blocks: ExtendedBlock[]): Promise<number> {
+	async putBlocks(blocks: ExtBlock[]): Promise<number> {
 		if (!blocks || blocks.length === 0) {
 			return 0;
 		}

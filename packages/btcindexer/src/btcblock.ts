@@ -3,7 +3,7 @@ import { Block } from 'bitcoinjs-lib';
 /**
  * Extends the Block type to include raw Buffer and height
  */
-export interface ExtendedBlock extends Block {
+export interface ExtBlock extends Block {
 	height: number;
 	raw: Buffer;
 }
@@ -16,7 +16,7 @@ interface BlockPayload {
 	rawBlockHex: string;
 }
 
-async function streamToJson(body: ReadableStream | null): Promise<BlockPayload[]> {
+async function parseBlockPayload(body: ReadableStream | null): Promise<BlockPayload[]> {
 	if (!body) {
 		return [];
 	}
@@ -33,13 +33,13 @@ async function streamToJson(body: ReadableStream | null): Promise<BlockPayload[]
 	return JSON.parse(jsonString);
 }
 
-function parseBlocksFromPayload(payload: BlockPayload[]): ExtendedBlock[] {
-	const blocks: ExtendedBlock[] = [];
+function parseBlocksFromPayload(payload: BlockPayload[]): ExtBlock[] {
+	const blocks: ExtBlock[] = [];
 	for (const entry of payload)
 		try {
 			const rawBlockBuffer = Buffer.from(entry.rawBlockHex, 'hex');
 			const block = Block.fromBuffer(rawBlockBuffer);
-			const extendedBlock = block as ExtendedBlock;
+			const extendedBlock = block as ExtBlock;
 			extendedBlock.height = entry.height;
 			extendedBlock.raw = rawBlockBuffer;
 			blocks.push(extendedBlock);
@@ -60,11 +60,11 @@ function parseBlocksFromPayload(payload: BlockPayload[]): ExtendedBlock[] {
  * @param body The ReadableStream from the request.
  * @returns A promise that resolves to an array of successfully parsed ExtendedBlock's.
  */
-export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtendedBlock[]> {
-	const payload = await streamToJson(body);
+export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtBlock[]> {
+	const payload = await parseBlockPayload(body);
 	if (payload.length === 0) {
 		return [];
 	}
 	return parseBlocksFromPayload(payload);
-
+}
 export type { Block, Transaction, TxInput, TxOutput } from 'bitcoinjs-lib';

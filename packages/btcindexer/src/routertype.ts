@@ -1,4 +1,4 @@
-import type { IRequest, RouterType } from 'itty-router';
+import type { IRequest, RouterType } from "itty-router";
 
 // list of argument types provided to the router handlers
 export type CFArgs = [Env, ExecutionContext];

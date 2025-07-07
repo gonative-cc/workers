@@ -1,4 +1,4 @@
-import { Block } from 'bitcoinjs-lib';
+import { Block } from "bitcoinjs-lib";
 
 /**
  * Extends the Block type to include raw Buffer and height
@@ -37,7 +37,7 @@ function parseBlocksFromPayload(payload: BlockPayload[]): ExtBlock[] {
 	const blocks: ExtBlock[] = [];
 	for (const entry of payload)
 		try {
-			const rawBlockBuffer = Buffer.from(entry.rawBlockHex, 'hex');
+			const rawBlockBuffer = Buffer.from(entry.rawBlockHex, "hex");
 			const block = Block.fromBuffer(rawBlockBuffer);
 			const extendedBlock = block as ExtBlock;
 			extendedBlock.height = entry.height;
@@ -67,4 +67,4 @@ export async function parseBlocksFromStream(body: ReadableStream | null): Promis
 	}
 	return parseBlocksFromPayload(payload);
 }
-export type { Block, Transaction, TxInput, TxOutput } from 'bitcoinjs-lib';
+export type { Block, Transaction, TxInput, TxOutput } from "bitcoinjs-lib";

@@ -1,13 +1,13 @@
-import type { IRequest } from 'itty-router';
-import { parseBlocksFromStream } from './btcblock';
-import { Indexer } from './btcindexer';
+import type { IRequest } from "itty-router";
+import { parseBlocksFromStream } from "./btcblock";
+import { Indexer } from "./btcindexer";
 
 export class HIndexer {
 	public nbtcAddr: string;
 
 	constructor() {
 		// TODO: need to provide through env variable
-		this.nbtcAddr = 'TODO';
+		this.nbtcAddr = "TODO";
 	}
 
 	newIndexer(env: Env): Indexer {

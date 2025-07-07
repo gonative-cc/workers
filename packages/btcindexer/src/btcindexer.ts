@@ -1,4 +1,4 @@
-import { ExtBlock, Transaction } from './btcblock';
+import { ExtBlock, Transaction } from "./btcblock";
 
 export class Indexer {
 	d1: D1Database; // SQL DB
@@ -18,7 +18,9 @@ export class Indexer {
 		if (!blocks || blocks.length === 0) {
 			return 0;
 		}
-		const insertBlockStmt = this.d1.prepare(`INSERT INTO processed_blocks (height, block_id) VALUES (?, ?)`);
+		const insertBlockStmt = this.d1.prepare(
+			`INSERT INTO processed_blocks (height, block_id) VALUES (?, ?)`,
+		);
 		const putKVs = blocks.map((b) => this.blocksDB.put(b.getId(), b.raw));
 		// TODO: the height is not part of the block itself. Probably we will need to send it from the relayer, sending blocks {height, raw}
 		const putD1s = blocks.map((b) => insertBlockStmt.bind(0, b.getHash()));

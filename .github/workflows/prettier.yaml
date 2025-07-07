@@ -1,4 +1,4 @@
-name: JS
+name: Prettier
 on:
   merge_group:
     types: [checks_requested]

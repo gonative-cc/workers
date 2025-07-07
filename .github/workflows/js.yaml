@@ -3,6 +3,7 @@ on:
   merge_group:
     types: [checks_requested]
   pull_request:
+    paths:
       - '**.js'
       - '**.ts'
 

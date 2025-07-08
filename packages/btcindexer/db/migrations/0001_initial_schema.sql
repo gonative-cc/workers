@@ -11,7 +11,6 @@ CREATE TABLE nbtc_txs (
     hash TEXT NOT NULL,
     height INTEGER NOT NULL,
     vout INTEGER NOT NULL,
-    sender_address TEXT,
     sui_recipient TEXT NOT NULL,
     amount_sats INTEGER NOT NULL,
     status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted'

@@ -7,7 +7,7 @@
  * `Env` object can be regenerated with `pnpm run typegen`.
  */
 
-import router from './router';
+import router from "./router";
 
 export default {
 	fetch: router.fetch,

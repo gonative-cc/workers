@@ -16,7 +16,7 @@ interface BlockPayload {
 	rawBlockHex: string;
 }
 
-async function parseBlockPayload(body: ReadableStream | null): Promise<BlockPayload[]> {
+async function streamToBlockPayload(body: ReadableStream | null): Promise<BlockPayload[]> {
 	if (!body) {
 		return [];
 	}
@@ -33,7 +33,7 @@ async function parseBlockPayload(body: ReadableStream | null): Promise<BlockPayl
 	return JSON.parse(jsonString);
 }
 
-function parseBlocksFromPayload(payload: BlockPayload[]): ExtBlock[] {
+function parseBlockPayloadEntries(payload: BlockPayload[]): ExtBlock[] {
 	const blocks: ExtBlock[] = [];
 	for (const entry of payload)
 		try {
@@ -48,7 +48,7 @@ function parseBlocksFromPayload(payload: BlockPayload[]): ExtBlock[] {
 			console.error(
 				`Failed to parse an invalid bitcoin block at height ${entry.height}. ` +
 					`Returning ${blocks.length} successfully parsed blocks:`,
-				e,
+				e
 			);
 			break;
 		}
@@ -61,11 +61,10 @@ function parseBlocksFromPayload(payload: BlockPayload[]): ExtBlock[] {
  * @returns A promise that resolves to an array of successfully parsed ExtendedBlock's.
  */
 export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtBlock[]> {
-	const payload = await parseBlockPayload(body);
+	const payload = await streamToBlockPayload(body);
 	if (payload.length === 0) {
 		return [];
 	}
-	return parseBlocksFromPayload(payload);
+	return parseBlockPayloadEntries(payload);
 }
-export type { Block, Transaction, TxInput, TxOutput } from "bitcoinjs-lib";
-
+export { Block, Transaction } from "bitcoinjs-lib";

@@ -28,7 +28,7 @@ describe("Indexer.findNbtcDeposits", () => {
 			mockEnv,
 			REGTEST_DATA.DEPOSIT_ADDR,
 			FALLBACK_SUI_ADDRESS,
-			networks.regtest
+			networks.regtest,
 		);
 
 		const block = Block.fromHex(REGTEST_DATA.RAW_BLOCK_HEX);

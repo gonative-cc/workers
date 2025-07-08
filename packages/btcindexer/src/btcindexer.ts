@@ -28,7 +28,7 @@ export class Indexer {
 			return 0;
 		}
 		const insertBlockStmt = this.d1.prepare(
-			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)`
+			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)`,
 		);
 		const putKVs = blocks.map((b) => this.blocksDB.put(b.getId(), b.raw));
 		const putD1s = blocks.map((b) => insertBlockStmt.bind(b.height, b.getHash()));
@@ -71,7 +71,7 @@ export class Indexer {
 		const nbtcTxStatements: D1PreparedStatement[] = [];
 
 		const insertNbtcTxStmt = this.d1.prepare(
-			"INSERT INTO nbtc_txs (tx_id, hash, height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+			"INSERT INTO nbtc_txs (tx_id, hash, height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -94,8 +94,8 @@ export class Indexer {
 							deposit.vout,
 							deposit.suiRecipient,
 							deposit.amountSats,
-							"confirming"
-						)
+							"confirming",
+						),
 					);
 				}
 			}
@@ -106,7 +106,7 @@ export class Indexer {
 
 		const heightsToDelete = blocksToProcess.results.map((r) => r.height);
 		const deleteQuery = `DELETE FROM processed_blocks WHERE height IN (${heightsToDelete.join(
-			","
+			",",
 		)})`;
 		await this.d1.prepare(deleteQuery).run();
 	}

@@ -48,7 +48,7 @@ function parseBlockPayloadEntries(payload: BlockPayload[]): ExtBlock[] {
 			console.error(
 				`Failed to parse an invalid bitcoin block at height ${entry.height}. ` +
 					`Returning ${blocks.length} successfully parsed blocks:`,
-				e
+				e,
 			);
 			break;
 		}

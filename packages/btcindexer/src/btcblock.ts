@@ -16,21 +16,21 @@ interface BlockPayload {
 	rawBlockHex: string;
 }
 
-async function streamToBlockPayload(body: ReadableStream | null): Promise<BlockPayload[]> {
-	if (!body) {
-		return [];
+class BlockPayloadParser {
+	public static async fromStream(body: ReadableStream | null): Promise<BlockPayload[]> {
+		if (!body) {
+			return [];
+		}
+		const reader = body.getReader();
+		const decoder = new TextDecoder();
+		let jsonString = "";
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			jsonString += decoder.decode(value, { stream: true });
+		}
+		return JSON.parse(jsonString);
 	}
-
-	const reader = body.getReader();
-	const decoder = new TextDecoder();
-	let jsonString = ``;
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		jsonString += decoder.decode(value, { stream: true });
-	}
-
-	return JSON.parse(jsonString);
 }
 
 function parseBlockPayloadEntries(payload: BlockPayload[]): ExtBlock[] {
@@ -61,7 +61,7 @@ function parseBlockPayloadEntries(payload: BlockPayload[]): ExtBlock[] {
  * @returns A promise that resolves to an array of successfully parsed ExtendedBlock's.
  */
 export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtBlock[]> {
-	const payload = await streamToBlockPayload(body);
+	const payload = await BlockPayloadParser.fromStream(body);
 	if (payload.length === 0) {
 		return [];
 	}

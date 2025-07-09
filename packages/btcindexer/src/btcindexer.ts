@@ -1,5 +1,6 @@
 import { ExtBlock, Transaction, Block } from "./btcblock";
 import { address, networks } from "bitcoinjs-lib";
+import { OP_RETURN } from "./opcodes";
 
 interface Deposit {
 	vout: number;
@@ -12,13 +13,13 @@ export class Indexer {
 	blocksDB: KVNamespace;
 	nbtcTxDB: KVNamespace;
 	nbtcScriptHex: string;
-	fallbackAddr: string;
+	suiFallbackAddr: string;
 
 	constructor(env: Env, nbtcAddr: string, fallbackAddr: string, network: networks.Network) {
 		this.d1 = env.DB;
 		this.blocksDB = env.btc_blocks;
 		this.nbtcTxDB = env.nbtc_txs;
-		this.fallbackAddr = fallbackAddr;
+		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
 	}
 
@@ -71,7 +72,7 @@ export class Indexer {
 		const nbtcTxStatements: D1PreparedStatement[] = [];
 
 		const insertNbtcTxStmt = this.d1.prepare(
-			"INSERT INTO nbtc_txs (tx_id, hash, height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -101,8 +102,7 @@ export class Indexer {
 			}
 		}
 
-		// TODO: what happens if the array is empty?
-		await this.d1.batch(nbtcTxStatements);
+		if (nbtcTxStatements.length > 0) await this.d1.batch(nbtcTxStatements);
 
 		const heightsToDelete = blocksToProcess.results.map((r) => r.height);
 		const heights = heightsToDelete.join(",");
@@ -115,20 +115,17 @@ export class Indexer {
 		let suiRecipient: string | null = null;
 
 		for (const vout of tx.outs) {
-			// OP_RETURN = 0x6a
-			if (vout.script[0] === 0x6a) {
+			if (vout.script[0] === OP_RETURN) {
 				suiRecipient = vout.script.subarray(2).toString();
 				break; // valid tx should have only one OP_RETURN
 			}
 		}
-		if (suiRecipient == null)
-			return [];
-		if (!validateSuiAddr(suiRecipient))
-			suiRecipient = this.fallbackAddr;
-			
+		// TODO: add more sophisticated validation for Sui address
+		if (!suiRecipient) suiRecipient = this.suiFallbackAddr;
+
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
-			if (vout.script.toString("hex").includes(this.nbtcScriptHex)) {
+			if (vout.script.toString("hex") === this.nbtcScriptHex) {
 				deposits.push({
 					vout: i,
 					amountSats: Number(vout.value),

@@ -5,18 +5,18 @@ import { networks } from "bitcoinjs-lib";
 
 export class HIndexer {
 	public nbtcAddr: string;
-	public fallbackAddr: string;
+	public suiFallbackAddr: string;
 	public network: networks.Network;
 
 	constructor() {
 		// TODO: need to provide through env variable
 		this.nbtcAddr = "TODO";
-		this.fallbackAddr = "TODO";
+		this.suiFallbackAddr = "TODO";
 		this.network = networks.regtest;
 	}
 
 	newIndexer(env: Env): Indexer {
-		return new Indexer(env, this.nbtcAddr, this.fallbackAddr, this.network);
+		return new Indexer(env, this.nbtcAddr, this.suiFallbackAddr, this.network);
 	}
 
 	// NOTE: we may need to put this to a separate worker

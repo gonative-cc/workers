@@ -8,8 +8,8 @@ CREATE TABLE processed_blocks (
 -- This table tracks the nBTC deposit txs
 CREATE TABLE nbtc_txs (
     tx_id TEXT PRIMARY KEY,
-    hash TEXT NOT NULL,
-    height INTEGER NOT NULL,
+    block_hash TEXT NOT NULL,
+    block_height INTEGER NOT NULL,
     vout INTEGER NOT NULL,
     sui_recipient TEXT NOT NULL,
     amount_sats INTEGER NOT NULL,

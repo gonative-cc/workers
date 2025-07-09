@@ -15,6 +15,7 @@ export default tseslint.config(
     // disable specific rules
     rules: {
       "@typescript-eslint/no-extraneous-class": "off",
+      "comma-dangle": ["error", "always-multiline"],
     },
   },
 );

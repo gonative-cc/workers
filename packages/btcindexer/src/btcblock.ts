@@ -16,24 +16,24 @@ interface BlockPayload {
 	rawBlockHex: string;
 }
 
-async function parseBlockPayload(body: ReadableStream | null): Promise<BlockPayload[]> {
-	if (!body) {
-		return [];
+class BlockPayloadParser {
+	public static async fromStream(body: ReadableStream | null): Promise<BlockPayload[]> {
+		if (!body) {
+			return [];
+		}
+		const reader = body.getReader();
+		const decoder = new TextDecoder();
+		let jsonString = "";
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			jsonString += decoder.decode(value, { stream: true });
+		}
+		return JSON.parse(jsonString);
 	}
-
-	const reader = body.getReader();
-	const decoder = new TextDecoder();
-	let jsonString = ``;
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		jsonString += decoder.decode(value, { stream: true });
-	}
-
-	return JSON.parse(jsonString);
 }
 
-function parseBlocksFromPayload(payload: BlockPayload[]): ExtBlock[] {
+function parseBlockPayloadEntries(payload: BlockPayload[]): ExtBlock[] {
 	const blocks: ExtBlock[] = [];
 	for (const entry of payload)
 		try {
@@ -61,10 +61,10 @@ function parseBlocksFromPayload(payload: BlockPayload[]): ExtBlock[] {
  * @returns A promise that resolves to an array of successfully parsed ExtendedBlock's.
  */
 export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtBlock[]> {
-	const payload = await parseBlockPayload(body);
+	const payload = await BlockPayloadParser.fromStream(body);
 	if (payload.length === 0) {
 		return [];
 	}
-	return parseBlocksFromPayload(payload);
+	return parseBlockPayloadEntries(payload);
 }
-export type { Block, Transaction, TxInput, TxOutput } from "bitcoinjs-lib";
+export { Block, Transaction } from "bitcoinjs-lib";

@@ -105,9 +105,8 @@ export class Indexer {
 		await this.d1.batch(nbtcTxStatements);
 
 		const heightsToDelete = blocksToProcess.results.map((r) => r.height);
-		const deleteQuery = `DELETE FROM processed_blocks WHERE height IN (${heightsToDelete.join(
-			",",
-		)})`;
+		const heights = heightsToDelete.join(",");
+		const deleteQuery = `DELETE FROM processed_blocks WHERE height IN (${heights})`;
 		await this.d1.prepare(deleteQuery).run();
 	}
 
@@ -122,13 +121,18 @@ export class Indexer {
 				break; // valid tx should have only one OP_RETURN
 			}
 		}
+		if (suiRecipient == null)
+			return [];
+		if (!validateSuiAddr(suiRecipient))
+			suiRecipient = this.fallbackAddr;
+			
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
 			if (vout.script.toString("hex").includes(this.nbtcScriptHex)) {
 				deposits.push({
 					vout: i,
 					amountSats: Number(vout.value),
-					suiRecipient: suiRecipient || this.fallbackAddr,
+					suiRecipient,
 				});
 			}
 		}

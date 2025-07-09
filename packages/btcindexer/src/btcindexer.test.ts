@@ -15,7 +15,7 @@ const REGTEST_DATA = {
 };
 const FALLBACK_SUI_ADDRESS = "0xFALLBACK";
 
-const getMockEnv = () => ({
+const mkMockEnv = () => ({
 	DB: {} as D1Database,
 	btc_blocks: {} as KVNamespace,
 	nbtc_txs: {} as KVNamespace,

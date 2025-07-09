@@ -29,7 +29,7 @@ const mkMockEnv = () =>
 		btc_blocks: {},
 		nbtc_txs: {},
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	} as any);
+	}) as any;
 
 describe("Indexer.findNbtcDeposits", () => {
 	it("should correctly parse the real regtest transaction", () => {
@@ -38,7 +38,7 @@ describe("Indexer.findNbtcDeposits", () => {
 			mockEnv,
 			REGTEST_DATA.DEPOSIT_ADDR,
 			SUI_FALLBACK_ADDRESS,
-			networks.regtest
+			networks.regtest,
 		);
 
 		const block = Block.fromHex(REGTEST_DATA.RAW_BLOCK_HEX);
@@ -66,7 +66,7 @@ describe("Indexer Confirmation Logic", () => {
 		mockEnv,
 		REGTEST_DATA.DEPOSIT_ADDR,
 		SUI_FALLBACK_ADDRESS,
-		networks.regtest
+		networks.regtest,
 	);
 
 	describe("Indexer.handleReorgs", () => {

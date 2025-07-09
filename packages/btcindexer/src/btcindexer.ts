@@ -31,7 +31,7 @@ export class Indexer {
 			return 0;
 		}
 		const insertBlockStmt = this.d1.prepare(
-			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)`
+			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)`,
 		);
 		const putKVs = blocks.map((b) => this.blocksDB.put(b.getId(), b.raw));
 		const putD1s = blocks.map((b) => insertBlockStmt.bind(b.height, b.getHash()));
@@ -74,7 +74,7 @@ export class Indexer {
 		const nbtcTxStatements: D1PreparedStatement[] = [];
 
 		const insertNbtcTxStmt = this.d1.prepare(
-			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -97,8 +97,8 @@ export class Indexer {
 							deposit.vout,
 							deposit.suiRecipient,
 							deposit.amountSats,
-							"confirming"
-						)
+							"confirming",
+						),
 					);
 				}
 			}
@@ -150,7 +150,7 @@ export class Indexer {
 
 		const pendingTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height FROM nbtc_txs WHERE status = 'confirming'"
+				"SELECT tx_id, block_hash, block_height FROM nbtc_txs WHERE status = 'confirming'",
 			)
 			.all<{ tx_id: string; block_hash: string; block_height: number }>();
 
@@ -168,14 +168,14 @@ export class Indexer {
 	}
 
 	async handleReorgs(
-		pendingTxs: { tx_id: string; block_hash: string; block_height: number }[]
+		pendingTxs: { tx_id: string; block_hash: string; block_height: number }[],
 	): Promise<D1PreparedStatement[]> {
 		const updates: D1PreparedStatement[] = [];
 		const reorgCheckStmt = this.d1.prepare(
-			"SELECT hash FROM processed_blocks WHERE height = ?"
+			"SELECT hash FROM processed_blocks WHERE height = ?",
 		);
 		const reorgStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'broadcasting', block_hash = NULL, block_height = NULL, updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
+			"UPDATE nbtc_txs SET status = 'broadcasting', block_hash = NULL, block_height = NULL, updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
 		for (const tx of pendingTxs) {
@@ -186,7 +186,7 @@ export class Indexer {
 			if (!blockAtHeight || blockAtHeight.hash !== tx.block_hash) {
 				//TODO: we should use a proper logger
 				console.warn(
-					`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Resetting status.`
+					`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Resetting status.`,
 				);
 				updates.push(reorgStmt.bind(tx.tx_id));
 			}
@@ -196,11 +196,11 @@ export class Indexer {
 
 	findFinalizedTxs(
 		pendingTxs: { tx_id: string; block_height: number }[],
-		latestHeight: number
+		latestHeight: number,
 	): D1PreparedStatement[] {
 		const updates: D1PreparedStatement[] = [];
 		const finalizeStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
+			"UPDATE nbtc_txs SET status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
 		for (const tx of pendingTxs) {

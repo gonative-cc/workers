@@ -99,7 +99,7 @@ describe("Indexer.handleReorgs", () => {
 });
 
 describe("Indexer.findFinalizedTxs", () => {
-	const { mockEnv, indexer } = prepareIndexer();
+	const indexer = prepareIndexer().indexer;
 	it("should generate a finalize statement when enough confirmations", () => {
 		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
 		const latestHeight = 107;

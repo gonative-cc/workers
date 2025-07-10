@@ -19,9 +19,11 @@ const createMockStmt = () => ({
 	bind: vi.fn().mockReturnThis(),
 });
 
-const getMockD1 = () => ({
-	prepare: vi.fn().mockImplementation(() => createMockStmt()),
-});
+function mkMockD1() {
+	return {
+		prepare: vi.fn().mockImplementation(() => createMockStmt()),
+	}
+}
 
 const mkMockEnv = () =>
 	({
@@ -60,7 +62,7 @@ describe.skip("Indexer.scanNewBlocks", () => {
 	});
 });
 
-describe("Indexer Confirmation Logic", () => {
+function prepareIndexer() {
 	const mockEnv = mkMockEnv();
 	const indexer = new Indexer(
 		mockEnv,
@@ -68,8 +70,11 @@ describe("Indexer Confirmation Logic", () => {
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
 	);
+	return {mockEnv, indexer};
+}
 
-	describe("Indexer.handleReorgs", () => {
+describe("Indexer.handleReorgs", () => {
+	const {mockEnv, indexer}  = prepareIndexer(); 
 		it("should do nothing if no reorg", async () => {
 			const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
 			const mockStatement = {
@@ -93,7 +98,8 @@ describe("Indexer Confirmation Logic", () => {
 		});
 	});
 
-	describe("Indexer.findFinalizedTxs", () => {
+describe("Indexer.findFinalizedTxs", () => {
+	const {mockEnv, indexer}  = prepareIndexer(); 
 		it("should generate a finalize statement when enough confirmations", () => {
 			const pendingTx = { tx_id: "tx1", block_height: 100 };
 			const latestHeight = 107;
@@ -109,7 +115,7 @@ describe("Indexer Confirmation Logic", () => {
 		});
 	});
 
-	describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
+describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
 		it("should be tested later", () => {
 			// TODO: add a test for the scanNewBlocks using the same data
 		});

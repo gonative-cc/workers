@@ -194,7 +194,7 @@ export class Indexer {
 		return updates;
 	}
 
-	findFinalizedTxs(
+	selectFinalizedNbtcTxs(
 		pendingTxs: { tx_id: string; block_height: number }[],
 		latestHeight: number,
 	): D1PreparedStatement[] {

@@ -142,7 +142,7 @@ export class Indexer {
 		const latestBlock = await this.d1
 			.prepare("SELECT MAX(height) as latest_height FROM processed_blocks")
 			.first<{ latest_height: number }>();
-         
+
 		if (!latestBlock) {
 			return;
 		}

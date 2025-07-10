@@ -13,7 +13,7 @@ CREATE TABLE nbtc_txs (
     vout INTEGER NOT NULL,
     sui_recipient TEXT NOT NULL,
     amount_sats INTEGER NOT NULL,
-    status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted'
+    status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted' | 'reorg'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -21,3 +21,4 @@ CREATE TABLE nbtc_txs (
 -- Indexes
 CREATE INDEX nbtc_txs_status ON nbtc_txs (status);
 CREATE INDEX nbtc_txs_sui_recipient ON nbtc_txs (sui_recipient);
+CREATE INDEX processed_blocks_height ON processed_blocks (height);

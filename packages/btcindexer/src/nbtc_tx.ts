@@ -1,4 +1,10 @@
-export type NbtcTxStatus = "broadcasting" | "confirming" | "finalized" | "minting" | "minted";
+export type NbtcTxStatus =
+	| "broadcasting"
+	| "confirming"
+	| "finalized"
+	| "minting"
+	| "minted"
+	| "reorg";
 
 export interface NbtcTx {
 	tx_id: string;

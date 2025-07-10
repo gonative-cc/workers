@@ -10,6 +10,12 @@ interface Deposit {
 	suiRecipient: string;
 }
 
+export interface PendingTx {
+	tx_id: string;
+	block_hash: string | null;
+	block_height: number;
+}
+
 export class Indexer {
 	d1: D1Database; // SQL DB
 	blocksDB: KVNamespace;
@@ -158,8 +164,12 @@ export class Indexer {
 			return;
 		}
 
-		const reorgUpdates = await this.handleReorgs(pendingTxs.results);
-		const finalizationUpdates = this.findFinalizedTxs(pendingTxs.results, latestHeight);
+		const { reorgUpdates, reorgedTxIds } = await this.handleReorgs(pendingTxs.results);
+		// TODO: add a unit test for it so we make sure we do not finalize reorrged tx.
+		const validPendingTxs = pendingTxs.results.filter(
+			(tx) => !reorgedTxIds.includes(tx.tx_id),
+		);
+		const finalizationUpdates = this.selectFinalizedNbtcTxs(validPendingTxs, latestHeight);
 		const allUpdates = [...reorgUpdates, ...finalizationUpdates];
 
 		if (allUpdates.length > 0) {
@@ -168,14 +178,15 @@ export class Indexer {
 	}
 
 	async handleReorgs(
-		pendingTxs: { tx_id: string; block_hash: string; block_height: number }[],
-	): Promise<D1PreparedStatement[]> {
-		const updates: D1PreparedStatement[] = [];
+		pendingTxs: PendingTx[],
+	): Promise<{ reorgUpdates: D1PreparedStatement[]; reorgedTxIds: string[] }> {
+		const reorgUpdates: D1PreparedStatement[] = [];
+		const reorgedTxIds: string[] = [];
 		const reorgCheckStmt = this.d1.prepare(
 			"SELECT hash FROM processed_blocks WHERE height = ?",
 		);
 		const reorgStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'broadcasting', block_hash = NULL, block_height = NULL, updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+			"UPDATE nbtc_txs SET status = 'reorg', block_hash = NULL, block_height = NULL, updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
 		for (const tx of pendingTxs) {
@@ -188,14 +199,15 @@ export class Indexer {
 				console.warn(
 					`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Resetting status.`,
 				);
-				updates.push(reorgStmt.bind(tx.tx_id));
+				reorgUpdates.push(reorgStmt.bind(tx.tx_id));
+				reorgedTxIds.push(tx.tx_id);
 			}
 		}
-		return updates;
+		return { reorgUpdates, reorgedTxIds };
 	}
 
 	selectFinalizedNbtcTxs(
-		pendingTxs: { tx_id: string; block_height: number }[],
+		pendingTxs: PendingTx[],
 		latestHeight: number,
 	): D1PreparedStatement[] {
 		const updates: D1PreparedStatement[] = [];

@@ -142,12 +142,12 @@ export class Indexer {
 		const latestBlock = await this.d1
 			.prepare("SELECT MAX(height) as latest_height FROM processed_blocks")
 			.first<{ latest_height: number }>();
-		const latestHeight = latestBlock?.latest_height;
-
-		if (!latestHeight) {
+         
+		if (!latestBlock) {
 			return;
 		}
 
+		const latestHeight = latestBlock.latest_height;
 		const pendingTxs = await this.d1
 			.prepare(
 				"SELECT tx_id, block_hash, block_height FROM nbtc_txs WHERE status = 'confirming'",

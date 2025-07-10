@@ -1,6 +1,7 @@
 import { describe, it, assert } from "vitest";
 import { Indexer } from "../src/btcindexer";
-import { Block, networks } from "bitcoinjs-lib";
+import { Block, networks, crypto } from "bitcoinjs-lib";
+import { MerkleTree } from "merkletreejs";
 
 // generated using bitcoin-cli --regtest
 const REGTEST_DATA = {
@@ -47,5 +48,38 @@ describe("Indexer.findNbtcDeposits", () => {
 describe.skip("Indexer.scanNewBlocks", () => {
 	it("should be tested later", () => {
 		// TODO: add a test for the scanNewBlocks using the same data
+	});
+});
+
+describe("Indexer.constructMerkleProof", () => {
+	it("should generate a valid proof for a tx", () => {
+		const mockEnv = mkMockEnv();
+		const indexer = new Indexer(
+			mockEnv,
+			REGTEST_DATA.DEPOSIT_ADDR,
+			SUI_FALLBACK_ADDRESS,
+			networks.regtest,
+		);
+
+		const block = Block.fromHex(REGTEST_DATA.RAW_BLOCK_HEX);
+		const targetTx = block.transactions?.find((tx) => tx.getId() === REGTEST_DATA.TX_ID);
+		assert(targetTx);
+		const proofResult = indexer.constructMerkleProof(block, targetTx);
+		assert(proofResult);
+		const blockMerkleRootHex = block.merkleRoot?.toString("hex");
+		assert.equal(proofResult.merkleRoot, blockMerkleRootHex);
+
+		assert(block.transactions);
+		const leaves = block.transactions.map((tx) => tx.getHash());
+		const targetLeaf = targetTx.getHash();
+		const hashFunction = (data: Buffer): Buffer => crypto.hash256(data);
+		const tree = new MerkleTree(leaves, hashFunction);
+
+		const isProofValid = tree.verify(
+			proofResult.proofPath,
+			targetLeaf,
+			Buffer.from(proofResult.merkleRoot, "hex"),
+		);
+		assert.equal(isProofValid, true);
 	});
 });

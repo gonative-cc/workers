@@ -1,6 +1,7 @@
 import { ExtBlock, Transaction, Block } from "./btcblock";
-import { address, networks } from "bitcoinjs-lib";
+import { address, networks, crypto } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
+import { MerkleTree } from "merkletreejs";
 
 interface Deposit {
 	vout: number;
@@ -134,5 +135,84 @@ export class Indexer {
 			}
 		}
 		return deposits;
+	}
+
+	async processFinalizedTransactions(): Promise<void> {
+		const finalizedTxs = await this.d1
+			.prepare("SELECT tx_id, block_hash FROM nbtc_txs WHERE status = 'finalized'")
+			.all<{ tx_id: string; block_hash: string }>();
+
+		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
+			return;
+		}
+
+		const updates: D1PreparedStatement[] = [];
+		// TODO: do we imidietly process it and check if it was succesful and just change the status to minted? This should be a matter of seconds at most.
+		const setMintingStmt = this.d1.prepare(
+			"UPDATE nbtc_txs SET status = 'minting', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+		);
+
+		for (const txInfo of finalizedTxs.results) {
+			try {
+				const rawBlockBuffer = await this.blocksDB.get(txInfo.block_hash, {
+					type: "arrayBuffer",
+				});
+				if (!rawBlockBuffer) {
+					continue;
+				}
+
+				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+				const txIndex = block.transactions?.findIndex(
+					(tx) => tx.getId() === txInfo.tx_id,
+				);
+				const targetTx = block.transactions?.[txIndex ?? -1];
+
+				if (txIndex === undefined || txIndex === -1 || !targetTx) {
+					continue;
+				}
+
+				const proof = this.constructMerkleProof(block, targetTx);
+
+				if (!proof) {
+					continue;
+				}
+
+				// soundness check
+				if (proof.merkleRoot !== block.merkleRoot?.toString("hex")) {
+					continue;
+				}
+
+				// TODO: Call the minting smart contract.
+				// await suiClient.mintNBTC();
+				updates.push(setMintingStmt.bind(txInfo.tx_id));
+			} catch (e) {
+				console.error(`Failed to process finalized tx ${txInfo.tx_id}:`, e);
+			}
+		}
+
+		if (updates.length > 0) {
+			await this.d1.batch(updates);
+		}
+	}
+
+	constructMerkleProof(
+		block: Block,
+		targetTx: Transaction,
+	): { proofPath: Buffer[]; merkleRoot: string } | null {
+		if (!block.transactions || block.transactions.length === 0) {
+			return null;
+		}
+
+		const leaves = block.transactions.map((tx) => tx.getHash());
+		const targetLeaf = targetTx.getHash();
+
+		const hashFunction = (data: Buffer): Buffer => crypto.hash256(data);
+
+		const tree = new MerkleTree(leaves, hashFunction);
+
+		const proofPath = tree.getProof(targetLeaf).map((p) => p.data);
+		const merkleRoot = tree.getRoot().toString("hex");
+
+		return { proofPath, merkleRoot };
 	}
 }

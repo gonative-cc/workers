@@ -11,7 +11,7 @@ Backend workers and indexers for BYield services
 ### Components
 
 - Relayer: An external service that acts as source of truth for Bitcoin blocks.
-- Indexer (Cloudflare Worker):\*\* The service that listens for new blocks and runs periodic processing jobs.
+- Indexer (Cloudflare Worker): The service that listens for new blocks and runs periodic processing jobs.
 - KV Store: Simple key-value store for raw Bitcoin block data.
 - D1 Database: SQL database that stores structured data about blocks and nBTC deposit transactions.
   - `processed_blocks`: A queue of new blocks that need to be scanned.

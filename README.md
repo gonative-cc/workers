@@ -8,6 +8,26 @@ Backend workers and indexers for BYield services
 
 ## Indexer Workflow
 
+### Diagram
+
+```mermaid
+graph TD
+    subgraph "Block Ingestion"
+        A[[Relayer]] -- "Sends {height, rawBlockHex}" --> B(Indexer);
+        B -- "Inserts/Overwrites" --> C[D1: processed_blocks];
+        B -- "Inserts/Overwrites" --> D[KV: btc_blocks];
+    end
+
+    subgraph "Cron Job"
+        E[[Cron Job]] -- "Reads 'to-do' list" --> C;
+        E -- "Fetches raw block" --> D;
+        E -- "Scans block, finds deposits" --> F(D1: nbtc_txs);
+        E -- "Updates confirmations & handles reorgs" --> F;
+    end
+
+    F -- "Finalized TXs trigger minting" --> G[SUI Smart Contract];
+```
+
 ### Components
 
 - Relayer: An external service that acts as source of truth for Bitcoin blocks.
@@ -33,26 +53,6 @@ A cron job runs on a fixed schedule (e.g., every 30 seconds)
 2.  Confirmation & Reorg Processing: The cron job then queries for all transactions in the `confirming` state.
     - Confirmation Update: It calculates the number of confirmations for each transaction based on the latest known block height. If a transaction has enough confirmations its status is updated to `finalized`.
     - Reorg Detection: It checks if the `block_hash` for a transaction's block height still exists in the `processed_blocks` table. If it doesn't (because it was overwritten during ingestion), the transaction has been reorged. Its status is changed to `reorg`. This transaction is now considered invalid, but we keep the record for indexing purposes.
-
-### Diagram
-
-```mermaid
-graph TD
-    subgraph "Block Ingestion"
-        A[[Relayer]] -- "Sends {height, rawBlockHex}" --> B(Indexer);
-        B -- "Inserts/Overwrites" --> C[D1: processed_blocks];
-        B -- "Inserts/Overwrites" --> D[KV: btc_blocks];
-    end
-
-    subgraph "Cron Job"
-        E[[Cron Job]] -- "Reads 'to-do' list" --> C;
-        E -- "Fetches raw block" --> D;
-        E -- "Scans block, finds deposits" --> F(D1: nbtc_txs);
-        E -- "Updates confirmations & handles reorgs" --> F;
-    end
-
-    F -- "Finalized TXs trigger minting" --> G[SUI Smart Contract];
-```
 
 ### 3. nBTC Tx (Push)
 

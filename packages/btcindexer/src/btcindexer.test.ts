@@ -1,7 +1,8 @@
 import { describe, it, assert } from "vitest";
 import { Indexer } from "../src/btcindexer";
-import { Block, networks, crypto } from "bitcoinjs-lib";
+import { Block, networks } from "bitcoinjs-lib";
 import { MerkleTree } from "merkletreejs";
+import SHA256 from "crypto-js/sha256";
 
 // generated using bitcoin-cli --regtest
 const REGTEST_DATA = {
@@ -52,7 +53,7 @@ describe.skip("Indexer.scanNewBlocks", () => {
 });
 
 describe("Indexer.constructMerkleProof", () => {
-	it("should generate a valid proof for a tx", () => {
+	it("should generate a valid proof for a real regtest transaction", () => {
 		const mockEnv = mkMockEnv();
 		const indexer = new Indexer(
 			mockEnv,
@@ -64,21 +65,23 @@ describe("Indexer.constructMerkleProof", () => {
 		const block = Block.fromHex(REGTEST_DATA.RAW_BLOCK_HEX);
 		const targetTx = block.transactions?.find((tx) => tx.getId() === REGTEST_DATA.TX_ID);
 		assert(targetTx);
+
 		const proofResult = indexer.constructMerkleProof(block, targetTx);
 		assert(proofResult);
-		const blockMerkleRootHex = block.merkleRoot?.toString("hex");
-		assert.equal(proofResult.merkleRoot, blockMerkleRootHex);
 
-		assert(block.transactions);
-		const leaves = block.transactions.map((tx) => tx.getHash());
-		const targetLeaf = targetTx.getHash();
-		const hashFunction = (data: Buffer): Buffer => crypto.hash256(data);
-		const tree = new MerkleTree(leaves, hashFunction);
+		const expectedRootBigEndian = Buffer.from(block.merkleRoot!).reverse().toString("hex");
+		assert.equal(
+			proofResult.merkleRoot,
+			expectedRootBigEndian,
+			"Generated Merkle root should match the block header",
+		);
 
-		const isProofValid = tree.verify(
+		const isProofValid = MerkleTree.verify(
 			proofResult.proofPath,
-			targetLeaf,
+			Buffer.from(targetTx.getHash()).reverse(), // target leaf must be big-endian
 			Buffer.from(proofResult.merkleRoot, "hex"),
+			SHA256,
+			{ isBitcoinTree: true },
 		);
 		assert.equal(isProofValid, true);
 	});

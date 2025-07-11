@@ -9,7 +9,9 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@types/crypto-js": "^4.2.2",
 		"bitcoinjs-lib": "^6.1.7",
+		"crypto-js": "^4.2.0",
 		"itty-router": "^5.0.18",
 		"merkletreejs": "^0.5.2"
 	}

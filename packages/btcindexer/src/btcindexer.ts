@@ -1,7 +1,8 @@
 import { ExtBlock, Transaction, Block } from "./btcblock";
-import { address, networks, crypto } from "bitcoinjs-lib";
+import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
+import SHA256 from "crypto-js/sha256";
 
 interface Deposit {
 	vout: number;
@@ -203,12 +204,10 @@ export class Indexer {
 			return null;
 		}
 
-		const leaves = block.transactions.map((tx) => tx.getHash());
-		const targetLeaf = targetTx.getHash();
+		const leaves = block.transactions.map((tx) => Buffer.from(tx.getHash()).reverse());
+		const targetLeaf = Buffer.from(targetTx.getHash()).reverse();
 
-		const hashFunction = (data: Buffer): Buffer => crypto.hash256(data);
-
-		const tree = new MerkleTree(leaves, hashFunction);
+		const tree = new MerkleTree(leaves, SHA256, { isBitcoinTree: true });
 
 		const proofPath = tree.getProof(targetLeaf).map((p) => p.data);
 		const merkleRoot = tree.getRoot().toString("hex");

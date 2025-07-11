@@ -208,7 +208,7 @@ export class Indexer {
 
 		const hashFunction = (data: Buffer): Buffer => crypto.hash256(data);
 
-		const tree = new MerkleTree(leaves, hashFunction);
+		const tree = new MerkleTree(leaves, hashFunction, { isBitcoinTree: true });
 
 		const proofPath = tree.getProof(targetLeaf).map((p) => p.data);
 		const merkleRoot = tree.getRoot().toString("hex");

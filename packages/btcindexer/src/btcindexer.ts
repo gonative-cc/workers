@@ -30,7 +30,7 @@ export class Indexer {
 			return 0;
 		}
 		const insertBlockStmt = this.d1.prepare(
-			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)`
+			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)`,
 		);
 		const putKVs = blocks.map((b) => this.blocksDB.put(b.getId(), b.raw));
 		const putD1s = blocks.map((b) => insertBlockStmt.bind(b.height, b.getHash()));
@@ -73,7 +73,7 @@ export class Indexer {
 		const nbtcTxStatements: D1PreparedStatement[] = [];
 
 		const insertNbtcTxStmt = this.d1.prepare(
-			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -96,8 +96,8 @@ export class Indexer {
 							deposit.vout,
 							deposit.suiRecipient,
 							deposit.amountSats,
-							"confirming"
-						)
+							"confirming",
+						),
 					);
 				}
 			}
@@ -149,7 +149,7 @@ export class Indexer {
 		const updates: D1PreparedStatement[] = [];
 		// TODO: do we imidietly process it and check if it was succesful and just change the status to minted? This should be a matter of seconds at most.
 		const setMintingStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'minting', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
+			"UPDATE nbtc_txs SET status = 'minting', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
 		for (const txInfo of finalizedTxs.results) {
@@ -163,7 +163,7 @@ export class Indexer {
 
 				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
 				const txIndex = block.transactions?.findIndex(
-					(tx) => tx.getId() === txInfo.tx_id
+					(tx) => tx.getId() === txInfo.tx_id,
 				);
 				const targetTx = block.transactions?.[txIndex ?? -1];
 
@@ -197,7 +197,7 @@ export class Indexer {
 
 	constructMerkleProof(
 		block: Block,
-		targetTx: Transaction
+		targetTx: Transaction,
 	): { proofPath: Buffer[]; merkleRoot: string } | null {
 		if (!block.transactions || block.transactions.length === 0) {
 			return null;

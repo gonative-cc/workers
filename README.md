@@ -17,7 +17,7 @@ Backend workers and indexers for BYield services
   - `processed_blocks`: A queue of new blocks that need to be scanned.
   - `nbtc_txs`: The main ledger tracking the status of every nBTC deposit.
 
-### 1. Ingestion Flow (Real-time)
+### 1. Block Ingestion Flow (push)
 
 This is triggered every time the Relayer sends new block data to the indexer
 
@@ -39,13 +39,13 @@ A cron job runs on a fixed schedule (e.g., every 30 seconds)
 ```mermaid
 graph TD
     subgraph "Block Ingestion"
-        A[Relayer] -- "Sends {height, rawBlockHex}" --> B(Indexer);
+        A[[Relayer]] -- "Sends {height, rawBlockHex}" --> B(Indexer);
         B -- "Inserts/Overwrites" --> C[D1: processed_blocks];
         B -- "Inserts/Overwrites" --> D[KV: btc_blocks];
     end
 
     subgraph "Cron Job"
-        E[Cron Job] -- "Reads 'to-do' list" --> C;
+        E[[Cron Job]] -- "Reads 'to-do' list" --> C;
         E -- "Fetches raw block" --> D;
         E -- "Scans block, finds deposits" --> F(D1: nbtc_txs);
         E -- "Updates confirmations & handles reorgs" --> F;
@@ -53,6 +53,10 @@ graph TD
 
     F -- "Finalized TXs trigger minting" --> G[SUI Smart Contract];
 ```
+
+### 3. nBTC Tx (Push)
+
+To quickly handle UI nBTC transaction observability, BYield UI will push nBTC transaction, in order to let the indexer start monitoring it. This way UI will have the quick status about the TX, before the tx is added to the blockchain.
 
 ## Pracital information
 

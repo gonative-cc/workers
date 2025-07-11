@@ -68,8 +68,9 @@ describe("Indexer.constructMerkleProof", () => {
 
 		const proofResult = indexer.constructMerkleProof(block, targetTx);
 		assert(proofResult);
+		assert(block.merkleRoot);
 
-		const expectedRootBigEndian = Buffer.from(block.merkleRoot!).reverse().toString("hex");
+		const expectedRootBigEndian = Buffer.from(block.merkleRoot).reverse().toString("hex");
 		assert.equal(
 			proofResult.merkleRoot,
 			expectedRootBigEndian,

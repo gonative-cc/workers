@@ -33,7 +33,7 @@ const mkMockEnv = () =>
 		btc_blocks: {},
 		nbtc_txs: {},
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	}) as any;
+	} as any);
 
 function prepareIndexer() {
 	const mockEnv = mkMockEnv();
@@ -47,15 +47,8 @@ function prepareIndexer() {
 }
 
 describe("Indexer.findNbtcDeposits", () => {
+	const indexer = prepareIndexer().indexer;
 	it("should correctly parse the real regtest transaction", () => {
-		const mockEnv = mkMockEnv();
-		const indexer = new Indexer(
-			mockEnv,
-			REGTEST_DATA.DEPOSIT_ADDR,
-			SUI_FALLBACK_ADDRESS,
-			networks.regtest,
-		);
-
 		const block = Block.fromHex(REGTEST_DATA.RAW_BLOCK_HEX);
 		const targetTx = block.transactions?.find((tx) => tx.getId() === REGTEST_DATA.TX_ID);
 
@@ -76,15 +69,8 @@ describe.skip("Indexer.scanNewBlocks", () => {
 });
 
 describe("Indexer.constructMerkleProof", () => {
+	const indexer = prepareIndexer().indexer;
 	it("should generate a valid proof for a real regtest transaction", () => {
-		const mockEnv = mkMockEnv();
-		const indexer = new Indexer(
-			mockEnv,
-			REGTEST_DATA.DEPOSIT_ADDR,
-			SUI_FALLBACK_ADDRESS,
-			networks.regtest,
-		);
-
 		const block = Block.fromHex(REGTEST_DATA.RAW_BLOCK_HEX);
 		const targetTx = block.transactions?.find((tx) => tx.getId() === REGTEST_DATA.TX_ID);
 		assert(targetTx);
@@ -111,7 +97,7 @@ describe("Indexer.constructMerkleProof", () => {
 	});
 	it.skip("should generate a valid proof for a tx in a block with more than 1 tx", () => {
 		// TODO:
-  });
+	});
 });
 
 describe("Indexer.handleReorgs", () => {

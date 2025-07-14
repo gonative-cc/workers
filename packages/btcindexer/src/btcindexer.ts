@@ -221,7 +221,7 @@ export class Indexer {
 		const merkleRoot = tree.getRoot().toString("hex");
 
 		return { proofPath, merkleRoot };
-  )
+	}
 
 	async updateConfirmationsAndFinalize(): Promise<void> {
 		const latestBlock = await this.d1

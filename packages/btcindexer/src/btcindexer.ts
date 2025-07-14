@@ -12,6 +12,11 @@ export interface Deposit {
 	suiRecipient: string;
 }
 
+export interface ProofResult {
+	proofPath: Buffer[];
+	merkleRoot: string;
+}
+
 export interface PendingTx {
 	tx_id: string;
 	block_hash: string | null;
@@ -198,14 +203,15 @@ export class Indexer {
 		}
 
 		if (updates.length > 0) {
-			await this.d1.batch(updates);
+			try {
+				await this.d1.batch(updates);
+			} catch (e) {
+				console.error(`failed to apply batch updates to D1.`, e);
+			}
 		}
 	}
 
-	constructMerkleProof(
-		block: Block,
-		targetTx: Transaction,
-	): { proofPath: Buffer[]; merkleRoot: string } | null {
+	constructMerkleProof(block: Block, targetTx: Transaction): ProofResult | null {
 		if (!block.transactions || block.transactions.length === 0) {
 			return null;
 		}
@@ -249,7 +255,11 @@ export class Indexer {
 		const allUpdates = [...reorgUpdates, ...finalizationUpdates];
 
 		if (allUpdates.length > 0) {
-			await this.d1.batch(allUpdates);
+			try {
+				await this.d1.batch(allUpdates);
+			} catch (e) {
+				console.error(`failed to apply batch updates to D1.`, e);
+			}
 		}
 	}
 

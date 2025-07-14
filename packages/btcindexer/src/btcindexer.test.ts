@@ -1,6 +1,6 @@
 import { describe, it, assert, vi } from "vitest";
-import { Deposit, Indexer } from "../src/btcindexer";
-import { Block, networks } from "bitcoinjs-lib";
+import { Deposit, Indexer, ProofResult } from "../src/btcindexer";
+import { Block, networks, Transaction } from "bitcoinjs-lib";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
 
@@ -62,6 +62,32 @@ function prepareIndexer() {
 	return { mockEnv, indexer };
 }
 
+function checkTxProof(
+	proofResult: ProofResult | null,
+	targetTx: Transaction,
+	block: Block,
+	expected: boolean,
+) {
+	assert(proofResult);
+	assert(block.merkleRoot);
+
+	const expectedRootBigEndian = Buffer.from(block.merkleRoot).reverse().toString("hex");
+	assert.equal(
+		proofResult.merkleRoot,
+		expectedRootBigEndian,
+		"Generated Merkle root should match the block header",
+	);
+
+	const isProofValid = MerkleTree.verify(
+		proofResult.proofPath,
+		Buffer.from(targetTx.getHash()).reverse(), // target leaf must be big-endian
+		Buffer.from(proofResult.merkleRoot, "hex"),
+		SHA256,
+		{ isBitcoinTree: true },
+	);
+	assert.equal(isProofValid, expected);
+}
+
 describe("Indexer.findNbtcDeposits", () => {
 	const indexer = prepareIndexer().indexer;
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
@@ -87,8 +113,6 @@ describe("Indexer.findNbtcDeposits", () => {
 			const d = indexer.findNbtcDeposits(tx);
 			deposits.push(d);
 		}
-
-		console.log(deposits);
 
 		assert.equal(deposits.length, 4); // coinbase, nbtc_deposit_1, nbtc_deposit_2, other_tx
 		// TX_1
@@ -116,24 +140,7 @@ describe("Indexer.constructMerkleProof", () => {
 		assert(targetTx);
 
 		const proofResult = indexer.constructMerkleProof(block, targetTx);
-		assert(proofResult);
-		assert(block.merkleRoot);
-
-		const expectedRootBigEndian = Buffer.from(block.merkleRoot).reverse().toString("hex");
-		assert.equal(
-			proofResult.merkleRoot,
-			expectedRootBigEndian,
-			"Generated Merkle root should match the block header",
-		);
-
-		const isProofValid = MerkleTree.verify(
-			proofResult.proofPath,
-			Buffer.from(targetTx.getHash()).reverse(), // target leaf must be big-endian
-			Buffer.from(proofResult.merkleRoot, "hex"),
-			SHA256,
-			{ isBitcoinTree: true },
-		);
-		assert.equal(isProofValid, true);
+		checkTxProof(proofResult, targetTx, block, true);
 	});
 
 	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
@@ -145,24 +152,7 @@ describe("Indexer.constructMerkleProof", () => {
 		assert(targetTx);
 
 		const proofResult = indexer.constructMerkleProof(block, targetTx);
-		assert(proofResult);
-		assert(block.merkleRoot);
-
-		const expectedRootBigEndian = Buffer.from(block.merkleRoot).reverse().toString("hex");
-		assert.equal(
-			proofResult.merkleRoot,
-			expectedRootBigEndian,
-			"Generated Merkle root should match the block header",
-		);
-
-		const isProofValid = MerkleTree.verify(
-			proofResult.proofPath,
-			Buffer.from(targetTx.getHash()).reverse(), // The target leaf must be big-endian
-			Buffer.from(proofResult.merkleRoot, "hex"),
-			SHA256,
-			{ isBitcoinTree: true },
-		);
-		assert.equal(isProofValid, true);
+		checkTxProof(proofResult, targetTx, block, true);
 	});
 });
 

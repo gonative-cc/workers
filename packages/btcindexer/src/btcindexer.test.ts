@@ -64,7 +64,7 @@ function prepareIndexer() {
 
 describe("Indexer.findNbtcDeposits", () => {
 	const indexer = prepareIndexer().indexer;
-	it("should correctly parse the real regtest transaction", () => {
+	it("should correctly parse a single deposit from a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA.BLOCK_303.RAW_BLOCK_HEX);
 		const targetTx = block.transactions?.find(
 			(tx) => tx.getId() === REGTEST_DATA.BLOCK_303.TX_ID,

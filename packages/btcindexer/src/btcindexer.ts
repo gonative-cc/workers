@@ -4,10 +4,18 @@ import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
 
+const CONFIRMATION_DEPTH = 8;
+
 interface Deposit {
 	vout: number;
 	amountSats: number;
 	suiRecipient: string;
+}
+
+export interface PendingTx {
+	tx_id: string;
+	block_hash: string | null;
+	block_height: number;
 }
 
 export class Indexer {
@@ -108,8 +116,8 @@ export class Indexer {
 
 		const heightsToDelete = blocksToProcess.results.map((r) => r.height);
 		const heights = heightsToDelete.join(",");
-		const deleteQuery = `DELETE FROM processed_blocks WHERE height IN (${heights})`;
-		await this.d1.prepare(deleteQuery).run();
+		const deleteStmt = `DELETE FROM processed_blocks WHERE height IN (${heights})`;
+		await this.d1.prepare(deleteStmt).run();
 	}
 
 	findNbtcDeposits(tx: Transaction): Deposit[] {
@@ -213,5 +221,85 @@ export class Indexer {
 		const merkleRoot = tree.getRoot().toString("hex");
 
 		return { proofPath, merkleRoot };
+  )
+
+	async updateConfirmationsAndFinalize(): Promise<void> {
+		const latestBlock = await this.d1
+			.prepare("SELECT MAX(height) as latest_height FROM processed_blocks")
+			.first<{ latest_height: number }>();
+
+		if (!latestBlock) {
+			return;
+		}
+
+		const latestHeight = latestBlock.latest_height;
+		const pendingTxs = await this.d1
+			.prepare(
+				"SELECT tx_id, block_hash, block_height FROM nbtc_txs WHERE status = 'confirming'",
+			)
+			.all<{ tx_id: string; block_hash: string; block_height: number }>();
+
+		if (!pendingTxs.results || pendingTxs.results.length === 0) {
+			return;
+		}
+
+		const { reorgUpdates, reorgedTxIds } = await this.handleReorgs(pendingTxs.results);
+		// TODO: add a unit test for it so we make sure we do not finalize reorrged tx.
+		const validPendingTxs = pendingTxs.results.filter(
+			(tx) => !reorgedTxIds.includes(tx.tx_id),
+		);
+		const finalizationUpdates = this.selectFinalizedNbtcTxs(validPendingTxs, latestHeight);
+		const allUpdates = [...reorgUpdates, ...finalizationUpdates];
+
+		if (allUpdates.length > 0) {
+			await this.d1.batch(allUpdates);
+		}
+	}
+
+	async handleReorgs(
+		pendingTxs: PendingTx[],
+	): Promise<{ reorgUpdates: D1PreparedStatement[]; reorgedTxIds: string[] }> {
+		const reorgUpdates: D1PreparedStatement[] = [];
+		const reorgedTxIds: string[] = [];
+		const reorgCheckStmt = this.d1.prepare(
+			"SELECT hash FROM processed_blocks WHERE height = ?",
+		);
+		const reorgStmt = this.d1.prepare(
+			"UPDATE nbtc_txs SET status = 'reorg', block_hash = NULL, block_height = NULL, updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+		);
+
+		for (const tx of pendingTxs) {
+			const blockAtHeight = await reorgCheckStmt
+				.bind(tx.block_height)
+				.first<{ hash: string }>();
+
+			if (!blockAtHeight || blockAtHeight.hash !== tx.block_hash) {
+				//TODO: we should use a proper logger
+				console.warn(
+					`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Resetting status.`,
+				);
+				reorgUpdates.push(reorgStmt.bind(tx.tx_id));
+				reorgedTxIds.push(tx.tx_id);
+			}
+		}
+		return { reorgUpdates, reorgedTxIds };
+	}
+
+	selectFinalizedNbtcTxs(
+		pendingTxs: PendingTx[],
+		latestHeight: number,
+	): D1PreparedStatement[] {
+		const updates: D1PreparedStatement[] = [];
+		const finalizeStmt = this.d1.prepare(
+			"UPDATE nbtc_txs SET status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+		);
+
+		for (const tx of pendingTxs) {
+			const confirmations = latestHeight - tx.block_height + 1;
+			if (confirmations >= CONFIRMATION_DEPTH) {
+				updates.push(finalizeStmt.bind(tx.tx_id));
+			}
+		}
+		return updates;
 	}
 }

@@ -1,4 +1,4 @@
-import { describe, it, assert } from "vitest";
+import { describe, it, assert, vi } from "vitest";
 import { Indexer } from "../src/btcindexer";
 import { Block, networks } from "bitcoinjs-lib";
 import { MerkleTree } from "merkletreejs";
@@ -17,11 +17,34 @@ const REGTEST_DATA = {
 };
 const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
-const mkMockEnv = () => ({
-	DB: {} as D1Database,
-	btc_blocks: {} as KVNamespace,
-	nbtc_txs: {} as KVNamespace,
+const createMockStmt = () => ({
+	bind: vi.fn().mockReturnThis(),
 });
+
+function mkMockD1() {
+	return {
+		prepare: vi.fn().mockImplementation(() => createMockStmt()),
+	};
+}
+
+const mkMockEnv = () =>
+	({
+		DB: mkMockD1(),
+		btc_blocks: {},
+		nbtc_txs: {},
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	}) as any;
+
+function prepareIndexer() {
+	const mockEnv = mkMockEnv();
+	const indexer = new Indexer(
+		mockEnv,
+		REGTEST_DATA.DEPOSIT_ADDR,
+		SUI_FALLBACK_ADDRESS,
+		networks.regtest,
+	);
+	return { mockEnv, indexer };
+}
 
 describe("Indexer.findNbtcDeposits", () => {
 	it("should correctly parse the real regtest transaction", () => {
@@ -88,5 +111,53 @@ describe("Indexer.constructMerkleProof", () => {
 	});
 	it.skip("should generate a valid proof for a tx in a block with more than 1 tx", () => {
 		// TODO:
+  });
+});
+
+describe("Indexer.handleReorgs", () => {
+	const { mockEnv, indexer } = prepareIndexer();
+	it("should do nothing if no reorg", async () => {
+		const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
+		const mockStatement = {
+			bind: vi.fn().mockReturnThis(),
+			first: vi.fn().mockResolvedValue({ hash: "hash_A" }),
+		};
+		mockEnv.DB.prepare.mockReturnValue(mockStatement);
+		const { reorgUpdates } = await indexer.handleReorgs([pendingTx]);
+		assert.equal(reorgUpdates.length, 0);
+	});
+
+	it("should generate a reset statement if reorg detected", async () => {
+		const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
+		const mockStatement = {
+			bind: vi.fn().mockReturnThis(),
+			first: vi.fn().mockResolvedValue({ hash: "hash_A_reorged" }),
+		};
+		mockEnv.DB.prepare.mockReturnValue(mockStatement);
+		const { reorgUpdates } = await indexer.handleReorgs([pendingTx]);
+		assert.equal(reorgUpdates.length, 1);
+	});
+});
+
+describe("Indexer.findFinalizedTxs", () => {
+	const indexer = prepareIndexer().indexer;
+	it("should generate a finalize statement when enough confirmations", () => {
+		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
+		const latestHeight = 107;
+		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+		assert.equal(updates.length, 1);
+	});
+
+	it("should do nothing when not enough confirmations", () => {
+		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
+		const latestHeight = 106;
+		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+		assert.equal(updates.length, 0);
+	});
+});
+
+describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
+	it("should be tested later", () => {
+		// TODO: add a test for the scanNewBlocks using the same data
 	});
 });

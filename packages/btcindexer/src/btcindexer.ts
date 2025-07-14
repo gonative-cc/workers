@@ -6,7 +6,7 @@ import SHA256 from "crypto-js/sha256";
 
 const CONFIRMATION_DEPTH = 8;
 
-interface Deposit {
+export interface Deposit {
 	vout: number;
 	amountSats: number;
 	suiRecipient: string;

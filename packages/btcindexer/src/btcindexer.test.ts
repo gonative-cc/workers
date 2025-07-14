@@ -135,6 +135,7 @@ describe("Indexer.constructMerkleProof", () => {
 		);
 		assert.equal(isProofValid, true);
 	});
+
 	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
 		const block = Block.fromHex(REGTEST_DATA.BLOCK_304.RAW_BLOCK_HEX);
 		const targetTx = block.transactions?.find(

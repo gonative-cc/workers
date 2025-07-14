@@ -179,9 +179,7 @@ export class Indexer {
 				if (txIndex === undefined || txIndex === -1 || !targetTx) {
 					continue;
 				}
-
 				const proof = this.constructMerkleProof(block, targetTx);
-
 				if (!proof) {
 					continue;
 				}
@@ -214,7 +212,6 @@ export class Indexer {
 
 		const leaves = block.transactions.map((tx) => Buffer.from(tx.getHash()).reverse());
 		const targetLeaf = Buffer.from(targetTx.getHash()).reverse();
-
 		const tree = new MerkleTree(leaves, SHA256, { isBitcoinTree: true });
 
 		const proofPath = tree.getProof(targetLeaf).map((p) => p.data);

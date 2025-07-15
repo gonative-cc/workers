@@ -80,7 +80,7 @@ const mkMockEnv = () =>
 		SUI_SIGNER_MNEMONIC:
 			"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic",
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	} as any);
+	}) as any;
 
 function prepareIndexer() {
 	const mockEnv = mkMockEnv();

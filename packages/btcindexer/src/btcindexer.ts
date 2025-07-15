@@ -160,15 +160,25 @@ export class Indexer {
 			return;
 		}
 
+		const txsByBlock = new Map<string, { tx_id: string; block_hash: string }[]>();
+
+		for (const tx of finalizedTxs.results) {
+			if (!txsByBlock.has(tx.block_hash)) {
+				txsByBlock.set(tx.block_hash, []);
+			}
+			const txs = txsByBlock.get(tx.block_hash);
+			txs?.push(tx);
+		}
+
 		const updates: D1PreparedStatement[] = [];
 		// TODO: do we imidietly process it and check if it was succesful and just change the status to minted? This should be a matter of seconds at most.
 		const setMintingStmt = this.d1.prepare(
 			"UPDATE nbtc_txs SET status = 'minting', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
-		for (const txInfo of finalizedTxs.results) {
+		for (const [block_hash, txsInBlock] of txsByBlock.entries()) {
 			try {
-				const rawBlockBuffer = await this.blocksDB.get(txInfo.block_hash, {
+				const rawBlockBuffer = await this.blocksDB.get(block_hash, {
 					type: "arrayBuffer",
 				});
 				if (!rawBlockBuffer) {
@@ -176,29 +186,36 @@ export class Indexer {
 				}
 
 				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
-				const txIndex = block.transactions?.findIndex(
-					(tx) => tx.getId() === txInfo.tx_id,
-				);
-				const targetTx = block.transactions?.[txIndex ?? -1];
-
-				if (txIndex === undefined || txIndex === -1 || !targetTx) {
-					continue;
-				}
-				const proof = this.constructMerkleProof(block, targetTx);
-				if (!proof) {
+				const merkleTree = this.constructMerkleTree(block);
+				if (!merkleTree) {
 					continue;
 				}
 
-				// soundness check
-				if (proof.merkleRoot !== block.merkleRoot?.toString("hex")) {
-					continue;
-				}
+				for (const txInfo of txsInBlock) {
+					const txIndex = block.transactions?.findIndex(
+						(tx) => tx.getId() === txInfo.tx_id,
+					);
+					const targetTx = block.transactions?.[txIndex ?? -1];
 
-				// TODO: Call the minting smart contract.
-				// await suiClient.mintNBTC();
-				updates.push(setMintingStmt.bind(txInfo.tx_id));
+					if (txIndex === undefined || txIndex === -1 || !targetTx) {
+						continue;
+					}
+					const proof = this.getTxProof(merkleTree, targetTx);
+					if (!proof) {
+						continue;
+					}
+
+					// soundness check
+					if (proof.merkleRoot !== block.merkleRoot?.toString("hex")) {
+						continue;
+					}
+
+					// TODO: Call the minting smart contract.
+					// await suiClient.mintNBTC();
+					updates.push(setMintingStmt.bind(txInfo.tx_id));
+				}
 			} catch (e) {
-				console.error(`Failed to process finalized tx ${txInfo.tx_id}:`, e);
+				console.error(`Failed to process finalized txs in block ${block_hash}:`, e);
 			}
 		}
 
@@ -211,18 +228,18 @@ export class Indexer {
 		}
 	}
 
-	constructMerkleProof(block: Block, targetTx: Transaction): ProofResult | null {
+	constructMerkleTree(block: Block): MerkleTree | null {
 		if (!block.transactions || block.transactions.length === 0) {
 			return null;
 		}
-
 		const leaves = block.transactions.map((tx) => Buffer.from(tx.getHash()).reverse());
-		const targetLeaf = Buffer.from(targetTx.getHash()).reverse();
-		const tree = new MerkleTree(leaves, SHA256, { isBitcoinTree: true });
+		return new MerkleTree(leaves, SHA256, { isBitcoinTree: true });
+	}
 
+	getTxProof(tree: MerkleTree, targetTx: Transaction): ProofResult | null {
+		const targetLeaf = Buffer.from(targetTx.getHash()).reverse();
 		const proofPath = tree.getProof(targetLeaf).map((p) => p.data);
 		const merkleRoot = tree.getRoot().toString("hex");
-
 		return { proofPath, merkleRoot };
 	}
 

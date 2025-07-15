@@ -73,8 +73,14 @@ const mkMockEnv = () =>
 		DB: mkMockD1(),
 		btc_blocks: {},
 		nbtc_txs: {},
+		SUI_NETWORK: "testnet",
+		SUI_PACKAGE_ID: "0xPACKAGE",
+		NBTC_OBJECT_ID: "0xNBTC",
+		LIGHT_CLIENT_OBJECT_ID: "0xLIGHTCLIENT",
+		SUI_SIGNER_MNEMONIC:
+			"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic",
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	}) as any;
+	} as any);
 
 function prepareIndexer() {
 	const mockEnv = mkMockEnv();

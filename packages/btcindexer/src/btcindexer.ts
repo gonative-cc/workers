@@ -3,8 +3,8 @@ import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
-import { getFullnodeUrl, SuiClient } from "@mysten/sui/dist/cjs/client";
-import { Ed25519Keypair } from "@mysten/sui/dist/cjs/keypairs/ed25519";
+import { getFullnodeUrl, SuiClient } from "@mysten/sui/client";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransactoin } from "@mysten/sui/transactions";
 import { Input, Output } from "bitcoinjs-lib/src/transaction";
 
@@ -57,7 +57,7 @@ export class Indexer {
 		}
 
 		this.suiClient = new SuiClient({ url: getFullnodeUrl(env.SUI_NETWORK) });
-		this.suiSigner = Ed25519Keypair.fromSecretKey(env.SUI_SIGNER_MNEMONIC);
+		this.suiSigner = Ed25519Keypair.deriveKeypair(env.SUI_SIGNER_MNEMONIC);
 		this.suiPackageId = env.SUI_PACKAGE_ID;
 		this.suiNbtcObjectId = env.NBTC_OBJECT_ID;
 		this.suiLightClientObjectId = env.LIGHT_CLIENT_OBJECT_ID;

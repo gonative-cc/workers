@@ -1,13 +1,20 @@
 import { ExtBlock, Transaction, Block } from "./btcblock";
 import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
+import { MerkleTree } from "merkletreejs";
+import SHA256 from "crypto-js/sha256";
 
 const CONFIRMATION_DEPTH = 8;
 
-interface Deposit {
+export interface Deposit {
 	vout: number;
 	amountSats: number;
 	suiRecipient: string;
+}
+
+export interface ProofResult {
+	proofPath: Buffer[];
+	merkleRoot: string;
 }
 
 export interface PendingTx {
@@ -144,6 +151,98 @@ export class Indexer {
 		return deposits;
 	}
 
+	async processFinalizedTransactions(): Promise<void> {
+		const finalizedTxs = await this.d1
+			.prepare("SELECT tx_id, block_hash FROM nbtc_txs WHERE status = 'finalized'")
+			.all<{ tx_id: string; block_hash: string }>();
+
+		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
+			return;
+		}
+
+		const txsByBlock = new Map<string, { tx_id: string; block_hash: string }[]>();
+
+		for (const tx of finalizedTxs.results) {
+			if (!txsByBlock.has(tx.block_hash)) {
+				txsByBlock.set(tx.block_hash, []);
+			}
+			const txs = txsByBlock.get(tx.block_hash);
+			txs?.push(tx);
+		}
+
+		const updates: D1PreparedStatement[] = [];
+		// TODO: do we imidietly process it and check if it was succesful and just change the status to minted? This should be a matter of seconds at most.
+		const setMintingStmt = this.d1.prepare(
+			"UPDATE nbtc_txs SET status = 'minting', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+		);
+
+		for (const [block_hash, txsInBlock] of txsByBlock.entries()) {
+			try {
+				const rawBlockBuffer = await this.blocksDB.get(block_hash, {
+					type: "arrayBuffer",
+				});
+				if (!rawBlockBuffer) {
+					continue;
+				}
+
+				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+				const merkleTree = this.constructMerkleTree(block);
+				if (!merkleTree) {
+					continue;
+				}
+
+				for (const txInfo of txsInBlock) {
+					const txIndex = block.transactions?.findIndex(
+						(tx) => tx.getId() === txInfo.tx_id,
+					);
+					const targetTx = block.transactions?.[txIndex ?? -1];
+
+					if (txIndex === undefined || txIndex === -1 || !targetTx) {
+						continue;
+					}
+					const proof = this.getTxProof(merkleTree, targetTx);
+					if (!proof) {
+						continue;
+					}
+
+					// soundness check
+					if (proof.merkleRoot !== block.merkleRoot?.toString("hex")) {
+						continue;
+					}
+
+					// TODO: Call the minting smart contract.
+					// await suiClient.mintNBTC();
+					updates.push(setMintingStmt.bind(txInfo.tx_id));
+				}
+			} catch (e) {
+				console.error(`Failed to process finalized txs in block ${block_hash}:`, e);
+			}
+		}
+
+		if (updates.length > 0) {
+			try {
+				await this.d1.batch(updates);
+			} catch (e) {
+				console.error(`failed to apply batch updates to D1.`, e);
+			}
+		}
+	}
+
+	constructMerkleTree(block: Block): MerkleTree | null {
+		if (!block.transactions || block.transactions.length === 0) {
+			return null;
+		}
+		const leaves = block.transactions.map((tx) => Buffer.from(tx.getHash()).reverse());
+		return new MerkleTree(leaves, SHA256, { isBitcoinTree: true });
+	}
+
+	getTxProof(tree: MerkleTree, targetTx: Transaction): ProofResult | null {
+		const targetLeaf = Buffer.from(targetTx.getHash()).reverse();
+		const proofPath = tree.getProof(targetLeaf).map((p) => p.data);
+		const merkleRoot = tree.getRoot().toString("hex");
+		return { proofPath, merkleRoot };
+	}
+
 	async updateConfirmationsAndFinalize(): Promise<void> {
 		const latestBlock = await this.d1
 			.prepare("SELECT MAX(height) as latest_height FROM processed_blocks")
@@ -173,7 +272,11 @@ export class Indexer {
 		const allUpdates = [...reorgUpdates, ...finalizationUpdates];
 
 		if (allUpdates.length > 0) {
-			await this.d1.batch(allUpdates);
+			try {
+				await this.d1.batch(allUpdates);
+			} catch (e) {
+				console.error(`failed to apply batch updates to D1.`, e);
+			}
 		}
 	}
 

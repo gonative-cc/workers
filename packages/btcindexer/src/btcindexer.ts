@@ -382,12 +382,12 @@ export class Indexer {
 				arguments: [
 					tx.object(this.suiNbtcObjectId),
 					tx.object(this.suiLightClientObjectId),
-					tx.pure.vector("u8", this._serializeU32(transaction.version)),
+					tx.pure.vector("u8", this.serializeU32(transaction.version)),
 					tx.pure.u32(transaction.ins.length),
-					tx.pure.vector("u8", this._serializeTxInputs(transaction.ins)),
+					tx.pure.vector("u8", this.serializeTxInputs(transaction.ins)),
 					tx.pure.u32(transaction.outs.length),
-					tx.pure.vector("u8", this._serializeTxOutputs(transaction.outs)),
-					tx.pure.vector("u8", this._serializeU32(transaction.locktime)),
+					tx.pure.vector("u8", this.serializeTxOutputs(transaction.outs)),
+					tx.pure.vector("u8", this.serializeU32(transaction.locktime)),
 					tx.pure.vector(
 						"vector<u8>",
 						proof.proofPath.map((p) => Array.from(p)),
@@ -421,13 +421,13 @@ export class Indexer {
 		}
 	}
 
-	private _serializeU32(n: number): number[] {
+	serializeU32(n: number): number[] {
 		const buffer = Buffer.alloc(4);
 		buffer.writeUInt32LE(n, 0);
 		return Array.from(buffer);
 	}
 
-	private _serializeTxInputs(inputs: Input[]): number[] {
+	serializeTxInputs(inputs: Input[]): number[] {
 		const buffers = inputs.map((vin) => {
 			const hash = Buffer.from(vin.hash);
 			const index = Buffer.alloc(4);
@@ -440,7 +440,7 @@ export class Indexer {
 		return Array.from(Buffer.concat(buffers));
 	}
 
-	private _serializeTxOutputs(outputs: Output[]): number[] {
+	serializeTxOutputs(outputs: Output[]): number[] {
 		const buffers = outputs.map((vout) => {
 			const value = Buffer.alloc(8);
 			value.writeBigUInt64LE(BigInt(vout.value), 0);

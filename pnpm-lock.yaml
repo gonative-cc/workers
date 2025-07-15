@@ -41,6 +41,9 @@ importers:
 
   packages/btcindexer:
     dependencies:
+      '@mysten/sui':
+        specifier: ^1.36.0
+        version: 1.36.0(typescript@5.8.3)
       bitcoinjs-lib:
         specifier: ^6.1.7
         version: 6.1.7
@@ -59,6 +62,20 @@ importers:
         version: 4.2.2
 
 packages:
+
+  '@0no-co/graphql.web@1.1.2':
+    resolution: {integrity: sha512-N2NGsU5FLBhT8NZ+3l2YrzZSHITjNXNuDhC4iDiikv0IujaJ0Xc6xIxQZ/Ek3Cb+rgPjnLHYyJm11tInuJn+cw==}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0
+    peerDependenciesMeta:
+      graphql:
+        optional: true
+
+  '@0no-co/graphqlsp@1.14.0':
+    resolution: {integrity: sha512-rgOJ0Bj9UFBmE7BfUGhsqYPYqPwCk1MCggoYN4NUSdX6gpqatNuzHNB2wHcAd9xdY55jHNRhHy5NsgwY6EGgmg==}
+    peerDependencies:
+      graphql: ^15.5.0 || ^16.0.0 || ^17.0.0
+      typescript: ^5.0.0
 
   '@cloudflare/kv-asset-handler@0.4.0':
     resolution: {integrity: sha512-+tv3z+SPp+gqTIcImN9o0hqE9xyfQjI1XD9pL6NuKjua9B1y7mNYv0S9cP+QEbA4ppVgGZEmKOvHX5G5Ei1CVA==}
@@ -465,6 +482,31 @@ packages:
     resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
     engines: {node: '>=14'}
 
+  '@gql.tada/cli-utils@1.6.3':
+    resolution: {integrity: sha512-jFFSY8OxYeBxdKi58UzeMXG1tdm4FVjXa8WHIi66Gzu9JWtCE6mqom3a8xkmSw+mVaybFW5EN2WXf1WztJVNyQ==}
+    peerDependencies:
+      '@0no-co/graphqlsp': ^1.12.13
+      '@gql.tada/svelte-support': 1.0.1
+      '@gql.tada/vue-support': 1.0.1
+      graphql: ^15.5.0 || ^16.0.0 || ^17.0.0
+      typescript: ^5.0.0
+    peerDependenciesMeta:
+      '@gql.tada/svelte-support':
+        optional: true
+      '@gql.tada/vue-support':
+        optional: true
+
+  '@gql.tada/internal@1.0.8':
+    resolution: {integrity: sha512-XYdxJhtHC5WtZfdDqtKjcQ4d7R1s0d1rnlSs3OcBEUbYiPoJJfZU7tWsVXuv047Z6msvmr4ompJ7eLSK5Km57g==}
+    peerDependencies:
+      graphql: ^15.5.0 || ^16.0.0 || ^17.0.0
+      typescript: ^5.0.0
+
+  '@graphql-typed-document-node/core@3.2.0':
+    resolution: {integrity: sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ==}
+    peerDependencies:
+      graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
     engines: {node: '>=18.18.0'}
@@ -600,6 +642,20 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
+  '@mysten/bcs@1.6.4':
+    resolution: {integrity: sha512-HBBrqMtnVp5vy12efJYhj/HnOYGu+x5SqRQpnOJEHEkxypGZ01WNFoCNw7USzDSyJvPauhqdzUXzR+lYM1D5/g==}
+
+  '@mysten/sui@1.36.0':
+    resolution: {integrity: sha512-BHJatlqZir4pD1SRBjxh+SGg0BOTX1y9OxgX66e8rhEqZj33TztwpsSG2s+luLD+ugXDBAWt18/1Bk4/D1SwSg==}
+    engines: {node: '>=18'}
+
+  '@mysten/utils@0.1.1':
+    resolution: {integrity: sha512-jvhJC6/2la1QHltukQXzfyTZ+VVHxe187JjPx+mEXRUWyAo6jCSdioOQJIfaGu4K4i+37KeiydXRwV/bq/7UJQ==}
+
+  '@noble/curves@1.9.2':
+    resolution: {integrity: sha512-HxngEd2XUcg9xi20JkwlLCtYwfoFw4JGkuZpT+WlsPD4gB/cxkvTD8fSsoAnphGZhFdZYKeQIPCuFlWPm1uE0g==}
+    engines: {node: ^14.21.3 || >=16}
+
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
@@ -724,6 +780,15 @@ packages:
     resolution: {integrity: sha512-3+QZROYfJ25PDcxFF66UEk8jGWigHJeecZILvkPkyQN7oc5BvFo4YEXFkOs154j3FTMp9mn9Ky8RCOwastduEA==}
     cpu: [x64]
     os: [win32]
+
+  '@scure/base@1.2.6':
+    resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
+
+  '@scure/bip32@1.7.0':
+    resolution: {integrity: sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw==}
+
+  '@scure/bip39@1.6.0':
+    resolution: {integrity: sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==}
 
   '@sindresorhus/is@7.0.2':
     resolution: {integrity: sha512-d9xRovfKNz1SKieM0qJdO+PQonjnnIfSNWfHYnBSJ9hkjm0ZPw6HlxscDXYstp3z+7V2GOFHc+J0CYrYTjqCJw==}
@@ -1165,8 +1230,18 @@ packages:
     resolution: {integrity: sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ==}
     engines: {node: '>=18'}
 
+  gql.tada@1.8.11:
+    resolution: {integrity: sha512-b94SV2ki1yZWm/MGzWIaWxuPJUMAYjlQllwoD9b8/GCVXKax1HS9xPfLq/p47UmAnUY3X8qDF0JdMEIr0EKmOA==}
+    hasBin: true
+    peerDependencies:
+      typescript: ^5.0.0
+
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
+
+  graphql@16.11.0:
+    resolution: {integrity: sha512-mS1lbMsxgQj6hge1XZ6p7GPhbrtFwUFYi3wRzXAC/FmYnyXMTvvI3td3rjmQ2u8ewXueaSvRPWaEcgVVOT9Jnw==}
+    engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -1379,6 +1454,9 @@ packages:
     engines: {node: '>=0.10'}
     hasBin: true
 
+  poseidon-lite@0.2.1:
+    resolution: {integrity: sha512-xIr+G6HeYfOhCuswdqcFpSX47SPhm0EpisWJ6h7fHlWwaVIvH3dLnejpatrtw6Xc6HaLrpq05y7VRfvDmDGIog==}
+
   postcss@8.5.6:
     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
     engines: {node: ^10 || ^12 || >=14}
@@ -1570,6 +1648,9 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
+  valibot@0.36.0:
+    resolution: {integrity: sha512-CjF1XN4sUce8sBK9TixrDqFM7RwNkuXdJu174/AwmQUB62QbCQADg5lLe8ldBalFgtj1uKj+pKwDJiNo4Mn+eQ==}
+
   varuint-bitcoin@1.1.2:
     resolution: {integrity: sha512-4EVb+w4rx+YfVM32HQX42AbbT7/1f5zwAYhIujKXKk8NQK+JfRVl3pqT3hjNn/L+RstigmGGKVwHA/P0wgITZw==}
 
@@ -1710,6 +1791,16 @@ packages:
     resolution: {integrity: sha512-EjIevzuJRiRPbVH4mGc8nApb/lVLKVpmUhAaR5R5doKGfAnGJ6Gr3CViAVjP+4FWSxCsybeWQdcgCtbX+7oZug==}
 
 snapshots:
+
+  '@0no-co/graphql.web@1.1.2(graphql@16.11.0)':
+    optionalDependencies:
+      graphql: 16.11.0
+
+  '@0no-co/graphqlsp@1.14.0(graphql@16.11.0)(typescript@5.8.3)':
+    dependencies:
+      '@gql.tada/internal': 1.0.8(graphql@16.11.0)(typescript@5.8.3)
+      graphql: 16.11.0
+      typescript: 5.8.3
 
   '@cloudflare/kv-asset-handler@0.4.0':
     dependencies:
@@ -1950,6 +2041,23 @@ snapshots:
 
   '@fastify/busboy@2.1.1': {}
 
+  '@gql.tada/cli-utils@1.6.3(@0no-co/graphqlsp@1.14.0(graphql@16.11.0)(typescript@5.8.3))(graphql@16.11.0)(typescript@5.8.3)':
+    dependencies:
+      '@0no-co/graphqlsp': 1.14.0(graphql@16.11.0)(typescript@5.8.3)
+      '@gql.tada/internal': 1.0.8(graphql@16.11.0)(typescript@5.8.3)
+      graphql: 16.11.0
+      typescript: 5.8.3
+
+  '@gql.tada/internal@1.0.8(graphql@16.11.0)(typescript@5.8.3)':
+    dependencies:
+      '@0no-co/graphql.web': 1.1.2(graphql@16.11.0)
+      graphql: 16.11.0
+      typescript: 5.8.3
+
+  '@graphql-typed-document-node/core@3.2.0(graphql@16.11.0)':
+    dependencies:
+      graphql: 16.11.0
+
   '@humanfs/core@0.19.1': {}
 
   '@humanfs/node@0.16.6':
@@ -2047,6 +2155,38 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.4
 
+  '@mysten/bcs@1.6.4':
+    dependencies:
+      '@mysten/utils': 0.1.1
+      '@scure/base': 1.2.6
+
+  '@mysten/sui@1.36.0(typescript@5.8.3)':
+    dependencies:
+      '@graphql-typed-document-node/core': 3.2.0(graphql@16.11.0)
+      '@mysten/bcs': 1.6.4
+      '@mysten/utils': 0.1.1
+      '@noble/curves': 1.9.2
+      '@noble/hashes': 1.8.0
+      '@scure/base': 1.2.6
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      gql.tada: 1.8.11(graphql@16.11.0)(typescript@5.8.3)
+      graphql: 16.11.0
+      poseidon-lite: 0.2.1
+      valibot: 0.36.0
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
+
+  '@mysten/utils@0.1.1':
+    dependencies:
+      '@scure/base': 1.2.6
+
+  '@noble/curves@1.9.2':
+    dependencies:
+      '@noble/hashes': 1.8.0
+
   '@noble/hashes@1.8.0': {}
 
   '@nodelib/fs.scandir@2.1.5':
@@ -2132,6 +2272,19 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.44.2':
     optional: true
+
+  '@scure/base@1.2.6': {}
+
+  '@scure/bip32@1.7.0':
+    dependencies:
+      '@noble/curves': 1.9.2
+      '@noble/hashes': 1.8.0
+      '@scure/base': 1.2.6
+
+  '@scure/bip39@1.6.0':
+    dependencies:
+      '@noble/hashes': 1.8.0
+      '@scure/base': 1.2.6
 
   '@sindresorhus/is@7.0.2': {}
 
@@ -2642,7 +2795,21 @@ snapshots:
 
   globals@14.0.0: {}
 
+  gql.tada@1.8.11(graphql@16.11.0)(typescript@5.8.3):
+    dependencies:
+      '@0no-co/graphql.web': 1.1.2(graphql@16.11.0)
+      '@0no-co/graphqlsp': 1.14.0(graphql@16.11.0)(typescript@5.8.3)
+      '@gql.tada/cli-utils': 1.6.3(@0no-co/graphqlsp@1.14.0(graphql@16.11.0)(typescript@5.8.3))(graphql@16.11.0)(typescript@5.8.3)
+      '@gql.tada/internal': 1.0.8(graphql@16.11.0)(typescript@5.8.3)
+      typescript: 5.8.3
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - graphql
+
   graphemer@1.4.0: {}
+
+  graphql@16.11.0: {}
 
   has-flag@4.0.0: {}
 
@@ -2841,6 +3008,8 @@ snapshots:
   picomatch@4.0.2: {}
 
   pidtree@0.6.0: {}
+
+  poseidon-lite@0.2.1: {}
 
   postcss@8.5.6:
     dependencies:
@@ -3046,6 +3215,8 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
+
+  valibot@0.36.0: {}
 
   varuint-bitcoin@1.1.2:
     dependencies:

@@ -3,6 +3,10 @@ import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
+import { getFullnodeUrl, SuiClient } from "@mysten/sui/dist/cjs/client";
+import { Ed25519Keypair } from "@mysten/sui/dist/cjs/keypairs/ed25519";
+import { Transaction as SuiTransactoin } from "@mysten/sui/transactions";
+import { Input, Output } from "bitcoinjs-lib/src/transaction";
 
 const CONFIRMATION_DEPTH = 8;
 
@@ -30,12 +34,33 @@ export class Indexer {
 	nbtcScriptHex: string;
 	suiFallbackAddr: string;
 
+	suiClient: SuiClient;
+	suiSigner: Ed25519Keypair;
+	suiPackageId: string;
+	suiNbtcObjectId: string;
+	suiLightClientObjectId: string;
+
 	constructor(env: Env, nbtcAddr: string, fallbackAddr: string, network: networks.Network) {
 		this.d1 = env.DB;
 		this.blocksDB = env.btc_blocks;
 		this.nbtcTxDB = env.nbtc_txs;
 		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
+
+		if (
+			!env.SUI_SIGNER_MNEMONIC ||
+			!env.SUI_PACKAGE_ID ||
+			!env.NBTC_OBJECT_ID ||
+			!env.LIGHT_CLIENT_OBJECT_ID
+		) {
+			throw new Error("Missing Sui env variables");
+		}
+
+		this.suiClient = new SuiClient({ url: getFullnodeUrl(env.SUI_NETWORK) });
+		this.suiSigner = Ed25519Keypair.fromSecretKey(env.SUI_SIGNER_MNEMONIC);
+		this.suiPackageId = env.SUI_PACKAGE_ID;
+		this.suiNbtcObjectId = env.NBTC_OBJECT_ID;
+		this.suiLightClientObjectId = env.LIGHT_CLIENT_OBJECT_ID;
 	}
 
 	// returns number of processed and add blocks
@@ -153,14 +178,19 @@ export class Indexer {
 
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
-			.prepare("SELECT tx_id, block_hash FROM nbtc_txs WHERE status = 'finalized'")
-			.all<{ tx_id: string; block_hash: string }>();
+			.prepare(
+				"SELECT tx_id, block_hash, height FROM nbtc_txs WHERE status = 'finalized'",
+			)
+			.all<{ tx_id: string; block_hash: string; block_height: number }>();
 
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
 			return;
 		}
 
-		const txsByBlock = new Map<string, { tx_id: string; block_hash: string }[]>();
+		const txsByBlock = new Map<
+			string,
+			{ tx_id: string; block_hash: string; block_height: number }[]
+		>();
 
 		for (const tx of finalizedTxs.results) {
 			if (!txsByBlock.has(tx.block_hash)) {
@@ -172,8 +202,11 @@ export class Indexer {
 
 		const updates: D1PreparedStatement[] = [];
 		// TODO: do we imidietly process it and check if it was succesful and just change the status to minted? This should be a matter of seconds at most.
-		const setMintingStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'minting', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+		const setMintedStmt = this.d1.prepare(
+			"UPDATE nbtc_txs SET status = 'minted', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+		);
+		const setFailedStmt = this.d1.prepare(
+			"UPDATE nbtc_txs SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
 		for (const [block_hash, txsInBlock] of txsByBlock.entries()) {
@@ -211,8 +244,17 @@ export class Indexer {
 					}
 
 					// TODO: Call the minting smart contract.
-					// await suiClient.mintNBTC();
-					updates.push(setMintingStmt.bind(txInfo.tx_id));
+					const isSuccess = await this.callSuiMintContract(
+						targetTx,
+						txInfo.block_height,
+						txIndex,
+						proof,
+					);
+					if (isSuccess) {
+						updates.push(setMintedStmt.bind(txInfo.tx_id));
+					} else {
+						updates.push(setFailedStmt.bind(txInfo.tx_id));
+					}
 				}
 			} catch (e) {
 				console.error(`Failed to process finalized txs in block ${block_hash}:`, e);
@@ -325,5 +367,86 @@ export class Indexer {
 			}
 		}
 		return updates;
+	}
+	async callSuiMintContract(
+		transaction: Transaction,
+		blockHeight: number,
+		txIndex: number,
+		proof: ProofResult,
+	): Promise<boolean> {
+		try {
+			const tx = new SuiTransactoin();
+			const target = `${this.suiPackageId}::nbtc::mint_nbtc`;
+			tx.moveCall({
+				target: target,
+				arguments: [
+					tx.object(this.suiNbtcObjectId),
+					tx.object(this.suiLightClientObjectId),
+					tx.pure.vector("u8", this._serializeU32(transaction.version)),
+					tx.pure.u32(transaction.ins.length),
+					tx.pure.vector("u8", this._serializeTxInputs(transaction.ins)),
+					tx.pure.u32(transaction.outs.length),
+					tx.pure.vector("u8", this._serializeTxOutputs(transaction.outs)),
+					tx.pure.vector("u8", this._serializeU32(transaction.locktime)),
+					tx.pure.vector(
+						"vector<u8>",
+						proof.proofPath.map((p) => Array.from(p)),
+					),
+					tx.pure.u64(blockHeight),
+					tx.pure.u64(txIndex),
+				],
+			});
+
+			const result = await this.suiClient.signAndExecuteTransaction({
+				signer: this.suiSigner,
+				transaction: tx,
+				options: {
+					showEffects: true,
+				},
+			});
+
+			if (result.effects?.status.status === "success") {
+				console.log(`Mint successful. Digest: ${result.digest}`);
+				return true;
+			} else {
+				console.error(
+					`Mint failed. Digest: ${result.digest}:`,
+					result.effects?.status.error,
+				);
+				return false;
+			}
+		} catch (error) {
+			console.error(`Error during mint call`, error);
+			return false;
+		}
+	}
+
+	private _serializeU32(n: number): number[] {
+		const buffer = Buffer.alloc(4);
+		buffer.writeUInt32LE(n, 0);
+		return Array.from(buffer);
+	}
+
+	private _serializeTxInputs(inputs: Input[]): number[] {
+		const buffers = inputs.map((vin) => {
+			const hash = Buffer.from(vin.hash);
+			const index = Buffer.alloc(4);
+			index.writeUInt32LE(vin.index, 0);
+			const scriptLen = Buffer.from([vin.script.length]);
+			const sequence = Buffer.alloc(4);
+			sequence.writeUInt32LE(vin.sequence, 0);
+			return Buffer.concat([hash, index, scriptLen, vin.script, sequence]);
+		});
+		return Array.from(Buffer.concat(buffers));
+	}
+
+	private _serializeTxOutputs(outputs: Output[]): number[] {
+		const buffers = outputs.map((vout) => {
+			const value = Buffer.alloc(8);
+			value.writeBigUInt64LE(BigInt(vout.value), 0);
+			const scriptLen = Buffer.from([vout.script.length]);
+			return Buffer.concat([value, scriptLen, vout.script]);
+		});
+		return Array.from(Buffer.concat(buffers));
 	}
 }

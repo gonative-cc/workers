@@ -4,23 +4,20 @@ import { Block, networks, Transaction } from "bitcoinjs-lib";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
 
+interface TxInfo {
+	id: string;
+	suiAddr: string;
+	amountSats: number;
+}
 interface TestBlock {
 	depositAddr: string;
 	height: number;
 	hash: string;
 	rawBlockHex: string;
-	txs: {
-		[key: number]: {
-			id: string;
-			suiAddr: string;
-			amountSats: number;
-		};
-	};
+	txs: Record<string, TxInfo>;
 }
 
-type TestBlocks = {
-	[key: number]: TestBlock;
-};
+type TestBlocks = Record<number, TestBlock>;
 
 // generated using bitcoin-cli --regtest
 const REGTEST_DATA: TestBlocks = {
@@ -77,7 +74,7 @@ const mkMockEnv = () =>
 		btc_blocks: {},
 		nbtc_txs: {},
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	}) as any;
+	} as any);
 
 function prepareIndexer() {
 	const mockEnv = mkMockEnv();

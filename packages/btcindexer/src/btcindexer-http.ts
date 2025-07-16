@@ -18,7 +18,7 @@ export class HIndexer {
 
 	newIndexer(env: Env): Indexer {
 		const suiClient = new SuiClient({
-			suiNetwork: env.SUI_NETWORK || "testnet",
+			suiNetwork: env.SUI_NETWORK,
 			suiPackageId: env.SUI_PACKAGE_ID,
 			suiNbtcObjectId: env.NBTC_OBJECT_ID,
 			suiLightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,

@@ -37,7 +37,6 @@ export class SuiClient {
 		try {
 			const tx = new SuiTransaction();
 			const target = `${this.packageId}::nbtc::mint` as const;
-
 			const serializedTx = serializeBtcTx(transaction);
 
 			tx.moveCall({

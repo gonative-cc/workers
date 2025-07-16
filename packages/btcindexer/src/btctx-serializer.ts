@@ -1,13 +1,13 @@
 import { Transaction, TxInput, TxOutput } from "bitcoinjs-lib";
 
-export type SerializedBtcTx {
+export type SerializedBtcTx = {
 	version: number[];
 	inputCount: number;
 	inputs: number[];
 	outputCount: number;
 	outputs: number[];
 	lockTime: number[];
-}
+};
 
 function serializeU32(n: number): number[] {
 	const buffer = Buffer.alloc(4);

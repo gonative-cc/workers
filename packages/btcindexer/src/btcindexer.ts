@@ -230,8 +230,7 @@ export class Indexer {
 						continue;
 					}
 
-					// TODO: Call the minting smart contract.
-					const isSuccess = await this.suiClient.mintNbtc(
+					const isSuccess = await this.suiClient.tryMintNbtc(
 						targetTx,
 						txInfo.block_height,
 						txIndex,

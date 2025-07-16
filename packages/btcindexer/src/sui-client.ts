@@ -33,52 +33,55 @@ export class SuiClient {
 		blockHeight: number,
 		txIndex: number,
 		proof: ProofResult,
+	): Promise<void> {
+		const tx = new SuiTransaction();
+		const target = `${this.packageId}::nbtc::mint` as const;
+		const serializedTx = serializeBtcTx(transaction);
+
+		tx.moveCall({
+			target: target,
+			arguments: [
+				tx.object(this.nbtcObjectId),
+				tx.object(this.lightClientObjectId),
+				tx.pure.vector("u8", serializedTx.version),
+				tx.pure.u32(serializedTx.inputCount),
+				tx.pure.vector("u8", serializedTx.inputs),
+				tx.pure.u32(serializedTx.outputCount),
+				tx.pure.vector("u8", serializedTx.outputs),
+				tx.pure.vector("u8", serializedTx.lockTime),
+				tx.pure.vector(
+					"vector<u8>",
+					proof.proofPath.map((p) => Array.from(p)),
+				),
+				tx.pure.u64(blockHeight),
+				tx.pure.u64(txIndex),
+			],
+		});
+
+		const result = await this.client.signAndExecuteTransaction({
+			signer: this.signer,
+			transaction: tx,
+			options: {
+				showEffects: true,
+			},
+		});
+
+		if (result.effects?.status.status !== "success") {
+			throw new Error(`Mint transaction failed: ${result.effects?.status.error}`);
+		}
+	}
+
+	async tryMintNbtc(
+		transaction: Transaction,
+		blockHeight: number,
+		txIndex: number,
+		proof: ProofResult,
 	): Promise<boolean> {
 		try {
-			const tx = new SuiTransaction();
-			const target = `${this.packageId}::nbtc::mint` as const;
-			const serializedTx = serializeBtcTx(transaction);
-
-			tx.moveCall({
-				target: target,
-				arguments: [
-					tx.object(this.nbtcObjectId),
-					tx.object(this.lightClientObjectId),
-					tx.pure.vector("u8", serializedTx.version),
-					tx.pure.u32(serializedTx.inputCount),
-					tx.pure.vector("u8", serializedTx.inputs),
-					tx.pure.u32(serializedTx.outputCount),
-					tx.pure.vector("u8", serializedTx.outputs),
-					tx.pure.vector("u8", serializedTx.lockTime),
-					tx.pure.vector(
-						"vector<u8>",
-						proof.proofPath.map((p) => Array.from(p)),
-					),
-					tx.pure.u64(blockHeight),
-					tx.pure.u64(txIndex),
-				],
-			});
-
-			const result = await this.client.signAndExecuteTransaction({
-				signer: this.signer,
-				transaction: tx,
-				options: {
-					showEffects: true,
-				},
-			});
-
-			if (result.effects?.status.status === "success") {
-				console.log(`Mint successful. Digest: ${result.digest}`);
-				return true;
-			} else {
-				console.error(
-					`Mint failed. Digest: ${result.digest}:`,
-					result.effects?.status.error,
-				);
-				return false;
-			}
+			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
+			return true;
 		} catch (error) {
-			console.error(`Error during mint call`, error);
+			console.error(`Error during mint contract call`, error);
 			return false;
 		}
 	}

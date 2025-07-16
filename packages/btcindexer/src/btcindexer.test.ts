@@ -84,7 +84,7 @@ const mkMockEnv = () =>
 		btc_blocks: {},
 		nbtc_txs: {},
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	} as any);
+	}) as any;
 
 function prepareIndexer() {
 	const mockEnv = mkMockEnv();

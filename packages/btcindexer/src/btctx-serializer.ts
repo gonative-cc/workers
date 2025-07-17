@@ -7,7 +7,7 @@ export interface SerializedBtcTx {
 	outputCount: number;
 	outputs: number[];
 	lockTime: number[];
-};
+}
 
 function serializeU32(n: number): number[] {
 	const buffer = Buffer.alloc(4);

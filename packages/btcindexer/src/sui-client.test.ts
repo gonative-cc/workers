@@ -28,6 +28,7 @@ describe.skip("Sui Contract Integration", () => {
 	it("should successfully call the mint function on devnet", { timeout: 60000 }, async () => {
 		const suiClient = new SuiClient(SUI_CLIENT_CONFIG);
 		const indexer = new Indexer(
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			{} as any,
 			"bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw",
 			"fallback",

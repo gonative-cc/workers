@@ -20,7 +20,7 @@ const SUI_CLIENT_CONFIG: SuiClientConfig = {
 	suiLightClientObjectId:
 		"0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
 	suiSignerMnemonic:
-		"april tonight combine album kit burst detect outside label quiz undo such",
+		"your mnemonic your mnemonic your mnemonic your mnemonic your mnemonic your mnemonic",
 };
 
 // NOTE: skip to prevent this test from running in CI

@@ -2,21 +2,35 @@ import type { IRequest } from "itty-router";
 import { parseBlocksFromStream } from "./btcblock";
 import { Indexer } from "./btcindexer";
 import { networks } from "bitcoinjs-lib";
+import { SuiClient } from "./sui-client";
 
 export class HIndexer {
 	public nbtcAddr: string;
 	public suiFallbackAddr: string;
-	public network: networks.Network;
+	public btcNetwork: networks.Network;
 
 	constructor() {
 		// TODO: need to provide through env variable
 		this.nbtcAddr = "TODO";
 		this.suiFallbackAddr = "TODO";
-		this.network = networks.regtest;
+		this.btcNetwork = networks.regtest;
 	}
 
 	newIndexer(env: Env): Indexer {
-		return new Indexer(env, this.nbtcAddr, this.suiFallbackAddr, this.network);
+		const suiClient = new SuiClient({
+			suiNetwork: env.SUI_NETWORK,
+			suiPackageId: env.SUI_PACKAGE_ID,
+			suiNbtcObjectId: env.NBTC_OBJECT_ID,
+			suiLightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
+			suiSignerMnemonic: env.SUI_SIGNER_MNEMONIC,
+		});
+		return new Indexer(
+			env,
+			this.nbtcAddr,
+			this.suiFallbackAddr,
+			this.btcNetwork,
+			suiClient,
+		);
 	}
 
 	// NOTE: we may need to put this to a separate worker

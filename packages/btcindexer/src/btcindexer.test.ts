@@ -3,6 +3,7 @@ import { Deposit, Indexer, ProofResult } from "../src/btcindexer";
 import { Block, networks, Transaction } from "bitcoinjs-lib";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
+import { SuiClient, SuiClientConfig } from "./sui-client";
 
 interface TxInfo {
 	id: string;
@@ -68,6 +69,15 @@ function mkMockD1() {
 	};
 }
 
+const SUI_CLIENT_CONFIG: SuiClientConfig = {
+	suiNetwork: "testnet",
+	suiPackageId: "0xPACKAGE",
+	suiNbtcObjectId: "0xNBTC",
+	suiLightClientObjectId: "0xLIGHTCLIENT",
+	suiSignerMnemonic:
+		"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic",
+};
+
 const mkMockEnv = () =>
 	({
 		DB: mkMockD1(),
@@ -83,6 +93,7 @@ function prepareIndexer() {
 		REGTEST_DATA[303].depositAddr,
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
+		new SuiClient(SUI_CLIENT_CONFIG),
 	);
 	return { mockEnv, indexer };
 }

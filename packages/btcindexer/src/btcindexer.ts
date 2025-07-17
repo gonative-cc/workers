@@ -3,6 +3,7 @@ import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
+import { SuiClient } from "./sui-client";
 
 const CONFIRMATION_DEPTH = 8;
 
@@ -23,19 +24,33 @@ export interface PendingTx {
 	block_height: number;
 }
 
+interface BlockRecord {
+	tx_id: string;
+	block_hash: string;
+	block_height: number;
+}
+
 export class Indexer {
 	d1: D1Database; // SQL DB
 	blocksDB: KVNamespace;
 	nbtcTxDB: KVNamespace;
 	nbtcScriptHex: string;
 	suiFallbackAddr: string;
+	suiClient: SuiClient;
 
-	constructor(env: Env, nbtcAddr: string, fallbackAddr: string, network: networks.Network) {
+	constructor(
+		env: Env,
+		nbtcAddr: string,
+		fallbackAddr: string,
+		network: networks.Network,
+		suiClient: SuiClient,
+	) {
 		this.d1 = env.DB;
 		this.blocksDB = env.btc_blocks;
 		this.nbtcTxDB = env.nbtc_txs;
 		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
+		this.suiClient = suiClient;
 	}
 
 	// returns number of processed and add blocks
@@ -153,14 +168,16 @@ export class Indexer {
 
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
-			.prepare("SELECT tx_id, block_hash FROM nbtc_txs WHERE status = 'finalized'")
-			.all<{ tx_id: string; block_hash: string }>();
+			.prepare(
+				"SELECT tx_id, block_hash, height FROM nbtc_txs WHERE status = 'finalized'",
+			)
+			.all<BlockRecord>();
 
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
 			return;
 		}
 
-		const txsByBlock = new Map<string, { tx_id: string; block_hash: string }[]>();
+		const txsByBlock = new Map<string, BlockRecord[]>();
 
 		for (const tx of finalizedTxs.results) {
 			if (!txsByBlock.has(tx.block_hash)) {
@@ -172,8 +189,11 @@ export class Indexer {
 
 		const updates: D1PreparedStatement[] = [];
 		// TODO: do we imidietly process it and check if it was succesful and just change the status to minted? This should be a matter of seconds at most.
-		const setMintingStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'minting', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+		const setMintedStmt = this.d1.prepare(
+			"UPDATE nbtc_txs SET status = 'minted', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+		);
+		const setFailedStmt = this.d1.prepare(
+			"UPDATE nbtc_txs SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
 		for (const [block_hash, txsInBlock] of txsByBlock.entries()) {
@@ -210,9 +230,17 @@ export class Indexer {
 						continue;
 					}
 
-					// TODO: Call the minting smart contract.
-					// await suiClient.mintNBTC();
-					updates.push(setMintingStmt.bind(txInfo.tx_id));
+					const isSuccess = await this.suiClient.tryMintNbtc(
+						targetTx,
+						txInfo.block_height,
+						txIndex,
+						proof,
+					);
+					if (isSuccess) {
+						updates.push(setMintedStmt.bind(txInfo.tx_id));
+					} else {
+						updates.push(setFailedStmt.bind(txInfo.tx_id));
+					}
 				}
 			} catch (e) {
 				console.error(`Failed to process finalized txs in block ${block_hash}:`, e);

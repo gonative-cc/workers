@@ -16,7 +16,6 @@
 		"merkletreejs": "^0.5.2"
 	},
 	"devDependencies": {
-		"@types/crypto-js": "^4.2.2",
-		"dotenv": "^17.2.0"
+		"@types/crypto-js": "^4.2.2"
 	}
 }

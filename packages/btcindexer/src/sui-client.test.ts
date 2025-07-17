@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { describe, it, assert } from "vitest";
 import { Indexer } from "./btcindexer";
 import { SuiClient, SuiClientConfig } from "./sui-client";

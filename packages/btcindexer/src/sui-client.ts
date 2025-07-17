@@ -75,8 +75,6 @@ export class SuiClient {
 			},
 		});
 
-		console.log(result.effects);
-
 		if (result.effects?.status.status !== "success") {
 			throw new Error(`Mint transaction failed: ${result.effects?.status.error}`);
 		}

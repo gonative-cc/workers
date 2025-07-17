@@ -72,6 +72,8 @@ function mkMockD1() {
 const SUI_CLIENT_CONFIG: SuiClientConfig = {
 	suiNetwork: "testnet",
 	suiPackageId: "0xPACKAGE",
+	suiModule: "test",
+	suiFunction: "mint",
 	suiNbtcObjectId: "0xNBTC",
 	suiLightClientObjectId: "0xLIGHTCLIENT",
 	suiSignerMnemonic:

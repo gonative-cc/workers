@@ -8,6 +8,8 @@ import { ProofResult } from "./btcindexer";
 export interface SuiClientConfig {
 	suiNetwork: "testnet" | "mainnet" | "devnet";
 	suiPackageId: string;
+	suiModule: string;
+	suiFunction: string;
 	suiNbtcObjectId: string;
 	suiLightClientObjectId: string;
 	suiSignerMnemonic: string;
@@ -17,6 +19,8 @@ export class SuiClient {
 	private client: Client;
 	private signer: Ed25519Keypair;
 	private packageId: string;
+	private module: string;
+	private function: string;
 	private nbtcObjectId: string;
 	private lightClientObjectId: string;
 
@@ -24,6 +28,8 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.suiNetwork) });
 		this.signer = Ed25519Keypair.deriveKeypair(config.suiSignerMnemonic);
 		this.packageId = config.suiPackageId;
+		this.module = config.suiModule;
+		this.function = config.suiFunction;
 		this.nbtcObjectId = config.suiNbtcObjectId;
 		this.lightClientObjectId = config.suiLightClientObjectId;
 	}
@@ -35,8 +41,11 @@ export class SuiClient {
 		proof: ProofResult,
 	): Promise<void> {
 		const tx = new SuiTransaction();
-		const target = `${this.packageId}::nbtc::mint` as const;
+		const target = `${this.packageId}::${this.module}::${this.function}` as const;
 		const serializedTx = serializeBtcTx(transaction);
+
+		// NOTE: the contract is expecting the proofs to be in big-endian format, while the bitcon-js lib operates internally on little-endian.
+		const proofBigEndian = proof.proofPath.map((p) => Array.from(Buffer.from(p).reverse()));
 
 		tx.moveCall({
 			target: target,
@@ -49,14 +58,14 @@ export class SuiClient {
 				tx.pure.u32(serializedTx.outputCount),
 				tx.pure.vector("u8", serializedTx.outputs),
 				tx.pure.vector("u8", serializedTx.lockTime),
-				tx.pure.vector(
-					"vector<u8>",
-					proof.proofPath.map((p) => Array.from(p)),
-				),
+				tx.pure.vector("vector<u8>", proofBigEndian),
 				tx.pure.u64(blockHeight),
 				tx.pure.u64(txIndex),
 			],
 		});
+
+		// TODO: should we move it to config or set it as a constant
+		tx.setGasBudget(1000000000);
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,
@@ -65,6 +74,8 @@ export class SuiClient {
 				showEffects: true,
 			},
 		});
+
+		console.log(result.effects);
 
 		if (result.effects?.status.status !== "success") {
 			throw new Error(`Mint transaction failed: ${result.effects?.status.error}`);

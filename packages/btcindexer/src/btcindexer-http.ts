@@ -4,6 +4,9 @@ import { Indexer } from "./btcindexer";
 import { networks } from "bitcoinjs-lib";
 import { SuiClient } from "./sui-client";
 
+const NBTC_MODULE = "nbtc";
+const MINT_FUNCTION = "mint";
+
 export class HIndexer {
 	public nbtcAddr: string;
 	public suiFallbackAddr: string;
@@ -20,6 +23,8 @@ export class HIndexer {
 		const suiClient = new SuiClient({
 			suiNetwork: env.SUI_NETWORK,
 			suiPackageId: env.SUI_PACKAGE_ID,
+			suiModule: NBTC_MODULE,
+			suiFunction: MINT_FUNCTION,
 			suiNbtcObjectId: env.NBTC_OBJECT_ID,
 			suiLightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
 			suiSignerMnemonic: env.SUI_SIGNER_MNEMONIC,

@@ -3,7 +3,7 @@ import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
-import SuiClient from "./nbtc";
+import SuiClient from "./sui_client";
 
 const CONFIRMATION_DEPTH = 8;
 

@@ -2,7 +2,7 @@ import type { IRequest } from "itty-router";
 import { parseBlocksFromStream } from "./btcblock";
 import { Indexer } from "./btcindexer";
 import { networks } from "bitcoinjs-lib";
-import { SuiClient } from "./nbtc";
+import SuiClient from "./sui_client";
 
 const NBTC_MODULE = "nbtc";
 

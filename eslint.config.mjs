@@ -3,6 +3,7 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import { globalIgnores } from "eslint/config";
+import prettierConfig from "eslint-config-prettier";
 
 const ignore = globalIgnores(["packages/**/*.d.ts"]);
 
@@ -15,7 +16,9 @@ export default tseslint.config(
     // disable specific rules
     rules: {
       "@typescript-eslint/no-extraneous-class": "off",
-      "comma-dangle": ["error", "always-multiline"],
     },
   },
+
+  // Prettier configuration should be placed last to override any conflicting rules from earlier configurations.
+  prettierConfig,
 );

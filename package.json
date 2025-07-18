@@ -20,6 +20,7 @@
 		"@types/node": "^24.0.10",
 		"config": "link:@cloudflare/vitest-pool-workers/config",
 		"eslint": "^9.29.0",
+		"eslint-config-prettier": "^10.1.5",
 		"lint-staged": "^16.1.2",
 		"typescript": "^5.8.3",
 		"typescript-eslint": "^8.35.0",

@@ -19,5 +19,6 @@ export default tseslint.config(
       "comma-dangle": ["error", "always-multiline"],
     },
   },
+  // Prettier configuration should be placed last to override any conflicting rules from earlier configurations.
   prettierConfig,
 );

@@ -168,9 +168,7 @@ export class Indexer {
 
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
-			.prepare(
-				"SELECT tx_id, block_hash, height FROM nbtc_txs WHERE status = 'finalized'",
-			)
+			.prepare("SELECT tx_id, block_hash, height FROM nbtc_txs WHERE status = 'finalized'")
 			.all<BlockRecord>();
 
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
@@ -293,9 +291,7 @@ export class Indexer {
 
 		const { reorgUpdates, reorgedTxIds } = await this.handleReorgs(pendingTxs.results);
 		// TODO: add a unit test for it so we make sure we do not finalize reorrged tx.
-		const validPendingTxs = pendingTxs.results.filter(
-			(tx) => !reorgedTxIds.includes(tx.tx_id),
-		);
+		const validPendingTxs = pendingTxs.results.filter((tx) => !reorgedTxIds.includes(tx.tx_id));
 		const finalizationUpdates = this.selectFinalizedNbtcTxs(validPendingTxs, latestHeight);
 		const allUpdates = [...reorgUpdates, ...finalizationUpdates];
 
@@ -337,10 +333,7 @@ export class Indexer {
 		return { reorgUpdates, reorgedTxIds };
 	}
 
-	selectFinalizedNbtcTxs(
-		pendingTxs: PendingTx[],
-		latestHeight: number,
-	): D1PreparedStatement[] {
+	selectFinalizedNbtcTxs(pendingTxs: PendingTx[], latestHeight: number): D1PreparedStatement[] {
 		const updates: D1PreparedStatement[] = [];
 		const finalizeStmt = this.d1.prepare(
 			"UPDATE nbtc_txs SET status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",

@@ -27,13 +27,7 @@ export class HIndexer {
 			lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
 			signerMnemonic: env.SUI_SIGNER_MNEMONIC,
 		});
-		return new Indexer(
-			env,
-			this.nbtcAddr,
-			this.suiFallbackAddr,
-			this.btcNetwork,
-			suiClient,
-		);
+		return new Indexer(env, this.nbtcAddr, this.suiFallbackAddr, this.btcNetwork, suiClient);
 	}
 
 	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods
@@ -55,8 +49,7 @@ export class HIndexer {
 	putTestKV = async (req: IRequest, env: Env) => {
 		const kv = env.btc_blocks;
 		const data = await req.json<{ key: string; val: string }>();
-		if (!data.key || !data.val)
-			return new Error("Wrong Request: body must by {key, val} JSON");
+		if (!data.key || !data.val) return new Error("Wrong Request: body must by {key, val} JSON");
 
 		console.log("recording to btc_blocks");
 		await kv.put(data.key, data.val);

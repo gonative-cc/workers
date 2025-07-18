@@ -33,9 +33,7 @@ describe.skip("Sui Contract Integration", () => {
 			suiClient,
 		);
 		const block = Block.fromHex(REGTEST_DATA.BLOCK_HEX);
-		const txIndex = block.transactions?.findIndex(
-			(tx) => tx.getId() === REGTEST_DATA.TX_ID,
-		);
+		const txIndex = block.transactions?.findIndex((tx) => tx.getId() === REGTEST_DATA.TX_ID);
 		assert(txIndex);
 		const targetTx = block.transactions?.[txIndex ?? -1];
 		assert(targetTx);

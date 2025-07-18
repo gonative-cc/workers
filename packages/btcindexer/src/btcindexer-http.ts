@@ -44,4 +44,18 @@ export class HIndexer {
 		const i = this.newIndexer(env);
 		return { inserted: await i.putNbtcTx() };
 	}
+
+	// TODO: remove this
+	async putTestKV(req: IRequest, env: Env) {
+		const kv = env.btc_blocks;
+		const data = await req.json<{ key: string; val: string }>();
+		if (!data.key || !data.val)
+			return new Error("Wrong Request: body must by {key, val} JSON");
+
+		console.log("recording to btc_blocks");
+		await kv.put(data.key, data.val);
+		const allKeys = await kv.list();
+		return allKeys;
+		// return 1;
+	}
 }

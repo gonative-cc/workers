@@ -58,7 +58,8 @@ A cron job runs on a fixed schedule (e.g., every 30 seconds)
 
 To quickly handle UI nBTC transaction observability, BYield UI will push nBTC transaction, in order to let the indexer start monitoring it. This way UI will have the quick status about the TX, before the tx is added to the blockchain.
 
-## Pracital information
+
+## Practical information
 
 ### Dependencies
 
@@ -93,6 +94,18 @@ To apply migrations to the local Cloudflare env:
 
 ```sh
 pnpm run db:migrate:local
+```
+
+### Local development of a particular worker
+
+``` sh
+cd packages/<worker_name>
+# this will start local server with local bindings to storage
+# it will print the localhost port binding
+pnpm wrangler dev
+
+# now we can interact with the server, for example
+curl http://localhost:8787/test-kv -X PUT -d '{"key": "k1", "val": "v1"}'
 ```
 
 ### Using pnpm workspace

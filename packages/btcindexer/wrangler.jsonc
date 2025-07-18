@@ -8,11 +8,13 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-06-20",
   "observability": {
-    "enabled": true,
+    "enabled": true
   },
   "triggers": {
-    "crons": ["* * * * *"],
+    "crons": ["0 8 * * *"]
   },
+  "compatibility_flags": ["nodejs_compat"],
+
   /**
    * Smart Placement
    * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -35,8 +37,9 @@
     "SUI_PACKAGE_ID": "0x",
     "NBTC_OBJECT_ID": "0x",
     "LIGHT_CLIENT_OBJECT_ID": "0x",
-    "SUI_SIGNER_MNEMONIC": "test", // TODO: move it to secrets
+    "SUI_SIGNER_MNEMONIC": "toe transfer hero title hover unaware main fat gap squeeze enroll popular" // TODO: move it to secrets
   },
+
   /**
    * Note: Use secrets to store sensitive data.
    * https://developers.cloudflare.com/workers/configuration/secrets/
@@ -58,21 +61,21 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "btc-indexer",
-      "database_id": "e0772a14-1734-4eab-b193-84675dd08a20",
+      "database_name": "btcindexer-dev",
+      "database_id": "3a43879e-0799-442c-aed5-a3298df1c3bb",
       "migrations_table": "migrations",
-      "migrations_dir": "./db/migrations/",
-    },
+      "migrations_dir": "./db/migrations/"
+    }
   ],
 
   "kv_namespaces": [
     {
       "binding": "btc_blocks",
-      "id": "<YOUR_BINDING_ID>",
+      "id": "f8bc94f1f427436ab0797535fbc30cb7"
     },
     {
       "binding": "nbtc_txs",
-      "id": "<YOUR_BINDING_ID>",
-    },
-  ],
+      "id": "93968151e21e4cfa8f23041c0a5baf08"
+    }
+  ]
 }

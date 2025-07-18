@@ -3,7 +3,7 @@ import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
-import { SuiClient } from "./sui-client";
+import SuiClient from "./sui_client";
 
 const CONFIRMATION_DEPTH = 8;
 
@@ -36,7 +36,7 @@ export class Indexer {
 	nbtcTxDB: KVNamespace;
 	nbtcScriptHex: string;
 	suiFallbackAddr: string;
-	suiClient: SuiClient;
+	nbtcClient: SuiClient;
 
 	constructor(
 		env: Env,
@@ -50,7 +50,7 @@ export class Indexer {
 		this.nbtcTxDB = env.nbtc_txs;
 		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
-		this.suiClient = suiClient;
+		this.nbtcClient = suiClient;
 	}
 
 	// returns number of processed and add blocks
@@ -230,7 +230,7 @@ export class Indexer {
 						continue;
 					}
 
-					const isSuccess = await this.suiClient.tryMintNbtc(
+					const isSuccess = await this.nbtcClient.tryMintNbtc(
 						targetTx,
 						txInfo.block_height,
 						txIndex,

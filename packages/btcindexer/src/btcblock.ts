@@ -29,11 +29,15 @@ class BlockPayloadParser {
 			if (done) break;
 			jsonString += decoder.decode(value, { stream: true });
 		}
+		if (jsonString === "") return [];
 		return JSON.parse(jsonString);
 	}
 }
 
 function parseBlockPayloadEntries(payload: BlockPayload[]): ExtBlock[] {
+	if (payload.length === 0) {
+		return [];
+	}
 	const blocks: ExtBlock[] = [];
 	for (const entry of payload)
 		try {
@@ -44,7 +48,9 @@ function parseBlockPayloadEntries(payload: BlockPayload[]): ExtBlock[] {
 			extendedBlock.raw = rawBlockBuffer;
 			blocks.push(extendedBlock);
 		} catch (e) {
-			// on an invalid block we stop parsing, log the error and break the loop returning the already parsed blocks
+			// on an invalid block we stop parsing, log the error and break the loop returning
+			// the already parsed blocks
+			// TODO: we should return an error, rather than logging it
 			console.error(
 				`Failed to parse an invalid bitcoin block at height ${entry.height}. ` +
 					`Returning ${blocks.length} successfully parsed blocks:`,
@@ -62,9 +68,7 @@ function parseBlockPayloadEntries(payload: BlockPayload[]): ExtBlock[] {
  */
 export async function parseBlocksFromStream(body: ReadableStream | null): Promise<ExtBlock[]> {
 	const payload = await BlockPayloadParser.fromStream(body);
-	if (payload.length === 0) {
-		return [];
-	}
 	return parseBlockPayloadEntries(payload);
 }
+
 export { Block, Transaction } from "bitcoinjs-lib";

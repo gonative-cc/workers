@@ -1,6 +1,6 @@
 import { describe, it, assert } from "vitest";
 import { Indexer } from "./btcindexer";
-import { SuiClient, SuiClientConfig } from "./sui-client";
+import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Block, networks } from "bitcoinjs-lib";
 
 const REGTEST_DATA = {
@@ -10,15 +10,13 @@ const REGTEST_DATA = {
 	BLOCK_HEIGHT: 303,
 };
 
-const SUI_CLIENT_CONFIG: SuiClientConfig = {
-	suiNetwork: "devnet",
-	suiPackageId: "0x7a03af034ade1d5b4072ba4fdb9650bd5ce0cd4dcab40f0563540be0ebbe824b",
-	suiModule: "indexer_test",
-	suiFunction: "mint",
-	suiNbtcObjectId: "0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
-	suiLightClientObjectId:
-		"0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
-	suiSignerMnemonic:
+const SUI_CLIENT_CONFIG: SuiClientCfg = {
+	network: "devnet",
+	nbtcPkg: "0x7a03af034ade1d5b4072ba4fdb9650bd5ce0cd4dcab40f0563540be0ebbe824b",
+	nbtcModule: "indexer_test",
+	nbtcObjectId: "0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
+	lightClientObjectId: "0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
+	signerMnemonic:
 		"your mnemonic your mnemonic your mnemonic your mnemonic your mnemonic your mnemonic",
 };
 

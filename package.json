@@ -4,7 +4,7 @@
 	"private": true,
 	"sideEffects": false,
 	"type": "module",
-	"packageManager": "pnpm@10.12.1",
+	"packageManager": "pnpm@10.13.1",
 	"scripts": {
 		"prepare": "cd .git/hooks; ln -s -f ../../contrib/git-hooks/pre-commit ./",
 		"typecheck": "pnpm recursive run typecheck",
@@ -24,7 +24,7 @@
 		"typescript": "^5.8.3",
 		"typescript-eslint": "^8.35.0",
 		"vitest": "^3.2.4",
-		"wrangler": "^4.20.5"
+		"wrangler": "^4.25.0"
 	},
 	"lint-staged": {
 		"*.{js,cjs,mjs,jsx,ts,tsx}": [

@@ -40,7 +40,7 @@ export class SuiClient {
 		proof: ProofResult,
 	): Promise<void> {
 		const tx = new SuiTransaction();
-		const target = `${this.nbtcPkg}::${this.nbtcModule}::"mint"` as const;
+		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
 		const serializedTx = serializeBtcTx(transaction);
 
 		// NOTE: the contract is expecting the proofs to be in big-endian format, while the bitcon-js lib operates internally on little-endian.

@@ -70,4 +70,5 @@ export async function parseBlocksFromStream(body: ReadableStream | null): Promis
 	const payload = await BlockPayloadParser.fromStream(body);
 	return parseBlockPayloadEntries(payload);
 }
+
 export { Block, Transaction } from "bitcoinjs-lib";

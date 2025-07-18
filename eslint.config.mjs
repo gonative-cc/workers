@@ -3,6 +3,7 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import { globalIgnores } from "eslint/config";
+import prettierConfig from "eslint-config-prettier";
 
 const ignore = globalIgnores(["packages/**/*.d.ts"]);
 
@@ -18,4 +19,5 @@ export default tseslint.config(
       "comma-dangle": ["error", "always-multiline"],
     },
   },
+  prettierConfig,
 );

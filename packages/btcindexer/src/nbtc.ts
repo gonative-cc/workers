@@ -1,4 +1,4 @@
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
@@ -6,32 +6,29 @@ import { Transaction } from "bitcoinjs-lib";
 import { serializeBtcTx } from "./btctx-serializer";
 import { ProofResult } from "./btcindexer";
 
-export interface NbtcClientCfg {
+export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet";
-	packageId: string;
-	module: string;
-	func: string;
+	nbtcPkg: string;
+	nbtcModule: string;
 	nbtcObjectId: string;
 	lightClientObjectId: string;
 	signerMnemonic: string;
 }
 
-export class NbtcClient {
-	private client: SuiClient;
+export class SuiClient {
+	private client: Client;
 	private signer: Signer;
-	private packageId: string;
-	private module: string;
-	private function: string;
+	private nbtcPkg: string;
+	private nbtcModule: string;
 	private nbtcObjectId: string;
 	private lightClientObjectId: string;
 
-	constructor(config: NbtcClientCfg) {
-		this.client = new SuiClient({ url: getFullnodeUrl(config.network) });
+	constructor(config: SuiClientCfg) {
+		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
-		this.packageId = config.packageId;
-		this.module = config.module;
-		this.function = config.func;
+		this.nbtcPkg = config.nbtcPkg;
+		this.nbtcModule = config.nbtcModule;
 		this.nbtcObjectId = config.nbtcObjectId;
 		this.lightClientObjectId = config.lightClientObjectId;
 	}
@@ -43,7 +40,7 @@ export class NbtcClient {
 		proof: ProofResult,
 	): Promise<void> {
 		const tx = new SuiTransaction();
-		const target = `${this.packageId}::${this.module}::${this.function}` as const;
+		const target = `${this.nbtcPkg}::${this.nbtcModule}::"mint"` as const;
 		const serializedTx = serializeBtcTx(transaction);
 
 		// NOTE: the contract is expecting the proofs to be in big-endian format, while the bitcon-js lib operates internally on little-endian.
@@ -98,4 +95,4 @@ export class NbtcClient {
 	}
 }
 
-export default NbtcClient;
+export default SuiClient;

@@ -3,7 +3,7 @@ import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
-import NbtcClient from "./nbtc";
+import SuiClient from "./nbtc";
 
 const CONFIRMATION_DEPTH = 8;
 
@@ -36,14 +36,14 @@ export class Indexer {
 	nbtcTxDB: KVNamespace;
 	nbtcScriptHex: string;
 	suiFallbackAddr: string;
-	nbtcClient: NbtcClient;
+	nbtcClient: SuiClient;
 
 	constructor(
 		env: Env,
 		nbtcAddr: string,
 		fallbackAddr: string,
 		network: networks.Network,
-		suiClient: NbtcClient,
+		suiClient: SuiClient,
 	) {
 		this.d1 = env.DB;
 		this.blocksDB = env.btc_blocks;

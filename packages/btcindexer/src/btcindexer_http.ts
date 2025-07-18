@@ -2,10 +2,9 @@ import type { IRequest } from "itty-router";
 import { parseBlocksFromStream } from "./btcblock";
 import { Indexer } from "./btcindexer";
 import { networks } from "bitcoinjs-lib";
-import { NbtcClient } from "./nbtc";
+import { SuiClient } from "./nbtc";
 
 const NBTC_MODULE = "nbtc";
-const MINT_FUNCTION = "mint";
 
 export class HIndexer {
 	public nbtcAddr: string;
@@ -20,11 +19,10 @@ export class HIndexer {
 	}
 
 	newIndexer(env: Env): Indexer {
-		const suiClient = new NbtcClient({
+		const suiClient = new SuiClient({
 			network: env.SUI_NETWORK,
-			packageId: env.SUI_PACKAGE_ID,
-			module: NBTC_MODULE,
-			func: MINT_FUNCTION,
+			nbtcPkg: env.SUI_PACKAGE_ID,
+			nbtcModule: NBTC_MODULE,
 			nbtcObjectId: env.NBTC_OBJECT_ID,
 			lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
 			signerMnemonic: env.SUI_SIGNER_MNEMONIC,

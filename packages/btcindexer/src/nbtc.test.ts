@@ -1,6 +1,6 @@
 import { describe, it, assert } from "vitest";
 import { Indexer } from "./btcindexer";
-import { NbtcClient, NbtcClientCfg } from "./nbtc";
+import { SuiClient, SuiClientCfg } from "./nbtc";
 import { Block, networks } from "bitcoinjs-lib";
 
 const REGTEST_DATA = {
@@ -10,10 +10,10 @@ const REGTEST_DATA = {
 	BLOCK_HEIGHT: 303,
 };
 
-const SUI_CLIENT_CONFIG: NbtcClientCfg = {
+const SUI_CLIENT_CONFIG: SuiClientCfg = {
 	network: "devnet",
-	packageId: "0x7a03af034ade1d5b4072ba4fdb9650bd5ce0cd4dcab40f0563540be0ebbe824b",
-	module: "indexer_test",
+	nbtcPkg: "0x7a03af034ade1d5b4072ba4fdb9650bd5ce0cd4dcab40f0563540be0ebbe824b",
+	nbtcModule: "indexer_test",
 	func: "mint",
 	nbtcObjectId: "0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
 	lightClientObjectId: "0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
@@ -24,7 +24,7 @@ const SUI_CLIENT_CONFIG: NbtcClientCfg = {
 // NOTE: skip to prevent this test from running in CI
 describe.skip("Sui Contract Integration", () => {
 	it("should successfully call the mint function on devnet", { timeout: 60000 }, async () => {
-		const suiClient = new NbtcClient(SUI_CLIENT_CONFIG);
+		const suiClient = new SuiClient(SUI_CLIENT_CONFIG);
 		const indexer = new Indexer(
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			{} as any,

@@ -2,7 +2,7 @@ import { Router, error, json } from "itty-router";
 import type { CFArgs } from "./routertype";
 import type { IRequest } from "itty-router";
 import addExampleRoutes from "./examples";
-import { HIndexer } from "./btcindexer-http";
+import { HIndexer } from "./btcindexer_http";
 
 const router = Router<IRequest, CFArgs>({
 	catch: error,

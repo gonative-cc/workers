@@ -1,37 +1,39 @@
-import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
+import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
 import { serializeBtcTx } from "./btctx-serializer";
 import { ProofResult } from "./btcindexer";
 
-export interface SuiClientConfig {
-	suiNetwork: "testnet" | "mainnet" | "devnet";
-	suiPackageId: string;
-	suiModule: string;
-	suiFunction: string;
-	suiNbtcObjectId: string;
-	suiLightClientObjectId: string;
-	suiSignerMnemonic: string;
+export interface NbtcClientCfg {
+	network: "testnet" | "mainnet" | "devnet";
+	packageId: string;
+	module: string;
+	func: string;
+	nbtcObjectId: string;
+	lightClientObjectId: string;
+	signerMnemonic: string;
 }
 
-export class SuiClient {
-	private client: Client;
-	private signer: Ed25519Keypair;
+export class NbtcClient {
+	private client: SuiClient;
+	private signer: Signer;
 	private packageId: string;
 	private module: string;
 	private function: string;
 	private nbtcObjectId: string;
 	private lightClientObjectId: string;
 
-	constructor(config: SuiClientConfig) {
-		this.client = new Client({ url: getFullnodeUrl(config.suiNetwork) });
-		this.signer = Ed25519Keypair.deriveKeypair(config.suiSignerMnemonic);
-		this.packageId = config.suiPackageId;
-		this.module = config.suiModule;
-		this.function = config.suiFunction;
-		this.nbtcObjectId = config.suiNbtcObjectId;
-		this.lightClientObjectId = config.suiLightClientObjectId;
+	constructor(config: NbtcClientCfg) {
+		this.client = new SuiClient({ url: getFullnodeUrl(config.network) });
+		// TODO: instead of mnemonic, let's use the Signer interface in the config
+		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
+		this.packageId = config.packageId;
+		this.module = config.module;
+		this.function = config.func;
+		this.nbtcObjectId = config.nbtcObjectId;
+		this.lightClientObjectId = config.lightClientObjectId;
 	}
 
 	async mintNbtc(
@@ -95,3 +97,5 @@ export class SuiClient {
 		}
 	}
 }
+
+export default NbtcClient;

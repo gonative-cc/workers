@@ -8,10 +8,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-06-20",
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "triggers": {
-    "crons": ["0 8 * * *"]
+    "crons": ["0 8 * * *"],
   },
   "compatibility_flags": ["nodejs_compat"],
 
@@ -37,7 +37,7 @@
     "SUI_PACKAGE_ID": "0x",
     "NBTC_OBJECT_ID": "0x",
     "LIGHT_CLIENT_OBJECT_ID": "0x",
-    "SUI_SIGNER_MNEMONIC": "toe transfer hero title hover unaware main fat gap squeeze enroll popular" // TODO: move it to secrets
+    "SUI_SIGNER_MNEMONIC": "toe transfer hero title hover unaware main fat gap squeeze enroll popular", // TODO: move it to secrets
   },
 
   /**
@@ -64,18 +64,18 @@
       "database_name": "btcindexer-dev",
       "database_id": "3a43879e-0799-442c-aed5-a3298df1c3bb",
       "migrations_table": "migrations",
-      "migrations_dir": "./db/migrations/"
-    }
+      "migrations_dir": "./db/migrations/",
+    },
   ],
 
   "kv_namespaces": [
     {
       "binding": "btc_blocks",
-      "id": "f8bc94f1f427436ab0797535fbc30cb7"
+      "id": "f8bc94f1f427436ab0797535fbc30cb7",
     },
     {
       "binding": "nbtc_txs",
-      "id": "93968151e21e4cfa8f23041c0a5baf08"
-    }
-  ]
+      "id": "93968151e21e4cfa8f23041c0a5baf08",
+    },
+  ],
 }

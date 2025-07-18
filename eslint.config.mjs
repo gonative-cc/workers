@@ -16,9 +16,9 @@ export default tseslint.config(
     // disable specific rules
     rules: {
       "@typescript-eslint/no-extraneous-class": "off",
-      "comma-dangle": ["error", "always-multiline"],
     },
   },
+
   // Prettier configuration should be placed last to override any conflicting rules from earlier configurations.
   prettierConfig,
 );

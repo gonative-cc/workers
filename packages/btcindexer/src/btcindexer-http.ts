@@ -33,20 +33,23 @@ export class HIndexer {
 		);
 	}
 
+	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods
+	// in callbacks.
+
 	// NOTE: we may need to put this to a separate worker
-	async putBlocks(req: IRequest, env: Env) {
+	putBlocks = async (req: IRequest, env: Env) => {
 		const blocks = await parseBlocksFromStream(req.body);
 		const i = this.newIndexer(env);
 		return { number: await i.putBlocks(blocks) };
-	}
+	};
 
-	async putNbtcTx(req: IRequest, env: Env) {
+	putNbtcTx = async (req: IRequest, env: Env) => {
 		const i = this.newIndexer(env);
 		return { inserted: await i.putNbtcTx() };
-	}
+	};
 
 	// TODO: remove this
-	async putTestKV(req: IRequest, env: Env) {
+	putTestKV = async (req: IRequest, env: Env) => {
 		const kv = env.btc_blocks;
 		const data = await req.json<{ key: string; val: string }>();
 		if (!data.key || !data.val)
@@ -57,5 +60,5 @@ export class HIndexer {
 		const allKeys = await kv.list();
 		return allKeys;
 		// return 1;
-	}
+	};
 }

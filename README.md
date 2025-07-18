@@ -96,7 +96,7 @@ To apply migrations to the local Cloudflare env:
 pnpm run db:migrate:local
 ```
 
-### Local development of a particular worker
+### Local development of a worker
 
 ``` sh
 cd packages/<worker_name>

@@ -14,11 +14,11 @@ const router = Router<IRequest, CFArgs>({
 addExampleRoutes(router);
 
 const btcIndexer = new HIndexer();
-router.put("/bitcoin/blocks", btcIndexer.putBlocks.bind(btcIndexer));
-router.put("/nbtc", btcIndexer.putNbtcTx.bind(btcIndexer));
+router.put("/bitcoin/blocks", btcIndexer.putBlocks);
+router.put("/nbtc", btcIndexer.putNbtcTx);
 
 // TESTING
-router.put("/test-kv", btcIndexer.putTestKV.bind(btcIndexer));
+router.put("/test-kv", btcIndexer.putTestKV);
 
 router.all("/*", () => error(404, "Wrong Endpoint"));
 

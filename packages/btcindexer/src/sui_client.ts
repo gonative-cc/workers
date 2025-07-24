@@ -43,7 +43,7 @@ export class SuiClient {
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
 		const serializedTx = serializeBtcTx(transaction);
 
-		// NOTE: the contract is expecting the proofs to be in big-endian format, while the bitcon-js lib operates internally on little-endian.
+		// NOTE: the contract is expecting the proofs to be in little-endian format, while the merkletreejs lib operates internally on big-endian.
 		const proofBigEndian = proof.proofPath.map((p) => Array.from(Buffer.from(p).reverse()));
 
 		tx.moveCall({

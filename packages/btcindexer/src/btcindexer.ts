@@ -258,9 +258,10 @@ export class Indexer {
 		if (!block.transactions || block.transactions.length === 0) {
 			return null;
 		}
-		// NOTE: The `merkletreejs` library expects its input leaves to be in big-endian format.
-		// However, `tx.getHash()` from `bitcoinjs-lib` returns the little-endian format used by the Bitcoin protocol.
-		// We must reverse each hash to convert it to big-endian before creating the tree.
+		// NOTE: `tx.getHash()` from `bitcoinjs-lib` returns numbers as a bytes in the little-endian
+		// format - same as Bitcoin Core
+		// However, the MerkleTree from the `merkletreejs` library expects its leaves to be in the
+		// big-endian format. So we reverse each hash to convert them big-endian.
 		const leaves = block.transactions.map((tx) => Buffer.from(tx.getHash()).reverse());
 		return new MerkleTree(leaves, SHA256, { isBitcoinTree: true });
 	}

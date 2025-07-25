@@ -15,17 +15,17 @@
 		"test": "pnpm recursive run test"
 	},
 	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20250620.0",
-		"@eslint/js": "^9.29.0",
-		"@types/node": "^24.0.10",
+		"@cloudflare/workers-types": "^4.20250725.0",
+		"@eslint/js": "^9.31.0",
+		"@types/node": "^24.1.0",
 		"config": "link:@cloudflare/vitest-pool-workers/config",
-		"eslint": "^9.29.0",
-		"eslint-config-prettier": "^10.1.5",
+		"eslint": "^9.31.0",
+		"eslint-config-prettier": "^10.1.8",
 		"lint-staged": "^16.1.2",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "^8.35.0",
+		"typescript-eslint": "^8.38.0",
 		"vitest": "^3.2.4",
-		"wrangler": "^4.25.0"
+		"wrangler": "^4.26.0"
 	},
 	"lint-staged": {
 		"*.{js,cjs,mjs,jsx,ts,tsx}": [

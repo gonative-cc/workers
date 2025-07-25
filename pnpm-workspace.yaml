@@ -1,9 +1,11 @@
 packages:
   - packages/*
+  - gorpc/*
 
 linkWorkspacePackages: true
 
 onlyBuiltDependencies:
   - esbuild
+  - msgpackr-extract
   - sharp
   - workerd

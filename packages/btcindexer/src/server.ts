@@ -1,12 +1,12 @@
 import { IRequest, Router, error, json } from "itty-router";
 import { networks } from "bitcoinjs-lib";
 
-import { parseBlocksFromStream } from "./btcblock";
 import { Indexer } from "./btcindexer";
 import SuiClient from "./sui_client";
 import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
+import { PutBlocksReq } from "./api/put-blocks";
 
 const NBTC_MODULE = "nbtc";
 
@@ -19,8 +19,8 @@ export default class HttpServer {
 
 	constructor() {
 		// TODO: need to provide through env variable
-		this.nbtcAddr = "TODO";
-		this.suiFallbackAddr = "TODO";
+		this.nbtcAddr = "bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw";
+		this.suiFallbackAddr = "0xFALLBACK";
 		this.btcNetwork = networks.regtest;
 
 		this.router = this.createRouter();
@@ -76,9 +76,9 @@ export default class HttpServer {
 
 	// NOTE: we may need to put this to a separate worker
 	putBlocks = async (req: IRequest, env: Env) => {
-		const blocks = await parseBlocksFromStream(req.body);
+		const blocks = PutBlocksReq.decode(await req.arrayBuffer());
 		const i = this.newIndexer(env);
-		return { number: await i.putBlocks(blocks) };
+		return { inserted: await i.putBlocks(blocks) };
 	};
 
 	putNbtcTx = async (req: IRequest, env: Env) => {
@@ -93,8 +93,6 @@ export default class HttpServer {
 		const kv = env.btc_blocks;
 		const data = await req.json<{ key: string; val: string }>();
 		if (!data.key || !data.val) return new Error("Wrong Request: body must by {key, val} JSON");
-
-		console.log("recording to btc_blocks");
 		await kv.put(data.key, data.val);
 		const allKeys = await kv.list();
 		return allKeys;

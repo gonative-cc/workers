@@ -1,4 +1,4 @@
-import { ExtBlock, Transaction, Block } from "./btcblock";
+import { PutBlocks } from "./api/put-blocks";
 import { address, networks } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
@@ -54,23 +54,27 @@ export class Indexer {
 	}
 
 	// returns number of processed and add blocks
-	async putBlocks(blocks: ExtBlock[]): Promise<number> {
+	async putBlocks(blocks: PutBlocks[]): Promise<number> {
+		console.log("INSERTING:", blocks.length);
 		if (!blocks || blocks.length === 0) {
 			return 0;
 		}
+
 		const insertBlockStmt = this.d1.prepare(
 			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)`,
 		);
-		const putKVs = blocks.map((b) => this.blocksDB.put(b.getId(), b.raw));
-		const putD1s = blocks.map((b) => insertBlockStmt.bind(b.height, b.getHash()));
+		// TODO: store in KV
+		// const putKVs = blocks.map((b) => this.blocksDB.put(b.block.getId(), b.raw));
+		const putD1s = blocks.map((b) => insertBlockStmt.bind(b.height, b.height));
 
 		try {
-			await Promise.all([...putKVs, this.d1.batch(putD1s)]);
+			await Promise.all([/*...putKVs, */ this.d1.batch(putD1s)]);
 		} catch (e) {
 			console.error(`Failed to store one or more blocks in KV or D1:`, e);
 			// TODO: decide what to do in the case where some blocks were saved and some not, prolly we need more granular error
 			throw new Error(`Could not save all blocks data`);
 		}
+		console.log("<< >>INSERTED");
 		return blocks.length;
 	}
 

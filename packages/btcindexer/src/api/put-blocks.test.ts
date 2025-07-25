@@ -22,6 +22,7 @@ describe("encode PutBlocks", () => {
 
 		const expected = [newPutBlock(156, block)];
 		const reqBytes = PutBlocksReq.encode(expected);
+
 		const got = PutBlocksReq.decode(reqBytes);
 		assert.lengthOf(got, 1);
 

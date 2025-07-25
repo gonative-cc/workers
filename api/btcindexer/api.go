@@ -1,0 +1,34 @@
+package btcindexer
+
+import (
+	"bytes"
+	"fmt"
+	// "io/ioutil"
+	"net/http"
+	"time"
+)
+
+type Client struct {
+	baseUrl string
+	c       http.Client
+}
+
+func NewClient(workerUrl string) Client {
+	return Client{
+		baseUrl: workerUrl,
+		c:       http.Client{Timeout: time.Second * 2},
+	}
+}
+
+func (c Client) PutBlocks(putBlocks PutBlocksReq) (*http.Response, error) {
+	bz, err := putBlocks.MarshalMsg(nil)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodPut, fmt.Sprint(c.baseUrl, "/bitcoin/blocks"),
+		bytes.NewReader(bz))
+	if err != nil {
+		return nil, err
+	}
+	return c.c.Do(req)
+}

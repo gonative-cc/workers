@@ -4,7 +4,7 @@ import { networks } from "bitcoinjs-lib";
 import { parseBlocksFromStream } from "./btcblock";
 import { Indexer } from "./btcindexer";
 import SuiClient from "./sui_client";
-import { RestPath } from "./rpc/client";
+import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
 

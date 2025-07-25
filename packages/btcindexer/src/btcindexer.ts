@@ -5,6 +5,8 @@ import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
 import SuiClient from "./sui_client";
 
+import { Block, Transaction } from "bitcoinjs-lib";
+
 const CONFIRMATION_DEPTH = 8;
 
 export interface Deposit {

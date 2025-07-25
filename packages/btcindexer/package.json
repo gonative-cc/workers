@@ -13,7 +13,8 @@
 		"bitcoinjs-lib": "^6.1.7",
 		"crypto-js": "^4.2.0",
 		"itty-router": "^5.0.18",
-		"merkletreejs": "^0.5.2"
+		"merkletreejs": "^0.5.2",
+		"msgpackr": "^1.11.5"
 	},
 	"devDependencies": {
 		"@types/crypto-js": "^4.2.2"

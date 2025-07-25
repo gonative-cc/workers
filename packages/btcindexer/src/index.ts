@@ -7,10 +7,12 @@
  * `Env` object can be regenerated with `pnpm run typegen`.
  */
 
-import router from "./router";
+import HttpServer from "./server";
+
+const server = new HttpServer();
 
 export default {
-	fetch: router.fetch,
+	fetch: server.router.fetch,
 
 	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.

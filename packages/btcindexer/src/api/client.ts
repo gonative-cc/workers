@@ -6,7 +6,7 @@ export enum RestPath {
 }
 
 export enum ContentType {
-	msgpack = "application/vnd.msgpacvk",
+	msgpack = "application/vnd.msgpack",
 }
 
 const msgPackHeaders = {

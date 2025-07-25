@@ -35,7 +35,8 @@ func readSampleBlock(t *testing.T) []byte {
 }
 
 func TestPutBlocksInt(t *testing.T) {
-	//t.SkipNow()
+	// TODO: make build time test flag
+	t.SkipNow()
 	blockBz, err := hex.DecodeString(blockHex)
 	assert.NilError(t, err)
 

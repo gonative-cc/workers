@@ -36,7 +36,8 @@ func readSampleBlock(t *testing.T) []byte {
 }
 
 func TestPutBlocksInt(t *testing.T) {
-	// TODO: make build time test flag
+	// This is an integration test, requires indexer to be running.
+	// TODO: need to add build flag for integration tests.
 	t.SkipNow()
 	blockBz, err := hex.DecodeString(blockHex)
 	assert.NilError(t, err)

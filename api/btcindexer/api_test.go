@@ -18,8 +18,8 @@ func TestPutBlocks(t *testing.T) {
 	pbs := new(PutBlocksReq)
 	data, err := pbs.UnmarshalMsg(data)
 	assert.NilError(t, err)
-	assert.Assert(t, len(data) == 0)
-	assert.Assert(t, len(*pbs) == 1)
+	assert.Equal(t, len(data), 0)
+	assert.Equal(t, len(*pbs), 1)
 	pb0 := (*pbs)[0]
 	assert.Equal(t, pb0.Height, int64(156))
 

@@ -29,5 +29,6 @@ func (c Client) PutBlocks(putBlocks PutBlocksReq) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/msgpack")
 	return c.c.Do(req)
 }

@@ -36,7 +36,7 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult
+		proof: ProofResult,
 	): Promise<void> {
 		const tx = new SuiTransaction();
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
@@ -76,7 +76,7 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult
+		proof: ProofResult,
 	): Promise<boolean> {
 		try {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
@@ -93,7 +93,7 @@ export class SuiClient {
 			blockHeight: number;
 			txIndex: number;
 			proof: ProofResult;
-		}[]
+		}[],
 	): Promise<void> {
 		if (mintArgs.length === 0) return;
 
@@ -102,7 +102,7 @@ export class SuiClient {
 
 		for (const args of mintArgs) {
 			const proofLittleEndian = args.proof.proofPath.map((p) =>
-				Array.from(Buffer.from(p).reverse())
+				Array.from(Buffer.from(p).reverse()),
 			);
 			const txBytes = Array.from(args.transaction.toBuffer());
 
@@ -138,7 +138,7 @@ export class SuiClient {
 			blockHeight: number;
 			txIndex: number;
 			proof: ProofResult;
-		}[]
+		}[],
 	): Promise<boolean> {
 		try {
 			await this.mintNbtcBatch(mintArgs);

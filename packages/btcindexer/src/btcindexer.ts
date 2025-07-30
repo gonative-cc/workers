@@ -43,7 +43,7 @@ export class Indexer {
 		nbtcAddr: string,
 		fallbackAddr: string,
 		network: networks.Network,
-		suiClient: SuiClient
+		suiClient: SuiClient,
 	) {
 		this.d1 = env.DB;
 		this.blocksDB = env.btc_blocks;
@@ -63,7 +63,7 @@ export class Indexer {
 		const insertBlockStmt = this.d1.prepare(
 			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)
 			 ON CONFLICT(height) DO UPDATE SET hash = excluded.hash
-			 WHERE processed_blocks.hash IS NOT excluded.hash`
+			 WHERE processed_blocks.hash IS NOT excluded.hash`,
 		);
 
 		// TODO: store in KV
@@ -113,7 +113,7 @@ export class Indexer {
 		const nbtcTxStatements: D1PreparedStatement[] = [];
 
 		const insertNbtcTxStmt = this.d1.prepare(
-			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -137,8 +137,8 @@ export class Indexer {
 							deposit.vout,
 							deposit.suiRecipient,
 							deposit.amountSats,
-							"confirming"
-						)
+							"confirming",
+						),
 					);
 				}
 			}
@@ -146,7 +146,7 @@ export class Indexer {
 
 		if (nbtcTxStatements.length > 0) {
 			console.log(
-				`Cron: Found ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1`
+				`Cron: Found ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1`,
 			);
 			await this.d1.batch(nbtcTxStatements);
 		} else {
@@ -190,7 +190,7 @@ export class Indexer {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height as height FROM nbtc_txs WHERE status = 'finalized'"
+				"SELECT tx_id, block_hash, block_height as height FROM nbtc_txs WHERE status = 'finalized'",
 			)
 			.all<BlockRecord>();
 
@@ -199,7 +199,7 @@ export class Indexer {
 			return;
 		}
 		console.log(
-			`Minting: Found ${finalizedTxs.results.length} finalized transaction(s). Preparing to mint`
+			`Minting: Found ${finalizedTxs.results.length} finalized transaction(s). Preparing to mint`,
 		);
 
 		const mintBatchArgs = [];
@@ -229,7 +229,7 @@ export class Indexer {
 							Buffer.from(block.merkleRoot).reverse().toString("hex"))
 				) {
 					console.warn(
-						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Skipping`
+						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Skipping`,
 					);
 					continue;
 				}
@@ -260,13 +260,13 @@ export class Indexer {
 			}
 		}
 		const setMintedStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'minted', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
+			"UPDATE nbtc_txs SET status = 'minted', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 		const setFailedStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
+			"UPDATE nbtc_txs SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 		const updates = processedTxIds.map((p) =>
-			p.success ? setMintedStmt.bind(p.tx_id) : setFailedStmt.bind(p.tx_id)
+			p.success ? setMintedStmt.bind(p.tx_id) : setFailedStmt.bind(p.tx_id),
 		);
 
 		if (updates.length > 0) {
@@ -297,7 +297,7 @@ export class Indexer {
 	async updateConfirmationsAndFinalize(latestHeight: number): Promise<void> {
 		const pendingTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height FROM nbtc_txs WHERE status = 'confirming'"
+				"SELECT tx_id, block_hash, block_height FROM nbtc_txs WHERE status = 'confirming'",
 			)
 			.all<{ tx_id: string; block_hash: string; block_height: number }>();
 
@@ -306,7 +306,7 @@ export class Indexer {
 			return;
 		}
 		console.log(
-			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`
+			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`,
 		);
 
 		const { reorgUpdates, reorgedTxIds } = await this.handleReorgs(pendingTxs.results);
@@ -325,15 +325,15 @@ export class Indexer {
 	}
 
 	async handleReorgs(
-		pendingTxs: PendingTx[]
+		pendingTxs: PendingTx[],
 	): Promise<{ reorgUpdates: D1PreparedStatement[]; reorgedTxIds: string[] }> {
 		const reorgUpdates: D1PreparedStatement[] = [];
 		const reorgedTxIds: string[] = [];
 		const reorgCheckStmt = this.d1.prepare(
-			"SELECT hash FROM processed_blocks WHERE height = ?"
+			"SELECT hash FROM processed_blocks WHERE height = ?",
 		);
 		const reorgStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'reorg', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
+			"UPDATE nbtc_txs SET status = 'reorg', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
 		for (const tx of pendingTxs) {
@@ -344,7 +344,7 @@ export class Indexer {
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
 					console.warn(
-						`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Old hash: ${tx.block_hash}, New hash: ${newBlockInQueue.hash}.`
+						`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Old hash: ${tx.block_hash}, New hash: ${newBlockInQueue.hash}.`,
 					);
 					reorgUpdates.push(reorgStmt.bind(tx.tx_id));
 					reorgedTxIds.push(tx.tx_id);
@@ -357,14 +357,14 @@ export class Indexer {
 	selectFinalizedNbtcTxs(pendingTxs: PendingTx[], latestHeight: number): D1PreparedStatement[] {
 		const updates: D1PreparedStatement[] = [];
 		const finalizeStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
+			"UPDATE nbtc_txs SET status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
 		);
 
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= CONFIRMATION_DEPTH) {
 				console.log(
-					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`
+					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`,
 				);
 				updates.push(finalizeStmt.bind(tx.tx_id));
 			}

@@ -3,11 +3,10 @@ import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
-import { serializeBtcTx } from "./btctx-serializer";
 import { ProofResult } from "./btcindexer";
 
 export interface SuiClientCfg {
-	network: "testnet" | "mainnet" | "devnet";
+	network: "testnet" | "mainnet" | "devnet" | "localnet";
 	nbtcPkg: string;
 	nbtcModule: string;
 	nbtcObjectId: string;
@@ -37,27 +36,21 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult,
+		proof: ProofResult
 	): Promise<void> {
 		const tx = new SuiTransaction();
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
-		const serializedTx = serializeBtcTx(transaction);
 
 		// NOTE: the contract is expecting the proofs to be in little-endian format, while the merkletreejs lib operates internally on big-endian.
-		const proofBigEndian = proof.proofPath.map((p) => Array.from(Buffer.from(p).reverse()));
-
+		const proofLittleEndian = proof.proofPath.map((p) => Array.from(Buffer.from(p).reverse()));
+		const txBytes = Array.from(transaction.toBuffer());
 		tx.moveCall({
 			target: target,
 			arguments: [
 				tx.object(this.nbtcObjectId),
 				tx.object(this.lightClientObjectId),
-				tx.pure.vector("u8", serializedTx.version),
-				tx.pure.u32(serializedTx.inputCount),
-				tx.pure.vector("u8", serializedTx.inputs),
-				tx.pure.u32(serializedTx.outputCount),
-				tx.pure.vector("u8", serializedTx.outputs),
-				tx.pure.vector("u8", serializedTx.lockTime),
-				tx.pure.vector("vector<u8>", proofBigEndian),
+				tx.pure.vector("u8", txBytes),
+				tx.pure.vector("vector<u8>", proofLittleEndian),
 				tx.pure.u64(blockHeight),
 				tx.pure.u64(txIndex),
 			],
@@ -83,13 +76,75 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult,
+		proof: ProofResult
 	): Promise<boolean> {
 		try {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
 			return true;
 		} catch (error) {
 			console.error(`Error during mint contract call`, error);
+			return false;
+		}
+	}
+
+	async mintNbtcBatch(
+		mintArgs: {
+			transaction: Transaction;
+			blockHeight: number;
+			txIndex: number;
+			proof: ProofResult;
+		}[]
+	): Promise<void> {
+		if (mintArgs.length === 0) return;
+
+		const tx = new SuiTransaction();
+		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
+
+		for (const args of mintArgs) {
+			const proofLittleEndian = args.proof.proofPath.map((p) =>
+				Array.from(Buffer.from(p).reverse())
+			);
+			const txBytes = Array.from(args.transaction.toBuffer());
+
+			tx.moveCall({
+				target: target,
+				arguments: [
+					tx.object(this.nbtcObjectId),
+					tx.object(this.lightClientObjectId),
+					tx.pure.vector("u8", txBytes),
+					tx.pure.vector("vector<u8>", proofLittleEndian),
+					tx.pure.u64(args.blockHeight),
+					tx.pure.u64(args.txIndex),
+				],
+			});
+		}
+
+		tx.setGasBudget(1000000000);
+
+		const result = await this.client.signAndExecuteTransaction({
+			signer: this.signer,
+			transaction: tx,
+			options: { showEffects: true },
+		});
+
+		if (result.effects?.status.status !== "success") {
+			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
+		}
+	}
+
+	async tryMintNbtcBatch(
+		mintArgs: {
+			transaction: Transaction;
+			blockHeight: number;
+			txIndex: number;
+			proof: ProofResult;
+		}[]
+	): Promise<boolean> {
+		try {
+			await this.mintNbtcBatch(mintArgs);
+			return true;
+		} catch (error) {
+			console.error(`Error during batch mint contract call`, error);
 			return false;
 		}
 	}

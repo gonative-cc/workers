@@ -76,9 +76,17 @@ export default class HttpServer {
 
 	// NOTE: we may need to put this to a separate worker
 	putBlocks = async (req: IRequest, env: Env) => {
-		const blocks = PutBlocksReq.decode(await req.arrayBuffer());
-		const i = this.newIndexer(env);
-		return { inserted: await i.putBlocks(blocks) };
+		try {
+			const blocks = PutBlocksReq.decode(await req.arrayBuffer());
+			const i = this.newIndexer(env);
+			return { inserted: await i.putBlocks(blocks) };
+		} catch (e) {
+			console.error("DEBUG: FAILED TO DECODE REQUEST BODY");
+			console.error(e);
+			return new Response("Failed to decode msgpack body. Check wrangler logs for details.", {
+				status: 400,
+			});
+		}
 	};
 
 	putNbtcTx = async (req: IRequest, env: Env) => {

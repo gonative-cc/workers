@@ -1,23 +1,17 @@
 import { IRequest, Router, error, json } from "itty-router";
-import { networks } from "bitcoinjs-lib";
 
 import { Indexer } from "./btcindexer";
-import SuiClient from "./sui_client";
 import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
 
-const NBTC_MODULE = "nbtc";
-
 export default class HttpServer {
-	btcNetwork: networks.Network;
-
 	router: AppRouter;
+	indexer: Indexer;
 
-	constructor() {
-		this.btcNetwork = networks.testnet;
-
+	constructor(indexer: Indexer) {
+		this.indexer = indexer;
 		this.router = this.createRouter();
 	}
 
@@ -53,35 +47,14 @@ export default class HttpServer {
 		return r;
 	}
 
-	// TODO: should be dependency or we should move it somewhere
-	newIndexer(env: Env): Indexer {
-		const suiClient = new SuiClient({
-			network: env.SUI_NETWORK,
-			nbtcPkg: env.SUI_PACKAGE_ID,
-			nbtcModule: NBTC_MODULE,
-			nbtcObjectId: env.NBTC_OBJECT_ID,
-			lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
-			signerMnemonic: env.SUI_SIGNER_MNEMONIC,
-		});
-
-		return new Indexer(
-			env,
-			env.NBTC_DEPOSIT_ADDRESS,
-			env.SUI_FALLBACK_ADDRESS,
-			this.btcNetwork,
-			suiClient,
-		);
-	}
-
 	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods
 	// in callbacks.
 
 	// NOTE: we may need to put this to a separate worker
-	putBlocks = async (req: IRequest, env: Env) => {
+	putBlocks = async (req: IRequest) => {
 		try {
 			const blocks = PutBlocksReq.decode(await req.arrayBuffer());
-			const i = this.newIndexer(env);
-			return { inserted: await i.putBlocks(blocks) };
+			return { inserted: await this.indexer.putBlocks(blocks) };
 		} catch (e) {
 			console.error("DEBUG: FAILED TO DECODE REQUEST BODY");
 			console.error(e);
@@ -91,9 +64,8 @@ export default class HttpServer {
 		}
 	};
 
-	putNbtcTx = async (req: IRequest, env: Env) => {
-		const i = this.newIndexer(env);
-		return { inserted: await i.putNbtcTx() };
+	putNbtcTx = async (req: IRequest) => {
+		return { inserted: await this.indexer.putNbtcTx() };
 	};
 
 	//

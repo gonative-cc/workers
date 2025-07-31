@@ -14,6 +14,19 @@ export interface SuiClientCfg {
 	signerMnemonic: string;
 }
 
+const NBTC_MODULE = "nbtc";
+
+export function suiClientFromEnv(env: Env): SuiClient {
+	return new SuiClient({
+		network: env.SUI_NETWORK,
+		nbtcPkg: env.SUI_PACKAGE_ID,
+		nbtcModule: NBTC_MODULE,
+		nbtcObjectId: env.NBTC_OBJECT_ID,
+		lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
+		signerMnemonic: env.SUI_SIGNER_MNEMONIC,
+	});
+}
+
 export class SuiClient {
 	private client: Client;
 	private signer: Signer;

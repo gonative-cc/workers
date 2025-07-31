@@ -27,10 +27,10 @@ describe.skip("Sui Contract Integration", () => {
 		const indexer = new Indexer(
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			{} as any,
+			suiClient,
 			"bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw",
 			"fallback",
 			networks.regtest,
-			suiClient,
 		);
 		const block = Block.fromHex(REGTEST_DATA.BLOCK_HEX);
 		const txIndex = block.transactions?.findIndex((tx) => tx.getId() === REGTEST_DATA.TX_ID);

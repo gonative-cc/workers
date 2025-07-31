@@ -8,11 +8,11 @@ import { PutBlocksReq } from "./api/put-blocks";
 
 export default class HttpServer {
 	indexer?: Indexer;
-	router: AppRouter;
+	#router: AppRouter;
 
 	constructor(indexer?: Indexer) {
 		this.indexer = indexer;
-		this.router = this.createRouter();
+		this.#router = this.createRouter();
 	}
 
 	createRouter() {
@@ -51,7 +51,7 @@ export default class HttpServer {
 	// Otherwise we would need to setup the server on each fetch request.
 	fetch = async (req: Request, env: Env, indexer: Indexer) => {
 		this.indexer = indexer;
-		return this.router.fetch(req, env);
+		return this.#router.fetch(req, env);
 	};
 
 	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods

@@ -40,17 +40,22 @@ export function storageFromEnv(env: Env): Storage {
 	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
 }
 
+const btcNetworks = {
+	mainnet: networks.bitcoin,
+	testnet: networks.testnet,
+	regtest: networks.regtest,
+};
+
 export function indexerFromEnv(env: Env): Indexer {
 	const storage = storageFromEnv(env);
 	const sc = suiClientFromEnv(env);
 	if (!env.BITCOIN_NETWORK) throw Error("BITCOIN_NETWORK env must be set");
 
-	console.log("INITIALIZED storage", storage);
+	if (!(env.BITCOIN_NETWORK in btcNetworks))
+		throw new Error("Invalid BITCOIN_NETWORK value. Must be in " + Object.keys(btcNetworks));
+	const btcNet = btcNetworks[env.BITCOIN_NETWORK];
 
-	// TODO: check BITCOIN_NETWORK value
-	const btcNetwork = networks.testnet;
-
-	return new Indexer(storage, sc, env.NBTC_DEPOSIT_ADDRESS, env.SUI_FALLBACK_ADDRESS, btcNetwork);
+	return new Indexer(storage, sc, env.NBTC_DEPOSIT_ADDRESS, env.SUI_FALLBACK_ADDRESS, btcNet);
 }
 
 export class Indexer implements Storage {

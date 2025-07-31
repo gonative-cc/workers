@@ -10,12 +10,12 @@
 import { indexerFromEnv } from "./btcindexer";
 import HttpServer from "./server";
 
+const server = new HttpServer(undefined);
+
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		const indexer = indexerFromEnv(env);
-		// TODO: avoid setting up server on each request.
-		const server = new HttpServer(indexer);
-		return server.router.fetch(req, env);
+		return server.fetch(req, env, indexer);
 	},
 
 	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's
@@ -29,6 +29,7 @@ export default {
 		// TODO:  This should be refactored probably the best is to use chain tip stored in a KV namespace.
 		// ideally use queue
 		const d1 = env.DB;
+		// TODO: move this to the indexer directly
 		const latestBlock = await d1
 			.prepare("SELECT MAX(height) as latest_height FROM processed_blocks")
 			.first<{ latest_height: number }>();

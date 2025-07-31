@@ -15,7 +15,7 @@ type Client struct {
 func NewClient(workerUrl string) Client {
 	return Client{
 		baseUrl: workerUrl,
-		c:       http.Client{Timeout: time.Second * 2},
+		c:       http.Client{Timeout: time.Second * 30},
 	}
 }
 

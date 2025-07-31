@@ -7,11 +7,11 @@ import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
 
 export default class HttpRouter {
-	indexer?: Indexer;
+	#indexer?: Indexer;
 	#router: AppRouter;
 
 	constructor(indexer?: Indexer) {
-		this.indexer = indexer;
+		this.#indexer = indexer;
 		this.#router = this.createRouter();
 	}
 
@@ -50,9 +50,16 @@ export default class HttpRouter {
 	// we wrap the router.fetch method to provide the indexer to this object.
 	// Otherwise we would need to setup the server on each fetch request.
 	fetch = async (req: Request, env: Env, indexer: Indexer) => {
-		this.indexer = indexer;
+		this.#indexer = indexer;
 		return this.#router.fetch(req, env);
 	};
+
+	indexer(): Indexer {
+		if (this.#indexer === undefined) {
+			throw new Error("Indexer is not initialized");
+		}
+		return this.#indexer;
+	}
 
 	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods
 	// in callbacks.
@@ -61,7 +68,7 @@ export default class HttpRouter {
 	putBlocks = async (req: IRequest) => {
 		try {
 			const blocks = PutBlocksReq.decode(await req.arrayBuffer());
-			return { inserted: await this.indexer?.putBlocks(blocks) };
+			return { inserted: await this.indexer().putBlocks(blocks) };
 		} catch (e) {
 			console.error("DEBUG: FAILED TO DECODE REQUEST BODY");
 			console.error(e);
@@ -72,7 +79,7 @@ export default class HttpRouter {
 	};
 
 	putNbtcTx = async (req: IRequest) => {
-		return { inserted: await this.indexer?.putNbtcTx() };
+		return { inserted: await this.indexer().putNbtcTx() };
 	};
 
 	//

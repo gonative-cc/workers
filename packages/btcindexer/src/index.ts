@@ -8,14 +8,14 @@
  */
 
 import { indexerFromEnv } from "./btcindexer";
-import HttpServer from "./server";
+import HttpRouter from "./router";
 
-const server = new HttpServer(undefined);
+const router = new HttpRouter(undefined);
 
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		const indexer = indexerFromEnv(env);
-		return server.fetch(req, env, indexer);
+		return router.fetch(req, env, indexer);
 	},
 
 	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's

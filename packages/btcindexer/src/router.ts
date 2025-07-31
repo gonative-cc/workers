@@ -6,7 +6,7 @@ import { RestPath } from "./api/client";
 import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
 
-export default class HttpServer {
+export default class HttpRouter {
 	indexer?: Indexer;
 	#router: AppRouter;
 
@@ -47,7 +47,7 @@ export default class HttpServer {
 		return r;
 	}
 
-	// we wrap the router fetch method to provide the indexer to the object.
+	// we wrap the router.fetch method to provide the indexer to this object.
 	// Otherwise we would need to setup the server on each fetch request.
 	fetch = async (req: Request, env: Env, indexer: Indexer) => {
 		this.indexer = indexer;

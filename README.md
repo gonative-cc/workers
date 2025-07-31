@@ -116,10 +116,10 @@ curl http://localhost:8787/test-kv -X PUT -d '{"key": "k1", "val": "v1"}'
 Generate types for your Cloudflare bindings in `wrangler.toml`:
 
 ```sh
-pnpm run typegen
+pnpm run cf-typegen
 ```
 
-You will need to rerun typegen whenever you make changes to `wrangler.toml`.
+You will need to rerun cf-typegen whenever you make changes to `wrangler.toml`.
 
 ## Contributing
 

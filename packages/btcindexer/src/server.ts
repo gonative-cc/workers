@@ -11,17 +11,12 @@ import { PutBlocksReq } from "./api/put-blocks";
 const NBTC_MODULE = "nbtc";
 
 export default class HttpServer {
-	nbtcAddr: string;
-	suiFallbackAddr: string;
 	btcNetwork: networks.Network;
 
 	router: AppRouter;
 
 	constructor() {
-		// TODO: need to provide through env variable
-		this.nbtcAddr = "bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw";
-		this.suiFallbackAddr = "0xFALLBACK";
-		this.btcNetwork = networks.regtest;
+		this.btcNetwork = networks.testnet;
 
 		this.router = this.createRouter();
 	}
@@ -68,7 +63,14 @@ export default class HttpServer {
 			lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
 			signerMnemonic: env.SUI_SIGNER_MNEMONIC,
 		});
-		return new Indexer(env, this.nbtcAddr, this.suiFallbackAddr, this.btcNetwork, suiClient);
+
+		return new Indexer(
+			env,
+			env.NBTC_DEPOSIT_ADDRESS,
+			env.SUI_FALLBACK_ADDRESS,
+			this.btcNetwork,
+			suiClient,
+		);
 	}
 
 	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods

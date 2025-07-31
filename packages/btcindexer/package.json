@@ -4,8 +4,9 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev --test-scheduled",
+		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
 		"typecheck": "tsc",
-		"typegen": "wrangler types",
+		"cf-typegen": "wrangler types",
 		"test": "vitest run"
 	},
 	"dependencies": {

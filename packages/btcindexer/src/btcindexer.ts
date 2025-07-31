@@ -45,14 +45,15 @@ const btcNetworks = {
 	testnet: networks.testnet,
 	regtest: networks.regtest,
 };
+const validBtcNet = Object.keys(btcNetworks).keys();
 
 export function indexerFromEnv(env: Env): Indexer {
 	const storage = storageFromEnv(env);
 	const sc = suiClientFromEnv(env);
-	if (!env.BITCOIN_NETWORK) throw Error("BITCOIN_NETWORK env must be set");
 
+	if (!env.BITCOIN_NETWORK) throw Error("BITCOIN_NETWORK env must be set");
 	if (!(env.BITCOIN_NETWORK in btcNetworks))
-		throw new Error("Invalid BITCOIN_NETWORK value. Must be in " + Object.keys(btcNetworks));
+		throw new Error("Invalid BITCOIN_NETWORK value. Must be in " + validBtcNet);
 	const btcNet = btcNetworks[env.BITCOIN_NETWORK];
 
 	return new Indexer(storage, sc, env.NBTC_DEPOSIT_ADDRESS, env.SUI_FALLBACK_ADDRESS, btcNet);

@@ -3,7 +3,7 @@ import { address, networks, Block, Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
-import SuiClient from "./sui_client";
+import SuiClient, { suiClientFromEnv } from "./sui_client";
 
 const CONFIRMATION_DEPTH = 8;
 
@@ -30,27 +30,57 @@ interface BlockRecord {
 	block_height: number;
 }
 
-export class Indexer {
+interface Storage {
 	d1: D1Database; // SQL DB
 	blocksDB: KVNamespace;
 	nbtcTxDB: KVNamespace;
+}
+
+export function storageFromEnv(env: Env): Storage {
+	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
+}
+
+const btcNetworks = {
+	mainnet: networks.bitcoin,
+	testnet: networks.testnet,
+	regtest: networks.regtest,
+};
+const validBtcNet = Object.keys(btcNetworks).keys();
+
+export function indexerFromEnv(env: Env): Indexer {
+	const storage = storageFromEnv(env);
+	const sc = suiClientFromEnv(env);
+
+	if (!env.BITCOIN_NETWORK) throw Error("BITCOIN_NETWORK env must be set");
+	if (!(env.BITCOIN_NETWORK in btcNetworks))
+		throw new Error("Invalid BITCOIN_NETWORK value. Must be in " + validBtcNet);
+	const btcNet = btcNetworks[env.BITCOIN_NETWORK];
+
+	return new Indexer(storage, sc, env.NBTC_DEPOSIT_ADDRESS, env.SUI_FALLBACK_ADDRESS, btcNet);
+}
+
+export class Indexer implements Storage {
+	d1: D1Database; // SQL DB
+	blocksDB: KVNamespace;
+	nbtcTxDB: KVNamespace;
+
 	nbtcScriptHex: string;
 	suiFallbackAddr: string;
 	nbtcClient: SuiClient;
 
 	constructor(
-		env: Env,
+		storage: Storage,
+		suiClient: SuiClient,
 		nbtcAddr: string,
 		fallbackAddr: string,
 		network: networks.Network,
-		suiClient: SuiClient,
 	) {
-		this.d1 = env.DB;
-		this.blocksDB = env.btc_blocks;
-		this.nbtcTxDB = env.nbtc_txs;
+		this.d1 = storage.d1;
+		this.blocksDB = storage.blocksDB;
+		this.nbtcTxDB = storage.nbtcTxDB;
+		this.nbtcClient = suiClient;
 		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
-		this.nbtcClient = suiClient;
 	}
 
 	// returns number of processed and add blocks

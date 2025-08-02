@@ -1,5 +1,5 @@
 import { describe, it, assert, vi } from "vitest";
-import { Deposit, Indexer, ProofResult } from "../src/btcindexer";
+import { Deposit, Indexer, ProofResult, storageFromEnv } from "../src/btcindexer";
 import { Block, networks, Transaction } from "bitcoinjs-lib";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
@@ -89,12 +89,14 @@ const mkMockEnv = () =>
 
 function prepareIndexer() {
 	const mockEnv = mkMockEnv();
+	const storage = storageFromEnv(mockEnv);
+
 	const indexer = new Indexer(
-		mockEnv,
+		storage,
+		new SuiClient(SUI_CLIENT_CFG),
 		REGTEST_DATA[303].depositAddr,
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
-		new SuiClient(SUI_CLIENT_CFG),
 	);
 	return { mockEnv, indexer };
 }

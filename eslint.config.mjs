@@ -16,6 +16,10 @@ export default tseslint.config(
     // disable specific rules
     rules: {
       "@typescript-eslint/no-extraneous-class": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
     },
   },
 

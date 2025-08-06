@@ -26,6 +26,9 @@ export default class HttpRouter {
 		r.put(RestPath.blocks, this.putBlocks);
 		r.put(RestPath.nbtcTx, this.putNbtcTx);
 
+		r.get(RestPath.transactions, this.getStatusBySuiAddress); // query by sui_address
+		r.get(RestPath.transactions + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
+
 		//
 		// TESTING
 		// we can return Response object directly, to avoid JSON serialization
@@ -39,7 +42,7 @@ export default class HttpRouter {
 			url.pathname = "/__scheduled";
 			url.searchParams.append("cron", "* * * * *");
 			return new Response(
-				`To test the scheduled handler, ensure you have used the "--test-scheduled" then try running "curl ${url.href}".`,
+				`To test the scheduled handler, ensure you have used the "--test-scheduled" then try running "curl ${url.href}".`
 			);
 		});
 
@@ -98,5 +101,24 @@ export default class HttpRouter {
 		const kv = env.btc_blocks;
 		const key = req.params.key;
 		return kv.get(key);
+	};
+
+	getStatusByTxid = async (req: IRequest) => {
+		const { txid } = req.params;
+		const result = await this.indexer().getStatusByTxid(txid);
+
+		if (result === null) {
+			return error(404, "Transaction not found.");
+		}
+		return result;
+	};
+
+	getStatusBySuiAddress = async (req: IRequest) => {
+		const suiAddress = req.query.sui_address;
+		if (!suiAddress || typeof suiAddress !== "string") {
+			return error(400, "Missing or invalid sui_address query parameter.");
+		}
+		// This will correctly return an empty array [] if no results are found.
+		return this.indexer().getStatusBySuiAddress(suiAddress);
 	};
 }

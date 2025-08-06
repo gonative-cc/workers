@@ -30,10 +30,33 @@ interface BlockRecord {
 	block_height: number;
 }
 
-interface Storage {
+export interface Storage {
 	d1: D1Database; // SQL DB
 	blocksDB: KVNamespace;
 	nbtcTxDB: KVNamespace;
+}
+
+export type NbtcTxStatus = "confirming" | "finalized" | "minted" | "failed" | "reorg";
+
+export interface TransactionStatusResponse {
+	btc_tx_id: string;
+	status: NbtcTxStatus;
+	block_height: number | null;
+	confirmations: number;
+	sui_recipient: string;
+	amount_sats: number;
+}
+
+interface NbtcTxD1Row {
+	tx_id: string;
+	block_hash: string;
+	block_height: number | null;
+	vout: number;
+	sui_recipient: string;
+	amount_sats: number;
+	status: string;
+	created_at: string;
+	updated_at: string;
 }
 
 export function storageFromEnv(env: Env): Storage {
@@ -73,7 +96,7 @@ export class Indexer implements Storage {
 		suiClient: SuiClient,
 		nbtcAddr: string,
 		fallbackAddr: string,
-		network: networks.Network,
+		network: networks.Network
 	) {
 		this.d1 = storage.d1;
 		this.blocksDB = storage.blocksDB;
@@ -93,7 +116,7 @@ export class Indexer implements Storage {
 		const insertBlockStmt = this.d1.prepare(
 			`INSERT INTO processed_blocks (height, hash) VALUES (?, ?)
 			 ON CONFLICT(height) DO UPDATE SET hash = excluded.hash
-			 WHERE processed_blocks.hash IS NOT excluded.hash`,
+			 WHERE processed_blocks.hash IS NOT excluded.hash`
 		);
 
 		// TODO: store in KV
@@ -143,7 +166,7 @@ export class Indexer implements Storage {
 		const nbtcTxStatements: D1PreparedStatement[] = [];
 
 		const insertNbtcTxStmt = this.d1.prepare(
-			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_txs (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -167,8 +190,8 @@ export class Indexer implements Storage {
 							deposit.vout,
 							deposit.suiRecipient,
 							deposit.amountSats,
-							"confirming",
-						),
+							"confirming"
+						)
 					);
 				}
 			}
@@ -176,12 +199,16 @@ export class Indexer implements Storage {
 
 		if (nbtcTxStatements.length > 0) {
 			console.log(
-				`Cron: Found ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1`,
+				`Cron: Found ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1`
 			);
 			await this.d1.batch(nbtcTxStatements);
 		} else {
 			console.log(`Cron: No new nBTC deposits found in the scanned blocks`);
 		}
+
+		const latestHeightProcessed = Math.max(...blocksToProcess.results.map((b) => b.height));
+		await this.nbtcTxDB.put("chain_tip", latestHeightProcessed.toString());
+		console.log(`Cron: Updated chain_tip to ${latestHeightProcessed}`);
 
 		const heightsToDelete = blocksToProcess.results.map((r) => r.height);
 		const heights = heightsToDelete.join(",");
@@ -220,7 +247,7 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height as height FROM nbtc_txs WHERE status = 'finalized'",
+				"SELECT tx_id, block_hash, block_height as height FROM nbtc_txs WHERE status = 'finalized'"
 			)
 			.all<BlockRecord>();
 
@@ -229,7 +256,7 @@ export class Indexer implements Storage {
 			return;
 		}
 		console.log(
-			`Minting: Found ${finalizedTxs.results.length} finalized transaction(s). Preparing to mint`,
+			`Minting: Found ${finalizedTxs.results.length} finalized transaction(s). Preparing to mint`
 		);
 
 		const mintBatchArgs = [];
@@ -259,7 +286,7 @@ export class Indexer implements Storage {
 							Buffer.from(block.merkleRoot).reverse().toString("hex"))
 				) {
 					console.warn(
-						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Skipping`,
+						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Skipping`
 					);
 					continue;
 				}
@@ -290,13 +317,13 @@ export class Indexer implements Storage {
 			}
 		}
 		const setMintedStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'minted', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+			"UPDATE nbtc_txs SET status = 'minted', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
 		);
 		const setFailedStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+			"UPDATE nbtc_txs SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
 		);
 		const updates = processedTxIds.map((p) =>
-			p.success ? setMintedStmt.bind(p.tx_id) : setFailedStmt.bind(p.tx_id),
+			p.success ? setMintedStmt.bind(p.tx_id) : setFailedStmt.bind(p.tx_id)
 		);
 
 		if (updates.length > 0) {
@@ -327,7 +354,7 @@ export class Indexer implements Storage {
 	async updateConfirmationsAndFinalize(latestHeight: number): Promise<void> {
 		const pendingTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height FROM nbtc_txs WHERE status = 'confirming'",
+				"SELECT tx_id, block_hash, block_height FROM nbtc_txs WHERE status = 'confirming'"
 			)
 			.all<{ tx_id: string; block_hash: string; block_height: number }>();
 
@@ -336,7 +363,7 @@ export class Indexer implements Storage {
 			return;
 		}
 		console.log(
-			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`,
+			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`
 		);
 
 		const { reorgUpdates, reorgedTxIds } = await this.handleReorgs(pendingTxs.results);
@@ -355,15 +382,15 @@ export class Indexer implements Storage {
 	}
 
 	async handleReorgs(
-		pendingTxs: PendingTx[],
+		pendingTxs: PendingTx[]
 	): Promise<{ reorgUpdates: D1PreparedStatement[]; reorgedTxIds: string[] }> {
 		const reorgUpdates: D1PreparedStatement[] = [];
 		const reorgedTxIds: string[] = [];
 		const reorgCheckStmt = this.d1.prepare(
-			"SELECT hash FROM processed_blocks WHERE height = ?",
+			"SELECT hash FROM processed_blocks WHERE height = ?"
 		);
 		const reorgStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'reorg', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+			"UPDATE nbtc_txs SET status = 'reorg', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
 		);
 
 		for (const tx of pendingTxs) {
@@ -374,7 +401,7 @@ export class Indexer implements Storage {
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
 					console.warn(
-						`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Old hash: ${tx.block_hash}, New hash: ${newBlockInQueue.hash}.`,
+						`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Old hash: ${tx.block_hash}, New hash: ${newBlockInQueue.hash}.`
 					);
 					reorgUpdates.push(reorgStmt.bind(tx.tx_id));
 					reorgedTxIds.push(tx.tx_id);
@@ -387,18 +414,71 @@ export class Indexer implements Storage {
 	selectFinalizedNbtcTxs(pendingTxs: PendingTx[], latestHeight: number): D1PreparedStatement[] {
 		const updates: D1PreparedStatement[] = [];
 		const finalizeStmt = this.d1.prepare(
-			"UPDATE nbtc_txs SET status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?",
+			"UPDATE nbtc_txs SET status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE tx_id = ?"
 		);
 
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= CONFIRMATION_DEPTH) {
 				console.log(
-					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`,
+					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`
 				);
 				updates.push(finalizeStmt.bind(tx.tx_id));
 			}
 		}
 		return updates;
+	}
+
+	async getStatusByTxid(txid: string): Promise<TransactionStatusResponse | null> {
+		const latestHeightStr = await this.nbtcTxDB.get("chain_tip");
+		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
+
+		const tx = await this.d1
+			.prepare("SELECT * FROM nbtc_txs WHERE tx_id = ?")
+			.bind(txid)
+			.first<NbtcTxD1Row>();
+
+		if (!tx) {
+			return null;
+		}
+
+		const blockHeight = tx.block_height as number;
+		const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
+
+		return {
+			btc_tx_id: tx.tx_id,
+			status: tx.status as NbtcTxStatus,
+			block_height: blockHeight,
+			confirmations: confirmations > 0 ? confirmations : 0,
+			sui_recipient: tx.sui_recipient,
+			amount_sats: tx.amount_sats,
+		};
+	}
+
+	async getStatusBySuiAddress(suiAddress: string): Promise<TransactionStatusResponse[]> {
+		const latestHeightStr = await this.nbtcTxDB.get("chain_tip");
+		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
+
+		const dbResult = await this.d1
+			.prepare("SELECT * FROM nbtc_txs WHERE sui_recipient = ? ORDER BY created_at DESC")
+			.bind(suiAddress)
+			.all<NbtcTxD1Row>();
+
+		if (!dbResult.results) {
+			return [];
+		}
+
+		return dbResult.results.map((tx): TransactionStatusResponse => {
+			const blockHeight = tx.block_height as number;
+			const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
+			return {
+				btc_tx_id: tx.tx_id,
+				status: tx.status as NbtcTxStatus,
+				block_height: blockHeight,
+				confirmations: confirmations > 0 ? confirmations : 0,
+				sui_recipient: tx.sui_recipient,
+				amount_sats: tx.amount_sats,
+			};
+		});
 	}
 }

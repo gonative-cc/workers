@@ -118,7 +118,6 @@ export default class HttpRouter {
 		if (!suiAddress || typeof suiAddress !== "string") {
 			return error(400, "Missing or invalid sui_address query parameter.");
 		}
-		// This will correctly return an empty array [] if no results are found.
 		return this.indexer().getStatusBySuiAddress(suiAddress);
 	};
 }

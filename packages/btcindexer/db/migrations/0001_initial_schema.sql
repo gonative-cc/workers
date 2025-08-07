@@ -3,7 +3,7 @@ CREATE TABLE processed_blocks (
     height INTEGER PRIMARY KEY,
     hash TEXT NOT NULL UNIQUE,
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+) STRICT;
 
 -- This table tracks the nBTC deposit txs
 CREATE TABLE nbtc_txs (
@@ -16,7 +16,7 @@ CREATE TABLE nbtc_txs (
     status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted' | 'reorg'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+) STRICT;
 
 -- Indexes
 CREATE INDEX nbtc_txs_status ON nbtc_txs (status);

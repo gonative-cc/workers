@@ -31,7 +31,7 @@ export default {
 		const d1 = env.DB;
 		// TODO: move this to the indexer directly
 		const latestBlock = await d1
-			.prepare("SELECT MAX(height) as latest_height FROM processed_blocks")
+			.prepare("SELECT MAX(height) as latest_height FROM btc_blocks")
 			.first<{ latest_height: number }>();
 
 		const indexer = indexerFromEnv(env);

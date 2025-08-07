@@ -38,7 +38,7 @@ export interface Storage {
 
 export type NbtcTxStatus = "confirming" | "finalized" | "minted" | "failed" | "reorg";
 
-export interface TransactionStatusResponse {
+export interface NbtcTxStatusResp {
 	btc_tx_id: string;
 	status: NbtcTxStatus;
 	block_height: number | null;

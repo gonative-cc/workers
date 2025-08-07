@@ -4,60 +4,18 @@ import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
+import {
+	Deposit,
+	ProofResult,
+	PendingTx,
+	BlockRecord,
+	Storage,
+	NbtcTxStatus,
+	NbtcTxStatusResp,
+	NbtcTxD1Row,
+} from "./models";
 
 const CONFIRMATION_DEPTH = 8;
-
-export interface Deposit {
-	vout: number;
-	amountSats: number;
-	suiRecipient: string;
-}
-
-export interface ProofResult {
-	proofPath: Buffer[];
-	merkleRoot: string;
-}
-
-export interface PendingTx {
-	tx_id: string;
-	block_hash: string | null;
-	block_height: number;
-}
-
-interface BlockRecord {
-	tx_id: string;
-	block_hash: string;
-	block_height: number;
-}
-
-export interface Storage {
-	d1: D1Database; // SQL DB
-	blocksDB: KVNamespace;
-	nbtcTxDB: KVNamespace;
-}
-
-export type NbtcTxStatus = "confirming" | "finalized" | "minted" | "failed" | "reorg";
-
-export interface NbtcTxStatusResp {
-	btc_tx_id: string;
-	status: NbtcTxStatus;
-	block_height: number | null;
-	confirmations: number;
-	sui_recipient: string;
-	amount_sats: number;
-}
-
-interface NbtcTxD1Row {
-	tx_id: string;
-	block_hash: string;
-	block_height: number | null;
-	vout: number;
-	sui_recipient: string;
-	amount_sats: number;
-	status: string;
-	created_at: string;
-	updated_at: string;
-}
 
 export function storageFromEnv(env: Env): Storage {
 	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
@@ -207,7 +165,7 @@ export class Indexer implements Storage {
 		}
 
 		const latestHeightProcessed = Math.max(...blocksToProcess.results.map((b) => b.height));
-		await this.nbtcTxDB.put("chain_tip", latestHeightProcessed.toString());
+		await this.blocksDB.put("chain_tip", latestHeightProcessed.toString());
 		console.log(`Cron: Updated chain_tip to ${latestHeightProcessed}`);
 
 		const heightsToDelete = blocksToProcess.results.map((r) => r.height);
@@ -429,8 +387,8 @@ export class Indexer implements Storage {
 		return updates;
 	}
 
-	async getStatusByTxid(txid: string): Promise<TransactionStatusResponse | null> {
-		const latestHeightStr = await this.nbtcTxDB.get("chain_tip");
+	async getStatusByTxid(txid: string): Promise<NbtcTxStatusResp | null> {
+		const latestHeightStr = await this.blocksDB.get("chain_tip");
 		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
 
 		const tx = await this.d1
@@ -455,8 +413,8 @@ export class Indexer implements Storage {
 		};
 	}
 
-	async getStatusBySuiAddress(suiAddress: string): Promise<TransactionStatusResponse[]> {
-		const latestHeightStr = await this.nbtcTxDB.get("chain_tip");
+	async getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxStatusResp[]> {
+		const latestHeightStr = await this.blocksDB.get("chain_tip");
 		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
 
 		const dbResult = await this.d1
@@ -468,7 +426,7 @@ export class Indexer implements Storage {
 			return [];
 		}
 
-		return dbResult.results.map((tx): TransactionStatusResponse => {
+		return dbResult.results.map((tx): NbtcTxStatusResp => {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
 			return {

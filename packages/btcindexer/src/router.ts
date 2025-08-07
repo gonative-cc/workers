@@ -26,7 +26,7 @@ export default class HttpRouter {
 		r.put(RestPath.blocks, this.putBlocks);
 		r.put(RestPath.nbtcTx, this.putNbtcTx);
 
-		// // ?sui_recipient="0x..."  - query by sui_address
+		// ?sui_recipient="0x..."  - query by sui address
 		r.get(RestPath.transactions, this.getStatusBySuiAddress);
 		r.get(RestPath.transactions + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
 
@@ -115,10 +115,10 @@ export default class HttpRouter {
 	};
 
 	getStatusBySuiAddress = async (req: IRequest) => {
-		const suiAddress = req.query.sui_recipient;
-		if (!suiAddress || typeof suiAddress !== "string") {
-			return error(400, "Missing or invalid sui_address query parameter.");
+		const suiRecipient = req.query.sui_recipient;
+		if (!suiRecipient || typeof suiRecipient !== "string") {
+			return error(400, "Missing or invalid sui_recipient query parameter.");
 		}
-		return this.indexer().getStatusBySuiAddress(suiAddress);
+		return this.indexer().getStatusBySuiAddress(suiRecipient);
 	};
 }

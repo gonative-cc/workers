@@ -27,8 +27,8 @@ export default class HttpRouter {
 		r.put(RestPath.nbtcTx, this.putNbtcTx);
 
 		// ?sui_recipient="0x..."  - query by sui address
-		r.get(RestPath.transactions, this.getStatusBySuiAddress);
-		r.get(RestPath.transactions + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
+		r.get(RestPath.nbtcTx, this.getStatusBySuiAddress);
+		r.get(RestPath.nbtcTx + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
 
 		//
 		// TESTING

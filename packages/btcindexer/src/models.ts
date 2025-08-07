@@ -45,7 +45,7 @@ export interface NbtcTxD1Row {
 	vout: number;
 	sui_recipient: string;
 	amount_sats: number;
-	status: string;
-	created_at: string;
-	updated_at: string;
+	status: NbtcTxStatus;
+	created_at: number;
+	updated_at: number;
 }

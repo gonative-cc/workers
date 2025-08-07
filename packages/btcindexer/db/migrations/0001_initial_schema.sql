@@ -26,10 +26,10 @@ CREATE INDEX nbtc_txs_sui_recipient ON nbtc_txs (sui_recipient, created_at);
 -- nbtc_withdrawal table tracks nBTC withdraw transactions from SUI
 CREATE TABLE nbtc_withdrawal (
 	sui_tx_id TEXT PRIMARY KEY,
-	sender TEXT NOT NULL, -- sui sender
+	sender TEXT NOT NULL, -- Sui sender
 	amount INTEGER NOT NULL, -- amount of nBTC to be burn and withdraw on BTC,
-	recipient TEXT NOT NULL, -- the bitcoin address or script that will recive the BTC,
-	note TEXT, -- additional note that we can include for the user. eg. you are sending funds to a collegue, this note will be included (maybe op_return?)
+	recipient TEXT NOT NULL, -- the bitcoin address or script that will receive the BTC,
+	note TEXT, -- additional note that we can include for the user.
 	sent_at INTEGER NOT NULL,
 	btc_tx_id TEXT, -- will be set once Bitcoin tx will be broadcasted
 	status INTEGER NOT NULL
@@ -40,7 +40,7 @@ CREATE INDEX nbtc_withdraw_sender ON nbtc_withdrawal (sender, recipient, sent_at
 -- nbtc_withdrawal.status:
 -- 1 = requested
 -- 2 = burn
--- 3 = signing -- ika signature
+-- 3 = signing -- Ika signature
 -- 4 = signed
 -- 5 = broadcasted to bitcoin
 -- 6 = confirmations (here user technically already has the funds)

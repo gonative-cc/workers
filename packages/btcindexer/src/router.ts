@@ -1,4 +1,5 @@
 import { IRequest, Router, error, json } from "itty-router";
+import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import { Indexer } from "./btcindexer";
 import { RestPath } from "./api/client";
@@ -43,7 +44,7 @@ export default class HttpRouter {
 			url.pathname = "/__scheduled";
 			url.searchParams.append("cron", "* * * * *");
 			return new Response(
-				`To test the scheduled handler, ensure you have used the "--test-scheduled" then try running "curl ${url.href}".`,
+				`To test the scheduled handler, ensure you have used the "--test-scheduled" then try running "curl ${url.href}".`
 			);
 		});
 
@@ -118,6 +119,9 @@ export default class HttpRouter {
 		const suiRecipient = req.query.sui_recipient;
 		if (!suiRecipient || typeof suiRecipient !== "string") {
 			return error(400, "Missing or invalid sui_recipient query parameter.");
+		}
+		if (!isValidSuiAddress(suiRecipient)) {
+			return error(400, "Invalid SUI address format.");
 		}
 		return this.indexer().getStatusBySuiAddress(suiRecipient);
 	};

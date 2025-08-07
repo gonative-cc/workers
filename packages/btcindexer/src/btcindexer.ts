@@ -4,37 +4,18 @@ import { OP_RETURN } from "./opcodes";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
+import {
+	Deposit,
+	ProofResult,
+	PendingTx,
+	BlockRecord,
+	Storage,
+	NbtcTxStatus,
+	NbtcTxStatusResp,
+	NbtcTxD1Row,
+} from "./models";
 
 const CONFIRMATION_DEPTH = 8;
-
-export interface Deposit {
-	vout: number;
-	amountSats: number;
-	suiRecipient: string;
-}
-
-export interface ProofResult {
-	proofPath: Buffer[];
-	merkleRoot: string;
-}
-
-export interface PendingTx {
-	tx_id: string;
-	block_hash: string | null;
-	block_height: number;
-}
-
-interface BlockRecord {
-	tx_id: string;
-	block_hash: string;
-	block_height: number;
-}
-
-interface Storage {
-	d1: D1Database; // SQL DB
-	blocksDB: KVNamespace;
-	nbtcTxDB: KVNamespace;
-}
 
 export function storageFromEnv(env: Env): Storage {
 	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
@@ -182,6 +163,10 @@ export class Indexer implements Storage {
 		} else {
 			console.log(`Cron: No new nBTC deposits found in the scanned blocks`);
 		}
+
+		const latestHeightProcessed = Math.max(...blocksToProcess.results.map((b) => b.height));
+		await this.blocksDB.put("chain_tip", latestHeightProcessed.toString());
+		console.log(`Cron: Updated chain_tip to ${latestHeightProcessed}`);
 
 		const heightsToDelete = blocksToProcess.results.map((r) => r.height);
 		const heights = heightsToDelete.join(",");
@@ -400,5 +385,58 @@ export class Indexer implements Storage {
 			}
 		}
 		return updates;
+	}
+
+	async getStatusByTxid(txid: string): Promise<NbtcTxStatusResp | null> {
+		const latestHeightStr = await this.blocksDB.get("chain_tip");
+		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
+
+		const tx = await this.d1
+			.prepare("SELECT * FROM nbtc_txs WHERE tx_id = ?")
+			.bind(txid)
+			.first<NbtcTxD1Row>();
+
+		if (!tx) {
+			return null;
+		}
+
+		const blockHeight = tx.block_height as number;
+		const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
+
+		return {
+			btc_tx_id: tx.tx_id,
+			status: tx.status as NbtcTxStatus,
+			block_height: blockHeight,
+			confirmations: confirmations > 0 ? confirmations : 0,
+			sui_recipient: tx.sui_recipient,
+			amount_sats: tx.amount_sats,
+		};
+	}
+
+	async getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxStatusResp[]> {
+		const latestHeightStr = await this.blocksDB.get("chain_tip");
+		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
+
+		const dbResult = await this.d1
+			.prepare("SELECT * FROM nbtc_txs WHERE sui_recipient = ? ORDER BY created_at DESC")
+			.bind(suiAddress)
+			.all<NbtcTxD1Row>();
+
+		if (!dbResult.results) {
+			return [];
+		}
+
+		return dbResult.results.map((tx): NbtcTxStatusResp => {
+			const blockHeight = tx.block_height as number;
+			const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
+			return {
+				btc_tx_id: tx.tx_id,
+				status: tx.status as NbtcTxStatus,
+				block_height: blockHeight,
+				confirmations: confirmations > 0 ? confirmations : 0,
+				sui_recipient: tx.sui_recipient,
+				amount_sats: tx.amount_sats,
+			};
+		});
 	}
 }

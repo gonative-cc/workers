@@ -1,4 +1,5 @@
 import { IRequest, Router, error, json } from "itty-router";
+import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import { Indexer } from "./btcindexer";
 import { RestPath } from "./api/client";
@@ -25,6 +26,10 @@ export default class HttpRouter {
 
 		r.put(RestPath.blocks, this.putBlocks);
 		r.put(RestPath.nbtcTx, this.putNbtcTx);
+
+		// ?sui_recipient="0x..."  - query by sui address
+		r.get(RestPath.nbtcTx, this.getStatusBySuiAddress);
+		r.get(RestPath.nbtcTx + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
 
 		//
 		// TESTING
@@ -98,5 +103,26 @@ export default class HttpRouter {
 		const kv = env.btc_blocks;
 		const key = req.params.key;
 		return kv.get(key);
+	};
+
+	getStatusByTxid = async (req: IRequest) => {
+		const { txid } = req.params;
+		const result = await this.indexer().getStatusByTxid(txid);
+
+		if (result === null) {
+			return error(404, "Transaction not found.");
+		}
+		return result;
+	};
+
+	getStatusBySuiAddress = async (req: IRequest) => {
+		const suiRecipient = req.query.sui_recipient;
+		if (!suiRecipient || typeof suiRecipient !== "string") {
+			return error(400, "Missing or invalid sui_recipient query parameter.");
+		}
+		if (!isValidSuiAddress(suiRecipient)) {
+			return error(400, "Invalid SUI address format.");
+		}
+		return this.indexer().getStatusBySuiAddress(suiRecipient);
 	};
 }

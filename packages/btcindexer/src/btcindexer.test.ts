@@ -1,9 +1,10 @@
 import { describe, it, assert, vi } from "vitest";
-import { Deposit, Indexer, ProofResult, storageFromEnv } from "../src/btcindexer";
+import { Indexer, storageFromEnv } from "../src/btcindexer";
 import { Block, networks, Transaction } from "bitcoinjs-lib";
 import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
 import { SuiClient, SuiClientCfg } from "./sui_client";
+import { Deposit, ProofResult } from "./models";
 
 interface TxInfo {
 	id: string;

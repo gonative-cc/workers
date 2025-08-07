@@ -172,9 +172,12 @@ export class Indexer implements Storage {
 
 		const heightsToUpdate = blocksToProcess.results.map((r) => r.height);
 		if (heightsToUpdate.length > 0) {
-			const placeholders = heightsToUpdate.map(() => '?').join(',');
+			const placeholders = heightsToUpdate.map(() => "?").join(",");
 			const updateStmt = `UPDATE btc_blocks SET status = 'scanned' WHERE height IN (${placeholders})`;
-			await this.d1.prepare(updateStmt).bind(...heightsToUpdate).run();
+			await this.d1
+				.prepare(updateStmt)
+				.bind(...heightsToUpdate)
+				.run();
 		}
 	}
 

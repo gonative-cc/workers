@@ -171,9 +171,11 @@ export class Indexer implements Storage {
 		console.log(`Cron: Updated chain_tip to ${latestHeightProcessed}`);
 
 		const heightsToUpdate = blocksToProcess.results.map((r) => r.height);
-		const heights = heightsToUpdate.join(",");
-		const updateStmt = `UPDATE btc_blocks SET status = 'scanned' WHERE height IN (${heights})`;
-		await this.d1.prepare(updateStmt).run();
+		if (heightsToUpdate.length > 0) {
+			const placeholders = heightsToUpdate.map(() => '?').join(',');
+			const updateStmt = `UPDATE btc_blocks SET status = 'scanned' WHERE height IN (${placeholders})`;
+			await this.d1.prepare(updateStmt).bind(...heightsToUpdate).run();
+		}
 	}
 
 	findNbtcDeposits(tx: Transaction): Deposit[] {

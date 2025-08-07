@@ -3,7 +3,7 @@ CREATE TABLE btc_blocks (
     height INTEGER PRIMARY KEY,
     hash TEXT NOT NULL UNIQUE,
     processed_at REAL DEFAULT (unixepoch('subsec')),
-	status TEXT NOT NULL DEFAULT 'new' -- 'new' | 'scanned'
+	status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'scanned')) -- 'new' | 'scanned'
 ) STRICT;
 
 -- This table tracks the nBTC deposit txs (minting)

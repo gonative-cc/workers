@@ -1,14 +1,17 @@
 -- This table tracks the blocks received from the relayer (queue for cron job)
-CREATE TABLE processed_blocks (
+CREATE TABLE btc_blocks (
     height INTEGER PRIMARY KEY,
     hash TEXT NOT NULL UNIQUE,
-    processed_at INTEGER DEFAULT unixepoch('subsec')
+    processed_at REAL DEFAULT (unixepoch('subsec')),
+	status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'scanned')) -- 'new' | 'scanned'
 ) STRICT;
+
+CREATE INDEX btc_blocks_status ON btc_blocks (status);
 
 ---------- NBTC Minting and Withdrawal ----------
 
--- This table tracks the nBTC deposit txs
-CREATE TABLE nbtc_txs (
+-- This table tracks the nBTC deposit txs (minting)
+CREATE TABLE nbtc_minting (
     tx_id TEXT PRIMARY KEY,
     block_hash TEXT NOT NULL,
     block_height INTEGER NOT NULL,
@@ -20,8 +23,8 @@ CREATE TABLE nbtc_txs (
     updated_at INTEGER NOT NULL, -- timestamp_ms
 ) STRICT;
 
-CREATE INDEX nbtc_txs_status ON nbtc_txs (status);
-CREATE INDEX nbtc_txs_sui_recipient ON nbtc_txs (sui_recipient, created_at);
+CREATE INDEX nbtc_minting_status ON nbtc_txs (status);
+CREATE INDEX nbtc_minting_sui_recipient ON nbtc_txs (sui_recipient, created_at);
 
 -- nbtc_withdrawal table tracks nBTC withdraw transactions from SUI
 CREATE TABLE nbtc_withdrawal (

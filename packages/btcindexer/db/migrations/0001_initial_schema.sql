@@ -2,7 +2,7 @@
 CREATE TABLE btc_blocks (
     height INTEGER PRIMARY KEY,
     hash TEXT NOT NULL UNIQUE,
-    processed_at REAL DEFAULT (unixepoch('subsec')),
+    processed_at INTEGER NOT NULL, -- timestamp_ms
 	status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'scanned')) -- 'new' | 'scanned'
 ) STRICT;
 

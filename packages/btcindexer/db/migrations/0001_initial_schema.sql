@@ -16,8 +16,8 @@ CREATE TABLE nbtc_txs (
     sui_recipient TEXT NOT NULL,
     amount_sats INTEGER NOT NULL,
     status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted' | 'reorg'
-    created_at INTEGER DEFAULT unixepoch('subsec'),
-    updated_at INTEGER DEFAULT unixepoch('subsec')
+    created_at INTEGER NOT NULL, -- timestamp_ms
+    updated_at INTEGER NOT NULL, -- timestamp_ms
 ) STRICT;
 
 CREATE INDEX nbtc_txs_status ON nbtc_txs (status);
@@ -30,7 +30,7 @@ CREATE TABLE nbtc_withdrawal (
 	amount INTEGER NOT NULL, -- amount of nBTC to be burn and withdraw on BTC,
 	recipient TEXT NOT NULL, -- the bitcoin address or script that will receive the BTC,
 	note TEXT, -- additional note that we can include for the user.
-	sent_at INTEGER NOT NULL,
+	sent_at INTEGER NOT NULL, -- timestamp_ms
 	btc_tx_id TEXT, -- will be set once Bitcoin tx will be broadcasted
 	status INTEGER NOT NULL
 ) STRICT;

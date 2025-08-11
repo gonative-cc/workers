@@ -55,7 +55,7 @@ export class Indexer implements Storage {
 		suiClient: SuiClient,
 		nbtcAddr: string,
 		fallbackAddr: string,
-		network: networks.Network
+		network: networks.Network,
 	) {
 		this.d1 = storage.d1;
 		this.blocksDB = storage.blocksDB;
@@ -75,7 +75,7 @@ export class Indexer implements Storage {
 		const insertBlockStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (height, hash, status) VALUES (?, ?, 'new')
 			 ON CONFLICT(height) DO UPDATE SET hash = excluded.hash
-			 WHERE btc_blocks.hash IS NOT excluded.hash`
+			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
 
 		// TODO: store in KV
@@ -113,7 +113,7 @@ export class Indexer implements Storage {
 		console.log("Cron: Running scanNewBlocks");
 		const blocksToProcess = await this.d1
 			.prepare(
-				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 10"
+				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 10",
 			)
 			.all<{ height: number; hash: string }>();
 
@@ -127,7 +127,7 @@ export class Indexer implements Storage {
 		const nbtcTxStatements: D1PreparedStatement[] = [];
 
 		const insertNbtcTxStmt = this.d1.prepare(
-			"INSERT INTO nbtc_minting (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+			"INSERT INTO nbtc_minting (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -151,8 +151,8 @@ export class Indexer implements Storage {
 							deposit.vout,
 							deposit.suiRecipient,
 							deposit.amountSats,
-							"confirming"
-						)
+							"confirming",
+						),
 					);
 				}
 			}
@@ -160,7 +160,7 @@ export class Indexer implements Storage {
 
 		if (nbtcTxStatements.length > 0) {
 			console.log(
-				`Cron: Found ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1`
+				`Cron: Found ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1`,
 			);
 			await this.d1.batch(nbtcTxStatements);
 		} else {
@@ -208,7 +208,7 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'"
+				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'",
 			)
 			.all<BlockRecord>();
 
@@ -217,7 +217,7 @@ export class Indexer implements Storage {
 			return;
 		}
 		console.log(
-			`Minting: Found ${finalizedTxs.results.length} finalized transaction(s). Preparing to mint`
+			`Minting: Found ${finalizedTxs.results.length} finalized transaction(s). Preparing to mint`,
 		);
 
 		const mintBatchArgs: MintBatchArg[] = [];
@@ -247,7 +247,7 @@ export class Indexer implements Storage {
 							Buffer.from(block.merkleRoot).reverse().toString("hex"))
 				) {
 					console.warn(
-						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Skipping`
+						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Skipping`,
 					);
 					continue;
 				}
@@ -278,13 +278,13 @@ export class Indexer implements Storage {
 			}
 		}
 		const setMintedStmt = this.d1.prepare(
-			"UPDATE nbtc_minting SET status = 'minted', updated_at = unixepoch('subsec') WHERE tx_id = ?"
+			"UPDATE nbtc_minting SET status = 'minted', updated_at = unixepoch('subsec') WHERE tx_id = ?",
 		);
 		const setFailedStmt = this.d1.prepare(
-			"UPDATE nbtc_minting SET status = 'failed', updated_at = unixepoch('subsec') WHERE tx_id = ?"
+			"UPDATE nbtc_minting SET status = 'failed', updated_at = unixepoch('subsec') WHERE tx_id = ?",
 		);
 		const updates = processedTxIds.map((p) =>
-			p.success ? setMintedStmt.bind(p.tx_id) : setFailedStmt.bind(p.tx_id)
+			p.success ? setMintedStmt.bind(p.tx_id) : setFailedStmt.bind(p.tx_id),
 		);
 
 		if (updates.length > 0) {
@@ -315,7 +315,7 @@ export class Indexer implements Storage {
 	async updateConfirmationsAndFinalize(latestHeight: number): Promise<void> {
 		const pendingTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'confirming'"
+				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'confirming'",
 			)
 			.all<{ tx_id: string; block_hash: string; block_height: number }>();
 
@@ -324,7 +324,7 @@ export class Indexer implements Storage {
 			return;
 		}
 		console.log(
-			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`
+			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`,
 		);
 
 		const { reorgUpdates, reorgedTxIds } = await this.handleReorgs(pendingTxs.results);
@@ -343,13 +343,13 @@ export class Indexer implements Storage {
 	}
 
 	async handleReorgs(
-		pendingTxs: PendingTx[]
+		pendingTxs: PendingTx[],
 	): Promise<{ reorgUpdates: D1PreparedStatement[]; reorgedTxIds: string[] }> {
 		const reorgUpdates: D1PreparedStatement[] = [];
 		const reorgedTxIds: string[] = [];
 		const reorgCheckStmt = this.d1.prepare("SELECT hash FROM btc_blocks WHERE height = ?");
 		const reorgStmt = this.d1.prepare(
-			"UPDATE nbtc_minting SET status = 'reorg', updated_at = unixepoch('subsec') WHERE tx_id = ?"
+			"UPDATE nbtc_minting SET status = 'reorg', updated_at = unixepoch('subsec') WHERE tx_id = ?",
 		);
 
 		for (const tx of pendingTxs) {
@@ -360,7 +360,7 @@ export class Indexer implements Storage {
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
 					console.warn(
-						`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Old hash: ${tx.block_hash}, New hash: ${newBlockInQueue.hash}.`
+						`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Old hash: ${tx.block_hash}, New hash: ${newBlockInQueue.hash}.`,
 					);
 					reorgUpdates.push(reorgStmt.bind(tx.tx_id));
 					reorgedTxIds.push(tx.tx_id);
@@ -373,14 +373,14 @@ export class Indexer implements Storage {
 	selectFinalizedNbtcTxs(pendingTxs: PendingTx[], latestHeight: number): D1PreparedStatement[] {
 		const updates: D1PreparedStatement[] = [];
 		const finalizeStmt = this.d1.prepare(
-			"UPDATE nbtc_minting SET status = 'finalized', updated_at = unixepoch('subsec') WHERE tx_id = ?"
+			"UPDATE nbtc_minting SET status = 'finalized', updated_at = unixepoch('subsec') WHERE tx_id = ?",
 		);
 
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= CONFIRMATION_DEPTH) {
 				console.log(
-					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`
+					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`,
 				);
 				updates.push(finalizeStmt.bind(tx.tx_id));
 			}

@@ -86,7 +86,7 @@ const mkMockEnv = () =>
 		btc_blocks: {},
 		nbtc_txs: {},
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	} as any);
+	}) as any;
 
 function prepareIndexer() {
 	const mockEnv = mkMockEnv();
@@ -97,7 +97,7 @@ function prepareIndexer() {
 		new SuiClient(SUI_CLIENT_CFG),
 		REGTEST_DATA[303].depositAddr,
 		SUI_FALLBACK_ADDRESS,
-		networks.regtest
+		networks.regtest,
 	);
 	return { mockEnv, indexer };
 }
@@ -106,7 +106,7 @@ function checkTxProof(
 	proofResult: ProofResult | null,
 	targetTx: Transaction,
 	block: Block,
-	expected: boolean
+	expected: boolean,
 ) {
 	assert(proofResult);
 	assert(block.merkleRoot);
@@ -115,7 +115,7 @@ function checkTxProof(
 	assert.equal(
 		proofResult.merkleRoot,
 		expectedRootBigEndian,
-		"Generated Merkle root should match the block header"
+		"Generated Merkle root should match the block header",
 	);
 
 	const isProofValid = MerkleTree.verify(
@@ -123,7 +123,7 @@ function checkTxProof(
 		Buffer.from(targetTx.getHash()).reverse(), // target leaf must be big-endian
 		Buffer.from(proofResult.merkleRoot, "hex"),
 		SHA256,
-		{ isBitcoinTree: true }
+		{ isBitcoinTree: true },
 	);
 	assert.equal(isProofValid, expected);
 }
@@ -133,7 +133,7 @@ describe("Indexer.findNbtcDeposits", () => {
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[303].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[303].txs[1].id
+			(tx) => tx.getId() === REGTEST_DATA[303].txs[1].id,
 		);
 
 		assert(targetTx, "Setup error");
@@ -177,7 +177,7 @@ describe("Indexer.constructMerkleProof", () => {
 	it("should generate a valid proof for a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[303].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[303].txs[1].id
+			(tx) => tx.getId() === REGTEST_DATA[303].txs[1].id,
 		);
 		assert(targetTx);
 
@@ -190,7 +190,7 @@ describe("Indexer.constructMerkleProof", () => {
 	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
 		const block = Block.fromHex(REGTEST_DATA[304].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[304].txs[2].id
+			(tx) => tx.getId() === REGTEST_DATA[304].txs[2].id,
 		);
 
 		assert(targetTx);
@@ -266,7 +266,7 @@ describe("Block Parsing", () => {
 
 		assert.equal(
 			block.getId(),
-			"0000000000000001524e39e399572fa8af575a22217f64ca3280be55eb10b06e"
+			"0000000000000001524e39e399572fa8af575a22217f64ca3280be55eb10b06e",
 		);
 	});
 });

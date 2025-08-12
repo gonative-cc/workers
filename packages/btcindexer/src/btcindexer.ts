@@ -13,6 +13,7 @@ import {
 	NbtcTxStatus,
 	NbtcTxStatusResp,
 	NbtcTxD1Row,
+	MintBatchArg,
 } from "./models";
 
 const CONFIRMATION_DEPTH = 8;
@@ -212,7 +213,7 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height as height FROM nbtc_minting WHERE status = 'finalized'",
+				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'",
 			)
 			.all<BlockRecord>();
 
@@ -224,7 +225,7 @@ export class Indexer implements Storage {
 			`Minting: Found ${finalizedTxs.results.length} finalized transaction(s). Preparing to mint`,
 		);
 
-		const mintBatchArgs = [];
+		const mintBatchArgs: MintBatchArg[] = [];
 		const processedTxIds: { tx_id: string; success: boolean }[] = [];
 
 		for (const txInfo of finalizedTxs.results) {
@@ -257,7 +258,7 @@ export class Indexer implements Storage {
 				}
 
 				mintBatchArgs.push({
-					transaction: targetTx,
+					tx: targetTx,
 					blockHeight: txInfo.block_height,
 					txIndex: txIndex,
 					proof: proof,

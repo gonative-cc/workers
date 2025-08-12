@@ -1,3 +1,5 @@
+import { Transaction } from "bitcoinjs-lib";
+
 export interface Deposit {
 	vout: number;
 	amountSats: number;
@@ -48,4 +50,11 @@ export interface NbtcTxD1Row {
 	status: NbtcTxStatus;
 	created_at: number;
 	updated_at: number;
+}
+
+export interface MintBatchArg {
+	tx: Transaction;
+	blockHeight: number;
+	txIndex: number;
+	proof: ProofResult;
 }

@@ -3,7 +3,7 @@ import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
-import { ProofResult } from "./models";
+import { MintBatchArg, ProofResult } from "./models";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -100,14 +100,7 @@ export class SuiClient {
 		}
 	}
 
-	async mintNbtcBatch(
-		mintArgs: {
-			transaction: Transaction;
-			blockHeight: number;
-			txIndex: number;
-			proof: ProofResult;
-		}[],
-	): Promise<void> {
+	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<void> {
 		if (mintArgs.length === 0) return;
 
 		const tx = new SuiTransaction();
@@ -117,7 +110,7 @@ export class SuiClient {
 			const proofLittleEndian = args.proof.proofPath.map((p) =>
 				Array.from(Buffer.from(p).reverse()),
 			);
-			const txBytes = Array.from(args.transaction.toBuffer());
+			const txBytes = Array.from(args.tx.toBuffer());
 
 			tx.moveCall({
 				target: target,
@@ -145,14 +138,7 @@ export class SuiClient {
 		}
 	}
 
-	async tryMintNbtcBatch(
-		mintArgs: {
-			transaction: Transaction;
-			blockHeight: number;
-			txIndex: number;
-			proof: ProofResult;
-		}[],
-	): Promise<boolean> {
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<boolean> {
 		try {
 			await this.mintNbtcBatch(mintArgs);
 			return true;

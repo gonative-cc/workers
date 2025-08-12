@@ -53,7 +53,7 @@ export interface NbtcTxD1Row {
 }
 
 export interface MintBatchArg {
-	transaction: Transaction;
+	tx: Transaction;
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;

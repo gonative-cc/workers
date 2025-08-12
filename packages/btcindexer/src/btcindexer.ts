@@ -253,7 +253,7 @@ export class Indexer implements Storage {
 				}
 
 				mintBatchArgs.push({
-					transaction: targetTx,
+					tx: targetTx,
 					blockHeight: txInfo.block_height,
 					txIndex: txIndex,
 					proof: proof,

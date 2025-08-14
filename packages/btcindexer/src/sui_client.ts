@@ -49,7 +49,7 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult
+		proof: ProofResult,
 	): Promise<void> {
 		const tx = new SuiTransaction();
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
@@ -89,7 +89,7 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult
+		proof: ProofResult,
 	): Promise<boolean> {
 		try {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);

@@ -40,15 +40,14 @@ describe.skip("Sui Contract Integration", () => {
 
 		const tree = indexer.constructMerkleTree(block);
 		assert(tree);
-		const proofResult = indexer.getTxProof(tree, targetTx);
-		assert(proofResult);
+		const proofPath = indexer.getTxProof(tree, targetTx);
+		assert(proofPath);
+		const calculatedRoot = tree.getRoot();
 
-		const success = await suiClient.tryMintNbtc(
-			targetTx,
-			REGTEST_DATA.BLOCK_HEIGHT,
-			txIndex,
-			proofResult,
-		);
+		const success = await suiClient.tryMintNbtc(targetTx, REGTEST_DATA.BLOCK_HEIGHT, txIndex, {
+			proofPath,
+			merkleRoot: calculatedRoot.toString("hex"),
+		});
 		assert.isTrue(success);
 	});
 });

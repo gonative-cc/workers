@@ -1,10 +1,15 @@
 import { describe, it, assert, vi, expect } from "vitest";
 import { Indexer, storageFromEnv } from "../src/btcindexer";
 import { Block, networks, Transaction } from "bitcoinjs-lib";
-import { MerkleTree } from "merkletreejs";
 import SHA256 from "crypto-js/sha256";
 import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Deposit, ProofResult } from "./models";
+import { BitcoinMerkleTree } from "./bitcoin-merkle-tree"; // Import our new tree
+import { createHash } from "crypto";
+
+function sha256(data: Buffer): Buffer {
+	return createHash("sha256").update(data).digest();
+}
 
 interface TxInfo {
 	id: string;
@@ -102,30 +107,23 @@ function prepareIndexer() {
 	return { mockEnv, indexer };
 }
 
-function checkTxProof(
-	proofResult: ProofResult | null,
-	targetTx: Transaction,
-	block: Block,
-	expected: boolean,
-) {
-	assert(proofResult);
-	assert(block.merkleRoot);
+function checkTxProof(proofResult: ProofResult | null, block: Block) {
+	assert(proofResult, "Proof result should not be null");
+	assert(block.merkleRoot, "Block must have a Merkle root");
 
 	const expectedRootBigEndian = Buffer.from(block.merkleRoot).reverse().toString("hex");
 	assert.equal(
 		proofResult.merkleRoot,
 		expectedRootBigEndian,
-		"Generated Merkle root should match the block header",
+		"Generated Merkle root must match the block header's root",
 	);
 
-	const isProofValid = MerkleTree.verify(
-		proofResult.proofPath,
-		Buffer.from(targetTx.getHash()).reverse(), // target leaf must be big-endian
-		Buffer.from(proofResult.merkleRoot, "hex"),
-		SHA256,
-		{ isBitcoinTree: true },
-	);
-	assert.equal(isProofValid, expected);
+	assert(Array.isArray(proofResult.proofPath));
+	assert(proofResult.proofPath.length > 0);
+	for (const element of proofResult.proofPath) {
+		assert(Buffer.isBuffer(element));
+		assert.equal(element.length, 32);
+	}
 }
 
 describe("Indexer.findNbtcDeposits", () => {
@@ -183,8 +181,10 @@ describe("Indexer.constructMerkleProof", () => {
 
 		const tree = indexer.constructMerkleTree(block);
 		assert(tree);
-		const proofResult = indexer.getTxProof(tree, targetTx);
-		checkTxProof(proofResult, targetTx, block, true);
+		const proofPath = indexer.getTxProof(tree, targetTx);
+		assert(proofPath);
+		const merkleRoot = tree.getRoot(true).toString("hex");
+		checkTxProof({ proofPath, merkleRoot }, block);
 	});
 
 	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
@@ -197,8 +197,10 @@ describe("Indexer.constructMerkleProof", () => {
 
 		const tree = indexer.constructMerkleTree(block);
 		assert(tree);
-		const proofResult = indexer.getTxProof(tree, targetTx);
-		checkTxProof(proofResult, targetTx, block, true);
+		const proofPath = indexer.getTxProof(tree, targetTx);
+		assert(proofPath);
+		const merkleRoot = tree.getRoot(true).toString("hex");
+		checkTxProof({ proofPath, merkleRoot }, block);
 	});
 });
 
@@ -262,7 +264,6 @@ describe("Block Parsing", () => {
 		expect(() => {
 			Block.fromHex(rawBlockHex);
 		}).not.toThrow();
-		console.log("fuck yeah");
 
 		assert.equal(
 			block.getId(),

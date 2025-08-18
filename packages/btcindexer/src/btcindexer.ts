@@ -5,7 +5,6 @@ import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
 import {
 	Deposit,
-	ProofResult,
 	PendingTx,
 	BlockRecord,
 	Storage,

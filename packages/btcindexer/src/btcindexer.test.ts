@@ -1,15 +1,8 @@
 import { describe, it, assert, vi, expect } from "vitest";
 import { Indexer, storageFromEnv } from "../src/btcindexer";
-import { Block, networks, Transaction } from "bitcoinjs-lib";
-import SHA256 from "crypto-js/sha256";
+import { Block, networks } from "bitcoinjs-lib";
 import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Deposit, ProofResult } from "./models";
-import { BitcoinMerkleTree } from "./bitcoin-merkle-tree"; // Import our new tree
-import { createHash } from "crypto";
-
-function sha256(data: Buffer): Buffer {
-	return createHash("sha256").update(data).digest();
-}
 
 interface TxInfo {
 	id: string;

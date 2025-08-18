@@ -1,12 +1,10 @@
 import { PutBlocks } from "./api/put-blocks";
 import { address, networks, Block, Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
-import { MerkleTree } from "merkletreejs";
-import SHA256 from "crypto-js/sha256";
+import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
 import {
 	Deposit,
-	ProofResult,
 	PendingTx,
 	BlockRecord,
 	Storage,
@@ -244,15 +242,18 @@ export class Indexer implements Storage {
 				if (!targetTx || txIndex === undefined || txIndex === -1) continue;
 
 				const proof = this.getTxProof(merkleTree, targetTx);
+
 				// soundness check
+				const calculatedRoot = merkleTree.getRoot();
 				if (
 					!proof ||
-					(block.merkleRoot !== undefined &&
-						proof.merkleRoot !==
-							Buffer.from(block.merkleRoot).reverse().toString("hex"))
+					(block.merkleRoot !== undefined && !block.merkleRoot.equals(calculatedRoot))
 				) {
 					console.warn(
-						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Skipping`,
+						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Root mismatch.`,
+						`Block root: ${block.merkleRoot?.toString(
+							"hex",
+						)}, Calculated: ${calculatedRoot.toString("hex")}`,
 					);
 					continue;
 				}
@@ -261,7 +262,7 @@ export class Indexer implements Storage {
 					tx: targetTx,
 					blockHeight: txInfo.block_height,
 					txIndex: txIndex,
-					proof: proof,
+					proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
 				});
 				processedTxIds.push({ tx_id: txInfo.tx_id, success: true });
 			} catch (e) {
@@ -299,23 +300,20 @@ export class Indexer implements Storage {
 		}
 	}
 
-	constructMerkleTree(block: Block): MerkleTree | null {
+	constructMerkleTree(block: Block): BitcoinMerkleTree | null {
 		if (!block.transactions || block.transactions.length === 0) {
 			return null;
 		}
-		// NOTE: `tx.getHash()` from `bitcoinjs-lib` returns numbers as a bytes in the little-endian
-		// format - same as Bitcoin Core
-		// However, the MerkleTree from the `merkletreejs` library expects its leaves to be in the
-		// big-endian format. So we reverse each hash to convert them big-endian.
-		const leaves = block.transactions.map((tx) => Buffer.from(tx.getHash()).reverse());
-		return new MerkleTree(leaves, SHA256, { isBitcoinTree: true });
+		return new BitcoinMerkleTree(block.transactions);
 	}
 
-	getTxProof(tree: MerkleTree, targetTx: Transaction): ProofResult | null {
-		const targetLeaf = Buffer.from(targetTx.getHash()).reverse();
-		const proofPath = tree.getProof(targetLeaf).map((p) => p.data);
-		const merkleRoot = tree.getRoot().toString("hex");
-		return { proofPath, merkleRoot };
+	getTxProof(tree: BitcoinMerkleTree, targetTx: Transaction): Buffer[] | null {
+		try {
+			return tree.getProof(targetTx);
+		} catch (e) {
+			console.error(`Failed to get proof:`, e);
+			return null;
+		}
 	}
 
 	async updateConfirmationsAndFinalize(latestHeight: number): Promise<void> {

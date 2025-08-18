@@ -107,9 +107,7 @@ export class SuiClient {
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
 
 		for (const args of mintArgs) {
-			const proofLittleEndian = args.proof.proofPath.map((p) =>
-				Array.from(Buffer.from(p).reverse()),
-			);
+			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));
 			const txBytes = Array.from(args.tx.toBuffer());
 
 			tx.moveCall({

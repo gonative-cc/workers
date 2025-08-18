@@ -18,7 +18,7 @@ describe("BitcoinMerkleTree", () => {
 		const expectedRootHex = "701179cb9a9e0fe709cc96261b6b943b31362b61dacba94b03f9b71a06cc2eff";
 		const expectedRoot = Buffer.from(expectedRootHex, "hex"); // little-endian
 
-		assert.isTrue(tree.getRoot().equals(expectedRoot), "Merkle root dosent match");
+		assert.isTrue(tree.getRoot().equals(expectedRoot), "Merkle root doesn't match");
 	});
 
 	it("should generate the correct Merkle proof", () => {

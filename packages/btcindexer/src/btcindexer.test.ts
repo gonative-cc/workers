@@ -272,10 +272,9 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		const blockData = REGTEST_DATA[303];
 		const block = Block.fromHex(blockData.rawBlockHex);
 		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1].id);
+		assert(targetTx);
 
-		expect(targetTx).toBeDefined();
-
-		const txHex = targetTx!.toHex();
+		const txHex = targetTx.toHex();
 		await indexer.registerBroadcastedNbtcTx(txHex);
 
 		const insertStmt = mockEnv.DB.prepare.mock.results[0].value;
@@ -295,8 +294,9 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 	it("should throw an error for a transaction with no valid deposits", async () => {
 		const { indexer } = prepareIndexer();
 		const block = Block.fromHex(REGTEST_DATA[303].rawBlockHex);
+		assert(block.transactions);
 		// The first tx in a block is coinbase
-		const coinbaseTx = block.transactions![0];
+		const coinbaseTx = block.transactions[0];
 
 		await expect(indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex())).rejects.toThrow(
 			"Transaction does not contain any valid nBTC deposits.",

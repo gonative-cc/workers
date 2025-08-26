@@ -94,9 +94,10 @@ export default class HttpRouter {
 		try {
 			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex);
 			return { success: true, ...result };
-		} catch (e: any) {
+		} catch (e: unknown) {
 			console.error("Failed to register nBTC tx:", e);
-			return error(400, e.message);
+			const message = e instanceof Error ? e.message : "An unknown error occurred.";
+			return error(400, message);
 		}
 	};
 

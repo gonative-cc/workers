@@ -65,6 +65,7 @@ const createMockStmt = () => ({
 function mkMockD1() {
 	return {
 		prepare: vi.fn().mockImplementation(() => createMockStmt()),
+		batch: vi.fn().mockResolvedValue({ success: true }),
 	};
 }
 
@@ -261,6 +262,44 @@ describe("Block Parsing", () => {
 		assert.equal(
 			block.getId(),
 			"0000000000000001524e39e399572fa8af575a22217f64ca3280be55eb10b06e",
+		);
+	});
+});
+
+describe("Indexer.registerBroadcastedNbtcTx", () => {
+	it("should register a tx with a single deposit", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const blockData = REGTEST_DATA[303];
+		const block = Block.fromHex(blockData.rawBlockHex);
+		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1].id);
+
+		expect(targetTx).toBeDefined();
+
+		const txHex = targetTx!.toHex();
+		await indexer.registerBroadcastedNbtcTx(txHex);
+
+		const insertStmt = mockEnv.DB.prepare.mock.results[0].value;
+		expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
+			expect.stringContaining("INSERT OR IGNORE INTO nbtc_minting"),
+		);
+		expect(insertStmt.bind).toHaveBeenCalledWith(
+			blockData.txs[1].id,
+			1, // vout
+			blockData.txs[1].suiAddr,
+			blockData.txs[1].amountSats,
+			expect.any(Number),
+			expect.any(Number),
+		);
+	});
+
+	it("should throw an error for a transaction with no valid deposits", async () => {
+		const { indexer } = prepareIndexer();
+		const block = Block.fromHex(REGTEST_DATA[303].rawBlockHex);
+		// The first tx in a block is coinbase
+		const coinbaseTx = block.transactions![0];
+
+		await expect(indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex())).rejects.toThrow(
+			"Transaction does not contain any valid nBTC deposits.",
 		);
 	});
 });

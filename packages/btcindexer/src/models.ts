@@ -58,3 +58,7 @@ export interface MintBatchArg {
 	txIndex: number;
 	proof: ProofResult;
 }
+
+export interface PostNbtcTxRequest {
+	txHex: string;
+}

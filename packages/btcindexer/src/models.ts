@@ -17,10 +17,17 @@ export interface PendingTx {
 	block_height: number;
 }
 
-export interface BlockRecord {
+export interface FinalizedTxD1Row {
 	tx_id: string;
+	vout: number;
 	block_hash: string;
 	block_height: number;
+}
+
+export interface GroupedFinalizedTx {
+	block_hash: string;
+	block_height: number;
+	deposits: FinalizedTxD1Row[];
 }
 
 export interface Storage {

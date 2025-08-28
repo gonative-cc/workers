@@ -6,12 +6,13 @@ import SuiClient, { suiClientFromEnv } from "./sui_client";
 import {
 	Deposit,
 	PendingTx,
-	BlockRecord,
 	Storage,
 	NbtcTxStatus,
 	NbtcTxStatusResp,
 	NbtcTxD1Row,
 	MintBatchArg,
+	FinalizedTxD1Row,
+	GroupedFinalizedTx,
 } from "./models";
 
 const CONFIRMATION_DEPTH = 8;
@@ -219,24 +220,39 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'",
+				"SELECT tx_id, vout, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'",
 			)
-			.all<BlockRecord>();
+			.all<FinalizedTxD1Row>();
 
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
 			console.log("Minting: No finalized transactions found to process");
 			return;
 		}
+
+		const groupedTxs = new Map<string, GroupedFinalizedTx>();
+		for (const row of finalizedTxs.results) {
+			const group = groupedTxs.get(row.tx_id);
+			if (group) {
+				group.deposits.push(row);
+			} else {
+				groupedTxs.set(row.tx_id, {
+					block_hash: row.block_hash,
+					block_height: row.block_height,
+					deposits: [row],
+				});
+			}
+		}
+
 		console.log(
-			`Minting: Found ${finalizedTxs.results.length} finalized transaction(s). Preparing to mint`,
+			`Minting: Found ${groupedTxs.size} finalized transaction(s). Preparing to mint`,
 		);
 
 		const mintBatchArgs: MintBatchArg[] = [];
-		const processedTxIds: { tx_id: string; success: boolean }[] = [];
+		const processedPks: { tx_id: string; vout: number; success: boolean }[] = [];
 
-		for (const txInfo of finalizedTxs.results) {
+		for (const [txId, txGroup] of groupedTxs.entries()) {
 			try {
-				const rawBlockBuffer = await this.blocksDB.get(txInfo.block_hash, {
+				const rawBlockBuffer = await this.blocksDB.get(txGroup.block_hash, {
 					type: "arrayBuffer",
 				});
 				if (!rawBlockBuffer) continue;
@@ -245,7 +261,7 @@ export class Indexer implements Storage {
 				const merkleTree = this.constructMerkleTree(block);
 				if (!merkleTree) continue;
 
-				const txIndex = block.transactions?.findIndex((tx) => tx.getId() === txInfo.tx_id);
+				const txIndex = block.transactions?.findIndex((tx) => tx.getId() === txId);
 				const targetTx = block.transactions?.[txIndex ?? -1];
 				if (!targetTx || txIndex === undefined || txIndex === -1) continue;
 
@@ -258,7 +274,7 @@ export class Indexer implements Storage {
 					(block.merkleRoot !== undefined && !block.merkleRoot.equals(calculatedRoot))
 				) {
 					console.warn(
-						`WARN: Failed to generate a valid merkle proof for TX ${txInfo.tx_id}. Root mismatch.`,
+						`WARN: Failed to generate a valid merkle proof for TX ${txId}. Root mismatch.`,
 						`Block root: ${block.merkleRoot?.toString(
 							"hex",
 						)}, Calculated: ${calculatedRoot.toString("hex")}`,
@@ -268,14 +284,18 @@ export class Indexer implements Storage {
 
 				mintBatchArgs.push({
 					tx: targetTx,
-					blockHeight: txInfo.block_height,
+					blockHeight: txGroup.block_height,
 					txIndex: txIndex,
 					proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
 				});
-				processedTxIds.push({ tx_id: txInfo.tx_id, success: true });
+				for (const deposit of txGroup.deposits) {
+					processedPks.push({ tx_id: deposit.tx_id, vout: deposit.vout, success: true });
+				}
 			} catch (e) {
-				console.error(`Minting: ERROR preparing TX ${txInfo.tx_id}:`, e);
-				processedTxIds.push({ tx_id: txInfo.tx_id, success: false });
+				console.error(`Minting: ERROR preparing TX ${txId}:`, e);
+				for (const deposit of txGroup.deposits) {
+					processedPks.push({ tx_id: deposit.tx_id, vout: deposit.vout, success: false });
+				}
 			}
 		}
 
@@ -286,20 +306,22 @@ export class Indexer implements Storage {
 			// If the whole batch fails, mark them all as failed
 			// TODO: decide what to do with the failed mints
 			if (!batchSuccess) {
-				processedTxIds.forEach((p) => {
+				processedPks.forEach((p) => {
 					if (p.success) p.success = false;
 				});
 			}
 		}
 		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = 'minted', updated_at = ${now} WHERE tx_id = ?`,
+			`UPDATE nbtc_minting SET status = 'minted', updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
 		const setFailedStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = 'failed', updated_at = ${now} WHERE tx_id = ?`,
+			`UPDATE nbtc_minting SET status = 'failed', updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
-		const updates = processedTxIds.map((p) =>
-			p.success ? setMintedStmt.bind(p.tx_id) : setFailedStmt.bind(p.tx_id),
+		const updates = processedPks.map((p) =>
+			p.success
+				? setMintedStmt.bind(now, p.tx_id, p.vout)
+				: setFailedStmt.bind(now, p.tx_id, p.vout),
 		);
 
 		if (updates.length > 0) {

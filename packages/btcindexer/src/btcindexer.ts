@@ -124,8 +124,15 @@ export class Indexer implements Storage {
 
 		const nbtcTxStatements: D1PreparedStatement[] = [];
 
-		const insertNbtcTxStmt = this.d1.prepare(
-			"INSERT INTO nbtc_minting (tx_id, block_hash, block_height, vout, sui_recipient, amount_sats, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		const now = Date.now();
+		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
+			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at)
+         	VALUES (?, ?, ?, ?, ?, ?, 'confirming', ?, ?)
+         	ON CONFLICT(tx_id, vout) DO UPDATE SET
+				block_hash = excluded.block_hash,
+				block_height = excluded.block_height,
+				status = 'confirming',
+				updated_at = excluded.updated_at`,
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -142,14 +149,15 @@ export class Indexer implements Storage {
 				const deposits = this.findNbtcDeposits(tx);
 				for (const deposit of deposits) {
 					nbtcTxStatements.push(
-						insertNbtcTxStmt.bind(
+						insertOrUpdateNbtcTxStmt.bind(
 							tx.getId(),
+							deposit.vout,
 							blockInfo.hash,
 							blockInfo.height,
-							deposit.vout,
 							deposit.suiRecipient,
 							deposit.amountSats,
-							"confirming",
+							now,
+							now,
 						),
 					);
 				}
@@ -283,7 +291,7 @@ export class Indexer implements Storage {
 				});
 			}
 		}
-		const now = +new Date();
+		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = 'minted', updated_at = ${now} WHERE tx_id = ?`,
 		);
@@ -351,7 +359,7 @@ export class Indexer implements Storage {
 	): Promise<{ reorgUpdates: D1PreparedStatement[]; reorgedTxIds: string[] }> {
 		const reorgUpdates: D1PreparedStatement[] = [];
 		const reorgedTxIds: string[] = [];
-		const now = +new Date();
+		const now = Date.now();
 		const reorgCheckStmt = this.d1.prepare("SELECT hash FROM btc_blocks WHERE height = ?");
 		const reorgStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = 'reorg', updated_at = ${now} WHERE tx_id = ?`,
@@ -377,7 +385,7 @@ export class Indexer implements Storage {
 
 	selectFinalizedNbtcTxs(pendingTxs: PendingTx[], latestHeight: number): D1PreparedStatement[] {
 		const updates: D1PreparedStatement[] = [];
-		const now = +new Date();
+		const now = Date.now();
 		const finalizeStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = 'finalized', updated_at = ${now} WHERE tx_id = ?`,
 		);
@@ -445,5 +453,32 @@ export class Indexer implements Storage {
 				amount_sats: tx.amount_sats,
 			};
 		});
+	}
+
+	async registerBroadcastedNbtcTx(
+		txHex: string,
+	): Promise<{ tx_id: string; registered_deposits: number }> {
+		const tx = Transaction.fromHex(txHex);
+		const txId = tx.getId();
+
+		const deposits = this.findNbtcDeposits(tx);
+		if (deposits.length === 0) {
+			throw new Error("Transaction does not contain any valid nBTC deposits.");
+		}
+
+		const now = Date.now();
+		const insertStmt = this.d1.prepare(
+			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'broadcasting', ?, ?)`,
+		);
+
+		const statements = deposits.map((deposit) =>
+			insertStmt.bind(txId, deposit.vout, deposit.suiRecipient, deposit.amountSats, now, now),
+		);
+
+		await this.d1.batch(statements);
+
+		console.log(`Successfully registered ${statements.length} deposit(s) for nBTC tx ${txId}.`);
+		return { tx_id: txId, registered_deposits: statements.length };
 	}
 }

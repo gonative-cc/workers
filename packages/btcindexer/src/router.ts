@@ -3,6 +3,7 @@ import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import { Indexer } from "./btcindexer";
 import { RestPath } from "./api/client";
+import { PostNbtcTxRequest } from "./models";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
@@ -25,7 +26,7 @@ export default class HttpRouter {
 		});
 
 		r.put(RestPath.blocks, this.putBlocks);
-		r.put(RestPath.nbtcTx, this.putNbtcTx);
+		r.post(RestPath.nbtcTx, this.postNbtcTx);
 
 		// ?sui_recipient="0x..."  - query by sui address
 		r.get(RestPath.nbtcTx, this.getStatusBySuiAddress);
@@ -83,8 +84,21 @@ export default class HttpRouter {
 		}
 	};
 
-	putNbtcTx = async (req: IRequest) => {
-		return { inserted: await this.indexer().putNbtcTx() };
+	postNbtcTx = async (req: IRequest) => {
+		const body: PostNbtcTxRequest = await req.json();
+
+		if (!body || typeof body.txHex !== "string") {
+			return error(400, "Request body must be a JSON object with a 'txHex' property.");
+		}
+
+		try {
+			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex);
+			return { success: true, ...result };
+		} catch (e: unknown) {
+			console.error("Failed to register nBTC tx:", e);
+			const message = e instanceof Error ? e.message : "An unknown error occurred.";
+			return error(400, message);
+		}
 	};
 
 	//

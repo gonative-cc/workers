@@ -9,9 +9,9 @@ import {
 	Storage,
 	NbtcTxStatus,
 	NbtcTxStatusResp,
-	NbtcTxD1Row,
+	NbtcTxRow,
 	MintBatchArg,
-	FinalizedTxD1Row,
+	FinalizedTxRow,
 	GroupedFinalizedTx,
 } from "./models";
 
@@ -222,13 +222,27 @@ export class Indexer implements Storage {
 			.prepare(
 				"SELECT tx_id, vout, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'",
 			)
-			.all<FinalizedTxD1Row>();
+			.all<FinalizedTxRow>();
 
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
 			console.log("Minting: No finalized transactions found to process");
 			return;
 		}
 
+		// Group all finalized deposits by their parent transaction ID.
+		// A single Bitcoin transaction can contain multiple outputs (vouts) that pay to the nBTC
+		// deposit address. While the transaction typically has only one OP_RETURN to specify the
+		// Sui recipient, that single recipient applies to *all* deposit outputs within that transaction.
+		// Our indexer stores each of these deposits as a separate row.
+		// For the on-chain minting process, however all deposits from a single transaction must be
+		// processed together because they share a single Merkle proof. This grouping step
+		// collects all related deposits so we can generate one proof and make one batch mint call.
+		//
+		// TODO: Consider refactoring the database schema to store one row per transaction, rather than
+		// per deposit output. The schema could have columns like `vouts` (a list of vout indexes),
+		// `total_amount`, and `op_return_data`. This would align the database structure more
+		// closely with the on-chain reality and could simplify this function by removing the
+		// need for this grouping step.
 		const groupedTxs = new Map<string, GroupedFinalizedTx>();
 		for (const row of finalizedTxs.results) {
 			const group = groupedTxs.get(row.tx_id);
@@ -248,7 +262,7 @@ export class Indexer implements Storage {
 		);
 
 		const mintBatchArgs: MintBatchArg[] = [];
-		const processedPks: { tx_id: string; vout: number; success: boolean }[] = [];
+		const processedPrimaryKeys: { tx_id: string; vout: number; success: boolean }[] = [];
 
 		for (const [txId, txGroup] of groupedTxs.entries()) {
 			try {
@@ -261,9 +275,19 @@ export class Indexer implements Storage {
 				const merkleTree = this.constructMerkleTree(block);
 				if (!merkleTree) continue;
 
-				const txIndex = block.transactions?.findIndex((tx) => tx.getId() === txId);
-				const targetTx = block.transactions?.[txIndex ?? -1];
-				if (!targetTx || txIndex === undefined || txIndex === -1) continue;
+				if (!block.transactions) {
+					continue;
+				}
+
+				const txIndex = block.transactions.findIndex((tx) => tx.getId() === txId);
+
+				if (txIndex === -1) {
+					console.warn(`Minting: Could not find TX ${txId} within its block. Skipping.`);
+					continue;
+				}
+
+				const targetTx = block.transactions[txIndex];
+				if (!targetTx) continue;
 
 				const proof = this.getTxProof(merkleTree, targetTx);
 
@@ -289,12 +313,20 @@ export class Indexer implements Storage {
 					proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
 				});
 				for (const deposit of txGroup.deposits) {
-					processedPks.push({ tx_id: deposit.tx_id, vout: deposit.vout, success: true });
+					processedPrimaryKeys.push({
+						tx_id: deposit.tx_id,
+						vout: deposit.vout,
+						success: true,
+					});
 				}
 			} catch (e) {
 				console.error(`Minting: ERROR preparing TX ${txId}:`, e);
 				for (const deposit of txGroup.deposits) {
-					processedPks.push({ tx_id: deposit.tx_id, vout: deposit.vout, success: false });
+					processedPrimaryKeys.push({
+						tx_id: deposit.tx_id,
+						vout: deposit.vout,
+						success: false,
+					});
 				}
 			}
 		}
@@ -306,7 +338,7 @@ export class Indexer implements Storage {
 			// If the whole batch fails, mark them all as failed
 			// TODO: decide what to do with the failed mints
 			if (!batchSuccess) {
-				processedPks.forEach((p) => {
+				processedPrimaryKeys.forEach((p) => {
 					if (p.success) p.success = false;
 				});
 			}
@@ -318,7 +350,7 @@ export class Indexer implements Storage {
 		const setFailedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = 'failed', updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
-		const updates = processedPks.map((p) =>
+		const updates = processedPrimaryKeys.map((p) =>
 			p.success
 				? setMintedStmt.bind(now, p.tx_id, p.vout)
 				: setFailedStmt.bind(now, p.tx_id, p.vout),
@@ -431,7 +463,7 @@ export class Indexer implements Storage {
 		const tx = await this.d1
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
 			.bind(txid)
-			.first<NbtcTxD1Row>();
+			.first<NbtcTxRow>();
 
 		if (!tx) {
 			return null;
@@ -457,7 +489,7 @@ export class Indexer implements Storage {
 		const dbResult = await this.d1
 			.prepare("SELECT * FROM nbtc_minting WHERE sui_recipient = ? ORDER BY created_at DESC")
 			.bind(suiAddress)
-			.all<NbtcTxD1Row>();
+			.all<NbtcTxRow>();
 
 		if (!dbResult.results) {
 			return [];

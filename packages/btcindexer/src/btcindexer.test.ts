@@ -57,7 +57,8 @@ const REGTEST_DATA: TestBlocks = {
 };
 
 const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
-
+// TODO: ideally we should use Miniflare here, as in the auction tests. We can do it later.
+// https://github.com/gonative-cc/byield/blob/master/app/server/BeelieversAuction/auction.server.test.ts
 const createMockStmt = () => ({
 	bind: vi.fn().mockReturnThis(),
 	all: vi.fn().mockResolvedValue({ results: [] }),

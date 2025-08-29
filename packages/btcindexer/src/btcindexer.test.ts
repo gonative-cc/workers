@@ -57,9 +57,11 @@ const REGTEST_DATA: TestBlocks = {
 };
 
 const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
-
+// TODO: ideally we should use Miniflare here, as in the auction tests. We can do it later.
+// https://github.com/gonative-cc/byield/blob/master/app/server/BeelieversAuction/auction.server.test.ts
 const createMockStmt = () => ({
 	bind: vi.fn().mockReturnThis(),
+	all: vi.fn().mockResolvedValue({ results: [] }),
 });
 
 function mkMockD1() {
@@ -301,5 +303,43 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		await expect(indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex())).rejects.toThrow(
 			"Transaction does not contain any valid nBTC deposits.",
 		);
+	});
+});
+
+describe("Indexer.processFinalizedTransactions", () => {
+	it("should process finalized transactions, group them, and call the SUI batch mint function", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const block303 = REGTEST_DATA[303];
+		const tx303 = block303.txs[1];
+		const mockFinalizedTxs = {
+			results: [
+				{
+					tx_id: tx303.id,
+					vout: 1,
+					block_hash: block303.hash,
+					block_height: block303.height,
+				},
+			],
+		};
+		const mockSelectStmt = createMockStmt();
+		mockSelectStmt.all.mockResolvedValue(mockFinalizedTxs);
+
+		const mockUpdateStmt = createMockStmt();
+		mockEnv.DB.prepare.mockReturnValueOnce(mockSelectStmt).mockReturnValue(mockUpdateStmt);
+
+		const mockKvGet = vi
+			.fn()
+			.mockResolvedValue(Buffer.from(block303.rawBlockHex, "hex").buffer);
+		mockEnv.btc_blocks.get = mockKvGet;
+
+		const suiClientSpy = vi
+			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
+			.mockResolvedValue(true);
+		await indexer.processFinalizedTransactions();
+		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+
+		const finalDbBatchCall = mockEnv.DB.batch.mock.calls[0][0];
+		expect(finalDbBatchCall).toHaveLength(1);
+		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(expect.any(Number), tx303.id, 1);
 	});
 });

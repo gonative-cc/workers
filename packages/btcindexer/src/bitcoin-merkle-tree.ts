@@ -19,9 +19,12 @@ export class BitcoinMerkleTree {
 			throw new Error("Cannot construct Merkle tree from empty transaction list.");
 		}
 		const leafNodes: MerkleNode[] = transactions.map((tx) => {
+			const txClone = tx.clone();
+			txClone.stripWitnesses();
+			const legacyBuffer = txClone.toBuffer();
 			return {
 				hash: tx.getHash(),
-				preimage: sha256(tx.toBuffer()),
+				preimage: sha256(legacyBuffer),
 			};
 		});
 

@@ -9,12 +9,18 @@ const rawTxHex = [
 	"010000000265a7293b2d69ba51d554cd32ac7586f7fbeaeea06835f26e03a2feab6aec375f000000004a493046022100922361eaafe316003087d355dd3c0ef3d9f44edae661c212a28a91e020408008022100c9b9c84d53d82c0ba9208f695c79eb42a453faea4d19706a8440e1d05e6cff7501fffffffff6971f00725d17c1c531088144b45ed795a307a22d51ca377c6f7f93675bb03a000000008b483045022100d060f2b2f4122edac61a25ea06396fe9135affdabc66d350b5ae1813bc6bf3f302205d8363deef2101fc9f3d528a8b3907e9d29c40772e587dcea12838c574cb80f801410449fce4a25c972a43a6bc67456407a0d4ced782d4cf8c0a35a130d5f65f0561e9f35198349a7c0b4ec79a15fead66bd7642f17cc8c40c5df95f15ac7190c76442ffffffff0200f2052a010000001976a914c3f537bc307c7eda43d86b55695e46047b770ea388ac00cf7b05000000001976a91407bef290008c089a60321b21b1df2d7f2202f40388ac00000000",
 	"01000000014ab7418ecda2b2531eef0145d4644a4c82a7da1edd285d1aab1ec0595ac06b69000000008c493046022100a796490f89e0ef0326e8460edebff9161da19c36e00c7408608135f72ef0e03e0221009e01ef7bc17cddce8dfda1f1a6d3805c51f9ab2f8f2145793d8e85e0dd6e55300141043e6d26812f24a5a9485c9d40b8712215f0c3a37b0334d76b2c24fcafa587ae5258853b6f49ceeb29cd13ebb76aa79099fad84f516bbba47bd170576b121052f1ffffffff0200a24a04000000001976a9143542e17b6229a25d5b76909f9d28dd6ed9295b2088ac003fab01000000001976a9149cea2b6e3e64ad982c99ebba56a882b9e8a816fe88ac00000000",
 ];
+
+const rawSegwitTxHex = [
+	"020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff03016600ffffffff021019062a01000000160014e0cdab07528fbe962a5fb7332e48b490714fd3c70000000000000000266a24aa21a9edecb24efb3105e0600fe048beed9365fe26af7c29793ea11b13c012d9bd3db43d0120000000000000000000000000000000000000000000000000000000000000000000000000",
+	"020000000001017c62804655991dda27147886918c8c492db848fe7888593fca19172c5bfa05d50000000000fdffffff0300e1f5050000000016001454696c9c47ac6d852a467a3734d3d9af5e01f2fa0000000000000000446a42307831323334353637383930616263646566313233343536373839306162636465663132333435363738393061626364656631323334353637383930616263646566f0e90f240100000016001477c068d05ed3f5e05f47578d211d1675a58e602802473044022077763129bbc890bfe6202d35448ba9266b9e1438ee4056c4b7be28a91b18d927022002a1b5c5d22669d414f5e868d0f1eb5178806bdfae8f12e0ed5d107e8f4f8468012102cfcd00fa0d84d16393345fb976f84ac0d0786355212f961d7c0b33d97a1cc4ba00000000",
+];
+
 const transactions = rawTxHex.map((hex) => Transaction.fromHex(hex));
+const segwitTransactions = rawSegwitTxHex.map((hex) => Transaction.fromHex(hex));
 
 describe("BitcoinMerkleTree", () => {
-	const tree = new BitcoinMerkleTree(transactions);
-
 	it("should calculate the correct Merkle root", () => {
+		const tree = new BitcoinMerkleTree(transactions);
 		const expectedRootHex = "701179cb9a9e0fe709cc96261b6b943b31362b61dacba94b03f9b71a06cc2eff";
 		const expectedRoot = Buffer.from(expectedRootHex, "hex"); // little-endian
 
@@ -22,6 +28,7 @@ describe("BitcoinMerkleTree", () => {
 	});
 
 	it("should generate the correct Merkle proof", () => {
+		const tree = new BitcoinMerkleTree(transactions);
 		const targetTx = transactions[1];
 		const proof = tree.getProof(targetTx);
 
@@ -34,5 +41,19 @@ describe("BitcoinMerkleTree", () => {
 		assert.strictEqual(proof.length, 2, "Proof should have 2 elements");
 		assert.isTrue(proof[0].equals(expectedProof[0]), "First proof element is incorrect");
 		assert.isTrue(proof[1].equals(expectedProof[1]), "Second proof element is incorrect");
+	});
+
+	it("should generate the correct Merkle proof for segwit", () => {
+		const tree = new BitcoinMerkleTree(segwitTransactions);
+		const targetTx = segwitTransactions[1];
+		const proof = tree.getProof(targetTx);
+
+		const expectedProofHex = [
+			"29bedbc81f5722ed8c3d54b198d7c2945e109e1c79afead08c61467b873cccc8",
+		];
+		const expectedProof = expectedProofHex.map((hex) => Buffer.from(hex, "hex"));
+
+		assert.strictEqual(proof.length, 1, "Proof should have 1 element");
+		assert.isTrue(proof[0].equals(expectedProof[0]), "First proof element is incorrect");
 	});
 });

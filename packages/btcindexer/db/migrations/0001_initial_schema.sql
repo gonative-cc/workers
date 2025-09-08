@@ -24,8 +24,8 @@ CREATE TABLE nbtc_minting (
 	PRIMARY KEY (tx_id, vout)
 ) STRICT;
 
-CREATE INDEX nbtc_minting_status ON nbtc_txs (status);
-CREATE INDEX nbtc_minting_sui_recipient ON nbtc_txs (sui_recipient, created_at);
+CREATE INDEX nbtc_minting_status ON nbtc_minting (status);
+CREATE INDEX nbtc_minting_sui_recipient ON nbtc_minting (sui_recipient, created_at);
 
 -- nbtc_withdrawal table tracks nBTC withdraw transactions from SUI
 CREATE TABLE nbtc_withdrawal (

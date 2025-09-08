@@ -70,16 +70,19 @@ export class Indexer implements Storage {
 		if (!blocks || blocks.length === 0) {
 			return 0;
 		}
-
+		const now = Date.now();
 		const insertBlockStmt = this.d1.prepare(
-			`INSERT INTO btc_blocks (height, hash, status) VALUES (?, ?, 'new')
-			 ON CONFLICT(height) DO UPDATE SET hash = excluded.hash
+			`INSERT INTO btc_blocks (height, hash, status, processed_at) VALUES (?, ?, 'new', ?)
+			 ON CONFLICT(height)
+			  DO UPDATE SET
+			   hash = excluded.hash,
+			   processed_at = excluded.processed_at
 			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
 
 		// TODO: store in KV
 		const putKVs = blocks.map((b) => this.blocksDB.put(b.block.getId(), b.block.toBuffer()));
-		const putD1s = blocks.map((b) => insertBlockStmt.bind(b.height, b.height));
+		const putD1s = blocks.map((b) => insertBlockStmt.bind(b.height, b.block.getId(), now));
 
 		try {
 			await Promise.all([...putKVs, this.d1.batch(putD1s)]);

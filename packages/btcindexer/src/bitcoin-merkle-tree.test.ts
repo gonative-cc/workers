@@ -43,7 +43,7 @@ describe("BitcoinMerkleTree", () => {
 		assert.isTrue(proof[1].equals(expectedProof[1]), "Second proof element is incorrect");
 	});
 
-	it("should generate the correct Merkle proof for regtest", () => {
+	it("should generate the correct Merkle proof for segwit", () => {
 		const tree = new BitcoinMerkleTree(segwitTransactions);
 		const targetTx = segwitTransactions[1];
 		const proof = tree.getProof(targetTx);

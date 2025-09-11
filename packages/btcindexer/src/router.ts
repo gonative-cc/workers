@@ -24,10 +24,11 @@ export default class HttpRouter {
 			// object then it will be directly returned.
 			finally: [json],
 		});
-
+		// Bitcoin endpoints
 		r.put(RestPath.blocks, this.putBlocks);
-		r.post(RestPath.nbtcTx, this.postNbtcTx);
+		r.get(RestPath.latestBlock, this.getLatestBlock);
 
+		r.post(RestPath.nbtcTx, this.postNbtcTx);
 		// ?sui_recipient="0x..."  - query by sui address
 		r.get(RestPath.nbtcTx, this.getStatusBySuiAddress);
 		r.get(RestPath.nbtcTx + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
@@ -138,5 +139,9 @@ export default class HttpRouter {
 			return error(400, "Invalid SUI address format.");
 		}
 		return this.indexer().getStatusBySuiAddress(suiRecipient);
+	};
+
+	getLatestBlock = () => {
+		return this.indexer().getLatestBlock();
 	};
 }

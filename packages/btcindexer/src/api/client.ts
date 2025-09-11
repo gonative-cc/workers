@@ -3,6 +3,7 @@ import { PutBlocks, PutBlocksReq } from "./put-blocks";
 export enum RestPath {
 	blocks = "/bitcoin/blocks",
 	nbtcTx = "/nbtc",
+	latestBlock = "/bitcoin/latest-block",
 }
 
 export enum ContentType {

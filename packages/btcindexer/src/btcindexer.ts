@@ -539,7 +539,7 @@ export class Indexer implements Storage {
 		return { tx_id: txId, registered_deposits: statements.length };
 	}
 
-	async getLatestBlock(): Promise<{ height: number | null }> {
+	async getLatestHeight(): Promise<{ height: number | null }> {
 		const result = await this.d1
 			.prepare("SELECT MAX(height) as maxHeight FROM btc_blocks")
 			.first<{ maxHeight: number | null }>();

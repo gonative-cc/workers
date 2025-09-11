@@ -3,7 +3,7 @@ import { PutBlocks, PutBlocksReq } from "./put-blocks";
 export enum RestPath {
 	blocks = "/bitcoin/blocks",
 	nbtcTx = "/nbtc",
-	latestBlock = "/bitcoin/latest-block",
+	latestHeight = "/bitcoin/latest-height",
 }
 
 export enum ContentType {
@@ -29,5 +29,13 @@ export default class Client {
 			headers: msgPackHeaders,
 			body: PutBlocksReq.encode(putBlocks),
 		});
+	}
+
+	async getLatestHeight(): Promise<{ height: number | null }> {
+		const response = await fetch(this.baseUrl + RestPath.latestHeight);
+		if (!response.ok) {
+			throw new Error(`Failed to fetch latest height: ${response.statusText}`);
+		}
+		return response.json();
 	}
 }

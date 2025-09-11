@@ -26,7 +26,7 @@ export default class HttpRouter {
 		});
 		// Bitcoin endpoints
 		r.put(RestPath.blocks, this.putBlocks);
-		r.get(RestPath.latestBlock, this.getLatestBlock);
+		r.get(RestPath.latestHeight, this.getLatestHeight);
 
 		r.post(RestPath.nbtcTx, this.postNbtcTx);
 		// ?sui_recipient="0x..."  - query by sui address
@@ -141,7 +141,7 @@ export default class HttpRouter {
 		return this.indexer().getStatusBySuiAddress(suiRecipient);
 	};
 
-	getLatestBlock = () => {
-		return this.indexer().getLatestBlock();
+	getLatestHeight = () => {
+		return this.indexer().getLatestHeight();
 	};
 }

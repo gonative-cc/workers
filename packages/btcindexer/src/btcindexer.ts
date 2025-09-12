@@ -538,4 +538,16 @@ export class Indexer implements Storage {
 		console.log(`Successfully registered ${statements.length} deposit(s) for nBTC tx ${txId}.`);
 		return { tx_id: txId, registered_deposits: statements.length };
 	}
+
+	async getLatestHeight(): Promise<{ height: number | null }> {
+		const result = await this.d1
+			.prepare("SELECT MAX(height) as height FROM btc_blocks")
+			.first<{ height: number | null }>();
+
+		if (result) {
+			return result;
+		} else {
+			return { height: null };
+		}
+	}
 }

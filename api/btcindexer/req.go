@@ -11,3 +11,8 @@ type PutBlock struct {
 
 // PutBlocksReq is the type expected by the PUT bitcoin/blocks endpoint
 type PutBlocksReq []PutBlock
+
+// LatestHeightResp is the JSON structure for the response from the /bitcoin/latest-height endpoint
+type LatestHeightResp struct {
+	Height *int64 `json:"height"`
+}

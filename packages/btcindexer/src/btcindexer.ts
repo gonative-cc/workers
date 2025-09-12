@@ -540,14 +540,8 @@ export class Indexer implements Storage {
 	}
 
 	async getLatestHeight(): Promise<{ height: number | null }> {
-		const result = await this.d1
-			.prepare("SELECT MAX(height) as maxHeight FROM btc_blocks")
+		return this.d1
+			.prepare("SELECT MAX(height) as height FROM btc_blocks")
 			.first<{ maxHeight: number | null }>();
-
-		if (result) {
-			return { height: result.maxHeight };
-		} else {
-			return { height: null };
-		}
 	}
 }

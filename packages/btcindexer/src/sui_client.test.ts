@@ -31,6 +31,7 @@ describe.skip("Sui Contract Integration", () => {
 			"bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw",
 			"fallback",
 			networks.regtest,
+			8,
 		);
 		const block = Block.fromHex(REGTEST_DATA.BLOCK_HEX);
 		const txIndex = block.transactions?.findIndex((tx) => tx.getId() === REGTEST_DATA.TX_ID);

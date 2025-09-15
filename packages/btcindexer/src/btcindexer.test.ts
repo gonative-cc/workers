@@ -99,6 +99,7 @@ function prepareIndexer() {
 		REGTEST_DATA[303].depositAddr,
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
+		8,
 	);
 	return { mockEnv, indexer };
 }

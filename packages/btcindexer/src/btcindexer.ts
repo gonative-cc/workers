@@ -15,8 +15,6 @@ import {
 	GroupedFinalizedTx,
 } from "./models";
 
-const CONFIRMATION_DEPTH = 8;
-
 export function storageFromEnv(env: Env): Storage {
 	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
 }
@@ -37,7 +35,19 @@ export function indexerFromEnv(env: Env): Indexer {
 		throw new Error("Invalid BITCOIN_NETWORK value. Must be in " + validBtcNet);
 	const btcNet = btcNetworks[env.BITCOIN_NETWORK];
 
-	return new Indexer(storage, sc, env.NBTC_DEPOSIT_ADDRESS, env.SUI_FALLBACK_ADDRESS, btcNet);
+	const confirmationDepth = parseInt(env.CONFIRMATION_DEPTH || "8", 10);
+	if (isNaN(confirmationDepth) || confirmationDepth < 1) {
+		throw new Error("Invalid CONFIRMATION_DEPTH in config. Must be a number greater than 0.");
+	}
+
+	return new Indexer(
+		storage,
+		sc,
+		env.NBTC_DEPOSIT_ADDRESS,
+		env.SUI_FALLBACK_ADDRESS,
+		btcNet,
+		confirmationDepth,
+	);
 }
 
 export class Indexer implements Storage {
@@ -48,6 +58,7 @@ export class Indexer implements Storage {
 	nbtcScriptHex: string;
 	suiFallbackAddr: string;
 	nbtcClient: SuiClient;
+	confirmationDepth: number;
 
 	constructor(
 		storage: Storage,
@@ -55,6 +66,7 @@ export class Indexer implements Storage {
 		nbtcAddr: string,
 		fallbackAddr: string,
 		network: networks.Network,
+		confirmationDepth: number,
 	) {
 		this.d1 = storage.d1;
 		this.blocksDB = storage.blocksDB;
@@ -62,6 +74,7 @@ export class Indexer implements Storage {
 		this.nbtcClient = suiClient;
 		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
+		this.confirmationDepth = confirmationDepth;
 	}
 
 	// returns number of processed and add blocks
@@ -449,7 +462,7 @@ export class Indexer implements Storage {
 
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
-			if (confirmations >= CONFIRMATION_DEPTH) {
+			if (confirmations >= this.confirmationDepth) {
 				console.log(
 					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`,
 				);

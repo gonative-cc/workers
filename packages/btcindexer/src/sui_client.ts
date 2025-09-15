@@ -23,7 +23,7 @@ export function suiClientFromEnv(env: Env): SuiClient {
 		nbtcModule: NBTC_MODULE,
 		nbtcObjectId: env.NBTC_OBJECT_ID,
 		lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
-		signerMnemonic: env.SUI_SIGNER_MNEMONIC,
+		signerMnemonic: env.NBTC_MINTING_SIGNER_MNEMONIC,
 	});
 }
 
@@ -39,6 +39,7 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
+		console.log("Sui Signer Address:", this.signer.getPublicKey().toSuiAddress());
 		this.nbtcPkg = config.nbtcPkg;
 		this.nbtcModule = config.nbtcModule;
 		this.nbtcObjectId = config.nbtcObjectId;

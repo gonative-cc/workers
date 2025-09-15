@@ -26,9 +26,9 @@ const btcNetworks = {
 };
 const validBtcNet = Object.keys(btcNetworks).keys();
 
-export function indexerFromEnv(env: Env): Indexer {
+export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	const storage = storageFromEnv(env);
-	const sc = suiClientFromEnv(env);
+	const sc = await suiClientFromEnv(env);
 
 	if (!env.BITCOIN_NETWORK) throw Error("BITCOIN_NETWORK env must be set");
 	if (!(env.BITCOIN_NETWORK in btcNetworks))

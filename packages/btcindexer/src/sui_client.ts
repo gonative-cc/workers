@@ -39,6 +39,7 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
+		console.log("Sui Signer Address:", this.signer.getPublicKey().toSuiAddress());
 		this.nbtcPkg = config.nbtcPkg;
 		this.nbtcModule = config.nbtcModule;
 		this.nbtcObjectId = config.nbtcObjectId;
@@ -49,7 +50,7 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult,
+		proof: ProofResult
 	): Promise<void> {
 		const tx = new SuiTransaction();
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
@@ -89,7 +90,7 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult,
+		proof: ProofResult
 	): Promise<boolean> {
 		try {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);

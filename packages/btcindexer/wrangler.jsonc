@@ -40,7 +40,7 @@
     "LIGHT_CLIENT_OBJECT_ID": "0x7132f8d348871a423c3d13789609fbacca920dbc89aa9070b77cfe2987c053e0",
 
     // dummy mnemonic. // TODO: move it to secrets
-    "SUI_SIGNER_MNEMONIC": "",
+    "NBTC_MINTING_SIGNER_MNEMONIC": "",
 
     "BITCOIN_NETWORK": "testnet",
     "NBTC_DEPOSIT_ADDRESS": "tb1qjgqhst2hlgjkh36pg6r3hdnz7zvurafe9h5lkx",

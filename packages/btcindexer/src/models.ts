@@ -45,6 +45,7 @@ export interface NbtcTxStatusResp {
 	confirmations: number;
 	sui_recipient: string;
 	amount_sats: number;
+	sui_tx_id: string | null;
 }
 
 export interface NbtcTxRow {
@@ -57,6 +58,7 @@ export interface NbtcTxRow {
 	status: NbtcTxStatus;
 	created_at: number;
 	updated_at: number;
+	sui_tx_id: string | null;
 }
 
 export interface MintBatchArg {

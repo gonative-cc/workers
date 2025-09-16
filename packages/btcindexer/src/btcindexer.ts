@@ -210,8 +210,10 @@ export class Indexer implements Storage {
 		let suiRecipient: string | null = null;
 
 		for (const vout of tx.outs) {
-			if (vout.script[0] === OP_RETURN) {
-				suiRecipient = vout.script.subarray(2).toString();
+			const parsedRecipient = parseSuiRecipientFromOpReturn(vout.script);
+			if (parsedRecipient) {
+				suiRecipient = parsedRecipient;
+				console.log(`[DEBUG] Parsed Sui recipient from OP_RETURN: ${suiRecipient}`);
 				break; // valid tx should have only one OP_RETURN
 			}
 		}
@@ -563,4 +565,23 @@ export class Indexer implements Storage {
 			return { height: null };
 		}
 	}
+}
+
+function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
+	if (script.length === 0 || script[0] !== OP_RETURN) {
+		return null;
+	}
+	if (script.length < 2) {
+		return null;
+	}
+	const payload = script.subarray(2);
+
+	// Check simple transfer format: 1-byte flag (0x00) + 32-byte address.
+	if (payload.length === 33 && payload[0] === 0x00) {
+		const addressBytes = payload.subarray(1);
+		return `0x${addressBytes.toString("hex")}`;
+	}
+	//TODO: in the future we need to udpate the realyer to correctly handle the flag 0x01
+	// for now we cannot determine the recipient
+	return null;
 }

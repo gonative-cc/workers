@@ -17,6 +17,28 @@ export default class HttpRouter {
 		this.#router = this.createRouter();
 	}
 
+	private authMiddleware = (req: IRequest, env: Env) => {
+		if (!env.BEARER_TOKEN || env.BEARER_TOKEN.trim() === "") {
+			return;
+		}
+
+		const authorization = req.headers.get("Authorization");
+		if (!authorization) {
+			return error(401, "Authorization header is required");
+		}
+
+		const [scheme, token] = authorization.split(" ");
+		if (scheme !== "Bearer" || !token) {
+			return error(401, "Invalid authorization format. Expected: Bearer <token>");
+		}
+
+		if (token !== env.BEARER_TOKEN) {
+			return error(401, "Invalid bearer token");
+		}
+
+		return;
+	};
+
 	createRouter() {
 		const r = Router<IRequest, CFArgs>({
 			catch: error,
@@ -25,10 +47,10 @@ export default class HttpRouter {
 			finally: [json],
 		});
 		// Bitcoin endpoints
-		r.put(RestPath.blocks, this.putBlocks);
+		r.put(RestPath.blocks, this.authMiddleware, this.putBlocks);
 		r.get(RestPath.latestHeight, this.getLatestHeight);
 
-		r.post(RestPath.nbtcTx, this.postNbtcTx);
+		r.post(RestPath.nbtcTx, this.authMiddleware, this.postNbtcTx);
 		// ?sui_recipient="0x..."  - query by sui address
 		r.get(RestPath.nbtcTx, this.getStatusBySuiAddress);
 		r.get(RestPath.nbtcTx + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
@@ -38,7 +60,7 @@ export default class HttpRouter {
 		// we can return Response object directly, to avoid JSON serialization
 		r.get("/test/user/:id", (req) => new Response(`User ID: ${req.params.id}`));
 		// curl http://localhost:8787/test/kv/ -X PUT -d '{"key": "k102", "val": "v1"}'
-		r.put("/test/kv", this.putTestKV);
+		r.put("/test/kv", this.authMiddleware, this.putTestKV);
 		// curl "http://localhost:8787/test/kv/1" -i
 		r.get("/test/kv/:key", this.getTestKV);
 		r.get("/test", (req: Request) => {

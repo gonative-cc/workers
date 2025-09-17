@@ -58,12 +58,18 @@ A cron job runs on a fixed schedule (e.g., every 30 seconds)
 
 To quickly handle UI nBTC transaction observability, BYield UI will push nBTC transaction, in order to let the indexer start monitoring it. This way UI will have the quick status about the TX, before the tx is added to the blockchain.
 
-## Practical information
+## Build Info
 
 ### Dependencies
 
 - bun >= 1.20.0
 - proper editorconfig mode setup in your editor!
+- Go (for Go API Client for the workers)
+
+### Bun workspace
+
+This is a monorepo: workspace with several sub packages.
+Check [linking dependencies](https://bun.sh/docs/install/workspaces) to learn how to manage dependencies between sub-packages.
 
 ### Quick Start
 
@@ -105,10 +111,6 @@ bun wrangler dev
 # now we can interact with the server, for example
 curl http://localhost:8787/test-kv -X PUT -d '{"key": "k1", "val": "v1"}'
 ```
-
-### Using Bun workspace
-
-- [linking dependencies](https://bun.sh/docs/install/workspaces)
 
 ### Typegen
 

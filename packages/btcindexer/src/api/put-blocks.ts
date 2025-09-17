@@ -19,7 +19,7 @@ export class PutBlocksReq {
 		this.block = block.toBuffer();
 	}
 
-	static decode(req: ArrayBuffer): PutBlocks[] {
+	static decode(req: ArrayBuffer | Buffer): PutBlocks[] {
 		const putReq: PutBlocksReq[] = unpack(new Uint8Array(req));
 		return putReq.map((r): PutBlocks => {
 			return { height: r.height, block: Block.fromBuffer(Buffer.from(r.block)) };

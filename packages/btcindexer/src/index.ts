@@ -4,7 +4,7 @@
  * https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
  *
  * Bind resources to your Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `pnpm run typegen`.
+ * `Env` object can be regenerated with `bun run typegen`.
  */
 
 import { indexerFromEnv } from "./btcindexer";
@@ -14,7 +14,7 @@ const router = new HttpRouter(undefined);
 
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-		const indexer = indexerFromEnv(env);
+		const indexer = await indexerFromEnv(env);
 		return router.fetch(req, env, indexer);
 	},
 
@@ -34,7 +34,7 @@ export default {
 			.prepare("SELECT MAX(height) as latest_height FROM btc_blocks")
 			.first<{ latest_height: number }>();
 
-		const indexer = indexerFromEnv(env);
+		const indexer = await indexerFromEnv(env);
 		if (latestBlock && latestBlock.latest_height) {
 			await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
 		}

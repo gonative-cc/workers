@@ -4,28 +4,28 @@
 	"private": true,
 	"sideEffects": false,
 	"type": "module",
-	"packageManager": "pnpm@10.13.1",
+	"packageManager": "bun@1.20.0",
+	"workspaces": ["packages/*"],
 	"scripts": {
 		"prepare": "cd .git/hooks; ln -s -f ../../contrib/git-hooks/pre-commit ./",
-		"typecheck": "pnpm recursive run typecheck",
+		"typecheck": "bun run --filter '*' typecheck",
 		"lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
 		"format": "prettier --write .",
-		"build": "pnpm recursive run build",
-		"dev": "pnpm recursive run dev",
-		"test": "pnpm recursive run test"
+		"dev": "bun run --filter '*' dev",
+		"test": "bun run --filter '*' test"
 	},
 	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20250725.0",
-		"@eslint/js": "^9.31.0",
-		"@types/node": "^24.1.0",
-		"config": "link:@cloudflare/vitest-pool-workers/config",
-		"eslint": "^9.31.0",
+		"@cloudflare/vitest-pool-workers": "^0.9.2",
+		"@cloudflare/workers-types": "^4.20250913.0",
+		"@eslint/js": "^9.35.0",
+		"@types/node": "^24.4.0",
+		"eslint": "^9.35.0",
 		"eslint-config-prettier": "^10.1.8",
-		"lint-staged": "^16.1.2",
-		"typescript": "^5.8.3",
-		"typescript-eslint": "^8.38.0",
+		"lint-staged": "^16.1.6",
+		"typescript": "^5.9.2",
+		"typescript-eslint": "^8.43.0",
 		"vitest": "^3.2.4",
-		"wrangler": "^4.26.0"
+		"wrangler": "^4.37.0"
 	},
 	"lint-staged": {
 		"*.{js,cjs,mjs,jsx,ts,tsx}": [

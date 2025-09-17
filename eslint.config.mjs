@@ -24,5 +24,5 @@ export default tseslint.config(
   },
 
   // Prettier configuration should be placed last to override any conflicting rules from earlier configurations.
-  prettierConfig,
+  prettierConfig
 );

@@ -8,11 +8,11 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-06-20",
   "observability": {
-    "enabled": true,
+    "enabled": true
   },
   "triggers": {
     // every one minute
-    "crons": ["* * * * *"],
+    "crons": ["* * * * *"]
   },
   "compatibility_flags": ["nodejs_compat"],
 
@@ -35,18 +35,23 @@
    */
   "vars": {
     "SUI_NETWORK": "testnet",
-    "SUI_PACKAGE_ID": "0x319a445b1bffe8e5811064ff4d745cf91af805f19a8e6a849942a84660b3b34f", // NBTC package ID
-    "NBTC_OBJECT_ID": "0x22f7cd0cf7073810a17be32da6f8f9a77615f32dc80006123cf86acb39303a2e", // Wrapped Tressaury Cap
-    "LIGHT_CLIENT_OBJECT_ID": "0x7132f8d348871a423c3d13789609fbacca920dbc89aa9070b77cfe2987c053e0",
+    "SUI_PACKAGE_ID": "0xc9aebf90a0ca994786a20768a5c37f7e3590f4f796fc89859489c444e592c13c", // NBTC package ID
+    "NBTC_OBJECT_ID": "0x13247586068dd96bcc2949dca8f20a85bdce72066dc00c20b5c4142f4d034259", // Wrapped Treasury Cap
+    "LIGHT_CLIENT_OBJECT_ID": "0x74d82b7df244d578e6a71a57e84081e8a1050df5214e0f97870a8d9d486810a7",
 
-    // dummy mnemonic. // TODO: move it to secrets
-    "NBTC_MINTING_SIGNER_MNEMONIC": "",
-
-    "BITCOIN_NETWORK": "testnet",
-    "NBTC_DEPOSIT_ADDRESS": "tb1qjgqhst2hlgjkh36pg6r3hdnz7zvurafe9h5lkx",
+    // NOTE: for testnet-v4 it should be testnet
+    "BITCOIN_NETWORK": "regtest",
+    "NBTC_DEPOSIT_ADDRESS": "bcrt1q90xm34jqm0kcpfclkdmn868rw6vcv9fzvfg6p6",
     "SUI_FALLBACK_ADDRESS": "0xf82fd2198d5af45bfc2a7f9a5df4fb30f3c3abf4a8a71b0e4bd415eabda99ff5",
-    "CONFIRMATION_DEPTH": "8",
+    "CONFIRMATION_DEPTH": "3"
   },
+  "secrets_store_secrets": [
+    {
+      "binding": "NBTC_MINTING_SIGNER_MNEMONIC",
+      "store_id": "75adbc6657de4f4cb739f63eb4d0cd7a",
+      "secret_name": "NBTC_MINTING_SIGNER_MNEMONIC"
+    }
+  ],
 
   /**
    * Note: Use secrets to store sensitive data.
@@ -72,18 +77,18 @@
       "database_name": "btcindexer-dev",
       "database_id": "3a43879e-0799-442c-aed5-a3298df1c3bb",
       "migrations_table": "migrations",
-      "migrations_dir": "./db/migrations/",
-    },
+      "migrations_dir": "./db/migrations/"
+    }
   ],
 
   "kv_namespaces": [
     {
       "binding": "btc_blocks",
-      "id": "f8bc94f1f427436ab0797535fbc30cb7",
+      "id": "f8bc94f1f427436ab0797535fbc30cb7"
     },
     {
       "binding": "nbtc_txs",
-      "id": "93968151e21e4cfa8f23041c0a5baf08",
-    },
-  ],
+      "id": "93968151e21e4cfa8f23041c0a5baf08"
+    }
+  ]
 }

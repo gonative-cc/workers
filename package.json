@@ -12,8 +12,7 @@
 		"lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
 		"format": "prettier --write .",
 		"dev": "bun run --filter '*' dev",
-		"test": "bun run --filter '*' test",
-		"test-debug": "node ./node_modules/.bin/vitest run"
+		"test": "bun run vitest run --reporter=verbose"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.9.2",

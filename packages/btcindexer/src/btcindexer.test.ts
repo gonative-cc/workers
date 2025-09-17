@@ -35,7 +35,7 @@ const REGTEST_DATA: TestBlocks = {
 			},
 		},
 	},
-	325: {
+	327: {
 		depositAddr: "bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw",
 		height: 327,
 		hash: "44ebd5a48c4b7410eb92f527a382d7d9de88f7450e47de099e4197a6a473a36b",

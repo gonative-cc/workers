@@ -10,12 +10,11 @@
 import { indexerFromEnv } from "./btcindexer";
 import HttpRouter from "./router";
 
-const router = new HttpRouter(undefined);
-
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		const indexer = indexerFromEnv(env);
-		return router.fetch(req, env, indexer);
+		const router = new HttpRouter(indexer, env.BEARER_TOKEN);
+		return router.fetch(req, env);
 	},
 
 	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's

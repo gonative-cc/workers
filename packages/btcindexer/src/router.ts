@@ -11,14 +11,16 @@ import { PutBlocksReq } from "./api/put-blocks";
 export default class HttpRouter {
 	#indexer?: Indexer;
 	#router: AppRouter;
+	#bearerToken?: string;
 
-	constructor(indexer?: Indexer) {
+	constructor(indexer?: Indexer, bearerToken?: string) {
 		this.#indexer = indexer;
+		this.#bearerToken = bearerToken;
 		this.#router = this.createRouter();
 	}
 
-	private authMiddleware = (req: IRequest, env: Env) => {
-		if (!env.BEARER_TOKEN || env.BEARER_TOKEN.trim() === "") {
+	authMiddleware = (req: IRequest, env: Env) => {
+		if (!this.#bearerToken || this.#bearerToken.trim() === "") {
 			return;
 		}
 
@@ -32,7 +34,7 @@ export default class HttpRouter {
 			return error(401, "Invalid authorization format. Expected: Bearer <token>");
 		}
 
-		if (token !== env.BEARER_TOKEN) {
+		if (token !== this.#bearerToken) {
 			return error(401, "Invalid bearer token");
 		}
 
@@ -76,10 +78,8 @@ export default class HttpRouter {
 		return r;
 	}
 
-	// we wrap the router.fetch method to provide the indexer to this object.
-	// Otherwise we would need to setup the server on each fetch request.
-	fetch = async (req: Request, env: Env, indexer: Indexer) => {
-		this.#indexer = indexer;
+	// we wrap the router.fetch method to provide access to this object.
+	fetch = async (req: Request, env: Env) => {
 		return this.#router.fetch(req, env);
 	};
 

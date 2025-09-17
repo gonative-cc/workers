@@ -14,6 +14,10 @@ const msgPackHeaders = {
 	"Content-Type": ContentType.msgpack,
 };
 
+const jsonHeaders = {
+	"Content-Type": "application/json",
+};
+
 export default class Client {
 	baseUrl: string;
 	bearerToken?: string;
@@ -25,7 +29,8 @@ export default class Client {
 		this.bearerToken = bearerToken;
 	}
 
-	private getHeaders(additionalHeaders: Record<string, string> = {}): Record<string, string> {
+	// makes headers and injects bearer authentication header.
+	private mkHeaders(additionalHeaders: Record<string, string> = {}): Record<string, string> {
 		const headers = { ...additionalHeaders };
 		if (this.bearerToken) {
 			headers.Authorization = `Bearer ${this.bearerToken}`;
@@ -36,7 +41,7 @@ export default class Client {
 	async putBlocks(putBlocks: PutBlocks[]) {
 		return fetch(this.baseUrl + RestPath.blocks, {
 			method: "PUT",
-			headers: this.getHeaders(msgPackHeaders),
+			headers: this.mkHeaders(msgPackHeaders),
 			body: PutBlocksReq.encode(putBlocks),
 		});
 	}
@@ -54,7 +59,7 @@ export default class Client {
 	): Promise<{ success: boolean; tx_id: string; registered_deposits: number }> {
 		const response = await fetch(this.baseUrl + RestPath.nbtcTx, {
 			method: "POST",
-			headers: this.getHeaders({ "Content-Type": "application/json" }),
+			headers: this.mkHeaders(jsonHeaders),
 			body: JSON.stringify({ txHex }),
 		});
 		if (!response.ok) {

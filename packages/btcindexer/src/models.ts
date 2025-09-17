@@ -71,3 +71,5 @@ export interface MintBatchArg {
 export interface PostNbtcTxRequest {
 	txHex: string;
 }
+
+export type SuiTxDigest = string;

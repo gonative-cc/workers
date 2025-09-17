@@ -62,8 +62,7 @@ To quickly handle UI nBTC transaction observability, BYield UI will push nBTC tr
 
 ### Dependencies
 
-- node >= v22
-- bun >= 1.0.0
+- bun >= 1.20.0
 - proper editorconfig mode setup in your editor!
 
 ### Quick Start
@@ -123,7 +122,7 @@ You will need to rerun cf-typegen whenever you make changes to `wrangler.toml`.
 
 ## Contributing
 
-Participating in open source is often a highly collaborative experience. We’re encouraged to create in public view, and we’re incentivized to welcome contributions of all kinds from people around the world.
+Participating in open source is often a highly collaborative experience. We're encouraged to create in public view, and we're incentivized to welcome contributions of all kinds from people around the world.
 
 Check out [contributing repo](https://github.com/gonative-cc/contributig) for our guidelines & policies for how to contribute. Note: we require DCO! Thank you to all those who have contributed!
 

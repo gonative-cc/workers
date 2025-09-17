@@ -3,7 +3,6 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"build": "wrangler deploy --dry-run",
 		"dev": "wrangler dev --test-scheduled",
 		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
 		"typecheck": "tsc",

@@ -4,14 +4,13 @@
 	"private": true,
 	"sideEffects": false,
 	"type": "module",
-	"packageManager": "bun@1.0.0",
+	"packageManager": "bun@1.20.0",
 	"workspaces": ["packages/*"],
 	"scripts": {
 		"prepare": "cd .git/hooks; ln -s -f ../../contrib/git-hooks/pre-commit ./",
 		"typecheck": "bun run --filter '*' typecheck",
 		"lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
 		"format": "prettier --write .",
-		"build": "bun run --filter '*' build",
 		"dev": "bun run --filter '*' dev",
 		"test": "bun run --filter '*' test"
 	},

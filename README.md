@@ -62,8 +62,7 @@ To quickly handle UI nBTC transaction observability, BYield UI will push nBTC tr
 
 ### Dependencies
 
-- node >= v22
-- pnpm >= 10.12
+- bun >= 1.20.0
 - proper editorconfig mode setup in your editor!
 
 ### Quick Start
@@ -72,27 +71,27 @@ Firstly install the latest dependencies and link hooks
 
 ```sh
 make setup-hooks
-pnpm install
+bun install
 ```
 
 Run the wrangler dev server of all workers (with auto reload):
 
 ```sh
-pnpm run dev
+bun run dev
 ```
 
 Watch for changes and automatically test:
 
 ```sh
-pnpm run test
+bun run test
 # To test only some packages
-pnpm --filter pattern test
+bun run --filter pattern test
 ```
 
 To apply migrations to the local Cloudflare env:
 
 ```sh
-pnpm run db:migrate:local
+bun run db:migrate:local
 ```
 
 ### Local development of a worker
@@ -101,29 +100,29 @@ pnpm run db:migrate:local
 cd packages/<worker_name>
 # this will start local server with local bindings to storage
 # it will print the localhost port binding
-pnpm wrangler dev
+bun wrangler dev
 
 # now we can interact with the server, for example
 curl http://localhost:8787/test-kv -X PUT -d '{"key": "k1", "val": "v1"}'
 ```
 
-### Using pnpm workspace
+### Using Bun workspace
 
-- [linking dependencies](https://pnpm.io/workspaces#publishing-workspace-packages)
+- [linking dependencies](https://bun.sh/docs/install/workspaces)
 
 ### Typegen
 
 Generate types for your Cloudflare bindings in `wrangler.toml`:
 
 ```sh
-pnpm run cf-typegen
+bun run cf-typegen
 ```
 
 You will need to rerun cf-typegen whenever you make changes to `wrangler.toml`.
 
 ## Contributing
 
-Participating in open source is often a highly collaborative experience. We’re encouraged to create in public view, and we’re incentivized to welcome contributions of all kinds from people around the world.
+Participating in open source is often a highly collaborative experience. We're encouraged to create in public view, and we're incentivized to welcome contributions of all kinds from people around the world.
 
 Check out [contributing repo](https://github.com/gonative-cc/contributig) for our guidelines & policies for how to contribute. Note: we require DCO! Thank you to all those who have contributed!
 

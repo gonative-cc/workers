@@ -4,7 +4,7 @@
  * https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
  *
  * Bind resources to your Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `pnpm run typegen`.
+ * `Env` object can be regenerated with `bun run typegen`.
  */
 
 import { indexerFromEnv } from "./btcindexer";

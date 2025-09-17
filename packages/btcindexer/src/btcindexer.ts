@@ -349,32 +349,28 @@ export class Indexer implements Storage {
 
 		if (mintBatchArgs.length > 0) {
 			console.log(`Minting: Sending batch of ${mintBatchArgs.length} mints to SUI...`);
-			const batchSuccess = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
-
-			// If the whole batch fails, mark them all as failed
-			// TODO: decide what to do with the failed mints
-			if (!batchSuccess) {
-				processedPrimaryKeys.forEach((p) => {
-					if (p.success) p.success = false;
-				});
+			const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
+			const now = Date.now();
+			if (suiTxDigest) {
+				console.log(`Sui transaction successful. Digest: ${suiTxDigest}`);
+				const setMintedStmt = this.d1.prepare(
+					`UPDATE nbtc_minting SET status = 'minted', sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
+				);
+				const updates = processedPrimaryKeys.map((p) =>
+					setMintedStmt.bind(suiTxDigest, now, p.tx_id, p.vout),
+				);
+				console.log(`Minting: Updating status for ${updates.length} transactions in D1.`);
+				await this.d1.batch(updates);
+			} else {
+				const setFailedStmt = this.d1.prepare(
+					`UPDATE nbtc_minting SET status = 'failed', updated_at = ? WHERE tx_id = ? AND vout = ?`,
+				);
+				const updates = processedPrimaryKeys.map((p) =>
+					setFailedStmt.bind(now, p.tx_id, p.vout),
+				);
+				console.log(`Minting: Updating status for ${updates.length} transactions in D1.`);
+				await this.d1.batch(updates);
 			}
-		}
-		const now = Date.now();
-		const setMintedStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = 'minted', updated_at = ? WHERE tx_id = ? AND vout = ?`,
-		);
-		const setFailedStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = 'failed', updated_at = ? WHERE tx_id = ? AND vout = ?`,
-		);
-		const updates = processedPrimaryKeys.map((p) =>
-			p.success
-				? setMintedStmt.bind(now, p.tx_id, p.vout)
-				: setFailedStmt.bind(now, p.tx_id, p.vout),
-		);
-
-		if (updates.length > 0) {
-			console.log(`Minting: Updating status for ${updates.length} transactions in D1.`);
-			await this.d1.batch(updates);
 		}
 	}
 
@@ -489,12 +485,11 @@ export class Indexer implements Storage {
 		const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
 
 		return {
+			...tx,
 			btc_tx_id: tx.tx_id,
 			status: tx.status as NbtcTxStatus,
 			block_height: blockHeight,
 			confirmations: confirmations > 0 ? confirmations : 0,
-			sui_recipient: tx.sui_recipient,
-			amount_sats: tx.amount_sats,
 		};
 	}
 
@@ -515,12 +510,11 @@ export class Indexer implements Storage {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
 			return {
+				...tx,
 				btc_tx_id: tx.tx_id,
 				status: tx.status as NbtcTxStatus,
 				block_height: blockHeight,
 				confirmations: confirmations > 0 ? confirmations : 0,
-				sui_recipient: tx.sui_recipient,
-				amount_sats: tx.amount_sats,
 			};
 		});
 	}

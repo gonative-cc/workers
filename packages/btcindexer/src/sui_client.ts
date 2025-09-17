@@ -3,7 +3,7 @@ import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
-import { MintBatchArg, ProofResult } from "./models";
+import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -101,8 +101,8 @@ export class SuiClient {
 		}
 	}
 
-	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<void> {
-		if (mintArgs.length === 0) return;
+	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest> {
+		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
 		const tx = new SuiTransaction();
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
@@ -135,15 +135,15 @@ export class SuiClient {
 		if (result.effects?.status.status !== "success") {
 			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
 		}
+		return result.digest;
 	}
 
-	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<boolean> {
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
 		try {
-			await this.mintNbtcBatch(mintArgs);
-			return true;
+			return await this.mintNbtcBatch(mintArgs);
 		} catch (error) {
 			console.error(`Error during batch mint contract call`, error);
-			return false;
+			return null;
 		}
 	}
 }

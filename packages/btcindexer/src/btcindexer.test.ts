@@ -333,14 +333,21 @@ describe("Indexer.processFinalizedTransactions", () => {
 			.mockResolvedValue(Buffer.from(block303.rawBlockHex, "hex").buffer);
 		mockEnv.btc_blocks.get = mockKvGet;
 
+		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		const suiClientSpy = vi
 			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue(true);
+			.mockResolvedValue(fakeSuiTxDigest);
+
 		await indexer.processFinalizedTransactions();
 		expect(suiClientSpy).toHaveBeenCalledTimes(1);
 
 		const finalDbBatchCall = mockEnv.DB.batch.mock.calls[0][0];
 		expect(finalDbBatchCall).toHaveLength(1);
-		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(expect.any(Number), tx303.id, 1);
+		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(
+			fakeSuiTxDigest,
+			expect.any(Number),
+			tx303.id,
+			1,
+		);
 	});
 });

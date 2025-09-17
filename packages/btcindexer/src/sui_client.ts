@@ -3,7 +3,7 @@ import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
-import { MintBatchArg, ProofResult } from "./models";
+import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -101,7 +101,7 @@ export class SuiClient {
 		}
 	}
 
-	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<string> {
+	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest> {
 		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
 		const tx = new SuiTransaction();
@@ -138,7 +138,7 @@ export class SuiClient {
 		return result.digest;
 	}
 
-	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<string | null> {
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
 		try {
 			return await this.mintNbtcBatch(mintArgs);
 		} catch (error) {

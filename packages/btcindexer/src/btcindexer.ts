@@ -485,13 +485,11 @@ export class Indexer implements Storage {
 		const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
 
 		return {
+			...tx,
 			btc_tx_id: tx.tx_id,
 			status: tx.status as NbtcTxStatus,
 			block_height: blockHeight,
 			confirmations: confirmations > 0 ? confirmations : 0,
-			sui_recipient: tx.sui_recipient,
-			amount_sats: tx.amount_sats,
-			sui_tx_id: tx.sui_tx_id,
 		};
 	}
 
@@ -512,13 +510,11 @@ export class Indexer implements Storage {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
 			return {
+				...tx,
 				btc_tx_id: tx.tx_id,
 				status: tx.status as NbtcTxStatus,
 				block_height: blockHeight,
 				confirmations: confirmations > 0 ? confirmations : 0,
-				sui_recipient: tx.sui_recipient,
-				amount_sats: tx.amount_sats,
-				sui_tx_id: tx.sui_tx_id,
 			};
 		});
 	}

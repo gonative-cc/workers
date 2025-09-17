@@ -46,7 +46,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		env.NBTC_DEPOSIT_ADDRESS,
 		env.SUI_FALLBACK_ADDRESS,
 		btcNet,
-		confirmationDepth
+		confirmationDepth,
 	);
 }
 
@@ -66,7 +66,7 @@ export class Indexer implements Storage {
 		nbtcAddr: string,
 		fallbackAddr: string,
 		network: networks.Network,
-		confirmationDepth: number
+		confirmationDepth: number,
 	) {
 		this.d1 = storage.d1;
 		this.blocksDB = storage.blocksDB;
@@ -90,7 +90,7 @@ export class Indexer implements Storage {
 			  DO UPDATE SET
 			   hash = excluded.hash,
 			   processed_at = excluded.processed_at
-			 WHERE btc_blocks.hash IS NOT excluded.hash`
+			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
 
 		// TODO: store in KV
@@ -128,7 +128,7 @@ export class Indexer implements Storage {
 		console.log("Cron: Running scanNewBlocks");
 		const blocksToProcess = await this.d1
 			.prepare(
-				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 10"
+				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 10",
 			)
 			.all<{ height: number; hash: string }>();
 
@@ -149,7 +149,7 @@ export class Indexer implements Storage {
 				block_hash = excluded.block_hash,
 				block_height = excluded.block_height,
 				status = 'confirming',
-				updated_at = excluded.updated_at`
+				updated_at = excluded.updated_at`,
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
@@ -174,8 +174,8 @@ export class Indexer implements Storage {
 							deposit.suiRecipient,
 							deposit.amountSats,
 							now,
-							now
-						)
+							now,
+						),
 					);
 				}
 			}
@@ -183,7 +183,7 @@ export class Indexer implements Storage {
 
 		if (nbtcTxStatements.length > 0) {
 			console.log(
-				`Cron: Found ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1`
+				`Cron: Found ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1`,
 			);
 			await this.d1.batch(nbtcTxStatements);
 		} else {
@@ -238,7 +238,7 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, vout, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'"
+				"SELECT tx_id, vout, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'",
 			)
 			.all<FinalizedTxRow>();
 
@@ -276,7 +276,7 @@ export class Indexer implements Storage {
 		}
 
 		console.log(
-			`Minting: Found ${groupedTxs.size} finalized transaction(s). Preparing to mint`
+			`Minting: Found ${groupedTxs.size} finalized transaction(s). Preparing to mint`,
 		);
 
 		const mintBatchArgs: MintBatchArg[] = [];
@@ -316,8 +316,8 @@ export class Indexer implements Storage {
 					console.warn(
 						`WARN: Failed to generate a valid merkle proof for TX ${txId}. Root mismatch.`,
 						`Block root: ${block.merkleRoot?.toString(
-							"hex"
-						)}, Calculated: ${calculatedRoot.toString("hex")}`
+							"hex",
+						)}, Calculated: ${calculatedRoot.toString("hex")}`,
 					);
 					continue;
 				}
@@ -354,19 +354,19 @@ export class Indexer implements Storage {
 			if (suiTxDigest) {
 				console.log(`Sui transaction successful. Digest: ${suiTxDigest}`);
 				const setMintedStmt = this.d1.prepare(
-					`UPDATE nbtc_minting SET status = 'minted', sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`
+					`UPDATE nbtc_minting SET status = 'minted', sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 				);
 				const updates = processedPrimaryKeys.map((p) =>
-					setMintedStmt.bind(suiTxDigest, now, p.tx_id, p.vout)
+					setMintedStmt.bind(suiTxDigest, now, p.tx_id, p.vout),
 				);
 				console.log(`Minting: Updating status for ${updates.length} transactions in D1.`);
 				await this.d1.batch(updates);
 			} else {
 				const setFailedStmt = this.d1.prepare(
-					`UPDATE nbtc_minting SET status = 'failed', updated_at = ? WHERE tx_id = ? AND vout = ?`
+					`UPDATE nbtc_minting SET status = 'failed', updated_at = ? WHERE tx_id = ? AND vout = ?`,
 				);
 				const updates = processedPrimaryKeys.map((p) =>
-					setFailedStmt.bind(now, p.tx_id, p.vout)
+					setFailedStmt.bind(now, p.tx_id, p.vout),
 				);
 				console.log(`Minting: Updating status for ${updates.length} transactions in D1.`);
 				await this.d1.batch(updates);
@@ -393,7 +393,7 @@ export class Indexer implements Storage {
 	async updateConfirmationsAndFinalize(latestHeight: number): Promise<void> {
 		const pendingTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'confirming'"
+				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'confirming'",
 			)
 			.all<{ tx_id: string; block_hash: string; block_height: number }>();
 
@@ -402,7 +402,7 @@ export class Indexer implements Storage {
 			return;
 		}
 		console.log(
-			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`
+			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`,
 		);
 
 		const { reorgUpdates, reorgedTxIds } = await this.handleReorgs(pendingTxs.results);
@@ -421,14 +421,14 @@ export class Indexer implements Storage {
 	}
 
 	async handleReorgs(
-		pendingTxs: PendingTx[]
+		pendingTxs: PendingTx[],
 	): Promise<{ reorgUpdates: D1PreparedStatement[]; reorgedTxIds: string[] }> {
 		const reorgUpdates: D1PreparedStatement[] = [];
 		const reorgedTxIds: string[] = [];
 		const now = Date.now();
 		const reorgCheckStmt = this.d1.prepare("SELECT hash FROM btc_blocks WHERE height = ?");
 		const reorgStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = 'reorg', updated_at = ${now} WHERE tx_id = ?`
+			`UPDATE nbtc_minting SET status = 'reorg', updated_at = ${now} WHERE tx_id = ?`,
 		);
 
 		for (const tx of pendingTxs) {
@@ -439,7 +439,7 @@ export class Indexer implements Storage {
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
 					console.warn(
-						`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Old hash: ${tx.block_hash}, New hash: ${newBlockInQueue.hash}.`
+						`Reorg detected for tx ${tx.tx_id} at height ${tx.block_height}. Old hash: ${tx.block_hash}, New hash: ${newBlockInQueue.hash}.`,
 					);
 					reorgUpdates.push(reorgStmt.bind(tx.tx_id));
 					reorgedTxIds.push(tx.tx_id);
@@ -453,14 +453,14 @@ export class Indexer implements Storage {
 		const updates: D1PreparedStatement[] = [];
 		const now = Date.now();
 		const finalizeStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = 'finalized', updated_at = ${now} WHERE tx_id = ?`
+			`UPDATE nbtc_minting SET status = 'finalized', updated_at = ${now} WHERE tx_id = ?`,
 		);
 
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= this.confirmationDepth) {
 				console.log(
-					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`
+					`Transaction ${tx.tx_id} has ${confirmations} confirmations. Finalizing.`,
 				);
 				updates.push(finalizeStmt.bind(tx.tx_id));
 			}
@@ -520,7 +520,7 @@ export class Indexer implements Storage {
 	}
 
 	async registerBroadcastedNbtcTx(
-		txHex: string
+		txHex: string,
 	): Promise<{ tx_id: string; registered_deposits: number }> {
 		const tx = Transaction.fromHex(txHex);
 		const txId = tx.getId();
@@ -533,11 +533,11 @@ export class Indexer implements Storage {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'broadcasting', ?, ?)`
+         VALUES (?, ?, ?, ?, 'broadcasting', ?, ?)`,
 		);
 
 		const statements = deposits.map((deposit) =>
-			insertStmt.bind(txId, deposit.vout, deposit.suiRecipient, deposit.amountSats, now, now)
+			insertStmt.bind(txId, deposit.vout, deposit.suiRecipient, deposit.amountSats, now, now),
 		);
 
 		await this.d1.batch(statements);

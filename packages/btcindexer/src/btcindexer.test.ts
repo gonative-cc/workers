@@ -87,7 +87,7 @@ const mkMockEnv = () =>
 		btc_blocks: {},
 		nbtc_txs: {},
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	} as any);
+	}) as any;
 
 function prepareIndexer() {
 	const mockEnv = mkMockEnv();
@@ -99,7 +99,7 @@ function prepareIndexer() {
 		REGTEST_DATA[329].depositAddr,
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
-		8
+		8,
 	);
 	return { mockEnv, indexer };
 }
@@ -112,7 +112,7 @@ function checkTxProof(proofResult: ProofResult | null, block: Block) {
 	assert.equal(
 		proofResult.merkleRoot,
 		expectedRootBigEndian,
-		"Generated Merkle root must match the block header's root"
+		"Generated Merkle root must match the block header's root",
 	);
 
 	assert(Array.isArray(proofResult.proofPath));
@@ -128,7 +128,7 @@ describe("Indexer.findNbtcDeposits", () => {
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id
+			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
 		);
 
 		assert(targetTx, "Setup error");
@@ -172,7 +172,7 @@ describe("Indexer.constructMerkleProof", () => {
 	it("should generate a valid proof for a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id
+			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
 		);
 		assert(targetTx);
 
@@ -187,7 +187,7 @@ describe("Indexer.constructMerkleProof", () => {
 	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
 		const block = Block.fromHex(REGTEST_DATA[327].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[327].txs[2].id
+			(tx) => tx.getId() === REGTEST_DATA[327].txs[2].id,
 		);
 
 		assert(targetTx);
@@ -264,7 +264,7 @@ describe("Block Parsing", () => {
 
 		assert.equal(
 			block.getId(),
-			"0000000000000001524e39e399572fa8af575a22217f64ca3280be55eb10b06e"
+			"0000000000000001524e39e399572fa8af575a22217f64ca3280be55eb10b06e",
 		);
 	});
 });
@@ -282,7 +282,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 
 		const insertStmt = mockEnv.DB.prepare.mock.results[0].value;
 		expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
-			expect.stringContaining("INSERT OR IGNORE INTO nbtc_minting")
+			expect.stringContaining("INSERT OR IGNORE INTO nbtc_minting"),
 		);
 		expect(insertStmt.bind).toHaveBeenCalledWith(
 			blockData.txs[1].id,
@@ -290,7 +290,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 			blockData.txs[1].suiAddr,
 			blockData.txs[1].amountSats,
 			expect.any(Number),
-			expect.any(Number)
+			expect.any(Number),
 		);
 	});
 
@@ -302,7 +302,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		const coinbaseTx = block.transactions[0];
 
 		await expect(indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex())).rejects.toThrow(
-			"Transaction does not contain any valid nBTC deposits."
+			"Transaction does not contain any valid nBTC deposits.",
 		);
 	});
 });
@@ -345,7 +345,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 			fakeSuiTxDigest,
 			expect.any(Number),
 			tx329.id,
-			0
+			0,
 		);
 	});
 });

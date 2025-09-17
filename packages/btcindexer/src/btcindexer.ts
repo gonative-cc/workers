@@ -210,12 +210,14 @@ export class Indexer implements Storage {
 		let suiRecipient: string | null = null;
 
 		for (const vout of tx.outs) {
-			if (vout.script[0] === OP_RETURN) {
-				suiRecipient = vout.script.subarray(2).toString();
+			const parsedRecipient = parseSuiRecipientFromOpReturn(vout.script);
+			if (parsedRecipient) {
+				suiRecipient = parsedRecipient;
+				console.log(`[DEBUG] Parsed Sui recipient from OP_RETURN: ${suiRecipient}`);
 				break; // valid tx should have only one OP_RETURN
 			}
 		}
-		// TODO: add more sophisticated validation for Sui address
+
 		if (!suiRecipient) suiRecipient = this.suiFallbackAddr;
 		console.log(`Checking TX ${tx.getId()} for deposits. Target script: ${this.nbtcScriptHex}`);
 
@@ -282,12 +284,10 @@ export class Indexer implements Storage {
 
 		for (const [txId, txGroup] of groupedTxs.entries()) {
 			try {
-				const rawBlockBuffer = await this.blocksDB.get(txGroup.block_hash, {
-					type: "arrayBuffer",
-				});
-				if (!rawBlockBuffer) continue;
+				const rawBlockHex = await this.blocksDB.get(txGroup.block_hash);
+				if (!rawBlockHex) continue;
 
-				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+				const block = Block.fromHex(rawBlockHex);
 				const merkleTree = this.constructMerkleTree(block);
 				if (!merkleTree) continue;
 
@@ -557,4 +557,24 @@ export class Indexer implements Storage {
 			return { height: null };
 		}
 	}
+}
+
+function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
+	if (script.length === 0 || script[0] !== OP_RETURN) {
+		return null;
+	}
+	if (script.length < 2) {
+		return null;
+	}
+	const payload = script.subarray(2);
+
+	// Check simple transfer format: 1-byte flag (0x00)
+	// TODO: add validation for the sui address
+	if (payload[0] === 0x00) {
+		const addressBytes = payload.subarray(1);
+		return `0x${addressBytes.toString("hex")}`;
+	}
+	//TODO: in the future we need to update the relayer to correctly handle the flag 0x01
+	// for now we cannot determine the recipient
+	return null;
 }

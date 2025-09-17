@@ -11,11 +11,35 @@ import { PutBlocksReq } from "./api/put-blocks";
 export default class HttpRouter {
 	#indexer?: Indexer;
 	#router: AppRouter;
+	#bearerToken?: string;
 
-	constructor(indexer?: Indexer) {
+	constructor(indexer?: Indexer, bearerToken?: string) {
 		this.#indexer = indexer;
+		this.#bearerToken = bearerToken;
 		this.#router = this.createRouter();
 	}
+
+	authMiddleware = (req: IRequest, env: Env) => {
+		if (!this.#bearerToken || this.#bearerToken.trim() === "") {
+			return;
+		}
+
+		const authorization = req.headers.get("Authorization");
+		if (!authorization) {
+			return error(401, "Authorization header is required");
+		}
+
+		const [scheme, token] = authorization.split(" ");
+		if (scheme !== "Bearer" || !token) {
+			return error(401, "Invalid authorization format. Expected: Bearer <token>");
+		}
+
+		if (token !== this.#bearerToken) {
+			return error(401, "Invalid bearer token");
+		}
+
+		return;
+	};
 
 	createRouter() {
 		const r = Router<IRequest, CFArgs>({
@@ -25,10 +49,10 @@ export default class HttpRouter {
 			finally: [json],
 		});
 		// Bitcoin endpoints
-		r.put(RestPath.blocks, this.putBlocks);
+		r.put(RestPath.blocks, this.authMiddleware, this.putBlocks);
 		r.get(RestPath.latestHeight, this.getLatestHeight);
 
-		r.post(RestPath.nbtcTx, this.postNbtcTx);
+		r.post(RestPath.nbtcTx, this.authMiddleware, this.postNbtcTx);
 		// ?sui_recipient="0x..."  - query by sui address
 		r.get(RestPath.nbtcTx, this.getStatusBySuiAddress);
 		r.get(RestPath.nbtcTx + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
@@ -38,7 +62,7 @@ export default class HttpRouter {
 		// we can return Response object directly, to avoid JSON serialization
 		r.get("/test/user/:id", (req) => new Response(`User ID: ${req.params.id}`));
 		// curl http://localhost:8787/test/kv/ -X PUT -d '{"key": "k102", "val": "v1"}'
-		r.put("/test/kv", this.putTestKV);
+		r.put("/test/kv", this.authMiddleware, this.putTestKV);
 		// curl "http://localhost:8787/test/kv/1" -i
 		r.get("/test/kv/:key", this.getTestKV);
 		r.get("/test", (req: Request) => {
@@ -54,10 +78,8 @@ export default class HttpRouter {
 		return r;
 	}
 
-	// we wrap the router.fetch method to provide the indexer to this object.
-	// Otherwise we would need to setup the server on each fetch request.
-	fetch = async (req: Request, env: Env, indexer: Indexer) => {
-		this.#indexer = indexer;
+	// we wrap the router.fetch method to provide access to this object.
+	fetch = async (req: Request, env: Env) => {
 		return this.#router.fetch(req, env);
 	};
 

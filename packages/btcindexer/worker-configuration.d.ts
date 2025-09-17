@@ -14,6 +14,7 @@ declare namespace Cloudflare {
 		NBTC_DEPOSIT_ADDRESS: "tb1qjgqhst2hlgjkh36pg6r3hdnz7zvurafe9h5lkx";
 		SUI_FALLBACK_ADDRESS: "0xf82fd2198d5af45bfc2a7f9a5df4fb30f3c3abf4a8a71b0e4bd415eabda99ff5";
 		CONFIRMATION_DEPTH: "8";
+		BEARER_TOKEN: string;
 		DB: D1Database;
 	}
 }
@@ -22,7 +23,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SUI_NETWORK" | "SUI_PACKAGE_ID" | "NBTC_OBJECT_ID" | "LIGHT_CLIENT_OBJECT_ID" | "NBTC_MINTING_SIGNER_MNEMONIC" | "BITCOIN_NETWORK" | "NBTC_DEPOSIT_ADDRESS" | "SUI_FALLBACK_ADDRESS" | "CONFIRMATION_DEPTH">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SUI_NETWORK" | "SUI_PACKAGE_ID" | "NBTC_OBJECT_ID" | "LIGHT_CLIENT_OBJECT_ID" | "NBTC_MINTING_SIGNER_MNEMONIC" | "BITCOIN_NETWORK" | "NBTC_DEPOSIT_ADDRESS" | "SUI_FALLBACK_ADDRESS" | "CONFIRMATION_DEPTH" | "BEARER_TOKEN">> {}
 }
 
 // Begin runtime types

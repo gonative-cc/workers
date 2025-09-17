@@ -36,7 +36,7 @@
   "vars": {
     "SUI_NETWORK": "testnet",
     "SUI_PACKAGE_ID": "0xc9aebf90a0ca994786a20768a5c37f7e3590f4f796fc89859489c444e592c13c", // NBTC package ID
-    "NBTC_OBJECT_ID": "0x13247586068dd96bcc2949dca8f20a85bdce72066dc00c20b5c4142f4d034259", // Wrapped Tressaury Cap
+    "NBTC_OBJECT_ID": "0x13247586068dd96bcc2949dca8f20a85bdce72066dc00c20b5c4142f4d034259", // Wrapped Treasury Cap
     "LIGHT_CLIENT_OBJECT_ID": "0x74d82b7df244d578e6a71a57e84081e8a1050df5214e0f97870a8d9d486810a7",
 
     // NOTE: for testnet-v4 it should be testnet

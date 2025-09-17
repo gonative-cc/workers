@@ -21,36 +21,36 @@ type TestBlocks = Record<number, TestBlock>;
 
 // generated using bitcoin-cli --regtest
 const REGTEST_DATA: TestBlocks = {
-	303: {
+	329: {
 		depositAddr: "bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw",
-		height: 303,
-		hash: "39d7c49ae129865f3aca615bc222b185fdff0ff61385b838bbbf00da8cbbea9d",
+		height: 329,
+		hash: "28145bffb6dcd5a1ffff596bf3abc451d00f5322dd2aa0f1c62b21314c8da193",
 		rawBlockHex:
-			"000000305c2f30d99ad69f247638613dcca7f455159e252878ea6fe10bbc4574a0076914d98ada655d950ac6507d14584fa679d12fb5203c384e52ef292d063fe29b1b645c4b6d68ffff7f200200000002020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff04022f0100ffffffff02de82814a0000000016001477174bfb906c0e52d750eac4b40fd86746ad50550000000000000000266a24aa21a9ed27611410788b35b819e10a0227f40f9bbc70df824e3a30879552f004b48451210120000000000000000000000000000000000000000000000000000000000000000000000000020000000001017fec0755f3524b89ad45383343f992a0d5cb797a695b59e30f2fc80794f001050000000000fdffffff032202089200000000160014b125723e78c2d779e3e299dfd95d72e9a067a0b780f0fa02000000001600144cc99479ada301056d78a8f3676cfb404d696abe00000000000000000d6a0b3078313233343536373839024730440220755610ff6b6fdea530c20d11b7765816beb75e16ce78fa200a7da25e251a7eb9022078e78bed1cc38822cd5dce3982e23c3cd401415ae72050b00c5f8b3441a2c178012103ef55b72bddf4960ddbb12a9a04f61f91fb613aa99b472115f25a5f8686e6c3f200000000",
+			"000000306306a7a77a5edbd1291bc5cc4fc7befcac57a54389717625e72f15f9e5032337b217d3ce0b5d5d3672bcc90e64b7c879cd89372d742bf97bb3ec06dd26a80566ffb9ca68ffff7f200000000002020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0402490100ffffffff02ba83814a00000000160014970b960dcb40385f21cb1b3f943f80e59efc60130000000000000000266a24aa21a9ede1f866b225eb31b1f836fdb4996825ec24e708cce5da2a1417c922e4cb5a86eb0120000000000000000000000000000000000000000000000000000000000000000000000000020000000001014d169a4e5b94219f8dc7f12492b5b23556d15447d2be7166e78b4028e730e18e0000000000fdffffff0350c30000000000001600144cc99479ada301056d78a8f3676cfb404d696abe1a21fd9400000000160014d9e0684e75b195ed7dcaa869cec83edeea15a8e50000000000000000236a2100bbad40ecca892cf0d54ba0b9c986454be0695ce29642223a02c37e3b87a4499c0247304402205e74c8406c7ce0dc6c0e71fb12e8d49e12af629d91861e35706cb15569c3ad31022051c00b0e1d6d77da4e4bfa31ca0a4b532989e1e4db78f6fe68fd3baf0cd5ede3012103729dbfb24ebf0c9ea58b02b9374aeeb3b42ac05a64cdfffe12db81fdd9c8298300000000",
 		txs: {
 			1: {
-				id: "2060dfd3cdbffb7db6c968357f3c9df91b52a4cef5c02fad0b0836b0f25cc4ca",
-				suiAddr: "0x123456789",
-				amountSats: 50000000,
+				id: "8af4f7ceb96f41d16a932936f763b75ba778f28c37a2409371267cc2b22a3ec3",
+				suiAddr: "0xbbad40ecca892cf0d54ba0b9c986454be0695ce29642223a02c37e3b87a4499c",
+				amountSats: 50000,
 			},
 		},
 	},
-	304: {
+	325: {
 		depositAddr: "bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw",
-		height: 304,
-		hash: "16495eb0567889ff5b46508c28048324a50815b37c9ea3a85b1ed58f63bc230e",
+		height: 327,
+		hash: "44ebd5a48c4b7410eb92f527a382d7d9de88f7450e47de099e4197a6a473a36b",
 		rawBlockHex:
-			"000000309deabb8cda00bfbb38b88513f60ffffd85b122c25b61ca3a5f8629e19ac4d73967f7061d981ef4da35fc2e880d2404a1454737ec15b35c92793639c402d5a97f53dc7468ffff7f200000000004020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0402300100ffffffff02be8e814a0000000016001477174bfb906c0e52d750eac4b40fd86746ad50550000000000000000266a24aa21a9ed576193c3b6e21570e07ea1a4d53ae2bd3414fabed440b1aecd1c054892b3ac9a012000000000000000000000000000000000000000000000000000000000000000000000000002000000000101cac45cf2b036080bad2fc0f5cea4521bf99d3c7f3568c9b67dfbbfcdd3df60200100000000fdffffff0380969800000000001600144cc99479ada301056d78a8f3676cfb404d696abe00000000000000000d6a0b3078313233343536373839a25362020000000016001421fb0b79c3c441c067ce904c382524a194753615024730440220095ebb705f6a02717c6b47899c6ee46bc19ebf2ae41560f21afa5d64427ee41602201bff5431e300fb1eee26826513f049b9305cff58cc1e9e052c644998d0431ef901210337098b94be64f10607235469a877be9bdf472b14edc091ed922d991564ce231900000000020000000001016c365ffde565845a3a89da2d81349a48dd15bc170f84722ff7145ac76e4923210000000000fdffffff02fe2f399300000000160014a0c6c0d56d454bba7fed4c3665203393ad0b91c180c3c901000000001600145a613219e36f111f80fc5a62eee69bc9510c9bf00247304402205e95c4563d35b97d49358b554a4abe6c7ae8470f00587bd838c78c60b7bbc3830220621598ae5ddf10d98dd19f2e3d449ce08a34c5be3f81205dbd4b6bfb549e4034012103ef55b72bddf4960ddbb12a9a04f61f91fb613aa99b472115f25a5f8686e6c3f20000000002000000000101cac45cf2b036080bad2fc0f5cea4521bf99d3c7f3568c9b67dfbbfcdd3df60200000000000fdffffff03002d3101000000001600144cc99479ada301056d78a8f3676cfb404d696abec4ced69000000000160014bc2b8b45fab16600813f446fc9e5993366cdd20800000000000000000d6a0b307839383736353433323102473044022020ce7e33a1d4eba464afec8e32b19a9f9bced2b708749276ab1d0579079f28100220340a8923bac224a2459dcbbbf6052ab5b0b901cb6d9a34fefa9401f1b41b9e410121031a2f0aa2c49472ed301e6332d757f62d99af2221315d53ac9d00d6dcbfdd574400000000",
+			"000000309e02811147a48d71d33ce8b4acaeeb4d6ffb43a9aaf1e1564160422724aed63f5aeaa3f37c1c99da4079cc60a2d72ed164ee1e08a44942c765a44ad5801fb580aa93ca68ffff7f200000000003020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0402470100ffffffff02ea8a814a000000001600144d92b0bf448dde39553e93a06ca04b8cc7e449ec0000000000000000266a24aa21a9ed584e9196713025fba31e8bd4d3980c610196d6fab5408fbf041993fb3ebf70ab012000000000000000000000000000000000000000000000000000000000000000000000000002000000000101fd2df0a3bf517b009c7d2bf1b5d9d9900a3702f4f66bbcaf7fc7762159d7344b0100000000fdffffff0370110100000000001600144cc99479ada301056d78a8f3676cfb404d696abe0000000000000000226a200011223344556677889900aabbccddeeff0011223344556677889900aabbccddc0c70095000000001600146832da4e5b5e1db2d0fa2e485e9e4484536e98090247304402202431b1446d9dbd5d95d50bcc6489877207d89e7ed563aad7abc9745fc09d8afe02200d392e6e8789893a84a2d7edc48f34f75c5a0184c8a4606df0c44aa167431aaa012103c340c0b1657023b8cd3349e8c5239a36651fa03d75876e7a6d520af55ef5cd2200000000020000000001016ec7be18e2ccf0642f36ae8e0d3e9d12973ef0d38d1bea0fbb2f18edb159c2f50200000000fdffffff0360ea0000000000001600144cc99479ada301056d78a8f3676cfb404d696abe0000000000000000236a2100aabbccddeeff00112233445566778899aabbccddeeff001122334455667788992eb6fe940000000016001401f073c70b560278eb5be6c6ece81b2d9524c9c202473044022002132a77bbfec74aacf4265be5e9f165c75cfc5cfcb95df2b3fc2c7bf3bb94d102203eed6272738859056b10d021dd4c18af57be89080a264e3af6cfe39559de128201210386d157e283bbe381db6069007e15a8fcc71d88672fa8d6522903c4089c77b40800000000",
 		txs: {
 			1: {
-				id: "c7cdf5b0a2a944c6158760d434c954fd38071334971aec33c2662d10a6df0f15",
-				suiAddr: "0x123456789",
-				amountSats: 10000000,
+				id: "22c0c042fd2b8bc083079987d9690ecebe9a74d427b0148888637065097e3f49",
+				suiAddr: "0x11223344556677889900aabbccddeeff0011223344556677889900aabbccdd",
+				amountSats: 70000,
 			},
 			2: {
-				id: "9408d760c88a3b5a65020b826110f87f9208fb15ffd8e08b27fb6faf50df54fa",
-				suiAddr: "0x987654321",
-				amountSats: 20000000,
+				id: "9752c64f7c40ffbfce444ceead859cec41f4ab8e51829bb0d7383f26c9a86e7c",
+				suiAddr: "0xaabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
+				amountSats: 60000,
 			},
 		},
 	},
@@ -96,7 +96,7 @@ function prepareIndexer() {
 	const indexer = new Indexer(
 		storage,
 		new SuiClient(SUI_CLIENT_CFG),
-		REGTEST_DATA[303].depositAddr,
+		REGTEST_DATA[329].depositAddr,
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
 		8,
@@ -126,21 +126,21 @@ function checkTxProof(proofResult: ProofResult | null, block: Block) {
 describe("Indexer.findNbtcDeposits", () => {
 	const indexer = prepareIndexer().indexer;
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
-		const block = Block.fromHex(REGTEST_DATA[303].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[303].txs[1].id,
+			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
 		);
 
 		assert(targetTx, "Setup error");
 
 		const deposits = indexer.findNbtcDeposits(targetTx);
 		assert.equal(deposits.length, 1);
-		assert.equal(deposits[0].amountSats, REGTEST_DATA[303].txs[1].amountSats);
-		assert.equal(deposits[0].suiRecipient, REGTEST_DATA[303].txs[1].suiAddr);
-		assert.equal(deposits[0].vout, 1);
+		assert.equal(deposits[0].amountSats, REGTEST_DATA[329].txs[1].amountSats);
+		assert.equal(deposits[0].suiRecipient, REGTEST_DATA[329].txs[1].suiAddr);
+		assert.equal(deposits[0].vout, 0);
 	});
 	it("should find multiple deposits within a single block containing multiple transactions", () => {
-		const block = Block.fromHex(REGTEST_DATA[304].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[327].rawBlockHex);
 		assert(block.transactions, "Test block must contain transactions");
 
 		const deposits: Deposit[][] = [];
@@ -153,11 +153,11 @@ describe("Indexer.findNbtcDeposits", () => {
 
 		assert.equal(deposits.length, 2);
 		// TX_1
-		assert.equal(deposits[0][0].suiRecipient, REGTEST_DATA[304].txs[1].suiAddr);
-		assert.equal(deposits[0][0].amountSats, REGTEST_DATA[304].txs[1].amountSats);
+		assert.equal(deposits[0][0].suiRecipient, REGTEST_DATA[327].txs[1].suiAddr);
+		assert.equal(deposits[0][0].amountSats, REGTEST_DATA[327].txs[1].amountSats);
 		// TX 2
-		assert.equal(deposits[1][0].suiRecipient, REGTEST_DATA[304].txs[2].suiAddr);
-		assert.equal(deposits[1][0].amountSats, REGTEST_DATA[304].txs[2].amountSats);
+		assert.equal(deposits[1][0].suiRecipient, REGTEST_DATA[327].txs[2].suiAddr);
+		assert.equal(deposits[1][0].amountSats, REGTEST_DATA[327].txs[2].amountSats);
 	});
 });
 
@@ -170,9 +170,9 @@ describe.skip("Indexer.scanNewBlocks", () => {
 describe("Indexer.constructMerkleProof", () => {
 	const indexer = prepareIndexer().indexer;
 	it("should generate a valid proof for a real regtest transaction", () => {
-		const block = Block.fromHex(REGTEST_DATA[303].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[303].txs[1].id,
+			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
 		);
 		assert(targetTx);
 
@@ -185,9 +185,9 @@ describe("Indexer.constructMerkleProof", () => {
 	});
 
 	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
-		const block = Block.fromHex(REGTEST_DATA[304].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[327].rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[304].txs[2].id,
+			(tx) => tx.getId() === REGTEST_DATA[327].txs[2].id,
 		);
 
 		assert(targetTx);
@@ -272,7 +272,7 @@ describe("Block Parsing", () => {
 describe("Indexer.registerBroadcastedNbtcTx", () => {
 	it("should register a tx with a single deposit", async () => {
 		const { mockEnv, indexer } = prepareIndexer();
-		const blockData = REGTEST_DATA[303];
+		const blockData = REGTEST_DATA[329];
 		const block = Block.fromHex(blockData.rawBlockHex);
 		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1].id);
 		assert(targetTx);
@@ -286,7 +286,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		);
 		expect(insertStmt.bind).toHaveBeenCalledWith(
 			blockData.txs[1].id,
-			1, // vout
+			0, // vout
 			blockData.txs[1].suiAddr,
 			blockData.txs[1].amountSats,
 			expect.any(Number),
@@ -296,7 +296,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 
 	it("should throw an error for a transaction with no valid deposits", async () => {
 		const { indexer } = prepareIndexer();
-		const block = Block.fromHex(REGTEST_DATA[303].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		assert(block.transactions);
 		// The first tx in a block is coinbase
 		const coinbaseTx = block.transactions[0];
@@ -310,15 +310,15 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 describe("Indexer.processFinalizedTransactions", () => {
 	it("should process finalized transactions, group them, and call the SUI batch mint function", async () => {
 		const { mockEnv, indexer } = prepareIndexer();
-		const block303 = REGTEST_DATA[303];
-		const tx303 = block303.txs[1];
+		const block329 = REGTEST_DATA[329];
+		const tx329 = block329.txs[1];
 		const mockFinalizedTxs = {
 			results: [
 				{
-					tx_id: tx303.id,
-					vout: 1,
-					block_hash: block303.hash,
-					block_height: block303.height,
+					tx_id: tx329.id,
+					vout: 0,
+					block_hash: block329.hash,
+					block_height: block329.height,
 				},
 			],
 		};
@@ -328,9 +328,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		const mockUpdateStmt = createMockStmt();
 		mockEnv.DB.prepare.mockReturnValueOnce(mockSelectStmt).mockReturnValue(mockUpdateStmt);
 
-		const mockKvGet = vi
-			.fn()
-			.mockResolvedValue(Buffer.from(block303.rawBlockHex, "hex").buffer);
+		const mockKvGet = vi.fn().mockResolvedValue(Buffer.from(block329.rawBlockHex, "hex"));
 		mockEnv.btc_blocks.get = mockKvGet;
 
 		const suiClientSpy = vi
@@ -341,6 +339,6 @@ describe("Indexer.processFinalizedTransactions", () => {
 
 		const finalDbBatchCall = mockEnv.DB.batch.mock.calls[0][0];
 		expect(finalDbBatchCall).toHaveLength(1);
-		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(expect.any(Number), tx303.id, 1);
+		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(expect.any(Number), tx329.id, 0);
 	});
 });

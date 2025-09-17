@@ -217,7 +217,7 @@ export class Indexer implements Storage {
 				break; // valid tx should have only one OP_RETURN
 			}
 		}
-		// TODO: add more sophisticated validation for Sui address
+
 		if (!suiRecipient) suiRecipient = this.suiFallbackAddr;
 		console.log(`Checking TX ${tx.getId()} for deposits. Target script: ${this.nbtcScriptHex}`);
 
@@ -284,12 +284,10 @@ export class Indexer implements Storage {
 
 		for (const [txId, txGroup] of groupedTxs.entries()) {
 			try {
-				const rawBlockBuffer = await this.blocksDB.get(txGroup.block_hash, {
-					type: "arrayBuffer",
-				});
-				if (!rawBlockBuffer) continue;
+				const rawBlockHex = await this.blocksDB.get(txGroup.block_hash);
+				if (!rawBlockHex) continue;
 
-				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+				const block = Block.fromHex(rawBlockHex);
 				const merkleTree = this.constructMerkleTree(block);
 				if (!merkleTree) continue;
 
@@ -576,8 +574,9 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 	}
 	const payload = script.subarray(2);
 
-	// Check simple transfer format: 1-byte flag (0x00) + 32-byte address.
-	if (payload.length === 33 && payload[0] === 0x00) {
+	// Check simple transfer format: 1-byte flag (0x00)
+	// TODO: add validation for the sui address
+	if (payload[0] === 0x00) {
 		const addressBytes = payload.subarray(1);
 		return `0x${addressBytes.toString("hex")}`;
 	}

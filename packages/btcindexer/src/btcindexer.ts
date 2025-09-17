@@ -580,7 +580,7 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 		const addressBytes = payload.subarray(1);
 		return `0x${addressBytes.toString("hex")}`;
 	}
-	//TODO: in the future we need to udpate the realyer to correctly handle the flag 0x01
+	//TODO: in the future we need to update the relayer to correctly handle the flag 0x01
 	// for now we cannot determine the recipient
 	return null;
 }

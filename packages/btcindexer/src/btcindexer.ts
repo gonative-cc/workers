@@ -284,10 +284,16 @@ export class Indexer implements Storage {
 
 		for (const [txId, txGroup] of groupedTxs.entries()) {
 			try {
-				const rawBlockHex = await this.blocksDB.get(txGroup.block_hash);
-				if (!rawBlockHex) continue;
-
-				const block = Block.fromHex(rawBlockHex);
+				const rawBlockBuffer = await this.blocksDB.get(txGroup.block_hash, {
+					type: "arrayBuffer",
+				});
+				if (!rawBlockBuffer) {
+					console.warn(
+						`Block data not found in KV for hash: ${txGroup.block_hash}. Skipping TX ${txId}.`,
+					);
+					continue;
+				}
+				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
 				const merkleTree = this.constructMerkleTree(block);
 				if (!merkleTree) continue;
 

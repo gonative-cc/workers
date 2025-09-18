@@ -4,7 +4,10 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev --test-scheduled",
+		"deploy": "wrangler deploy",
 		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
+		"db:migrate": "wrangler d1 migrations apply btcindexer-dev",
+		"db:migrate:backstage": "wrangler d1 migrations apply btcindexer-dev --remote",
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
 		"test": "vitest run"

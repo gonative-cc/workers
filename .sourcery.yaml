@@ -1,14 +1,14 @@
 ignore:
-    - .git
-    - venv
-    - .venv
-    - env
-    - .env
-    - .tox
-    - node_modules
-    - vendor
-    - worker-configuration.d.ts
-    - '*.tmp.*'
+  - .git
+  - venv
+  - .venv
+  - env
+  - .env
+  - .tox
+  - node_modules
+  - vendor
+  - worker-configuration.d.ts
+  - "*.tmp.*"
 
 rule_settings:
   enable: [default]

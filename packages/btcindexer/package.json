@@ -10,10 +10,10 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@mysten/sui": "^1.36.0",
+		"@mysten/sui": "^1.38.0",
 		"bitcoinjs-lib": "^6.1.7",
 		"crypto-js": "^4.2.0",
-		"itty-router": "^5.0.18",
+		"itty-router": "^5.0.22",
 		"merkletreejs": "^0.5.2",
 		"msgpackr": "^1.11.5"
 	},

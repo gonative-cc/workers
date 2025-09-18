@@ -289,7 +289,7 @@ export class Indexer implements Storage {
 				});
 				if (!rawBlockBuffer) {
 					console.warn(
-						`[DEBUG] Block data not found in KV for hash: ${txGroup.block_hash}. Skipping TX ${txId}.`
+						`Block data not found in KV for hash: ${txGroup.block_hash}. Skipping TX ${txId}.`
 					);
 					continue;
 				}

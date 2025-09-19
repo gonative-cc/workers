@@ -79,10 +79,15 @@ export class Indexer implements Storage {
 
 	// returns number of processed and add blocks
 	async putBlocks(blocks: PutBlocks[]): Promise<number> {
-		console.log("INSERTING:", blocks.length);
 		if (!blocks || blocks.length === 0) {
 			return 0;
 		}
+
+		const blockHeights = blocks.map((b) => b.height);
+		console.log(
+			`putBlocks: Ingesting ${blocks.length} block(s): heights [${blockHeights.join(", ")}].`,
+		);
+
 		const now = Date.now();
 		const insertBlockStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (height, hash, status, processed_at) VALUES (?, ?, 'new', ?)
@@ -100,11 +105,11 @@ export class Indexer implements Storage {
 		try {
 			await Promise.all([...putKVs, this.d1.batch(putD1s)]);
 		} catch (e) {
-			console.error(`Failed to store one or more blocks in KV or D1:`, e);
+			console.error(`putBlocks: Failed to store one or more blocks in KV or D1:`, e);
 			// TODO: decide what to do in the case where some blocks were saved and some not, prolly we need more granular error
 			throw new Error(`Could not save all blocks data`);
 		}
-		console.log("<< >>INSERTED");
+		console.log(`putBlocks: Ingested ${blocks.length} block(s).`);
 		return blocks.length;
 	}
 
@@ -128,7 +133,7 @@ export class Indexer implements Storage {
 		console.log("Cron: Running scanNewBlocks");
 		const blocksToProcess = await this.d1
 			.prepare(
-				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 10",
+				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 100",
 			)
 			.all<{ height: number; hash: string }>();
 
@@ -158,6 +163,9 @@ export class Indexer implements Storage {
 				type: "arrayBuffer",
 			});
 			if (!rawBlockBuffer) {
+				console.warn(
+					`Cron: Block data for hash ${blockInfo.hash} (height ${blockInfo.height}) not found in KV. Skipping scan for this block.`,
+				);
 				continue;
 			}
 			const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
@@ -165,6 +173,11 @@ export class Indexer implements Storage {
 			for (const tx of block.transactions ?? []) {
 				const deposits = this.findNbtcDeposits(tx);
 				for (const deposit of deposits) {
+					console.log(
+						`Cron: Found new nBTC deposit in tx ${tx.getId()}:vout=${
+							deposit.vout
+						}, amount=${deposit.amountSats}, recipient=${deposit.suiRecipient}`,
+					);
 					nbtcTxStatements.push(
 						insertOrUpdateNbtcTxStmt.bind(
 							tx.getId(),
@@ -196,6 +209,9 @@ export class Indexer implements Storage {
 
 		const heightsToUpdate = blocksToProcess.results.map((r) => r.height);
 		if (heightsToUpdate.length > 0) {
+			console.log(
+				`Cron: Found a total of ${nbtcTxStatements.length} new nBTC deposit(s). Storing in D1.`,
+			);
 			const placeholders = heightsToUpdate.map(() => "?").join(",");
 			const updateStmt = `UPDATE btc_blocks SET status = 'scanned' WHERE height IN (${placeholders})`;
 			await this.d1
@@ -213,18 +229,24 @@ export class Indexer implements Storage {
 			const parsedRecipient = parseSuiRecipientFromOpReturn(vout.script);
 			if (parsedRecipient) {
 				suiRecipient = parsedRecipient;
-				console.log(`[DEBUG] Parsed Sui recipient from OP_RETURN: ${suiRecipient}`);
+				console.log(
+					`FindNbtcDeposits: Parsed Sui recipient from OP_RETURN: ${suiRecipient}`,
+				);
 				break; // valid tx should have only one OP_RETURN
 			}
 		}
 
 		if (!suiRecipient) suiRecipient = this.suiFallbackAddr;
-		console.log(`Checking TX ${tx.getId()} for deposits. Target script: ${this.nbtcScriptHex}`);
+		console.log(
+			`FindNbtcDeposits: Checking TX ${tx.getId()} for deposits. Target script: ${
+				this.nbtcScriptHex
+			}`,
+		);
 
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
 			if (vout.script.toString("hex") === this.nbtcScriptHex) {
-				console.log(`<<Found matching nBTC deposit!>>`);
+				console.log(`FindNbtcDeposits: Found matching nBTC deposit`);
 				deposits.push({
 					vout: i,
 					amountSats: Number(vout.value),
@@ -243,7 +265,6 @@ export class Indexer implements Storage {
 			.all<FinalizedTxRow>();
 
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
-			console.log("Minting: No finalized transactions found to process");
 			return;
 		}
 
@@ -276,7 +297,7 @@ export class Indexer implements Storage {
 		}
 
 		console.log(
-			`Minting: Found ${groupedTxs.size} finalized transaction(s). Preparing to mint`,
+			`Minting: Found ${finalizedTxs.results.length} finalized deposit(s). Preparing batch.`,
 		);
 
 		const mintBatchArgs: MintBatchArg[] = [];
@@ -289,7 +310,7 @@ export class Indexer implements Storage {
 				});
 				if (!rawBlockBuffer) {
 					console.warn(
-						`Block data not found in KV for hash: ${txGroup.block_hash}. Skipping TX ${txId}.`,
+						`Minting: Block data not found in KV for hash: ${txGroup.block_hash}. Skipping TX ${txId}.`,
 					);
 					continue;
 				}
@@ -404,11 +425,10 @@ export class Indexer implements Storage {
 			.all<{ tx_id: string; block_hash: string; block_height: number }>();
 
 		if (!pendingTxs.results || pendingTxs.results.length === 0) {
-			console.log("Finalization: No transactions in 'confirming' state to check");
 			return;
 		}
 		console.log(
-			`Finalization: Found ${pendingTxs.results.length} transaction(s) in 'confirming' state`,
+			`Finalization: Checking ${pendingTxs.results.length} 'confirming' transaction(s) against chain tip height ${latestHeight}.`,
 		);
 
 		const { reorgUpdates, reorgedTxIds } = await this.handleReorgs(pendingTxs.results);

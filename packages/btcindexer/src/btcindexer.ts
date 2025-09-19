@@ -85,7 +85,7 @@ export class Indexer implements Storage {
 
 		const blockHeights = blocks.map((b) => b.height);
 		console.log(
-			`putBlocks: Ingesting ${blocks.length} block(s): heights ${blockHeights.join(", ")}.`,
+			`putBlocks: Ingesting ${blocks.length} block(s): heights [${blockHeights.join(", ")}].`,
 		);
 
 		const now = Date.now();

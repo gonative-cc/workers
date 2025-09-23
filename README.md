@@ -29,7 +29,7 @@ bun install
 ```
 
 Go a package that you want to build or run in the `/packages` directory.
-If it contains `.dev.vars.example` file, then copy it to `.de.vars` and update the values.
+If it contains `.dev.vars.example` file, then copy it: `cp .dev.vars.example .dev.vars` and update the values.
 
 Run the wrangler dev server of all workers (with auto reload):
 

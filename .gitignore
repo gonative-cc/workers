@@ -134,3 +134,6 @@ dist
 .vscode
 
 .wrangler
+
+# wrangler secret vars
+.dev.vars*

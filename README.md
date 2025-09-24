@@ -19,7 +19,7 @@ Backend workers and indexers for BYield services
 This is a monorepo: workspace with several sub packages.
 Check [linking dependencies](https://bun.sh/docs/install/workspaces) to learn how to manage dependencies between sub-packages.
 
-### Quick Start - dev
+### Quick setup - dev
 
 Firstly install the latest dependencies and link hooks
 
@@ -29,7 +29,20 @@ bun install
 ```
 
 Navigate to a package that you want to build or run in the `/packages` directory.
-If it contains `.dev.vars.example` file, then copy it: `cp .dev.vars.example .dev.vars` and update the values.
+To overwrite env vars used in your wrangler setup, copy: `cp .dev.vars.example .dev.vars` and update the values.
+
+You will may also need to setup a secrets store. For each secret defined in the `wrangler.json`:
+
+- check the `store_id` and `secret_name`.
+- create a secret with scope `workers`. Example: `bun wrangler secrets-store secret create 75adbc6657de4f4cb739f63eb4d0cd7a --name NBTC_MINTING_SIGNER_MNEMONIC --scopes workers`
+
+Finally, you will need to setup databases used in local wrangler:
+
+```sh
+bun run db:migrate:local
+```
+
+### Run and test
 
 Run the wrangler dev server of all workers (with auto reload):
 
@@ -42,24 +55,16 @@ Watch for changes and automatically test:
 ```sh
 bun run test
 # To test only some packages
-bun run --filter pattern test
-```
-
-To apply migrations to the local Cloudflare env:
-
-```sh
-bun run db:migrate:local
+bun run --filter package_pattern test
 ```
 
 ### Typegen
 
-Generate types for your Cloudflare bindings in `wrangler.toml`:
+Whenever you make changes to `wrangler.jsonc` or update `wrangler`, generate types for your Cloudflare bindings:
 
 ```sh
 bun run cf-typegen
 ```
-
-You will need to rerun cf-typegen whenever you make changes to `wrangler.toml` or update `wrangler`.
 
 ## Contributing
 

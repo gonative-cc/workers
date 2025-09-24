@@ -4,6 +4,7 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
 import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
+import { logger } from "./logger";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -39,7 +40,10 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
-		console.log("Sui Signer Address:", this.signer.getPublicKey().toSuiAddress());
+		logger.info("Sui Client Initialized", {
+			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
+			network: config.network,
+		});
 		this.nbtcPkg = config.nbtcPkg;
 		this.nbtcModule = config.nbtcModule;
 		this.nbtcObjectId = config.nbtcObjectId;
@@ -50,7 +54,7 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult,
+		proof: ProofResult
 	): Promise<void> {
 		const tx = new SuiTransaction();
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
@@ -90,13 +94,15 @@ export class SuiClient {
 		transaction: Transaction,
 		blockHeight: number,
 		txIndex: number,
-		proof: ProofResult,
+		proof: ProofResult
 	): Promise<boolean> {
 		try {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
 			return true;
 		} catch (error) {
-			console.error(`Error during mint contract call`, error);
+			logger.error("Error during single mint contract call", error, {
+				btcTxId: transaction.getId(),
+			});
 			return false;
 		}
 	}
@@ -133,16 +139,23 @@ export class SuiClient {
 		});
 
 		if (result.effects?.status.status !== "success") {
+			logger.error("Sui batch mint transaction effects indicated failure", undefined, {
+				status: result.effects?.status.status,
+				error: result.effects?.status.error,
+			});
 			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
 		}
 		return result.digest;
 	}
 
 	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
+		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
 			return await this.mintNbtcBatch(mintArgs);
 		} catch (error) {
-			console.error(`Error during batch mint contract call`, error);
+			logger.error("Error during batch mint contract call", error, {
+				btcTxIds: txIds,
+			});
 			return null;
 		}
 	}

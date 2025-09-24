@@ -1,7 +1,7 @@
 {
-	"name": "btcindexer",
-	"version": "0.0.0",
-	"private": true,
+	"name": "@gonative-cc/btcindexer",
+	"license": "MPL-2.0",
+	"version": "0.0.1",
 	"scripts": {
 		"dev": "wrangler dev --test-scheduled",
 		"deploy": "wrangler deploy",

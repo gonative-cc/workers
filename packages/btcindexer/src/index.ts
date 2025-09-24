@@ -18,7 +18,7 @@ export default {
 		return router.fetch(req, env, indexer);
 	},
 
-	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's
+	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
 	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
 		// A Cron Trigger can make requests to other endpoints on the Internet,

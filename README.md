@@ -36,7 +36,7 @@ You will may also need to setup a secrets store. For each secret defined in the 
 - check the `store_id` and `secret_name`.
 - create a secret with scope `workers`. Example: `bun wrangler secrets-store secret create 75adbc6657de4f4cb739f63eb4d0cd7a --name NBTC_MINTING_SIGNER_MNEMONIC --scopes workers`
 
-Finally, you will need to setup databases used in local wrangler:
+Finally, you will need to set up databases used in local wrangler:
 
 ```sh
 bun run db:migrate:local

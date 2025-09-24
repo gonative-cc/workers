@@ -6,7 +6,7 @@ Backend workers and indexers for BYield services
 
 - [btcindexer](./packages/btcindexer/) - Bitcoin indexer for nBTC and SPV prover.
 
-## Build Info
+## Setup
 
 ### Dependencies
 
@@ -19,7 +19,7 @@ Backend workers and indexers for BYield services
 This is a monorepo: workspace with several sub packages.
 Check [linking dependencies](https://bun.sh/docs/install/workspaces) to learn how to manage dependencies between sub-packages.
 
-### Quick Start
+### Quick Start - dev
 
 Firstly install the latest dependencies and link hooks
 
@@ -27,6 +27,9 @@ Firstly install the latest dependencies and link hooks
 make setup-hooks
 bun install
 ```
+
+Navigate to a package that you want to build or run in the `/packages` directory.
+If it contains `.dev.vars.example` file, then copy it: `cp .dev.vars.example .dev.vars` and update the values.
 
 Run the wrangler dev server of all workers (with auto reload):
 
@@ -48,18 +51,6 @@ To apply migrations to the local Cloudflare env:
 bun run db:migrate:local
 ```
 
-### Local development of a worker
-
-```sh
-cd packages/<worker_name>
-# this will start local server with local bindings to storage
-# it will print the localhost port binding
-bun wrangler dev
-
-# now we can interact with the server, for example
-curl http://localhost:8787/test-kv -X PUT -d '{"key": "k1", "val": "v1"}'
-```
-
 ### Typegen
 
 Generate types for your Cloudflare bindings in `wrangler.toml`:
@@ -68,7 +59,7 @@ Generate types for your Cloudflare bindings in `wrangler.toml`:
 bun run cf-typegen
 ```
 
-You will need to rerun cf-typegen whenever you make changes to `wrangler.toml`.
+You will need to rerun cf-typegen whenever you make changes to `wrangler.toml` or update `wrangler`.
 
 ## Contributing
 

@@ -1,0 +1,6 @@
+# Secret variables local binding in wrangler
+# https://developers.cloudflare.com/workers/configuration/environment-variables/#local-development-with-secrets
+
+
+# Sui signing key mnemonic
+NBTC_MINTING_SIGNER_MNEMONIC=""

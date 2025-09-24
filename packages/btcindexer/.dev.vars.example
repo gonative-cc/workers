@@ -1,6 +1,8 @@
 # Secret variables local binding in wrangler
 # https://developers.cloudflare.com/workers/configuration/environment-variables/#local-development-with-secrets
 
-
-# Sui signing key mnemonic
-NBTC_MINTING_SIGNER_MNEMONIC=""
+# This doesn't set variables for secrets-store, but overwrites `wrangler.jsonc#vars` in a confidential way.
+# To set secrets-store for local development, use `bun wrangler secrets-store secret create ...`.
+#
+# Example:
+# SOME_VAL_TO_SET_OR_OVERWRITE="new value"

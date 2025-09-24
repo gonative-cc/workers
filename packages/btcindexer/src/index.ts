@@ -8,7 +8,6 @@
  */
 
 import { indexerFromEnv } from "./btcindexer";
-import { logger } from "./logger";
 import HttpRouter from "./router";
 
 const router = new HttpRouter(undefined);
@@ -19,7 +18,16 @@ export default {
 			const indexer = await indexerFromEnv(env);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
-			logger.error("Unhandled exception in fetch handler", e);
+			const error =
+				e instanceof Error
+					? { name: e.name, message: e.message, stack: e.stack }
+					: { error: String(e) };
+			console.error({
+				message: "Unhandled exception in fetch handler",
+				...error,
+				url: req.url,
+				method: req.method,
+			});
 			return new Response("Internal Server Error", { status: 500 });
 		}
 	},
@@ -34,7 +42,7 @@ export default {
 
 		// TODO:  This should be refactored probably the best is to use chain tip stored in a KV namespace.
 		// ideally use queue
-		logger.info("Cron job starting");
+		console.info({ message: "Cron job starting" });
 		try {
 			const d1 = env.DB;
 			// TODO: move this to the indexer directly
@@ -48,9 +56,16 @@ export default {
 			}
 			await indexer.scanNewBlocks();
 			await indexer.processFinalizedTransactions();
-			logger.info("Cron job finished successfully");
+			console.info({ message: "Cron job finished successfully" });
 		} catch (e) {
-			logger.error("Cron job failed", e);
+			const error =
+				e instanceof Error
+					? { name: e.name, message: e.message, stack: e.stack }
+					: { error: String(e) };
+			console.error({
+				message: "Cron job failed",
+				...error,
+			});
 		}
 	},
 } satisfies ExportedHandler<Env>;

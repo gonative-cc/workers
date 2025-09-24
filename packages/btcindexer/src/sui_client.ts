@@ -4,7 +4,6 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
 import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
-import { logger } from "./logger";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -40,7 +39,8 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
-		logger.info("Sui Client Initialized", {
+		console.info({
+			message: "Sui Client Initialized",
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
 			network: config.network,
 		});
@@ -99,8 +99,12 @@ export class SuiClient {
 		try {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
 			return true;
-		} catch (error) {
-			logger.error("Error during single mint contract call", error, {
+		} catch (e) {
+			const error =
+				e instanceof Error ? { name: e.name, message: e.message } : { error: String(e) };
+			console.error({
+				message: "Error during single mint contract call",
+				...error,
 				btcTxId: transaction.getId(),
 			});
 			return false;
@@ -139,7 +143,8 @@ export class SuiClient {
 		});
 
 		if (result.effects?.status.status !== "success") {
-			logger.error("Sui batch mint transaction effects indicated failure", undefined, {
+			console.error({
+				message: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
 				error: result.effects?.status.error,
 			});
@@ -152,8 +157,12 @@ export class SuiClient {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
 			return await this.mintNbtcBatch(mintArgs);
-		} catch (error) {
-			logger.error("Error during batch mint contract call", error, {
+		} catch (e) {
+			const error =
+				e instanceof Error ? { name: e.name, message: e.message } : { error: String(e) };
+			console.error({
+				message: "Error during batch mint contract call",
+				...error,
 				btcTxIds: txIds,
 			});
 			return null;

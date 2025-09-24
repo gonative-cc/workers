@@ -7,7 +7,6 @@ import { PostNbtcTxRequest } from "./models";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
-import { logger } from "./logger";
 
 export default class HttpRouter {
 	#indexer?: Indexer;
@@ -59,7 +58,7 @@ export default class HttpRouter {
 	// Otherwise we would need to setup the server on each fetch request.
 	fetch = async (req: Request, env: Env, indexer: Indexer) => {
 		this.#indexer = indexer;
-		logger.info("Incoming request", { url: req.url, method: req.method });
+		console.info({ message: "Incoming request", url: req.url, method: req.method });
 		return this.#router.fetch(req, env);
 	};
 
@@ -79,7 +78,9 @@ export default class HttpRouter {
 			const blocks = PutBlocksReq.decode(await req.arrayBuffer());
 			return { inserted: await this.indexer().putBlocks(blocks) };
 		} catch (e) {
-			logger.error("Failed to decode msgpack body for putBlocks", e);
+			const error =
+				e instanceof Error ? { name: e.name, message: e.message } : { error: String(e) };
+			console.error({ message: "Failed to decode msgpack body for putBlocks", ...error });
 			return new Response("Failed to decode msgpack body. Check wrangler logs for details.", {
 				status: 400,
 			});
@@ -97,7 +98,9 @@ export default class HttpRouter {
 			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex);
 			return { success: true, ...result };
 		} catch (e: unknown) {
-			logger.error("Failed to register nBTC tx", e);
+			const errorContext =
+				e instanceof Error ? { name: e.name, message: e.message } : { error: String(e) };
+			console.error({ message: "Failed to register nBTC tx", ...errorContext });
 			const message = e instanceof Error ? e.message : "An unknown error occurred.";
 			return error(400, message);
 		}

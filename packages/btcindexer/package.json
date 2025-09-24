@@ -2,6 +2,9 @@
 	"name": "@gonative-cc/btcindexer",
 	"license": "MPL-2.0",
 	"version": "0.0.1",
+	"exports": {
+		"./": "./src/"
+	},
 	"scripts": {
 		"dev": "wrangler dev --test-scheduled",
 		"deploy": "wrangler deploy",

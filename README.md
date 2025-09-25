@@ -31,7 +31,7 @@ bun install
 Navigate to a package that you want to build or run in the `/packages` directory.
 To overwrite env vars used in your wrangler setup, copy: `cp .dev.vars.example .dev.vars` and update the values.
 
-You will may also need to setup a secrets store. For each secret defined in the `wrangler.json`:
+You will also need to setup a secrets store. For each secret defined in the `wrangler.json`:
 
 - check the `store_id` and `secret_name`.
 - create a secret with scope `workers`. Example: `bun wrangler secrets-store secret create 75adbc6657de4f4cb739f63eb4d0cd7a --name NBTC_MINTING_SIGNER_MNEMONIC --scopes workers`

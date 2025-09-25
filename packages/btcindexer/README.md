@@ -38,7 +38,7 @@ graph TD
 This is triggered every time the Relayer sends new block data to the indexer
 
 1.  Block Submission: The Relayer sends a batch of new blocks (`height` and `rawBlockHex`).
-2.  Reorg Handling: If the Relayer sends a block for a `height` that already exists in the `processed_blocks` table, the indexer overwrites it with the new one. This means a reorg happen on Bitcoin.
+2.  Reorg Handling: If the Relayer sends a block for a `height` that already exists in the `processed_blocks` table, the indexer overwrites it with the new one. This means a reorg happened on Bitcoin.
 3.  Storage: The indexer saves the full raw block data to the KV store and adds (or updates) the light block info (`height`, `hash`) in the `processed_blocks` table in D1. This table acts as a "to-do" for the cron job.
 
 ### 2. Processing Flow (Cron Job)

@@ -43,7 +43,7 @@ This is triggered every time the Relayer sends new block data to the indexer
 
 ### 2. Processing Flow (Cron Job)
 
-A cron job runs on a fixed schedule (e.g., every 30 seconds)
+A cron job runs on a fixed schedule (e.g., every 1 minute)
 
 1.  Deposit Discovery: The cron job reads a batch of unprocessed blocks from the `processed_blocks` queue. It fetches the full block data from KV and scans every transaction. If it finds a valid nBTC deposit, it saves the details to the `nbtc_txs` table with a status of `'confirming'`.
 2.  Confirmation & Reorg Processing: The cron job then queries for all transactions in the `confirming` state.

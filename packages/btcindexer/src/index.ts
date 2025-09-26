@@ -61,7 +61,7 @@ export default {
 			const error =
 				e instanceof Error
 					? { name: e.name, message: e.message, stack: e.stack }
-					: { error: String(e) };
+					:  e;
 			console.error({
 				message: "Cron job failed",
 				error,

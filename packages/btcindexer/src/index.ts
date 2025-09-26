@@ -8,14 +8,25 @@
  */
 
 import { indexerFromEnv } from "./btcindexer";
+import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 
 const router = new HttpRouter(undefined);
 
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-		const indexer = await indexerFromEnv(env);
-		return router.fetch(req, env, indexer);
+		try {
+			const indexer = await indexerFromEnv(env);
+			return await router.fetch(req, env, indexer);
+		} catch (e) {
+			console.error({
+				msg: "Unhandled exception in fetch handler",
+				error: toSerializableError(e),
+				url: req.url,
+				method: req.method,
+			});
+			return new Response("Internal Server Error", { status: 500 });
+		}
 	},
 
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
@@ -28,17 +39,26 @@ export default {
 
 		// TODO:  This should be refactored probably the best is to use chain tip stored in a KV namespace.
 		// ideally use queue
-		const d1 = env.DB;
-		// TODO: move this to the indexer directly
-		const latestBlock = await d1
-			.prepare("SELECT MAX(height) as latest_height FROM btc_blocks")
-			.first<{ latest_height: number }>();
+		console.trace({ msg: "Cron job starting" });
+		try {
+			const d1 = env.DB;
+			// TODO: move this to the indexer directly
+			const latestBlock = await d1
+				.prepare("SELECT MAX(height) as latest_height FROM btc_blocks")
+				.first<{ latest_height: number }>();
 
-		const indexer = await indexerFromEnv(env);
-		if (latestBlock && latestBlock.latest_height) {
-			await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
+			const indexer = await indexerFromEnv(env);
+			if (latestBlock && latestBlock.latest_height) {
+				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
+			}
+			await indexer.scanNewBlocks();
+			await indexer.processFinalizedTransactions();
+			console.log({ msg: "Cron job finished successfully" });
+		} catch (e) {
+			console.error({
+				msg: "Cron job failed",
+				error: toSerializableError(e),
+			});
 		}
-		await indexer.scanNewBlocks();
-		await indexer.processFinalizedTransactions();
 	},
 } satisfies ExportedHandler<Env>;

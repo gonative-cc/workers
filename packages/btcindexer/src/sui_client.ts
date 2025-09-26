@@ -4,6 +4,7 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
 import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
+import { toSerializableError } from "./errutils";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -39,7 +40,11 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
-		console.log("Sui Signer Address:", this.signer.getPublicKey().toSuiAddress());
+		console.debug({
+			msg: "Sui Client Initialized",
+			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
+			network: config.network,
+		});
 		this.nbtcPkg = config.nbtcPkg;
 		this.nbtcModule = config.nbtcModule;
 		this.nbtcObjectId = config.nbtcObjectId;
@@ -95,8 +100,12 @@ export class SuiClient {
 		try {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
 			return true;
-		} catch (error) {
-			console.error(`Error during mint contract call`, error);
+		} catch (e) {
+			console.error({
+				msg: "Error during single mint contract call",
+				error: toSerializableError(e),
+				btcTxId: transaction.getId(),
+			});
 			return false;
 		}
 	}
@@ -133,16 +142,26 @@ export class SuiClient {
 		});
 
 		if (result.effects?.status.status !== "success") {
+			console.error({
+				msg: "Sui batch mint transaction effects indicated failure",
+				status: result.effects?.status.status,
+				error: result.effects?.status.error,
+			});
 			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
 		}
 		return result.digest;
 	}
 
 	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
+		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
 			return await this.mintNbtcBatch(mintArgs);
-		} catch (error) {
-			console.error(`Error during batch mint contract call`, error);
+		} catch (e) {
+			console.error({
+				msg: "Error during batch mint contract call",
+				error: toSerializableError(e),
+				btcTxIds: txIds,
+			});
 			return null;
 		}
 	}

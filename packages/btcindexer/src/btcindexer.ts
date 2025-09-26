@@ -14,6 +14,7 @@ import {
 	FinalizedTxRow,
 	GroupedFinalizedTx,
 } from "./models";
+import { toSerializableError } from "./errutils";
 
 export function storageFromEnv(env: Env): Storage {
 	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
@@ -107,10 +108,9 @@ export class Indexer implements Storage {
 		try {
 			await Promise.all([...putKVs, this.d1.batch(putD1s)]);
 		} catch (e) {
-			const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
 			console.error({
 				msg: "Failed to store one or more blocks in KV or D1",
-				error,
+				error: toSerializableError(e),
 				blockHeights,
 			});
 			// TODO: decide what to do in the case where some blocks were saved and some not, prolly we need more granular error
@@ -216,7 +216,7 @@ export class Indexer implements Storage {
 		if (nbtcTxStatements.length > 0) {
 			await this.d1.batch(nbtcTxStatements);
 		} else {
-			console.log({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
+			console.debug({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
 		}
 
 		const latestHeightProcessed = Math.max(...blocksToProcess.results.map((b) => b.height));
@@ -231,7 +231,7 @@ export class Indexer implements Storage {
 				.prepare(updateStmt)
 				.bind(...heightsToUpdate)
 				.run();
-			console.log({
+			console.debug({
 				msg: "Cron: Marked blocks as scanned",
 				count: heightsToUpdate.length,
 			});
@@ -345,6 +345,7 @@ export class Indexer implements Storage {
 				const txIndex = block.transactions.findIndex((tx) => tx.getId() === txId);
 
 				if (txIndex === -1) {
+					// TODO: we should add a `dangling` status for those txs
 					console.error({
 						msg: "Minting: Could not find TX within its block, skipping.",
 						txId,
@@ -357,13 +358,16 @@ export class Indexer implements Storage {
 
 				const proof = this.getTxProof(merkleTree, targetTx);
 
-				// soundness check
+				// NOTE: Soundness check. A mismatch between our calculated
+				// Merkle root and the one in the block header should  never happen.
+				// If it does, it indicates that the merkle tree implementaiton is incorrect,
+				// corrupted block data in KV, or a faulty realyer (sending us wrong data).
 				const calculatedRoot = merkleTree.getRoot();
 				if (
 					!proof ||
 					(block.merkleRoot !== undefined && !block.merkleRoot.equals(calculatedRoot))
 				) {
-					console.warn({
+					console.error({
 						msg: "Failed to generate a valid merkle proof. Root mismatch.",
 						txId,
 						blockRoot: block.merkleRoot?.toString("hex"),
@@ -386,11 +390,9 @@ export class Indexer implements Storage {
 					});
 				}
 			} catch (e) {
-				const error =
-					e instanceof Error ? { name: e.name, msg: e.message, stack: e.stack } : e;
 				console.error({
 					msg: "Minting: Error preparing transaction for minting batch",
-					error: error,
+					error: toSerializableError(e),
 					txId,
 				});
 				for (const deposit of txGroup.deposits) {
@@ -418,10 +420,7 @@ export class Indexer implements Storage {
 				const updates = processedPrimaryKeys.map((p) =>
 					setMintedStmt.bind(suiTxDigest, now, p.tx_id, p.vout),
 				);
-				console.log({
-					msg: "Minting: Updating status to 'minted' in D1",
-					count: updates.length,
-				});
+				// TODO: add logic for handling the results and console.error if failure
 				await this.d1.batch(updates);
 			} else {
 				console.error({ msg: "Sui batch mint transaction failed" });
@@ -431,10 +430,7 @@ export class Indexer implements Storage {
 				const updates = processedPrimaryKeys.map((p) =>
 					setFailedStmt.bind(now, p.tx_id, p.vout),
 				);
-				console.log({
-					msg: "Minting: Updating status to 'failed' in D1",
-					count: updates.length,
-				});
+				// TODO: add logic for handling the results and console.error if failure
 				await this.d1.batch(updates);
 			}
 		}
@@ -451,10 +447,9 @@ export class Indexer implements Storage {
 		try {
 			return tree.getProof(targetTx);
 		} catch (e) {
-			const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
 			console.error({
 				msg: "Failed to get merkle proof",
-				error: error,
+				error: toSerializableError(e),
 				txId: targetTx.getId(),
 			});
 			return null;
@@ -492,10 +487,9 @@ export class Indexer implements Storage {
 			try {
 				await this.d1.batch(allUpdates);
 			} catch (e) {
-				const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
 				console.error({
 					msg: "Failed to apply finalization batch updates to D1.",
-					error: error,
+					error: toSerializableError(e),
 				});
 			}
 		}

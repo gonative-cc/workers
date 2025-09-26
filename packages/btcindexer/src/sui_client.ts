@@ -4,6 +4,7 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import { Transaction } from "bitcoinjs-lib";
 import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
+import { toSerializableError } from "./errutils";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -100,11 +101,9 @@ export class SuiClient {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
 			return true;
 		} catch (e) {
-			const error =
-				e instanceof Error ? { name: e.name, msg: e.message } : { error: String(e) };
 			console.error({
 				msg: "Error during single mint contract call",
-				error,
+				error: toSerializableError(e),
 				btcTxId: transaction.getId(),
 			});
 			return false;
@@ -158,11 +157,9 @@ export class SuiClient {
 		try {
 			return await this.mintNbtcBatch(mintArgs);
 		} catch (e) {
-			const error =
-				e instanceof Error ? { name: e.name, msg: e.message } : { error: String(e) };
 			console.error({
 				msg: "Error during batch mint contract call",
-				error: error,
+				error: toSerializableError(e),
 				btcTxIds: txIds,
 			});
 			return null;

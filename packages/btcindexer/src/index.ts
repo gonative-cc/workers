@@ -8,6 +8,7 @@
  */
 
 import { indexerFromEnv } from "./btcindexer";
+import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 
 const router = new HttpRouter(undefined);
@@ -18,10 +19,9 @@ export default {
 			const indexer = await indexerFromEnv(env);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
-			const error = e instanceof Error ? { name: e.name, msg: e.message, stack: e.stack } : e;
 			console.error({
 				msg: "Unhandled exception in fetch handler",
-				error: error,
+				error: toSerializableError(e),
 				url: req.url,
 				method: req.method,
 			});
@@ -55,10 +55,9 @@ export default {
 			await indexer.processFinalizedTransactions();
 			console.log({ msg: "Cron job finished successfully" });
 		} catch (e) {
-			const error = e instanceof Error ? { name: e.name, msg: e.message, stack: e.stack } : e;
 			console.error({
 				msg: "Cron job failed",
-				error: error,
+				error: toSerializableError(e),
 			});
 		}
 	},

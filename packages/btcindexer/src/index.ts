@@ -39,7 +39,7 @@ export default {
 
 		// TODO:  This should be refactored probably the best is to use chain tip stored in a KV namespace.
 		// ideally use queue
-		console.log({ msg: "Cron job starting" });
+		console.trace({ msg: "Cron job starting" });
 		try {
 			const d1 = env.DB;
 			// TODO: move this to the indexer directly

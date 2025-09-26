@@ -58,7 +58,7 @@ export default class HttpRouter {
 	// Otherwise we would need to setup the server on each fetch request.
 	fetch = async (req: Request, env: Env, indexer: Indexer) => {
 		this.#indexer = indexer;
-		console.log({ msg: "Incoming request", url: req.url, method: req.method });
+		console.trace({ msg: "Incoming request", url: req.url, method: req.method });
 		return this.#router.fetch(req, env);
 	};
 
@@ -79,7 +79,7 @@ export default class HttpRouter {
 			return { inserted: await this.indexer().putBlocks(blocks) };
 		} catch (e) {
 			const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
-			console.error({ msg: "Failed to decode msgpack body for putBlocks", error: error });
+			console.error({ msg: "Failed to decode msgpack body for putBlocks", error });
 			return new Response("Failed to decode msgpack body. Check wrangler logs for details.", {
 				status: 400,
 			});
@@ -97,8 +97,8 @@ export default class HttpRouter {
 			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex);
 			return { success: true, ...result };
 		} catch (e: unknown) {
-			const errorCtx = e instanceof Error ? { name: e.name, msg: e.message } : e;
-			console.error({ msg: "Failed to register nBTC tx", error: errorCtx });
+			const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
+			console.error({ msg: "Failed to register nBTC tx", error });
 			const message = e instanceof Error ? e.message : "An unknown error occurred.";
 			return error(400, message);
 		}

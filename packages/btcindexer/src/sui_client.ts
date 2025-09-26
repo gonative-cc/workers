@@ -39,7 +39,7 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
-		console.log({
+		console.debug({
 			msg: "Sui Client Initialized",
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
 			network: config.network,
@@ -104,7 +104,7 @@ export class SuiClient {
 				e instanceof Error ? { name: e.name, msg: e.message } : { error: String(e) };
 			console.error({
 				msg: "Error during single mint contract call",
-				error: error,
+				error,
 				btcTxId: transaction.getId(),
 			});
 			return false;

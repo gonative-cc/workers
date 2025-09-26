@@ -110,7 +110,7 @@ export class Indexer implements Storage {
 			const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
 			console.error({
 				msg: "Failed to store one or more blocks in KV or D1",
-				error: error,
+				error,
 				blockHeights,
 			});
 			// TODO: decide what to do in the case where some blocks were saved and some not, prolly we need more granular error
@@ -137,7 +137,7 @@ export class Indexer implements Storage {
 	}
 
 	async scanNewBlocks(): Promise<void> {
-		console.log({ msg: "Cron: Running scanNewBlocks job" });
+		console.debug({ msg: "Cron: Running scanNewBlocks job" });
 		const blocksToProcess = await this.d1
 			.prepare(
 				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 100",
@@ -145,12 +145,12 @@ export class Indexer implements Storage {
 			.all<{ height: number; hash: string }>();
 
 		if (!blocksToProcess.results || blocksToProcess.results.length === 0) {
-			console.log({ msg: "Cron: No new blocks to scan" });
+			console.debug({ msg: "Cron: No new blocks to scan" });
 			return;
 		}
 
 		const blockCount = blocksToProcess.results.length;
-		console.log({
+		console.debug({
 			msg: "Cron: Found blocks to process",
 			count: blocksToProcess.results.length,
 		});
@@ -170,7 +170,7 @@ export class Indexer implements Storage {
 
 		for (const blockInfo of blocksToProcess.results) {
 			console.log({
-				msg: "Cron: Scanning block",
+				msg: "Cron: processing block",
 				height: blockInfo.height,
 				hash: blockInfo.hash,
 			});
@@ -214,10 +214,6 @@ export class Indexer implements Storage {
 		}
 
 		if (nbtcTxStatements.length > 0) {
-			console.log({
-				msg: "Cron: Storing new nBTC deposits in D1",
-				count: nbtcTxStatements.length,
-			});
 			await this.d1.batch(nbtcTxStatements);
 		} else {
 			console.log({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
@@ -349,7 +345,7 @@ export class Indexer implements Storage {
 				const txIndex = block.transactions.findIndex((tx) => tx.getId() === txId);
 
 				if (txIndex === -1) {
-					console.warn({
+					console.error({
 						msg: "Minting: Could not find TX within its block, skipping.",
 						txId,
 					});
@@ -475,7 +471,7 @@ export class Indexer implements Storage {
 		if (!pendingTxs.results || pendingTxs.results.length === 0) {
 			return;
 		}
-		console.log({
+		console.debug({
 			msg: "Finalization: Checking 'confirming' transactions",
 			count: pendingTxs.results.length,
 			chainTipHeight: latestHeight,
@@ -488,7 +484,7 @@ export class Indexer implements Storage {
 		const allUpdates = [...reorgUpdates, ...finalizationUpdates];
 
 		if (allUpdates.length > 0) {
-			console.log({
+			console.debug({
 				msg: "Finalization: Applying status updates to D1",
 				reorgCount: reorgUpdates.length,
 				finalizedCount: finalizationUpdates.length,
@@ -635,7 +631,7 @@ export class Indexer implements Storage {
 		await this.d1.batch(statements);
 
 		console.log({
-			msg: "Successfully registered deposits for broadcasted nBTC tx",
+			msg: "New nBTC minting deposit TX registered",
 			txId,
 			registeredCount: statements.length,
 		});

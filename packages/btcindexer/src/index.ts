@@ -64,7 +64,7 @@ export default {
 					: { error: String(e) };
 			console.error({
 				message: "Cron job failed",
-				...error,
+				error,
 			});
 		}
 	},

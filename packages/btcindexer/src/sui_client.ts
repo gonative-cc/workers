@@ -39,8 +39,8 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
-		console.info({
-			message: "Sui Client Initialized",
+		console.log({
+			msg: "Sui Client Initialized",
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
 			network: config.network,
 		});
@@ -101,10 +101,10 @@ export class SuiClient {
 			return true;
 		} catch (e) {
 			const error =
-				e instanceof Error ? { name: e.name, message: e.message } : { error: String(e) };
+				e instanceof Error ? { name: e.name, msg: e.message } : { error: String(e) };
 			console.error({
-				message: "Error during single mint contract call",
-				...error,
+				msg: "Error during single mint contract call",
+				error: error,
 				btcTxId: transaction.getId(),
 			});
 			return false;
@@ -144,7 +144,7 @@ export class SuiClient {
 
 		if (result.effects?.status.status !== "success") {
 			console.error({
-				message: "Sui batch mint transaction effects indicated failure",
+				msg: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
 				error: result.effects?.status.error,
 			});
@@ -159,10 +159,10 @@ export class SuiClient {
 			return await this.mintNbtcBatch(mintArgs);
 		} catch (e) {
 			const error =
-				e instanceof Error ? { name: e.name, message: e.message } : { error: String(e) };
+				e instanceof Error ? { name: e.name, msg: e.message } : { error: String(e) };
 			console.error({
-				message: "Error during batch mint contract call",
-				...error,
+				msg: "Error during batch mint contract call",
+				error: error,
 				btcTxIds: txIds,
 			});
 			return null;

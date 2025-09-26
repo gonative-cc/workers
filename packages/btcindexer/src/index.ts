@@ -18,13 +18,10 @@ export default {
 			const indexer = await indexerFromEnv(env);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
-			const error =
-				e instanceof Error
-					? { name: e.name, message: e.message, stack: e.stack }
-					: { error: String(e) };
+			const error = e instanceof Error ? { name: e.name, msg: e.message, stack: e.stack } : e;
 			console.error({
-				message: "Unhandled exception in fetch handler",
-				...error,
+				msg: "Unhandled exception in fetch handler",
+				error: error,
 				url: req.url,
 				method: req.method,
 			});
@@ -42,7 +39,7 @@ export default {
 
 		// TODO:  This should be refactored probably the best is to use chain tip stored in a KV namespace.
 		// ideally use queue
-		console.info({ message: "Cron job starting" });
+		console.log({ msg: "Cron job starting" });
 		try {
 			const d1 = env.DB;
 			// TODO: move this to the indexer directly
@@ -56,15 +53,12 @@ export default {
 			}
 			await indexer.scanNewBlocks();
 			await indexer.processFinalizedTransactions();
-			console.info({ message: "Cron job finished successfully" });
+			console.log({ msg: "Cron job finished successfully" });
 		} catch (e) {
-			const error =
-				e instanceof Error
-					? { name: e.name, message: e.message, stack: e.stack }
-					:  e;
+			const error = e instanceof Error ? { name: e.name, msg: e.message, stack: e.stack } : e;
 			console.error({
-				message: "Cron job failed",
-				error,
+				msg: "Cron job failed",
+				error: error,
 			});
 		}
 	},

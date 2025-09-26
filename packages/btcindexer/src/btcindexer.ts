@@ -84,8 +84,8 @@ export class Indexer implements Storage {
 		}
 
 		const blockHeights = blocks.map((b) => b.height);
-		console.info({
-			message: "Ingesting blocks",
+		console.log({
+			msg: "Ingesting blocks",
 			count: blocks.length,
 			heights: blockHeights,
 		});
@@ -107,17 +107,16 @@ export class Indexer implements Storage {
 		try {
 			await Promise.all([...putKVs, this.d1.batch(putD1s)]);
 		} catch (e) {
-			const error =
-				e instanceof Error ? { name: e.name, message: e.message } : { error: String(e) };
+			const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
 			console.error({
-				message: "Failed to store one or more blocks in KV or D1",
-				...error,
+				msg: "Failed to store one or more blocks in KV or D1",
+				error: error,
 				blockHeights,
 			});
 			// TODO: decide what to do in the case where some blocks were saved and some not, prolly we need more granular error
 			throw new Error(`Could not save all blocks data`);
 		}
-		console.info({ message: "Successfully ingested blocks", count: blocks.length });
+		console.log({ msg: "Successfully ingested blocks", count: blocks.length });
 		return blocks.length;
 	}
 
@@ -138,7 +137,7 @@ export class Indexer implements Storage {
 	}
 
 	async scanNewBlocks(): Promise<void> {
-		console.info({ message: "Cron: Running scanNewBlocks job" });
+		console.log({ msg: "Cron: Running scanNewBlocks job" });
 		const blocksToProcess = await this.d1
 			.prepare(
 				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 100",
@@ -146,13 +145,13 @@ export class Indexer implements Storage {
 			.all<{ height: number; hash: string }>();
 
 		if (!blocksToProcess.results || blocksToProcess.results.length === 0) {
-			console.info({ message: "Cron: No new blocks to scan" });
+			console.log({ msg: "Cron: No new blocks to scan" });
 			return;
 		}
 
 		const blockCount = blocksToProcess.results.length;
-		console.info({
-			message: "Cron: Found blocks to process",
+		console.log({
+			msg: "Cron: Found blocks to process",
 			count: blocksToProcess.results.length,
 		});
 
@@ -170,8 +169,8 @@ export class Indexer implements Storage {
 		);
 
 		for (const blockInfo of blocksToProcess.results) {
-			console.info({
-				message: "Cron: Scanning block",
+			console.log({
+				msg: "Cron: Scanning block",
 				height: blockInfo.height,
 				hash: blockInfo.hash,
 			});
@@ -180,7 +179,7 @@ export class Indexer implements Storage {
 			});
 			if (!rawBlockBuffer) {
 				console.warn({
-					message: "Cron: Block data not found in KV, skipping scan for this block",
+					msg: "Cron: Block data not found in KV, skipping scan for this block",
 					blockHash: blockInfo.hash,
 					blockHeight: blockInfo.height,
 				});
@@ -191,8 +190,8 @@ export class Indexer implements Storage {
 			for (const tx of block.transactions ?? []) {
 				const deposits = this.findNbtcDeposits(tx);
 				for (const deposit of deposits) {
-					console.info({
-						message: "Cron: Found new nBTC deposit",
+					console.log({
+						msg: "Cron: Found new nBTC deposit",
 						txId: tx.getId(),
 						vout: deposit.vout,
 						amountSats: deposit.amountSats,
@@ -215,18 +214,18 @@ export class Indexer implements Storage {
 		}
 
 		if (nbtcTxStatements.length > 0) {
-			console.info({
-				message: "Cron: Storing new nBTC deposits in D1",
+			console.log({
+				msg: "Cron: Storing new nBTC deposits in D1",
 				count: nbtcTxStatements.length,
 			});
 			await this.d1.batch(nbtcTxStatements);
 		} else {
-			console.info({ message: "Cron: No new nBTC deposits found in scanned blocks" });
+			console.log({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
 		}
 
 		const latestHeightProcessed = Math.max(...blocksToProcess.results.map((b) => b.height));
 		await this.blocksDB.put("chain_tip", latestHeightProcessed.toString());
-		console.info({ message: "Cron: Updated chain_tip", latestHeight: latestHeightProcessed });
+		console.log({ msg: "Cron: Updated chain_tip", latestHeight: latestHeightProcessed });
 
 		const heightsToUpdate = blocksToProcess.results.map((r) => r.height);
 		if (heightsToUpdate.length > 0) {
@@ -236,8 +235,8 @@ export class Indexer implements Storage {
 				.prepare(updateStmt)
 				.bind(...heightsToUpdate)
 				.run();
-			console.info({
-				message: "Cron: Marked blocks as scanned",
+			console.log({
+				msg: "Cron: Marked blocks as scanned",
 				count: heightsToUpdate.length,
 			});
 		}
@@ -252,7 +251,7 @@ export class Indexer implements Storage {
 			if (parsedRecipient) {
 				suiRecipient = parsedRecipient;
 				console.debug({
-					message: "Parsed Sui recipient from OP_RETURN",
+					msg: "Parsed Sui recipient from OP_RETURN",
 					txId: tx.getId(),
 					suiRecipient,
 				});
@@ -266,7 +265,7 @@ export class Indexer implements Storage {
 			const vout = tx.outs[i];
 			if (vout.script.toString("hex") === this.nbtcScriptHex) {
 				console.debug({
-					message: "Found matching nBTC deposit output",
+					msg: "Found matching nBTC deposit output",
 					txId: tx.getId(),
 					vout: i,
 				});
@@ -290,8 +289,8 @@ export class Indexer implements Storage {
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
 			return;
 		}
-		console.info({
-			message: "Minting: Found finalized deposits to process",
+		console.log({
+			msg: "Minting: Found finalized deposits to process",
 			count: finalizedTxs.results.length,
 		});
 
@@ -333,7 +332,7 @@ export class Indexer implements Storage {
 				});
 				if (!rawBlockBuffer) {
 					console.warn({
-						message: "Minting: Block data not found in KV, skipping transaction.",
+						msg: "Minting: Block data not found in KV, skipping transaction.",
 						txId,
 						blockHash: txGroup.block_hash,
 					});
@@ -351,7 +350,7 @@ export class Indexer implements Storage {
 
 				if (txIndex === -1) {
 					console.warn({
-						message: "Minting: Could not find TX within its block, skipping.",
+						msg: "Minting: Could not find TX within its block, skipping.",
 						txId,
 					});
 					continue;
@@ -369,7 +368,7 @@ export class Indexer implements Storage {
 					(block.merkleRoot !== undefined && !block.merkleRoot.equals(calculatedRoot))
 				) {
 					console.warn({
-						message: "Failed to generate a valid merkle proof. Root mismatch.",
+						msg: "Failed to generate a valid merkle proof. Root mismatch.",
 						txId,
 						blockRoot: block.merkleRoot?.toString("hex"),
 						calculatedRoot: calculatedRoot.toString("hex"),
@@ -392,12 +391,10 @@ export class Indexer implements Storage {
 				}
 			} catch (e) {
 				const error =
-					e instanceof Error
-						? { name: e.name, message: e.message, stack: e.stack }
-						: { error: String(e) };
+					e instanceof Error ? { name: e.name, msg: e.message, stack: e.stack } : e;
 				console.error({
-					message: "Minting: Error preparing transaction for minting batch",
-					...error,
+					msg: "Minting: Error preparing transaction for minting batch",
+					error: error,
 					txId,
 				});
 				for (const deposit of txGroup.deposits) {
@@ -411,35 +408,35 @@ export class Indexer implements Storage {
 		}
 
 		if (mintBatchArgs.length > 0) {
-			console.info({
-				message: "Minting: Sending batch of mints to Sui",
+			console.log({
+				msg: "Minting: Sending batch of mints to Sui",
 				count: mintBatchArgs.length,
 			});
 			const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
 			const now = Date.now();
 			if (suiTxDigest) {
-				console.info({ message: "Sui batch mint transaction successful", suiTxDigest });
+				console.log({ msg: "Sui batch mint transaction successful", suiTxDigest });
 				const setMintedStmt = this.d1.prepare(
 					`UPDATE nbtc_minting SET status = 'minted', sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 				);
 				const updates = processedPrimaryKeys.map((p) =>
 					setMintedStmt.bind(suiTxDigest, now, p.tx_id, p.vout),
 				);
-				console.info({
-					message: "Minting: Updating status to 'minted' in D1",
+				console.log({
+					msg: "Minting: Updating status to 'minted' in D1",
 					count: updates.length,
 				});
 				await this.d1.batch(updates);
 			} else {
-				console.error({ message: "Sui batch mint transaction failed" });
+				console.error({ msg: "Sui batch mint transaction failed" });
 				const setFailedStmt = this.d1.prepare(
 					`UPDATE nbtc_minting SET status = 'failed', updated_at = ? WHERE tx_id = ? AND vout = ?`,
 				);
 				const updates = processedPrimaryKeys.map((p) =>
 					setFailedStmt.bind(now, p.tx_id, p.vout),
 				);
-				console.info({
-					message: "Minting: Updating status to 'failed' in D1",
+				console.log({
+					msg: "Minting: Updating status to 'failed' in D1",
 					count: updates.length,
 				});
 				await this.d1.batch(updates);
@@ -458,11 +455,10 @@ export class Indexer implements Storage {
 		try {
 			return tree.getProof(targetTx);
 		} catch (e) {
-			const error =
-				e instanceof Error ? { name: e.name, message: e.message } : { error: String(e) };
+			const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
 			console.error({
-				message: "Failed to get merkle proof",
-				...error,
+				msg: "Failed to get merkle proof",
+				error: error,
 				txId: targetTx.getId(),
 			});
 			return null;
@@ -479,8 +475,8 @@ export class Indexer implements Storage {
 		if (!pendingTxs.results || pendingTxs.results.length === 0) {
 			return;
 		}
-		console.info({
-			message: "Finalization: Checking 'confirming' transactions",
+		console.log({
+			msg: "Finalization: Checking 'confirming' transactions",
 			count: pendingTxs.results.length,
 			chainTipHeight: latestHeight,
 		});
@@ -492,21 +488,18 @@ export class Indexer implements Storage {
 		const allUpdates = [...reorgUpdates, ...finalizationUpdates];
 
 		if (allUpdates.length > 0) {
-			console.info({
-				message: "Finalization: Applying status updates to D1",
+			console.log({
+				msg: "Finalization: Applying status updates to D1",
 				reorgCount: reorgUpdates.length,
 				finalizedCount: finalizationUpdates.length,
 			});
 			try {
 				await this.d1.batch(allUpdates);
 			} catch (e) {
-				const error =
-					e instanceof Error
-						? { name: e.name, message: e.message }
-						: { error: String(e) };
+				const error = e instanceof Error ? { name: e.name, msg: e.message } : e;
 				console.error({
-					message: "Failed to apply finalization batch updates to D1.",
-					...error,
+					msg: "Failed to apply finalization batch updates to D1.",
+					error: error,
 				});
 			}
 		}
@@ -531,7 +524,7 @@ export class Indexer implements Storage {
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
 					console.warn({
-						message: "Reorg detected",
+						msg: "Reorg detected",
 						txId: tx.tx_id,
 						height: tx.block_height,
 						oldHash: tx.block_hash,
@@ -555,8 +548,8 @@ export class Indexer implements Storage {
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= this.confirmationDepth) {
-				console.info({
-					message: "Transaction has enough confirmations, finalizing.",
+				console.log({
+					msg: "Transaction has enough confirmations, finalizing.",
 					txId: tx.tx_id,
 					confirmations,
 					required: this.confirmationDepth,
@@ -641,8 +634,8 @@ export class Indexer implements Storage {
 
 		await this.d1.batch(statements);
 
-		console.info({
-			message: "Successfully registered deposits for broadcasted nBTC tx",
+		console.log({
+			msg: "Successfully registered deposits for broadcasted nBTC tx",
 			txId,
 			registeredCount: statements.length,
 		});

@@ -253,7 +253,10 @@ describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
 describe("Block Parsing", () => {
 	it("should correctly parse block 94160 from testnet", async () => {
 		// Paste the full raw block hex from bitcoin-cli here
-		const rawBlockHex = await fs.readFile("./src/testdata/block94160.txt", "utf8");
+		const rawBlockHex = await fs.readFile(
+			"packages/btcindexer/src/testdata/block94160.txt",
+			"utf8",
+		);
 
 		const block = Block.fromHex(rawBlockHex);
 		// This test checks if the Block.fromHex() function throws an error.

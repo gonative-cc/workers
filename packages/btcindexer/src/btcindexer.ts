@@ -149,7 +149,6 @@ export class Indexer implements Storage {
 			return;
 		}
 
-		const blockCount = blocksToProcess.results.length;
 		console.debug({
 			msg: "Cron: Found blocks to process",
 			count: blocksToProcess.results.length,

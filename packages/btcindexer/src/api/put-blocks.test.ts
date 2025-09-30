@@ -1,4 +1,4 @@
-import { describe, it, assert } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { newPutBlock, PutBlocksReq } from "./put-blocks";
 import { Block } from "bitcoinjs-lib";
 
@@ -18,18 +18,20 @@ describe("encode PutBlocks", () => {
 	const block = Block.fromHex(blockHex);
 
 	it("should decode a single block", async () => {
-		assert(block.getId() == "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f");
+		expect(block.getId()).toEqual(
+			"000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+		);
 
 		const expected = [newPutBlock(156, block)];
 		const reqBytes = PutBlocksReq.encode(expected);
 
 		const got = PutBlocksReq.decode(reqBytes);
-		assert.lengthOf(got, 1);
+		expect(got).toHaveLength(1);
 
 		const pb0 = got[0];
-		assert.equal(pb0.block.getId(), block.getId());
-		assert.equal(pb0.height, expected[0].height);
-		assert.include(bufferToHex(reqBytes), blockHex);
+		expect(pb0.block.getId()).toEqual(block.getId());
+		expect(pb0.height).toEqual(expected[0].height);
+		expect(bufferToHex(reqBytes)).toContain(blockHex);
 	});
 
 	it("should decode multiple blocks", async () => {
@@ -37,14 +39,14 @@ describe("encode PutBlocks", () => {
 		const expected = [newPutBlock(10, block), newPutBlock(11, block)];
 		const reqBytes = PutBlocksReq.encode(expected);
 		const got = PutBlocksReq.decode(reqBytes);
-		assert.lengthOf(got, 2);
-		assert.deepEqual(got, expected);
+		expect(got).toHaveLength(2);
+		expect(got).toEqual(expected);
 	});
 
 	it("should handle empty array", async () => {
 		const reqBytes = PutBlocksReq.encode([]);
 		const got = PutBlocksReq.decode(reqBytes);
-		assert.deepEqual(got, []);
+		expect(got).toEqual([]);
 	});
 
 	it("should abort on an invalid block", async () => {
@@ -52,6 +54,6 @@ describe("encode PutBlocks", () => {
 		const buffer = Buffer.from("invaliddddd", "utf8");
 		pbq.block = new Uint8Array(buffer);
 		const reqBytes = PutBlocksReq.msgpack([pbq]);
-		assert.throws(() => PutBlocksReq.decode(reqBytes), "Buffer too small");
+		expect(() => PutBlocksReq.decode(reqBytes)).toThrow("Buffer too small");
 	});
 });

@@ -13,7 +13,7 @@
 		"db:migrate:backstage": "wrangler d1 migrations apply btcindexer-dev --remote",
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
-		"test": "vitest run"
+		"test": "bun test"
 	},
 	"dependencies": {
 		"@mysten/sui": "^1.38.0",

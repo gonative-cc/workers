@@ -1,4 +1,4 @@
-import { describe, it, assert } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { Transaction } from "bitcoinjs-lib";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 
@@ -24,7 +24,7 @@ describe("BitcoinMerkleTree", () => {
 		const expectedRootHex = "701179cb9a9e0fe709cc96261b6b943b31362b61dacba94b03f9b71a06cc2eff";
 		const expectedRoot = Buffer.from(expectedRootHex, "hex"); // little-endian
 
-		assert.isTrue(tree.getRoot().equals(expectedRoot), "Merkle root doesn't match");
+		expect(tree.getRoot().equals(expectedRoot)).toBeTrue();
 	});
 
 	it("should generate the correct Merkle proof", () => {
@@ -38,9 +38,8 @@ describe("BitcoinMerkleTree", () => {
 		];
 		const expectedProof = expectedProofHex.map((hex) => Buffer.from(hex, "hex"));
 
-		assert.strictEqual(proof.length, 2, "Proof should have 2 elements");
-		assert.isTrue(proof[0].equals(expectedProof[0]), "First proof element is incorrect");
-		assert.isTrue(proof[1].equals(expectedProof[1]), "Second proof element is incorrect");
+		expect(proof[0].equals(expectedProof[0])).toBeTrue();
+		expect(proof[1].equals(expectedProof[1])).toBeTrue();
 	});
 
 	it("should generate the correct Merkle proof for segwit", () => {
@@ -53,7 +52,7 @@ describe("BitcoinMerkleTree", () => {
 		];
 		const expectedProof = expectedProofHex.map((hex) => Buffer.from(hex, "hex"));
 
-		assert.strictEqual(proof.length, 1, "Proof should have 1 element");
-		assert.isTrue(proof[0].equals(expectedProof[0]), "First proof element is incorrect");
+		expect(proof.length).toEqual(1);
+		expect(proof[0].equals(expectedProof[0])).toBeTrue();
 	});
 });

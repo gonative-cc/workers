@@ -1,9 +1,10 @@
-import { describe, it, assert, vi, expect } from "vitest";
-import { promises as fs } from "fs";
+import { describe, it, vi, expect } from "bun:test";
+
 import { Indexer, storageFromEnv } from "../src/btcindexer";
 import { Block, networks } from "bitcoinjs-lib";
 import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Deposit, ProofResult } from "./models";
+import { join } from "path";
 
 interface TxInfo {
 	id: string;
@@ -106,21 +107,17 @@ function prepareIndexer() {
 }
 
 function checkTxProof(proofResult: ProofResult | null, block: Block) {
-	assert(proofResult, "Proof result should not be null");
-	assert(block.merkleRoot, "Block must have a Merkle root");
+	expect(proofResult).toBeDefined();
+	expect(block.merkleRoot).toBeDefined();
 
-	const expectedRootBigEndian = Buffer.from(block.merkleRoot).reverse().toString("hex");
-	assert.equal(
-		proofResult.merkleRoot,
-		expectedRootBigEndian,
-		"Generated Merkle root must match the block header's root",
-	);
+	const expectedRootBigEndian = Buffer.from(block.merkleRoot!).reverse().toString("hex");
+	expect(proofResult!.merkleRoot).toEqual(expectedRootBigEndian);
 
-	assert(Array.isArray(proofResult.proofPath));
-	assert(proofResult.proofPath.length > 0);
-	for (const element of proofResult.proofPath) {
-		assert(Buffer.isBuffer(element));
-		assert.equal(element.length, 32);
+	expect(Array.isArray(proofResult!.proofPath)).toBeTrue();
+	expect(proofResult!.proofPath.length).toBeGreaterThan(0);
+	for (const element of proofResult!.proofPath) {
+		expect(Buffer.isBuffer(element)).toBeTrue();
+		expect(element.length).toEqual(32);
 	}
 }
 
@@ -132,33 +129,33 @@ describe("Indexer.findNbtcDeposits", () => {
 			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
 		);
 
-		assert(targetTx, "Setup error");
+		expect(targetTx).toBeDefined();
 
-		const deposits = indexer.findNbtcDeposits(targetTx);
-		assert.equal(deposits.length, 1);
-		assert.equal(deposits[0].amountSats, REGTEST_DATA[329].txs[1].amountSats);
-		assert.equal(deposits[0].suiRecipient, REGTEST_DATA[329].txs[1].suiAddr);
-		assert.equal(deposits[0].vout, 0);
+		const deposits = indexer.findNbtcDeposits(targetTx!);
+		expect(deposits.length).toEqual(1);
+		expect(deposits[0].amountSats).toEqual(REGTEST_DATA[329].txs[1].amountSats);
+		expect(deposits[0].suiRecipient).toEqual(REGTEST_DATA[329].txs[1].suiAddr);
+		expect(deposits[0].vout).toEqual(0);
 	});
 	it("should find multiple deposits within a single block containing multiple transactions", () => {
 		const block = Block.fromHex(REGTEST_DATA[327].rawBlockHex);
-		assert(block.transactions, "Test block must contain transactions");
+		expect(block.transactions).toBeDefined();
 
 		const deposits: Deposit[][] = [];
-		for (const tx of block.transactions) {
+		for (const tx of block.transactions!) {
 			const d = indexer.findNbtcDeposits(tx);
 			if (d.length > 0)
 				// coinbase, nbtc_deposit_1, nbtc_deposit_2, other_tx
 				deposits.push(d);
 		}
 
-		assert.equal(deposits.length, 2);
+		expect(deposits.length).toEqual(2);
 		// TX_1
-		assert.equal(deposits[0][0].suiRecipient, REGTEST_DATA[327].txs[1].suiAddr);
-		assert.equal(deposits[0][0].amountSats, REGTEST_DATA[327].txs[1].amountSats);
+		expect(deposits[0][0].suiRecipient).toEqual(REGTEST_DATA[327].txs[1].suiAddr);
+		expect(deposits[0][0].amountSats).toEqual(REGTEST_DATA[327].txs[1].amountSats);
 		// TX 2
-		assert.equal(deposits[1][0].suiRecipient, REGTEST_DATA[327].txs[2].suiAddr);
-		assert.equal(deposits[1][0].amountSats, REGTEST_DATA[327].txs[2].amountSats);
+		expect(deposits[1][0].suiRecipient).toEqual(REGTEST_DATA[327].txs[2].suiAddr);
+		expect(deposits[1][0].amountSats).toEqual(REGTEST_DATA[327].txs[2].amountSats);
 	});
 });
 
@@ -175,14 +172,15 @@ describe("Indexer.constructMerkleProof", () => {
 		const targetTx = block.transactions?.find(
 			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
 		);
-		assert(targetTx);
+
+		expect(targetTx).toBeDefined();
 
 		const tree = indexer.constructMerkleTree(block);
-		assert(tree);
-		const proofPath = indexer.getTxProof(tree, targetTx);
-		assert(proofPath);
-		const merkleRoot = tree.getRoot(true).toString("hex");
-		checkTxProof({ proofPath, merkleRoot }, block);
+		expect(tree).toBeDefined();
+		const proofPath = indexer.getTxProof(tree!, targetTx!);
+		expect(proofPath).toBeDefined();
+		const merkleRoot = tree!.getRoot(true).toString("hex");
+		checkTxProof({ proofPath: proofPath!, merkleRoot }, block);
 	});
 
 	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
@@ -191,14 +189,14 @@ describe("Indexer.constructMerkleProof", () => {
 			(tx) => tx.getId() === REGTEST_DATA[327].txs[2].id,
 		);
 
-		assert(targetTx);
+		expect(targetTx).toBeDefined();
 
 		const tree = indexer.constructMerkleTree(block);
-		assert(tree);
-		const proofPath = indexer.getTxProof(tree, targetTx);
-		assert(proofPath);
-		const merkleRoot = tree.getRoot(true).toString("hex");
-		checkTxProof({ proofPath, merkleRoot }, block);
+		expect(tree).toBeDefined();
+		const proofPath = indexer.getTxProof(tree!, targetTx!);
+		expect(proofPath).toBeDefined();
+		const merkleRoot = tree!.getRoot(true).toString("hex");
+		checkTxProof({ proofPath: proofPath!, merkleRoot }, block);
 	});
 });
 
@@ -212,7 +210,7 @@ describe("Indexer.handleReorgs", () => {
 		};
 		mockEnv.DB.prepare.mockReturnValue(mockStatement);
 		const { reorgUpdates } = await indexer.handleReorgs([pendingTx]);
-		assert.equal(reorgUpdates.length, 0);
+		expect(reorgUpdates.length).toEqual(0);
 	});
 
 	it("should generate a reset statement if reorg detected", async () => {
@@ -223,7 +221,7 @@ describe("Indexer.handleReorgs", () => {
 		};
 		mockEnv.DB.prepare.mockReturnValue(mockStatement);
 		const { reorgUpdates } = await indexer.handleReorgs([pendingTx]);
-		assert.equal(reorgUpdates.length, 1);
+		expect(reorgUpdates.length).toEqual(1);
 	});
 });
 
@@ -233,14 +231,14 @@ describe("Indexer.findFinalizedTxs", () => {
 		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
 		const latestHeight = 107;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		assert.equal(updates.length, 1);
+		expect(updates.length).toEqual(1);
 	});
 
 	it("should do nothing when not enough confirmations", () => {
 		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
 		const latestHeight = 106;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		assert.equal(updates.length, 0);
+		expect(updates.length).toEqual(0);
 	});
 });
 
@@ -253,10 +251,7 @@ describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
 describe("Block Parsing", () => {
 	it("should correctly parse block 94160 from testnet", async () => {
 		// Paste the full raw block hex from bitcoin-cli here
-		const rawBlockHex = await fs.readFile(
-			"packages/btcindexer/src/testdata/block94160.txt",
-			"utf8",
-		);
+		const rawBlockHex = await Bun.file(join(__dirname, "testdata/block94160.txt")).text();
 
 		const block = Block.fromHex(rawBlockHex);
 		// This test checks if the Block.fromHex() function throws an error.
@@ -265,8 +260,7 @@ describe("Block Parsing", () => {
 			Block.fromHex(rawBlockHex);
 		}).not.toThrow();
 
-		assert.equal(
-			block.getId(),
+		expect(block.getId()).toEqual(
 			"0000000000000001524e39e399572fa8af575a22217f64ca3280be55eb10b06e",
 		);
 	});
@@ -278,9 +272,9 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		const blockData = REGTEST_DATA[329];
 		const block = Block.fromHex(blockData.rawBlockHex);
 		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1].id);
-		assert(targetTx);
+		expect(targetTx).toBeDefined();
 
-		const txHex = targetTx.toHex();
+		const txHex = targetTx!.toHex();
 		await indexer.registerBroadcastedNbtcTx(txHex);
 
 		const insertStmt = mockEnv.DB.prepare.mock.results[0].value;
@@ -300,11 +294,11 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 	it("should throw an error for a transaction with no valid deposits", async () => {
 		const { indexer } = prepareIndexer();
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
-		assert(block.transactions);
+		expect(block.transactions).toBeDefined();
 		// The first tx in a block is coinbase
-		const coinbaseTx = block.transactions[0];
+		const coinbaseTx = block.transactions![0];
 
-		await expect(indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex())).rejects.toThrow(
+		expect(indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex())).rejects.toThrow(
 			"Transaction does not contain any valid nBTC deposits.",
 		);
 	});

@@ -1,8 +1,8 @@
 -- This table tracks the blocks received from the relayer (queue for cron job)
 CREATE TABLE btc_blocks (
-    height INTEGER PRIMARY KEY,
-    hash TEXT NOT NULL UNIQUE,
-    processed_at INTEGER NOT NULL, -- timestamp_ms
+	height INTEGER PRIMARY KEY,
+	hash TEXT NOT NULL UNIQUE,
+	processed_at INTEGER NOT NULL, -- timestamp_ms
 	status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'scanned')) -- 'new' | 'scanned'
 ) STRICT;
 
@@ -12,15 +12,15 @@ CREATE INDEX btc_blocks_status ON btc_blocks (status);
 
 -- This table tracks the nBTC deposit txs (minting)
 CREATE TABLE nbtc_minting (
-    tx_id TEXT NOT NULL,
+	tx_id TEXT NOT NULL,
 	vout INTEGER NOT NULL,
-    block_hash TEXT,
-    block_height INTEGER,
-    sui_recipient TEXT NOT NULL,
-    amount_sats INTEGER NOT NULL,
-    status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted' | 'reorg'
-    created_at INTEGER NOT NULL, -- timestamp_ms
-    updated_at INTEGER NOT NULL, -- timestamp_ms
+	block_hash TEXT,
+	block_height INTEGER,
+	sui_recipient TEXT NOT NULL,
+	amount_sats INTEGER NOT NULL,
+	status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted' | 'reorg'
+	created_at INTEGER NOT NULL, -- timestamp_ms
+	updated_at INTEGER NOT NULL, -- timestamp_ms
 	PRIMARY KEY (tx_id, vout)
 ) STRICT;
 

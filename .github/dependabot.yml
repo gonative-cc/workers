@@ -3,5 +3,49 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: daily
+      interval: weekly
     open-pull-requests-limit: 10
+
+  # Regular weekly updates for bun dependencies (excluding security updates)
+  - package-ecosystem: bun
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    reviewers:
+      - gonative-cc/web
+    labels:
+      - "T:dependencies"
+    groups:
+      production-non-breaking:
+        patterns:
+          - "*"
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+
+      development-non-breaking:
+        patterns:
+          - "*"
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["security"]
+
+  # Security updates for bun dependencies (immediate)
+  - package-ecosystem: bun
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "main"
+    open-pull-requests-limit: 10
+    labels:
+      - "T:security"
+      - "T:dependencies"
+    allow:
+      - dependency-type: "all"
+        update-types: ["security"]

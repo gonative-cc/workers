@@ -41,6 +41,11 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid CONFIRMATION_DEPTH in config. Must be a number greater than 0.");
 	}
 
+	const maxRetries = parseInt(env.MAX_RETRIES || "1", 10);
+	if (isNaN(maxRetries) || maxRetries < 0) {
+		throw new Error("Invalid MAX_RETRIES in config. Must be a number >= 0.");
+	}
+
 	return new Indexer(
 		storage,
 		sc,
@@ -48,6 +53,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		env.SUI_FALLBACK_ADDRESS,
 		btcNet,
 		confirmationDepth,
+		maxRetries,
 	);
 }
 
@@ -60,6 +66,7 @@ export class Indexer implements Storage {
 	suiFallbackAddr: string;
 	nbtcClient: SuiClient;
 	confirmationDepth: number;
+	maxRetries: number;
 
 	constructor(
 		storage: Storage,
@@ -68,6 +75,7 @@ export class Indexer implements Storage {
 		fallbackAddr: string,
 		network: networks.Network,
 		confirmationDepth: number,
+		maxRetries: number,
 	) {
 		this.d1 = storage.d1;
 		this.blocksDB = storage.blocksDB;
@@ -76,6 +84,7 @@ export class Indexer implements Storage {
 		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
 		this.confirmationDepth = confirmationDepth;
+		this.maxRetries = maxRetries;
 	}
 
 	// returns number of processed and add blocks
@@ -277,15 +286,16 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, vout, block_hash, block_height FROM nbtc_minting WHERE status = 'finalized'",
+				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE status = 'finalized' OR (status = 'failed' AND retry_count <= ?)",
 			)
+			.bind(this.maxRetries)
 			.all<FinalizedTxRow>();
 
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {
 			return;
 		}
 		console.log({
-			msg: "Minting: Found finalized deposits to process",
+			msg: "Minting: Found deposits to process",
 			count: finalizedTxs.results.length,
 		});
 
@@ -424,7 +434,7 @@ export class Indexer implements Storage {
 			} else {
 				console.error({ msg: "Sui batch mint transaction failed" });
 				const setFailedStmt = this.d1.prepare(
-					`UPDATE nbtc_minting SET status = 'failed', updated_at = ? WHERE tx_id = ? AND vout = ?`,
+					`UPDATE nbtc_minting SET status = 'failed', retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 				);
 				const updates = processedPrimaryKeys.map((p) =>
 					setFailedStmt.bind(now, p.tx_id, p.vout),

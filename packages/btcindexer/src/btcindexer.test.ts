@@ -102,6 +102,7 @@ function prepareIndexer() {
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
 		8,
+		2,
 	);
 	return { mockEnv, indexer };
 }
@@ -344,5 +345,81 @@ describe("Indexer.processFinalizedTransactions", () => {
 			tx329.id,
 			0,
 		);
+	});
+});
+
+describe("Indexer.processFinalizedTransactions Retry Logic", () => {
+	it("should retry a failed tx and succeed", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const blockData = REGTEST_DATA[329];
+		const txData = blockData.txs[1];
+
+		const mockFailedTx = {
+			results: [
+				{
+					tx_id: txData.id,
+					vout: 0,
+					block_hash: blockData.hash,
+					block_height: blockData.height,
+					retry_count: 0,
+				},
+			],
+		};
+		const mockSelectStmt = createMockStmt();
+		mockSelectStmt.all.mockResolvedValue(mockFailedTx);
+		const mockUpdateStmt = createMockStmt();
+		mockEnv.DB.prepare.mockReturnValueOnce(mockSelectStmt).mockReturnValue(mockUpdateStmt);
+
+		mockEnv.btc_blocks.get = vi
+			.fn()
+			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
+		const suiClientSpy = vi
+			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
+			.mockResolvedValue(fakeSuiTxDigest);
+
+		await indexer.processFinalizedTransactions();
+
+		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(
+			fakeSuiTxDigest,
+			expect.any(Number),
+			txData.id,
+			0,
+		);
+	});
+
+	it("should retry a failed tx, fail again, and increment retry_count", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const blockData = REGTEST_DATA[329];
+		const txData = blockData.txs[1];
+
+		const mockFailedTx = {
+			results: [
+				{
+					tx_id: txData.id,
+					vout: 0,
+					block_hash: blockData.hash,
+					block_height: blockData.height,
+					retry_count: 1,
+				},
+			],
+		};
+		const mockSelectStmt = createMockStmt();
+		mockSelectStmt.all.mockResolvedValue(mockFailedTx);
+		const mockUpdateStmt = createMockStmt();
+		mockEnv.DB.prepare.mockReturnValueOnce(mockSelectStmt).mockReturnValue(mockUpdateStmt);
+
+		mockEnv.btc_blocks.get = vi
+			.fn()
+			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		const suiClientSpy = vi
+			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
+			.mockResolvedValue(null);
+
+		await indexer.processFinalizedTransactions();
+
+		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(expect.any(Number), txData.id, 0);
 	});
 });

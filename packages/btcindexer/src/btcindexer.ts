@@ -41,14 +41,14 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid CONFIRMATION_DEPTH in config. Must be a number greater than 0.");
 	}
 
-	const maxRetries = parseInt(env.MAX_RETRIES || "1", 10);
-	if (isNaN(maxRetries) || maxRetries < 0) {
-		throw new Error("Invalid MAX_RETRIES in config. Must be a number >= 0.");
+	const maxNbtcMintTxRetries = parseInt(env.MAX_NBTC_MINT_TX_RETRIES || "1", 10);
+	if (isNaN(maxNbtcMintTxRetries) || maxNbtcMintTxRetries < 0) {
+		throw new Error("Invalid MAX_NBTC_MINT_TX_RETRIES in config. Must be a number >= 0.");
 	}
 
-	const scanBatchSize = parseInt(env.SCAN_BATCH_SIZE || "10", 10);
-	if (isNaN(scanBatchSize) || scanBatchSize < 1) {
-		throw new Error("Invalid SCAN_BATCH_SIZE in config. Must be a number > 0.");
+	const btcBlockProcessingBatchSize = parseInt(env.BTC_BLOCK_PROCESSING_BATCH_SIZE || "10", 10);
+	if (isNaN(btcBlockProcessingBatchSize) || btcBlockProcessingBatchSize < 1) {
+		throw new Error("Invalid BTC_BLOCK_PROCESSING_BATCH_SIZE in config. Must be a number > 0.");
 	}
 
 	return new Indexer(
@@ -58,8 +58,8 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		env.SUI_FALLBACK_ADDRESS,
 		btcNet,
 		confirmationDepth,
-		maxRetries,
-		scanBatchSize,
+		maxNbtcMintTxRetries,
+		btcBlockProcessingBatchSize,
 	);
 }
 
@@ -72,8 +72,8 @@ export class Indexer implements Storage {
 	suiFallbackAddr: string;
 	nbtcClient: SuiClient;
 	confirmationDepth: number;
-	maxRetries: number;
-	scanBatchSize: number;
+	maxNbtcMintTxRetries: number;
+	btcBlockProcessingBatchSize: number;
 
 	constructor(
 		storage: Storage,
@@ -92,8 +92,8 @@ export class Indexer implements Storage {
 		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
 		this.confirmationDepth = confirmationDepth;
-		this.maxRetries = maxRetries;
-		this.scanBatchSize = scanBatchSize;
+		this.maxNbtcMintTxRetries = maxRetries;
+		this.btcBlockProcessingBatchSize = scanBatchSize;
 	}
 
 	// returns number of processed and add blocks
@@ -160,7 +160,7 @@ export class Indexer implements Storage {
 			.prepare(
 				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT ?",
 			)
-			.bind(this.scanBatchSize)
+			.bind(this.btcBlockProcessingBatchSize)
 			.all<{ height: number; hash: string }>();
 
 		if (!blocksToProcess.results || blocksToProcess.results.length === 0) {
@@ -298,7 +298,7 @@ export class Indexer implements Storage {
 			.prepare(
 				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE status = 'finalized' OR (status = 'failed' AND retry_count <= ?)",
 			)
-			.bind(this.maxRetries)
+			.bind(this.maxNbtcMintTxRetries)
 			.all<FinalizedTxRow>();
 
 		if (!finalizedTxs.results || finalizedTxs.results.length === 0) {

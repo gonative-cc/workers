@@ -41,7 +41,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid CONFIRMATION_DEPTH in config. Must be a number greater than 0.");
 	}
 
-	const maxRetries = parseInt(env.MAX_RETRIES || "2", 10);
+	const maxRetries = parseInt(env.MAX_RETRIES || "1", 10);
 	if (isNaN(maxRetries) || maxRetries < 0) {
 		throw new Error("Invalid MAX_RETRIES in config. Must be a number >= 0.");
 	}

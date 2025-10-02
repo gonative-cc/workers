@@ -286,7 +286,7 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE status = 'finalized' OR (status = 'failed' AND retry_count < ?)",
+				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE status = 'finalized' OR (status = 'failed' AND retry_count <= ?)",
 			)
 			.bind(this.maxRetries)
 			.all<FinalizedTxRow>();

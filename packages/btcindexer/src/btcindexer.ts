@@ -46,6 +46,11 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid MAX_RETRIES in config. Must be a number >= 0.");
 	}
 
+	const scanBatchSize = parseInt(env.SCAN_BATCH_SIZE || "10", 10);
+	if (isNaN(scanBatchSize) || scanBatchSize < 1) {
+		throw new Error("Invalid SCAN_BATCH_SIZE in config. Must be a number > 0.");
+	}
+
 	return new Indexer(
 		storage,
 		sc,
@@ -54,6 +59,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		btcNet,
 		confirmationDepth,
 		maxRetries,
+		scanBatchSize,
 	);
 }
 
@@ -67,6 +73,7 @@ export class Indexer implements Storage {
 	nbtcClient: SuiClient;
 	confirmationDepth: number;
 	maxRetries: number;
+	scanBatchSize: number;
 
 	constructor(
 		storage: Storage,
@@ -76,6 +83,7 @@ export class Indexer implements Storage {
 		network: networks.Network,
 		confirmationDepth: number,
 		maxRetries: number,
+		scanBatchSize: number,
 	) {
 		this.d1 = storage.d1;
 		this.blocksDB = storage.blocksDB;
@@ -85,6 +93,7 @@ export class Indexer implements Storage {
 		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
 		this.confirmationDepth = confirmationDepth;
 		this.maxRetries = maxRetries;
+		this.scanBatchSize = scanBatchSize;
 	}
 
 	// returns number of processed and add blocks
@@ -149,8 +158,9 @@ export class Indexer implements Storage {
 		console.debug({ msg: "Cron: Running scanNewBlocks job" });
 		const blocksToProcess = await this.d1
 			.prepare(
-				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT 100",
+				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT ?",
 			)
+			.bind(this.scanBatchSize)
 			.all<{ height: number; hash: string }>();
 
 		if (!blocksToProcess.results || blocksToProcess.results.length === 0) {

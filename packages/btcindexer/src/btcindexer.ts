@@ -145,7 +145,7 @@ export class Indexer implements Storage {
 		return true;
 	}
 
-	async scanNewBlocks(): Promise<void> {
+	async scanNewBlocks(env: Env): Promise<void> {
 		console.debug({ msg: "Cron: Running scanNewBlocks job" });
 		const blocksToProcess = await this.d1
 			.prepare(
@@ -164,6 +164,7 @@ export class Indexer implements Storage {
 		});
 
 		const nbtcTxStatements: D1PreparedStatement[] = [];
+		let senderInsertStmts: D1PreparedStatement[] = [];
 
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
@@ -197,6 +198,14 @@ export class Indexer implements Storage {
 
 			for (const tx of block.transactions ?? []) {
 				const deposits = this.findNbtcDeposits(tx);
+				if (deposits.length > 0) {
+					const newSenderStmts = await getSenderInsertStmts(
+						tx,
+						this.d1,
+						env.ELECTRS_API_URL,
+					);
+					senderInsertStmts = senderInsertStmts.concat(newSenderStmts);
+				}
 				for (const deposit of deposits) {
 					console.log({
 						msg: "Cron: Found new nBTC deposit",
@@ -221,8 +230,8 @@ export class Indexer implements Storage {
 			}
 		}
 
-		if (nbtcTxStatements.length > 0) {
-			await this.d1.batch(nbtcTxStatements);
+		if (nbtcTxStatements.length > 0 || senderInsertStmts.length > 0) {
+			await this.d1.batch([...nbtcTxStatements, ...senderInsertStmts]);
 		} else {
 			console.debug({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
 		}
@@ -652,6 +661,39 @@ export class Indexer implements Storage {
 			return { height: null };
 		}
 	}
+
+	async getDepositsBySender(btcAddress: string): Promise<NbtcTxStatusResp[]> {
+		const query = this.d1.prepare(`
+        SELECT m.* FROM nbtc_minting m
+        JOIN nbtc_deposit_senders s ON m.tx_id = s.tx_id
+        WHERE s.sender = ?
+        ORDER BY m.created_at DESC
+    `);
+		const dbResult = await query.bind(btcAddress).all<NbtcTxRow>();
+
+		if (!dbResult.results) {
+			return [];
+		}
+
+		// TODO: add helper function toi calcualte the confirmations
+		const latestHeightStr = await this.blocksDB.get("chain_tip");
+		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
+
+		return dbResult.results.map((tx): NbtcTxStatusResp => {
+			const blockHeight = tx.block_height as number;
+			const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
+
+			return {
+				btc_tx_id: tx.tx_id,
+				status: tx.status as NbtcTxStatus,
+				sui_tx_id: tx.sui_tx_id,
+				block_height: blockHeight,
+				confirmations: confirmations > 0 ? confirmations : 0,
+				sui_recipient: tx.sui_recipient,
+				amount_sats: tx.amount_sats,
+			};
+		});
+	}
 }
 
 function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
@@ -672,4 +714,41 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 	//TODO: in the future we need to update the relayer to correctly handle the flag 0x01
 	// for now we cannot determine the recipient
 	return null;
+}
+
+async function getSenderInsertStmts(
+	tx: Transaction,
+	d1: D1Database,
+	electrsUrl: string,
+): Promise<D1PreparedStatement[]> {
+	const senderAddresses = new Set<string>();
+	const insertStmt = d1.prepare(
+		"INSERT OR IGNORE INTO nbtc_deposit_senders (tx_id, sender) VALUES (?, ?)",
+	);
+
+	const prevTxFetches = tx.ins.map(async (input) => {
+		const prevTxId = Buffer.from(input.hash).reverse().toString("hex");
+		const prevTxVout = input.index;
+
+		try {
+			const response = await fetch(`${electrsUrl}/tx/${prevTxId}`);
+			if (!response.ok) return;
+
+			const prevTx = (await response.json()) as { vout: { scriptpubkey_address?: string }[] };
+			const prevOutput = prevTx.vout[prevTxVout];
+			if (prevOutput?.scriptpubkey_address) {
+				senderAddresses.add(prevOutput.scriptpubkey_address);
+			}
+		} catch (e) {
+			console.error({
+				msg: "Failed to fetch previous tx for sender address",
+				error: toSerializableError(e),
+				prevTxId,
+			});
+		}
+	});
+
+	await Promise.all(prevTxFetches);
+
+	return Array.from(senderAddresses).map((sender) => insertStmt.bind(tx.getId(), sender));
 }

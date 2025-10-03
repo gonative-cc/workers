@@ -5,6 +5,7 @@ export enum RestPath {
 	blocks = "/bitcoin/blocks",
 	nbtcTx = "/nbtc",
 	latestHeight = "/bitcoin/latest-height",
+	depositsBySender = "/bitcoin/senders/:address/deposits",
 }
 
 export enum ContentType {

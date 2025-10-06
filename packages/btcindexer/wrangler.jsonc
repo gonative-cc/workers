@@ -44,7 +44,8 @@
     "NBTC_DEPOSIT_ADDRESS": "bcrt1q90xm34jqm0kcpfclkdmn868rw6vcv9fzvfg6p6",
     "SUI_FALLBACK_ADDRESS": "0xf82fd2198d5af45bfc2a7f9a5df4fb30f3c3abf4a8a71b0e4bd415eabda99ff5",
     "CONFIRMATION_DEPTH": "4",
-    "MAX_RETRIES": "1",
+    "MAX_NBTC_MINT_TX_RETRIES": "1",
+    "BTC_BLOCK_PROCESSING_BATCH_SIZE": "100",
   },
   "secrets_store_secrets": [
     {

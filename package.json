@@ -9,6 +9,7 @@
 	"scripts": {
 		"prepare": "cd .git/hooks; ln -s -f ../../contrib/git-hooks/pre-commit ./",
 		"typecheck": "bun run --filter '*' typecheck",
+		"cf-typegen": "bun run --filter '*' cf-typegen",
 		"lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
 		"format": "prettier --write .",
 		"dev": "bun run --filter '*' dev",
@@ -26,7 +27,7 @@
 		"typescript": "^5.9.2",
 		"typescript-eslint": "^8.43.0",
 		"vitest": "^3.2.4",
-		"wrangler": "^4.40.0"
+		"wrangler": "^4.42.0"
 	},
 	"lint-staged": {
 		"*.{js,cjs,mjs,jsx,ts,tsx}": [

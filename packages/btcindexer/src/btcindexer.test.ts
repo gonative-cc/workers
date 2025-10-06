@@ -110,6 +110,7 @@ function prepareIndexer() {
 		networks.regtest,
 		8,
 		2,
+		100,
 	);
 	return { mockEnv, indexer };
 }

@@ -232,7 +232,14 @@ export class Indexer implements Storage {
 		}
 
 		if (nbtcTxStatements.length > 0) {
-			await this.d1.batch(nbtcTxStatements);
+			try {
+				await this.d1.batch(nbtcTxStatements);
+			} catch (e) {
+				console.error({
+					msg: "Cron: Failed to insert nBTC transactions",
+					error: toSerializableError(e),
+				});
+			}
 		} else {
 			console.debug({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
 		}
@@ -439,8 +446,14 @@ export class Indexer implements Storage {
 				const updates = processedPrimaryKeys.map((p) =>
 					setMintedStmt.bind(suiTxDigest, now, p.tx_id, p.vout),
 				);
-				// TODO: add logic for handling the results and console.error if failure
-				await this.d1.batch(updates);
+				try {
+					await this.d1.batch(updates);
+				} catch (e) {
+					console.error({
+						msg: "Minting: Failed to update status to 'minted'",
+						error: toSerializableError(e),
+					});
+				}
 			} else {
 				console.error({ msg: "Sui batch mint transaction failed" });
 				const setFailedStmt = this.d1.prepare(
@@ -449,8 +462,14 @@ export class Indexer implements Storage {
 				const updates = processedPrimaryKeys.map((p) =>
 					setFailedStmt.bind(now, p.tx_id, p.vout),
 				);
-				// TODO: add logic for handling the results and console.error if failure
-				await this.d1.batch(updates);
+				try {
+					await this.d1.batch(updates);
+				} catch (e) {
+					console.error({
+						msg: "Minting: Failed to update status to 'failed'",
+						error: toSerializableError(e),
+					});
+				}
 			}
 		}
 	}
@@ -641,7 +660,16 @@ export class Indexer implements Storage {
 			insertStmt.bind(txId, deposit.vout, deposit.suiRecipient, deposit.amountSats, now, now),
 		);
 
-		await this.d1.batch(statements);
+		try {
+			await this.d1.batch(statements);
+		} catch (e) {
+			console.error({
+				msg: "Failed to register broadcasted nBTC transaction",
+				error: toSerializableError(e),
+				txId,
+			});
+			throw e;
+		}
 
 		console.log({
 			msg: "New nBTC minting deposit TX registered",

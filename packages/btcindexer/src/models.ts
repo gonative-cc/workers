@@ -24,6 +24,11 @@ export interface FinalizedTxRow {
 	block_height: number;
 }
 
+export interface BlockInfo {
+	height: number;
+	hash: string;
+}
+
 export interface GroupedFinalizedTx {
 	block_hash: string;
 	block_height: number;
@@ -36,7 +41,7 @@ export interface Storage {
 	nbtcTxDB: KVNamespace;
 }
 
-export type NbtcTxStatus = "confirming" | "finalized" | "minted" | "failed" | "reorg";
+export type NbtcTxStatus = "confirming" | "finalized" | "minted" | "failed" | "reorg" | "dangling";
 
 export interface NbtcTxStatusResp {
 	btc_tx_id: string;

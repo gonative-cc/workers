@@ -13,6 +13,7 @@ import {
 	MintBatchArg,
 	FinalizedTxRow,
 	GroupedFinalizedTx,
+	BlockInfo,
 } from "./models";
 import { toSerializableError } from "./errutils";
 
@@ -161,7 +162,7 @@ export class Indexer implements Storage {
 				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT ?",
 			)
 			.bind(this.btcBlockProcessingBatchSize)
-			.all<{ height: number; hash: string }>();
+			.all<BlockInfo>();
 
 		if (!blocksToProcess.results || blocksToProcess.results.length === 0) {
 			console.debug({ msg: "Cron: No new blocks to scan" });
@@ -231,8 +232,18 @@ export class Indexer implements Storage {
 			}
 		}
 
-		if (nbtcTxStatements.length > 0) {
-			await this.d1.batch(nbtcTxStatements);
+		const danglingUpdates = await this.handleDanglingTxs(blocksToProcess.results, now);
+		const allUpdates = [...nbtcTxStatements, ...danglingUpdates];
+
+		if (allUpdates.length > 0) {
+			try {
+				await this.d1.batch(allUpdates);
+			} catch (e) {
+				console.error({
+					msg: "Cron: Failed to insert nBTC transactions",
+					error: toSerializableError(e),
+				});
+			}
 		} else {
 			console.debug({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
 		}
@@ -254,6 +265,47 @@ export class Indexer implements Storage {
 				count: heightsToUpdate.length,
 			});
 		}
+	}
+
+	private async handleDanglingTxs(
+		blocksToProcess: BlockInfo[],
+		now: number,
+	): Promise<D1PreparedStatement[]> {
+		const danglingTxs = await this.d1
+			.prepare("SELECT tx_id FROM nbtc_minting WHERE status = 'dangling'")
+			.all<{ tx_id: string }>();
+		if (!danglingTxs.results || danglingTxs.results.length === 0) {
+			return [];
+		}
+
+		const danglingTxIds = danglingTxs.results.map((r) => r.tx_id);
+		const updateDanglingStmt = this.d1.prepare(
+			`UPDATE nbtc_minting SET status = 'confirming', block_hash = ?, block_height = ?, updated_at = ? WHERE tx_id = ?`,
+		);
+
+		const danglingUpdates: D1PreparedStatement[] = [];
+
+		for (const blockInfo of blocksToProcess) {
+			const rawBlockBuffer = await this.blocksDB.get(blockInfo.hash, {
+				type: "arrayBuffer",
+			});
+			if (!rawBlockBuffer) {
+				continue;
+			}
+			const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+			for (const tx of block.transactions ?? []) {
+				if (danglingTxIds.includes(tx.getId())) {
+					console.log({
+						msg: "Cron: Found dangling nBTC deposit in new block, updating status to confirming",
+						txId: tx.getId(),
+					});
+					danglingUpdates.push(
+						updateDanglingStmt.bind(blockInfo.hash, blockInfo.height, now, tx.getId()),
+					);
+				}
+			}
+		}
+		return danglingUpdates;
 	}
 
 	findNbtcDeposits(tx: Transaction): Deposit[] {
@@ -296,7 +348,7 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE status = 'finalized' OR (status = 'failed' AND retry_count <= ?)",
+				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE (status = 'finalized' OR (status = 'failed' AND retry_count <= ?)) AND status != 'dangling'",
 			)
 			.bind(this.maxNbtcMintTxRetries)
 			.all<FinalizedTxRow>();
@@ -364,11 +416,22 @@ export class Indexer implements Storage {
 				const txIndex = block.transactions.findIndex((tx) => tx.getId() === txId);
 
 				if (txIndex === -1) {
-					// TODO: we should add a `dangling` status for those txs
 					console.error({
-						msg: "Minting: Could not find TX within its block, skipping.",
+						msg: "Minting: Could not find TX within its block, marking as dangling.",
 						txId,
 					});
+					try {
+						await this.d1
+							.prepare("UPDATE nbtc_minting SET status = 'dangling' WHERE tx_id = ?")
+							.bind(txId)
+							.run();
+					} catch (e) {
+						console.error({
+							msg: "Minting: Failed to update status to 'dangling'",
+							error: toSerializableError(e),
+							txId,
+						});
+					}
 					continue;
 				}
 

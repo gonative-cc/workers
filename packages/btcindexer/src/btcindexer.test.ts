@@ -77,7 +77,7 @@ const SUI_CLIENT_CFG: SuiClientCfg = {
 	network: "testnet",
 	nbtcPkg: "0xPACKAGE",
 	nbtcModule: "test",
-	nbtcObjectId: "0xNBTC",
+	nbtcContractId: "0xNBTC",
 	lightClientObjectId: "0xLIGHTCLIENT",
 	signerMnemonic:
 		"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic",

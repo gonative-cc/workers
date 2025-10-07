@@ -10,7 +10,7 @@ export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
 	nbtcPkg: string;
 	nbtcModule: string;
-	nbtcObjectId: string;
+	nbtcContractId: string;
 	lightClientObjectId: string;
 	signerMnemonic: string;
 }
@@ -20,9 +20,9 @@ const NBTC_MODULE = "nbtc";
 export async function suiClientFromEnv(env: Env): Promise<SuiClient> {
 	return new SuiClient({
 		network: env.SUI_NETWORK,
-		nbtcPkg: env.SUI_PACKAGE_ID,
+		nbtcPkg: env.NBTC_PACKAGE_ID,
 		nbtcModule: NBTC_MODULE,
-		nbtcObjectId: env.NBTC_OBJECT_ID,
+		nbtcContractId: env.NBTC_CONTRACT_ID,
 		lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
 		signerMnemonic: await env.NBTC_MINTING_SIGNER_MNEMONIC.get(),
 	});
@@ -33,7 +33,7 @@ export class SuiClient {
 	private signer: Signer;
 	private nbtcPkg: string;
 	private nbtcModule: string;
-	private nbtcObjectId: string;
+	private nbtcContractId: string;
 	private lightClientObjectId: string;
 
 	constructor(config: SuiClientCfg) {
@@ -47,7 +47,7 @@ export class SuiClient {
 		});
 		this.nbtcPkg = config.nbtcPkg;
 		this.nbtcModule = config.nbtcModule;
-		this.nbtcObjectId = config.nbtcObjectId;
+		this.nbtcContractId = config.nbtcContractId;
 		this.lightClientObjectId = config.lightClientObjectId;
 	}
 
@@ -66,7 +66,7 @@ export class SuiClient {
 		tx.moveCall({
 			target: target,
 			arguments: [
-				tx.object(this.nbtcObjectId),
+				tx.object(this.nbtcContractId),
 				tx.object(this.lightClientObjectId),
 				tx.pure.vector("u8", txBytes),
 				tx.pure.vector("vector<u8>", proofLittleEndian),
@@ -123,7 +123,7 @@ export class SuiClient {
 			tx.moveCall({
 				target: target,
 				arguments: [
-					tx.object(this.nbtcObjectId),
+					tx.object(this.nbtcContractId),
 					tx.object(this.lightClientObjectId),
 					tx.pure.vector("u8", txBytes),
 					tx.pure.vector("vector<u8>", proofLittleEndian),

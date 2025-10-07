@@ -9,8 +9,8 @@ declare namespace Cloudflare {
 		btc_blocks: KVNamespace;
 		nbtc_txs: KVNamespace;
 		SUI_NETWORK: "testnet";
-		SUI_PACKAGE_ID: "0x50be08b805766cc1a2901b925d3fb80b6362fcb25f269cb78067429237e222ec";
-		NBTC_OBJECT_ID: "0x5905e0c452bb5f237fb106ec2ecff962fbc60cd180090fb07a79d14d9d628a96";
+		NBTC_PACKAGE_ID: "0x50be08b805766cc1a2901b925d3fb80b6362fcb25f269cb78067429237e222ec";
+		NBTC_CONTRACT_ID: "0x5905e0c452bb5f237fb106ec2ecff962fbc60cd180090fb07a79d14d9d628a96";
 		LIGHT_CLIENT_OBJECT_ID: "0x74d82b7df244d578e6a71a57e84081e8a1050df5214e0f97870a8d9d486810a7";
 		BITCOIN_NETWORK: "regtest";
 		NBTC_DEPOSIT_ADDRESS: "bcrt1q90xm34jqm0kcpfclkdmn868rw6vcv9fzvfg6p6";
@@ -27,7 +27,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SUI_NETWORK" | "SUI_PACKAGE_ID" | "NBTC_OBJECT_ID" | "LIGHT_CLIENT_OBJECT_ID" | "BITCOIN_NETWORK" | "NBTC_DEPOSIT_ADDRESS" | "SUI_FALLBACK_ADDRESS" | "CONFIRMATION_DEPTH" | "MAX_NBTC_MINT_TX_RETRIES" | "BTC_BLOCK_PROCESSING_BATCH_SIZE">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SUI_NETWORK" | "NBTC_PACKAGE_ID" | "NBTC_CONTRACT_ID" | "LIGHT_CLIENT_OBJECT_ID" | "BITCOIN_NETWORK" | "NBTC_DEPOSIT_ADDRESS" | "SUI_FALLBACK_ADDRESS" | "CONFIRMATION_DEPTH" | "MAX_NBTC_MINT_TX_RETRIES" | "BTC_BLOCK_PROCESSING_BATCH_SIZE">> {}
 }
 
 // Begin runtime types

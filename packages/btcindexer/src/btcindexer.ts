@@ -239,6 +239,7 @@ export class Indexer implements Storage {
 					msg: "Cron: Failed to insert nBTC transactions",
 					error: toSerializableError(e),
 				});
+				throw e;
 			}
 		} else {
 			console.debug({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
@@ -252,14 +253,22 @@ export class Indexer implements Storage {
 		if (heightsToUpdate.length > 0) {
 			const placeholders = heightsToUpdate.map(() => "?").join(",");
 			const updateStmt = `UPDATE btc_blocks SET status = 'scanned' WHERE height IN (${placeholders})`;
-			await this.d1
-				.prepare(updateStmt)
-				.bind(...heightsToUpdate)
-				.run();
-			console.debug({
-				msg: "Cron: Marked blocks as scanned",
-				count: heightsToUpdate.length,
-			});
+			try {
+				await this.d1
+					.prepare(updateStmt)
+					.bind(...heightsToUpdate)
+					.run();
+				console.debug({
+					msg: "Cron: Marked blocks as scanned",
+					count: heightsToUpdate.length,
+				});
+			} catch (e) {
+				console.error({
+					msg: "Cron: Failed to mark blocks as scanned",
+					error: toSerializableError(e),
+				});
+				throw e;
+			}
 		}
 	}
 
@@ -453,6 +462,7 @@ export class Indexer implements Storage {
 						msg: "Minting: Failed to update status to 'minted'",
 						error: toSerializableError(e),
 					});
+					throw e;
 				}
 			} else {
 				console.error({ msg: "Sui batch mint transaction failed" });
@@ -469,6 +479,7 @@ export class Indexer implements Storage {
 						msg: "Minting: Failed to update status to 'failed'",
 						error: toSerializableError(e),
 					});
+					throw e;
 				}
 			}
 		}
@@ -529,6 +540,7 @@ export class Indexer implements Storage {
 					msg: "Failed to apply finalization batch updates to D1.",
 					error: toSerializableError(e),
 				});
+				throw e;
 			}
 		}
 	}

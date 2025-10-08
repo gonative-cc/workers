@@ -13,6 +13,7 @@ import {
 	MintBatchArg,
 	FinalizedTxRow,
 	GroupedFinalizedTx,
+	BlockInfo,
 } from "./models";
 import { toSerializableError } from "./errutils";
 
@@ -161,7 +162,7 @@ export class Indexer implements Storage {
 				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT ?",
 			)
 			.bind(this.btcBlockProcessingBatchSize)
-			.all<{ height: number; hash: string }>();
+			.all<BlockInfo>();
 
 		if (!blocksToProcess.results || blocksToProcess.results.length === 0) {
 			console.debug({ msg: "Cron: No new blocks to scan" });
@@ -312,7 +313,7 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE status = 'finalized' OR (status = 'failed' AND retry_count <= ?)",
+				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE (status = 'finalized' OR (status = 'finalized-failed' AND retry_count <= ?)) AND status != 'finalized-reorg'",
 			)
 			.bind(this.maxNbtcMintTxRetries)
 			.all<FinalizedTxRow>();
@@ -380,11 +381,25 @@ export class Indexer implements Storage {
 				const txIndex = block.transactions.findIndex((tx) => tx.getId() === txId);
 
 				if (txIndex === -1) {
-					// TODO: we should add a `dangling` status for those txs
 					console.error({
-						msg: "Minting: Could not find TX within its block, skipping.",
+						msg: "Minting: Could not find TX within its block. Setting status to 'finalized-reorg'.",
 						txId,
 					});
+					try {
+						await this.d1
+							.prepare(
+								"UPDATE nbtc_minting SET status = 'finalized-reorg' WHERE tx_id = ?",
+							)
+							.bind(txId)
+							.run();
+					} catch (e) {
+						console.error({
+							msg: "Minting: Failed to update status to 'finalized-reorg'",
+							error: toSerializableError(e),
+							txId,
+						});
+						throw e;
+					}
 					continue;
 				}
 
@@ -467,7 +482,7 @@ export class Indexer implements Storage {
 			} else {
 				console.error({ msg: "Sui batch mint transaction failed" });
 				const setFailedStmt = this.d1.prepare(
-					`UPDATE nbtc_minting SET status = 'failed', retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
+					`UPDATE nbtc_minting SET status = 'finalized-failed', retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 				);
 				const updates = processedPrimaryKeys.map((p) =>
 					setFailedStmt.bind(now, p.tx_id, p.vout),

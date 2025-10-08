@@ -66,7 +66,7 @@ export const enum BlockStatus {
 	SCANNED = "scanned",
 }
 
-export interface NbtcTxStatusResp {
+export interface TxStatusResp {
 	btc_tx_id: string;
 	status: TxStatus;
 	block_height: number | null;

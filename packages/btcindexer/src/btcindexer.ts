@@ -8,7 +8,7 @@ import {
 	PendingTx,
 	Storage,
 	TxStatus,
-	NbtcTxStatusResp,
+	TxStatusResp as TxStatusResp,
 	NbtcTxRow,
 	MintBatchArg,
 	FinalizedTxRow,
@@ -625,7 +625,7 @@ export class Indexer implements Storage {
 		return updates;
 	}
 
-	async getStatusByTxid(txid: string): Promise<NbtcTxStatusResp | null> {
+	async getStatusByTxid(txid: string): Promise<TxStatusResp | null> {
 		const latestHeightStr = await this.blocksDB.get("chain_tip");
 		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
 
@@ -650,7 +650,7 @@ export class Indexer implements Storage {
 		};
 	}
 
-	async getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxStatusResp[]> {
+	async getStatusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
 		const latestHeightStr = await this.blocksDB.get("chain_tip");
 		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
 
@@ -663,7 +663,7 @@ export class Indexer implements Storage {
 			return [];
 		}
 
-		return dbResult.results.map((tx): NbtcTxStatusResp => {
+		return dbResult.results.map((tx): TxStatusResp => {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
 			return {
@@ -728,7 +728,7 @@ export class Indexer implements Storage {
 		}
 	}
 
-	async getDepositsBySender(btcAddress: string): Promise<NbtcTxStatusResp[]> {
+	async getDepositsBySender(btcAddress: string): Promise<TxStatusResp[]> {
 		const query = this.d1.prepare(`
         SELECT m.* FROM nbtc_minting m
         JOIN nbtc_sender_deposits s ON m.tx_id = s.tx_id
@@ -745,13 +745,13 @@ export class Indexer implements Storage {
 		const latestHeightStr = await this.blocksDB.get("chain_tip");
 		const latestHeight = latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
 
-		return dbResult.results.map((tx): NbtcTxStatusResp => {
+		return dbResult.results.map((tx): TxStatusResp => {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight ? latestHeight - blockHeight + 1 : 0;
 
 			return {
 				btc_tx_id: tx.tx_id,
-				status: tx.status as NbtcTxStatus,
+				status: tx.status as TxStatus,
 				sui_tx_id: tx.sui_tx_id,
 				block_height: blockHeight,
 				confirmations: confirmations > 0 ? confirmations : 0,

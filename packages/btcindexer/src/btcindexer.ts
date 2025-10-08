@@ -7,13 +7,14 @@ import {
 	Deposit,
 	PendingTx,
 	Storage,
-	NbtcTxStatus,
+	TxStatus,
 	NbtcTxStatusResp,
 	NbtcTxRow,
 	MintBatchArg,
 	FinalizedTxRow,
 	GroupedFinalizedTx,
 	BlockInfo,
+	BlockStatus,
 } from "./models";
 import { toSerializableError } from "./errutils";
 
@@ -112,7 +113,7 @@ export class Indexer implements Storage {
 
 		const now = Date.now();
 		const insertBlockStmt = this.d1.prepare(
-			`INSERT INTO btc_blocks (height, hash, status, processed_at) VALUES (?, ?, 'new', ?)
+			`INSERT INTO btc_blocks (height, hash, status, processed_at) VALUES (?, ?, '${BlockStatus.NEW}', ?)
 			 ON CONFLICT(height)
 			  DO UPDATE SET
 			   hash = excluded.hash,
@@ -159,7 +160,7 @@ export class Indexer implements Storage {
 		console.debug({ msg: "Cron: Running scanNewBlocks job" });
 		const blocksToProcess = await this.d1
 			.prepare(
-				"SELECT height, hash FROM btc_blocks WHERE status = 'new' ORDER BY height ASC LIMIT ?",
+				`SELECT height, hash FROM btc_blocks WHERE status = '${BlockStatus.NEW}' ORDER BY height ASC LIMIT ?`,
 			)
 			.bind(this.btcBlockProcessingBatchSize)
 			.all<BlockInfo>();
@@ -180,11 +181,11 @@ export class Indexer implements Storage {
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
 			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at)
-         	VALUES (?, ?, ?, ?, ?, ?, 'confirming', ?, ?)
+         	VALUES (?, ?, ?, ?, ?, ?, '${TxStatus.CONFIRMING}', ?, ?)
          	ON CONFLICT(tx_id, vout) DO UPDATE SET
 				block_hash = excluded.block_hash,
 				block_height = excluded.block_height,
-				status = 'confirming',
+				status = '${TxStatus.CONFIRMING}',
 				updated_at = excluded.updated_at`,
 		);
 
@@ -262,7 +263,7 @@ export class Indexer implements Storage {
 		const heightsToUpdate = blocksToProcess.results.map((r) => r.height);
 		if (heightsToUpdate.length > 0) {
 			const placeholders = heightsToUpdate.map(() => "?").join(",");
-			const updateStmt = `UPDATE btc_blocks SET status = 'scanned' WHERE height IN (${placeholders})`;
+			const updateStmt = `UPDATE btc_blocks SET status = '${BlockStatus.SCANNED}' WHERE height IN (${placeholders})`;
 			try {
 				await this.d1
 					.prepare(updateStmt)
@@ -322,7 +323,7 @@ export class Indexer implements Storage {
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE (status = 'finalized' OR (status = 'finalized-failed' AND retry_count <= ?)) AND status != 'finalized-reorg'",
+				`SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE (status = '${TxStatus.FINALIZED}' OR (status = '${TxStatus.FINALIZED_FAILED}' AND retry_count <= ?)) AND status != '${TxStatus.FINALIZED_REORG}'`,
 			)
 			.bind(this.maxNbtcMintTxRetries)
 			.all<FinalizedTxRow>();
@@ -397,7 +398,7 @@ export class Indexer implements Storage {
 					try {
 						await this.d1
 							.prepare(
-								"UPDATE nbtc_minting SET status = 'finalized-reorg' WHERE tx_id = ?",
+								`UPDATE nbtc_minting SET status = '${TxStatus.FINALIZED_REORG}' WHERE tx_id = ?`,
 							)
 							.bind(txId)
 							.run();
@@ -474,7 +475,7 @@ export class Indexer implements Storage {
 			if (suiTxDigest) {
 				console.log({ msg: "Sui batch mint transaction successful", suiTxDigest });
 				const setMintedStmt = this.d1.prepare(
-					`UPDATE nbtc_minting SET status = 'minted', sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
+					`UPDATE nbtc_minting SET status = '${TxStatus.MINTED}', sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 				);
 				const updates = processedPrimaryKeys.map((p) =>
 					setMintedStmt.bind(suiTxDigest, now, p.tx_id, p.vout),
@@ -491,7 +492,7 @@ export class Indexer implements Storage {
 			} else {
 				console.error({ msg: "Sui batch mint transaction failed" });
 				const setFailedStmt = this.d1.prepare(
-					`UPDATE nbtc_minting SET status = 'finalized-failed', retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
+					`UPDATE nbtc_minting SET status = '${TxStatus.FINALIZED_FAILED}', retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 				);
 				const updates = processedPrimaryKeys.map((p) =>
 					setFailedStmt.bind(now, p.tx_id, p.vout),
@@ -532,7 +533,7 @@ export class Indexer implements Storage {
 	async updateConfirmationsAndFinalize(latestHeight: number): Promise<void> {
 		const pendingTxs = await this.d1
 			.prepare(
-				"SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = 'confirming'",
+				`SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}'`,
 			)
 			.all<{ tx_id: string; block_hash: string; block_height: number }>();
 
@@ -577,7 +578,7 @@ export class Indexer implements Storage {
 		const now = Date.now();
 		const reorgCheckStmt = this.d1.prepare("SELECT hash FROM btc_blocks WHERE height = ?");
 		const reorgStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = 'reorg', updated_at = ${now} WHERE tx_id = ?`,
+			`UPDATE nbtc_minting SET status = '${TxStatus.REORG}', updated_at = ${now} WHERE tx_id = ?`,
 		);
 
 		for (const tx of pendingTxs) {
@@ -606,7 +607,7 @@ export class Indexer implements Storage {
 		const updates: D1PreparedStatement[] = [];
 		const now = Date.now();
 		const finalizeStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = 'finalized', updated_at = ${now} WHERE tx_id = ?`,
+			`UPDATE nbtc_minting SET status = '${TxStatus.FINALIZED}', updated_at = ${now} WHERE tx_id = ?`,
 		);
 
 		for (const tx of pendingTxs) {
@@ -643,7 +644,7 @@ export class Indexer implements Storage {
 		return {
 			...tx,
 			btc_tx_id: tx.tx_id,
-			status: tx.status as NbtcTxStatus,
+			status: tx.status as TxStatus,
 			block_height: blockHeight,
 			confirmations: confirmations > 0 ? confirmations : 0,
 		};
@@ -668,7 +669,7 @@ export class Indexer implements Storage {
 			return {
 				...tx,
 				btc_tx_id: tx.tx_id,
-				status: tx.status as NbtcTxStatus,
+				status: tx.status as TxStatus,
 				block_height: blockHeight,
 				confirmations: confirmations > 0 ? confirmations : 0,
 			};
@@ -689,7 +690,7 @@ export class Indexer implements Storage {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'broadcasting', ?, ?)`,
+         VALUES (?, ?, ?, ?, '${TxStatus.BROADCASTING}', ?, ?)`,
 		);
 
 		const statements = deposits.map((deposit) =>

@@ -72,6 +72,8 @@ export class SuiClient {
 				tx.pure.vector("vector<u8>", proofLittleEndian),
 				tx.pure.u64(blockHeight),
 				tx.pure.u64(txIndex),
+				tx.pure.vector("u8", []),
+				tx.pure.u32(1),
 			],
 		});
 
@@ -129,6 +131,8 @@ export class SuiClient {
 					tx.pure.vector("vector<u8>", proofLittleEndian),
 					tx.pure.u64(args.blockHeight),
 					tx.pure.u64(args.txIndex),
+					tx.pure.vector("u8", []),
+					tx.pure.u32(1),
 				],
 			});
 		}

@@ -43,6 +43,7 @@ export interface Storage {
 
 /**
  * Represents the lifecycle status of an nBTC minting tx.
+ * - **broadcasting**: The deposit transaction has been broadcast to the Bitcoin network, but has not yet been included in a block.
  * - **confirming**: The deposit tx has been found in a Bitcoin block but does not yet have enough confirmations.
  * - **finalized**: The tx has reached the required confirmation depth and is ready to be minted.
  * - **minted**: The nBTC has been successfully minted on the SUI network.
@@ -50,13 +51,20 @@ export interface Storage {
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
  */
-export type NbtcTxStatus =
-	| "confirming"
-	| "finalized"
-	| "minted"
-	| "finalized-failed"
-	| "reorg"
-	| "finalized-reorg";
+export const enum NbtcTxStatus {
+	CONFIRMING = "confirming",
+	FINALIZED = "finalized",
+	MINTED = "minted",
+	FINALIZED_FAILED = "finalized-failed",
+	REORG = "reorg",
+	FINALIZED_REORG = "finalized-reorg",
+	BROADCASTING = "broadcasting",
+}
+
+export const enum BlockStatus {
+	NEW = "new",
+	SCANNED = "scanned",
+}
 
 export interface NbtcTxStatusResp {
 	btc_tx_id: string;

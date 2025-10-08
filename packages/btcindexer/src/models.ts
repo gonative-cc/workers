@@ -51,7 +51,7 @@ export interface Storage {
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
  */
-export const enum NbtcTxStatus {
+export const enum TxStatus {
 	CONFIRMING = "confirming",
 	FINALIZED = "finalized",
 	MINTED = "minted",
@@ -68,7 +68,7 @@ export const enum BlockStatus {
 
 export interface NbtcTxStatusResp {
 	btc_tx_id: string;
-	status: NbtcTxStatus;
+	status: TxStatus;
 	block_height: number | null;
 	confirmations: number;
 	sui_recipient: string;
@@ -83,7 +83,7 @@ export interface NbtcTxRow {
 	vout: number;
 	sui_recipient: string;
 	amount_sats: number;
-	status: NbtcTxStatus;
+	status: TxStatus;
 	created_at: number;
 	updated_at: number;
 	sui_tx_id: string | null;

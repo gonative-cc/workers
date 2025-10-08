@@ -731,7 +731,7 @@ export class Indexer implements Storage {
 	async getDepositsBySender(btcAddress: string): Promise<NbtcTxStatusResp[]> {
 		const query = this.d1.prepare(`
         SELECT m.* FROM nbtc_minting m
-        JOIN nbtc_deposit_senders s ON m.tx_id = s.tx_id
+        JOIN nbtc_sender_deposits s ON m.tx_id = s.tx_id
         WHERE s.sender = ?
         ORDER BY m.created_at DESC
     `);
@@ -789,7 +789,7 @@ async function getSenderInsertStmts(
 ): Promise<D1PreparedStatement[]> {
 	const senderAddresses = new Set<string>();
 	const insertStmt = d1.prepare(
-		"INSERT OR IGNORE INTO nbtc_deposit_senders (tx_id, sender) VALUES (?, ?)",
+		"INSERT OR IGNORE INTO nbtc_sender_deposits (tx_id, sender) VALUES (?, ?)",
 	);
 
 	const prevTxFetches = tx.ins.map(async (input) => {

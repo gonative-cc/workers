@@ -465,12 +465,12 @@ describe("getSenderInsertStmts logic", () => {
 		expect(fetchSpy).toHaveBeenCalledWith(`${mockEnv.ELECTRS_API_URL}/tx/${prevTxId}`);
 
 		const batchCalls = mockEnv.DB.batch.mock.calls[0][0];
-		expect(batchCalls).toHaveLength(2); // One for nbtc_minting and one for nbtc_deposit_senders
+		expect(batchCalls).toHaveLength(2); // One for nbtc_minting and one for nbtc_sender_deposits
 
 		const prepareCalls = mockEnv.DB.prepare.mock.calls;
 		const mintingSQL = prepareCalls.find((call: [string]) => call[0].includes("nbtc_minting"));
 		const senderSQL = prepareCalls.find((call: [string]) =>
-			call[0].includes("nbtc_deposit_senders"),
+			call[0].includes("nbtc_sender_deposits"),
 		);
 
 		expect(mintingSQL).toBeDefined();

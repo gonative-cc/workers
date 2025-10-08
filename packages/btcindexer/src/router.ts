@@ -151,7 +151,10 @@ export default class HttpRouter {
 	};
 
 	getDepositsBySender = (req: IRequest) => {
-		const { address } = req.params;
-		return this.indexer().getDepositsBySender(address);
+		const sender = req.query.sender;
+		if (!sender || typeof sender !== "string") {
+			return error(400, "Missing or invalid sender query parameter.");
+		}
+		return this.indexer().getDepositsBySender(sender);
 	};
 }

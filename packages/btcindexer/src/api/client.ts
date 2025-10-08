@@ -5,7 +5,7 @@ export enum RestPath {
 	blocks = "/bitcoin/blocks",
 	nbtcTx = "/nbtc",
 	latestHeight = "/bitcoin/latest-height",
-	depositsBySender = "/bitcoin/sender/:address/deposits",
+	depositsBySender = "/bitcoin/deposits/", // ?sender=address
 }
 
 export enum ContentType {
@@ -77,6 +77,17 @@ export default class Client {
 		const response = await fetch(url.toString());
 		if (!response.ok) {
 			throw new Error(`Failed to get status by Sui address: ${response.statusText}`);
+		}
+		return response.json();
+	}
+
+	async getDepositsBySender(senderAddress: string): Promise<NbtcTxStatusResp[]> {
+		const url = new URL(this.baseUrl + RestPath.depositsBySender);
+		url.searchParams.append("sender", senderAddress);
+
+		const response = await fetch(url.toString());
+		if (!response.ok) {
+			throw new Error(`Failed to get deposits by sender: ${response.statusText}`);
 		}
 		return response.json();
 	}

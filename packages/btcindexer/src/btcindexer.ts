@@ -232,7 +232,15 @@ export class Indexer implements Storage {
 		}
 
 		if (nbtcTxStatements.length > 0) {
-			await this.d1.batch(nbtcTxStatements);
+			try {
+				await this.d1.batch(nbtcTxStatements);
+			} catch (e) {
+				console.error({
+					msg: "Cron: Failed to insert nBTC transactions",
+					error: toSerializableError(e),
+				});
+				throw e;
+			}
 		} else {
 			console.debug({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
 		}
@@ -245,14 +253,22 @@ export class Indexer implements Storage {
 		if (heightsToUpdate.length > 0) {
 			const placeholders = heightsToUpdate.map(() => "?").join(",");
 			const updateStmt = `UPDATE btc_blocks SET status = 'scanned' WHERE height IN (${placeholders})`;
-			await this.d1
-				.prepare(updateStmt)
-				.bind(...heightsToUpdate)
-				.run();
-			console.debug({
-				msg: "Cron: Marked blocks as scanned",
-				count: heightsToUpdate.length,
-			});
+			try {
+				await this.d1
+					.prepare(updateStmt)
+					.bind(...heightsToUpdate)
+					.run();
+				console.debug({
+					msg: "Cron: Marked blocks as scanned",
+					count: heightsToUpdate.length,
+				});
+			} catch (e) {
+				console.error({
+					msg: "Cron: Failed to mark blocks as scanned",
+					error: toSerializableError(e),
+				});
+				throw e;
+			}
 		}
 	}
 
@@ -439,8 +455,15 @@ export class Indexer implements Storage {
 				const updates = processedPrimaryKeys.map((p) =>
 					setMintedStmt.bind(suiTxDigest, now, p.tx_id, p.vout),
 				);
-				// TODO: add logic for handling the results and console.error if failure
-				await this.d1.batch(updates);
+				try {
+					await this.d1.batch(updates);
+				} catch (e) {
+					console.error({
+						msg: "Minting: Failed to update status to 'minted'",
+						error: toSerializableError(e),
+					});
+					throw e;
+				}
 			} else {
 				console.error({ msg: "Sui batch mint transaction failed" });
 				const setFailedStmt = this.d1.prepare(
@@ -449,8 +472,15 @@ export class Indexer implements Storage {
 				const updates = processedPrimaryKeys.map((p) =>
 					setFailedStmt.bind(now, p.tx_id, p.vout),
 				);
-				// TODO: add logic for handling the results and console.error if failure
-				await this.d1.batch(updates);
+				try {
+					await this.d1.batch(updates);
+				} catch (e) {
+					console.error({
+						msg: "Minting: Failed to update status to 'failed'",
+						error: toSerializableError(e),
+					});
+					throw e;
+				}
 			}
 		}
 	}
@@ -510,6 +540,7 @@ export class Indexer implements Storage {
 					msg: "Failed to apply finalization batch updates to D1.",
 					error: toSerializableError(e),
 				});
+				throw e;
 			}
 		}
 	}
@@ -641,7 +672,16 @@ export class Indexer implements Storage {
 			insertStmt.bind(txId, deposit.vout, deposit.suiRecipient, deposit.amountSats, now, now),
 		);
 
-		await this.d1.batch(statements);
+		try {
+			await this.d1.batch(statements);
+		} catch (e) {
+			console.error({
+				msg: "Failed to register broadcasted nBTC transaction",
+				error: toSerializableError(e),
+				txId,
+			});
+			throw e;
+		}
 
 		console.log({
 			msg: "New nBTC minting deposit TX registered",

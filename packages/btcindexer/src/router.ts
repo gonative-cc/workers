@@ -33,6 +33,7 @@ export default class HttpRouter {
 		// ?sui_recipient="0x..."  - query by sui address
 		r.get(RestPath.nbtcTx, this.getStatusBySuiAddress);
 		r.get(RestPath.nbtcTx + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
+		r.get(RestPath.depositsBySender, this.getDepositsBySender);
 
 		//
 		// TESTING
@@ -147,5 +148,13 @@ export default class HttpRouter {
 
 	getLatestHeight = () => {
 		return this.indexer().getLatestHeight();
+	};
+
+	getDepositsBySender = (req: IRequest) => {
+		const sender = req.query.sender;
+		if (!sender || typeof sender !== "string") {
+			return error(400, "Missing or invalid sender query parameter.");
+		}
+		return this.indexer().getDepositsBySender(sender);
 	};
 }

@@ -1,10 +1,11 @@
-import { NbtcTxStatusResp } from "../models";
+import { TxStatusResp } from "../models";
 import { PutBlocks, PutBlocksReq } from "./put-blocks";
 
 export enum RestPath {
 	blocks = "/bitcoin/blocks",
 	nbtcTx = "/nbtc",
 	latestHeight = "/bitcoin/latest-height",
+	depositsBySender = "/bitcoin/deposits/", // ?sender=address
 }
 
 export enum ContentType {
@@ -57,7 +58,7 @@ export default class Client {
 		return response.json();
 	}
 
-	async getStatusByBtcTxId(txid: string): Promise<NbtcTxStatusResp | null> {
+	async getStatusByBtcTxId(txid: string): Promise<TxStatusResp | null> {
 		const url = `${this.baseUrl}${RestPath.nbtcTx}/${txid}`;
 		const response = await fetch(url);
 		if (response.status === 404) {
@@ -69,13 +70,24 @@ export default class Client {
 		return response.json();
 	}
 
-	async getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxStatusResp[]> {
+	async getStatusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
 		const url = new URL(this.baseUrl + RestPath.nbtcTx);
 		url.searchParams.append("sui_recipient", suiAddress);
 
 		const response = await fetch(url.toString());
 		if (!response.ok) {
 			throw new Error(`Failed to get status by Sui address: ${response.statusText}`);
+		}
+		return response.json();
+	}
+
+	async getDepositsBySender(senderAddress: string): Promise<TxStatusResp[]> {
+		const url = new URL(this.baseUrl + RestPath.depositsBySender);
+		url.searchParams.append("sender", senderAddress);
+
+		const response = await fetch(url.toString());
+		if (!response.ok) {
+			throw new Error(`Failed to get deposits by sender: ${response.statusText}`);
 		}
 		return response.json();
 	}

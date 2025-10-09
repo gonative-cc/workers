@@ -64,6 +64,7 @@ const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 const createMockStmt = () => ({
 	bind: vi.fn().mockReturnThis(),
 	all: vi.fn().mockResolvedValue({ results: [] }),
+	run: vi.fn().mockResolvedValue({ success: true }),
 });
 
 function mkMockD1() {
@@ -86,8 +87,14 @@ const SUI_CLIENT_CFG: SuiClientCfg = {
 const mkMockEnv = () =>
 	({
 		DB: mkMockD1(),
-		btc_blocks: {},
-		nbtc_txs: {},
+		btc_blocks: {
+			get: vi.fn(),
+			put: vi.fn(),
+		},
+		nbtc_txs: {
+			get: vi.fn(),
+			put: vi.fn(),
+		},
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	}) as any;
 
@@ -422,5 +429,51 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 
 		expect(suiClientSpy).toHaveBeenCalledTimes(1);
 		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(expect.any(Number), txData.id, 0);
+	});
+});
+
+describe("getSenderInsertStmts logic", () => {
+	it("should fetch sender addresses and store them when scanning a block", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const blockData = REGTEST_DATA[329];
+
+		const mockSelectStmt = createMockStmt();
+		mockSelectStmt.all.mockResolvedValue({
+			results: [{ height: blockData.height, hash: blockData.hash }],
+		});
+		mockEnv.DB.prepare.mockReturnValue(mockSelectStmt);
+
+		mockEnv.btc_blocks.get = vi
+			.fn()
+			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		// Electrs fetch call
+		const fakeSenderAddress = "bc1qtestsenderaddress";
+		const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					vout: [{ scriptpubkey_address: fakeSenderAddress }],
+				}),
+			),
+		);
+
+		await indexer.scanNewBlocks(mockEnv);
+
+		const block = Block.fromHex(blockData.rawBlockHex);
+		const targetTx = block.transactions![1];
+		const prevTxId = Buffer.from(targetTx.ins[0].hash).reverse().toString("hex");
+		expect(fetchSpy).toHaveBeenCalledWith(`${mockEnv.ELECTRS_API_URL}/tx/${prevTxId}`);
+
+		const batchCalls = mockEnv.DB.batch.mock.calls[0][0];
+		expect(batchCalls).toHaveLength(2); // One for nbtc_minting and one for nbtc_sender_deposits
+
+		const prepareCalls = mockEnv.DB.prepare.mock.calls;
+		const mintingSQL = prepareCalls.find((call: [string]) => call[0].includes("nbtc_minting"));
+		const senderSQL = prepareCalls.find((call: [string]) =>
+			call[0].includes("nbtc_sender_deposits"),
+		);
+
+		expect(mintingSQL).toBeDefined();
+		expect(senderSQL).toBeDefined();
 	});
 });

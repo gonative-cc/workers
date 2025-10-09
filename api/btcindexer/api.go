@@ -15,8 +15,9 @@ type Client struct {
 }
 
 const (
-	pathBlocks       = "/bitcoin/blocks"
-	pathLatestHeight = "/bitcoin/latest-height"
+	pathBlocks           = "/bitcoin/blocks"
+	pathLatestHeight     = "/bitcoin/latest-height"
+	pathDepositsBySender = "/bitcoin/deposits/"
 )
 
 func NewClient(workerUrl string) Client {
@@ -71,4 +72,37 @@ func (c Client) GetLatestHeight() (int64, error) {
 	}
 
 	return *respData.Height, nil
+}
+
+func (c Client) GetDepositsBySender(senderAddress string) ([]NbtcTxStatusResp, error) {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprint(c.baseUrl, pathDepositsBySender), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	q := req.URL.Query()
+	q.Add("sender", senderAddress)
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("indexer returned non-200 status: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var respData []NbtcTxStatusResp
+	if err := json.Unmarshal(body, &respData); err != nil {
+		return nil, fmt.Errorf("failed to decode indexer deposits by sender response: %w", err)
+	}
+
+	return respData, nil
 }

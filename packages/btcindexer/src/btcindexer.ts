@@ -521,7 +521,64 @@ export class Indexer implements Storage {
 		}
 	}
 
+	async verifyConfirmingBlocks(): Promise<void> {
+		console.debug({
+			msg: "SPV Check: Verifying 'confirming' blocks with on-chain light client.",
+		});
+
+		const blocksToVerify = await this.d1
+			.prepare(
+				`SELECT DISTINCT block_hash FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}' AND block_hash IS NOT NULL`,
+			)
+			.all<{ block_hash: string }>();
+
+		if (!blocksToVerify.results || blocksToVerify.results.length === 0) {
+			console.debug({ msg: "SPV Check: No confirming blocks to verify." });
+			return;
+		}
+
+		const blockHashes = blocksToVerify.results.map((r) => r.block_hash);
+
+		try {
+			const verificationResults = await this.nbtcClient.verifyBlocks(blockHashes);
+
+			const invalidHashes: string[] = [];
+			for (let i = 0; i < blockHashes.length; i++) {
+				if (verificationResults[i] === false) {
+					invalidHashes.push(blockHashes[i]);
+				}
+			}
+
+			if (invalidHashes.length > 0) {
+				console.warn({
+					msg: "SPV Check: Detected reorged blocks. Updating transaction statuses.",
+					reorgedBlockHashes: invalidHashes,
+				});
+
+				const now = Date.now();
+				const placeholders = invalidHashes.map(() => "?").join(",");
+				const updateStmt = this.d1
+					.prepare(
+						`UPDATE nbtc_minting SET status = '${TxStatus.REORG}', updated_at = ? WHERE block_hash IN (${placeholders})`,
+					)
+					.bind(now, ...invalidHashes);
+
+				await updateStmt.run();
+			} else {
+				console.debug({ msg: "SPV Check: All confirming blocks are valid." });
+			}
+		} catch (e) {
+			console.error({
+				msg: "SPV Check: Failed to verify blocks with on-chain light client.",
+				error: toSerializableError(e),
+			});
+		}
+	}
+
 	async updateConfirmationsAndFinalize(latestHeight: number): Promise<void> {
+		// check the confirming blocks against the SPV.
+		await this.verifyConfirmingBlocks();
+
 		const pendingTxs = await this.d1
 			.prepare(
 				`SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}'`,

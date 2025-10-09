@@ -521,6 +521,9 @@ export class Indexer implements Storage {
 		}
 	}
 
+	// Queries the light client to verify that blocks containing
+	// 'confirming' txs are still part of the canonical chain.
+	// This is used to detect reorgs before proceeding to finalization attempts.
 	async verifyConfirmingBlocks(): Promise<void> {
 		console.debug({
 			msg: "SPV Check: Verifying 'confirming' blocks with on-chain light client.",

@@ -80,6 +80,8 @@ const SUI_CLIENT_CFG: SuiClientCfg = {
 	nbtcModule: "test",
 	nbtcContractId: "0xNBTC",
 	lightClientObjectId: "0xLIGHTCLIENT",
+	lightClientPackageId: "0xLC_PKG",
+	lightClientModule: "lc_module",
 	signerMnemonic:
 		"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic",
 };

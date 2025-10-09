@@ -1,3 +1,4 @@
+import { bcs } from "@mysten/bcs";
 import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
@@ -12,10 +13,13 @@ export interface SuiClientCfg {
 	nbtcModule: string;
 	nbtcContractId: string;
 	lightClientObjectId: string;
+	lightClientPackageId: string;
+	lightClientModule: string;
 	signerMnemonic: string;
 }
 
 const NBTC_MODULE = "nbtc";
+const LC_MODULE = "light_client";
 
 export async function suiClientFromEnv(env: Env): Promise<SuiClient> {
 	return new SuiClient({
@@ -24,6 +28,8 @@ export async function suiClientFromEnv(env: Env): Promise<SuiClient> {
 		nbtcModule: NBTC_MODULE,
 		nbtcContractId: env.NBTC_CONTRACT_ID,
 		lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
+		lightClientPackageId: env.LIGHT_CLIENT_PACKAGE_ID,
+		lightClientModule: LC_MODULE,
 		signerMnemonic: await env.NBTC_MINTING_SIGNER_MNEMONIC.get(),
 	});
 }
@@ -35,6 +41,8 @@ export class SuiClient {
 	private nbtcModule: string;
 	private nbtcContractId: string;
 	private lightClientObjectId: string;
+	private lightClientPackageId: string;
+	private lightClientModule: string;
 
 	constructor(config: SuiClientCfg) {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
@@ -49,6 +57,44 @@ export class SuiClient {
 		this.nbtcModule = config.nbtcModule;
 		this.nbtcContractId = config.nbtcContractId;
 		this.lightClientObjectId = config.lightClientObjectId;
+		this.lightClientPackageId = config.lightClientPackageId;
+		this.lightClientModule = config.lightClientModule;
+	}
+
+	async verifyBlocks(blockHashes: string[]): Promise<boolean[]> {
+		const tx = new SuiTransaction();
+		const target =
+			`${this.lightClientPackageId}::${this.lightClientModule}::verify_blocks` as const;
+		tx.moveCall({
+			target: target,
+			arguments: [
+				tx.object(this.lightClientObjectId),
+				tx.pure.vector(
+					"vector<u8>",
+					blockHashes.map((h) =>
+						// The block hash from bitcoinjs-lib getId() its in reversed byte order,
+						// The spv contract expects the hash in natural byte order,
+						// thats why we use reverse here.
+						Array.from(Buffer.from(h, "hex").reverse()),
+					),
+				),
+			],
+		});
+		const result = await this.client.devInspectTransactionBlock({
+			sender: this.signer.getPublicKey().toSuiAddress(),
+			transactionBlock: tx,
+		});
+		if (result.effects.status.status !== "success") {
+			throw new Error(`Transaction failed: ${result.effects.status.error}`);
+		}
+
+		const returnValues = result.results?.[0]?.returnValues;
+		if (!returnValues || returnValues.length === 0) {
+			throw new Error("No return values from devInspectTransactionBlock");
+		}
+		// The return value is a BCS-encoded vector<bool>.
+		const bytes = returnValues[0][0];
+		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 
 	async mintNbtc(

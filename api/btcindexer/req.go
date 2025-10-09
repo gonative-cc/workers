@@ -16,3 +16,15 @@ type PutBlocksReq []PutBlock
 type LatestHeightResp struct {
 	Height *int64 `json:"height"`
 }
+
+// NbtcTxStatusResp is the JSON structure for the response from the /nbtc/:txid endpoint
+
+type NbtcTxStatusResp struct {
+	BtcTxID       string  `json:"btc_tx_id"`
+	Status        string  `json:"status"`
+	SuiTxID       *string `json:"sui_tx_id"`
+	BlockHeight   *int64  `json:"block_height"`
+	Confirmations int64   `json:"confirmations"`
+	SuiRecipient  string  `json:"sui_recipient"`
+	AmountSats    int64   `json:"amount_sats"`
+}

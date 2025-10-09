@@ -529,6 +529,10 @@ export class Indexer implements Storage {
 			msg: "SPV Check: Verifying 'confirming' blocks with on-chain light client.",
 		});
 
+		//NOTE: The `block_hash IS NOT NULL` check is a safety measure. While the `CONFIRMING`
+		// status should guarantee a non-null block hash, transactions can be inserted
+		// initially with a null hash (e.g., when broadcast but not yet mined).
+		// This ensures we only try to verify blocks we know about.
 		const blocksToVerify = await this.d1
 			.prepare(
 				`SELECT DISTINCT block_hash FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}' AND block_hash IS NOT NULL`,

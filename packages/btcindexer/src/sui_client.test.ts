@@ -65,7 +65,7 @@ describe.skip("Sui Contract Integration (Mint)", () => {
 });
 
 // NOTE: skip to prevent this test from running in CI
-describe("SuiClient: verifyBlocks Integration Test", () => {
+describe.skip("SuiClient: verifyBlocks Integration Test", () => {
 	it("should return true for valid block hashes and false for invalid ones", async () => {
 		const LC_PACKAGE_ID = "0xe2583071745598f610bd38560ea244742738d51e0d684a967ee6ea4e19b7dc2f";
 		const LC_OBJECT_ID = "0x00ae9947bb1099980f0663dc1eaa74fa5a400265b204928a823aebddeb84b6d7";

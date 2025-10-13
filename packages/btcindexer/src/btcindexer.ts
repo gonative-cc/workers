@@ -17,6 +17,7 @@ import {
 	BlockStatus,
 } from "./models";
 import { toSerializableError } from "./errutils";
+import { Electrs, ElectrsService } from "./electrs";
 
 export type GlobalFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -64,7 +65,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		confirmationDepth,
 		maxNbtcMintTxRetries,
 		btcBlockProcessingBatchSize,
-		fetch,
+		new ElectrsService(env.ELECTRS_API_URL),
 	);
 }
 
@@ -72,7 +73,7 @@ export class Indexer implements Storage {
 	d1: D1Database; // SQL DB
 	blocksDB: KVNamespace;
 	nbtcTxDB: KVNamespace;
-	electrsService: GlobalFetcher; // Service binding for Electrs API
+	electrs: Electrs;
 
 	nbtcScriptHex: string;
 	suiFallbackAddr: string;
@@ -90,7 +91,7 @@ export class Indexer implements Storage {
 		confirmationDepth: number,
 		maxRetries: number,
 		scanBatchSize: number,
-		electrsService: GlobalFetcher,
+		electrs: Electrs,
 	) {
 		this.d1 = storage.d1;
 		this.blocksDB = storage.blocksDB;
@@ -101,7 +102,7 @@ export class Indexer implements Storage {
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
 		this.btcBlockProcessingBatchSize = scanBatchSize;
-		this.electrsService = electrsService;
+		this.electrs = electrs;
 	}
 
 	// returns number of processed and add blocks
@@ -221,7 +222,7 @@ export class Indexer implements Storage {
 					const newSenderStmts = await getSenderInsertStmts(
 						tx,
 						this.d1,
-						this.electrsService, // Pass service binding instead of URL
+						this.electrs, // Pass service binding instead of URL
 					);
 					senderInsertStmts = senderInsertStmts.concat(newSenderStmts);
 				}
@@ -856,7 +857,7 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 async function getSenderInsertStmts(
 	tx: Transaction,
 	d1: D1Database,
-	electrsService: GlobalFetcher,
+	electrs: Electrs,
 ): Promise<D1PreparedStatement[]> {
 	const senderAddresses = new Set<string>();
 	const insertStmt = d1.prepare(
@@ -868,10 +869,7 @@ async function getSenderInsertStmts(
 		const prevTxVout = input.index;
 
 		try {
-			const response = await electrsService(
-				new Request(`https://electrs-service/tx/${prevTxId}`, { method: "GET" }),
-			);
-
+			const response = await electrs.getTx(prevTxId);
 			if (!response.ok) return;
 
 			const prevTx = (await response.json()) as { vout: { scriptpubkey_address?: string }[] };

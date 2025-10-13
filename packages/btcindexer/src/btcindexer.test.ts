@@ -99,7 +99,7 @@ const mkMockEnv = () =>
 			get: vi.fn(),
 			put: vi.fn(),
 		},
-		electrsService: mkElectrsServiceMock,
+		electrs: mkElectrsServiceMock,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	}) as any;
 
@@ -116,7 +116,7 @@ function prepareIndexer() {
 		8,
 		2,
 		100,
-		mockEnv.electrsService, // Pass the service binding
+		mockEnv.electrs, // Pass the service binding
 	);
 	return { mockEnv, indexer };
 }
@@ -454,7 +454,7 @@ describe("getSenderInsertStmts logic", () => {
 			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
-		const serviceFetchSpy = mockEnv.electrsService.mockResolvedValue(
+		const serviceFetchSpy = mockEnv.electrs.getTx.mockResolvedValue(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: fakeSenderAddress }],

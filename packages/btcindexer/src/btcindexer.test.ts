@@ -1,10 +1,12 @@
 import { describe, it, vi, expect } from "bun:test";
 
-import { Indexer, storageFromEnv } from "../src/btcindexer";
+import { join } from "path";
 import { Block, networks } from "bitcoinjs-lib";
+
+import { Indexer, storageFromEnv } from "../src/btcindexer";
 import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Deposit, ProofResult } from "./models";
-import { join } from "path";
+import { mkElectrsServiceMock } from "./electrs.test";
 
 interface TxInfo {
 	id: string;
@@ -97,9 +99,7 @@ const mkMockEnv = () =>
 			get: vi.fn(),
 			put: vi.fn(),
 		},
-		electrs_service: {
-			fetch: vi.fn(),
-		},
+		electrsService: mkElectrsServiceMock,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	}) as any;
 
@@ -116,7 +116,7 @@ function prepareIndexer() {
 		8,
 		2,
 		100,
-		mockEnv.ELECTRS_SERVICE, // Pass the service binding
+		mockEnv.electrsService, // Pass the service binding
 	);
 	return { mockEnv, indexer };
 }
@@ -453,9 +453,8 @@ describe("getSenderInsertStmts logic", () => {
 			.fn()
 			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
-		// Mock the Electrs service binding call
 		const fakeSenderAddress = "bc1qtestsenderaddress";
-		const serviceFetchSpy = vi.spyOn(mockEnv.ELECTRS_SERVICE, "fetch").mockResolvedValue(
+		const serviceFetchSpy = mockEnv.electrsService.mockResolvedValue(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: fakeSenderAddress }],

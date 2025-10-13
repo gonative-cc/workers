@@ -18,7 +18,7 @@ import {
 } from "./models";
 import { toSerializableError } from "./errutils";
 
-export type GlobalFetcher = typeof fetch;
+export type GlobalFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export function storageFromEnv(env: Env): Storage {
 	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
@@ -868,7 +868,7 @@ async function getSenderInsertStmts(
 		const prevTxVout = input.index;
 
 		try {
-			const response = await electrsService.fetch(
+			const response = await electrsService(
 				new Request(`https://electrs-service/tx/${prevTxId}`, { method: "GET" }),
 			);
 

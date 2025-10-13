@@ -51,7 +51,7 @@ export default {
 			if (latestBlock && latestBlock.latest_height) {
 				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
 			}
-			await indexer.scanNewBlocks(env);
+			await indexer.scanNewBlocks();
 			await indexer.processFinalizedTransactions();
 			console.log({ msg: "Cron job finished successfully" });
 		} catch (e) {

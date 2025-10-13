@@ -18,6 +18,8 @@ import {
 } from "./models";
 import { toSerializableError } from "./errutils";
 
+export type GlobalFetcher = typeof fetch;
+
 export function storageFromEnv(env: Env): Storage {
 	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
 }
@@ -62,6 +64,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		confirmationDepth,
 		maxNbtcMintTxRetries,
 		btcBlockProcessingBatchSize,
+		fetch,
 	);
 }
 
@@ -69,6 +72,7 @@ export class Indexer implements Storage {
 	d1: D1Database; // SQL DB
 	blocksDB: KVNamespace;
 	nbtcTxDB: KVNamespace;
+	electrsService: GlobalFetcher; // Service binding for Electrs API
 
 	nbtcScriptHex: string;
 	suiFallbackAddr: string;
@@ -86,6 +90,7 @@ export class Indexer implements Storage {
 		confirmationDepth: number,
 		maxRetries: number,
 		scanBatchSize: number,
+		electrsService: GlobalFetcher,
 	) {
 		this.d1 = storage.d1;
 		this.blocksDB = storage.blocksDB;
@@ -96,6 +101,7 @@ export class Indexer implements Storage {
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
 		this.btcBlockProcessingBatchSize = scanBatchSize;
+		this.electrsService = electrsService;
 	}
 
 	// returns number of processed and add blocks
@@ -156,7 +162,7 @@ export class Indexer implements Storage {
 		return true;
 	}
 
-	async scanNewBlocks(env: Env): Promise<void> {
+	async scanNewBlocks(): Promise<void> {
 		console.debug({ msg: "Cron: Running scanNewBlocks job" });
 		const blocksToProcess = await this.d1
 			.prepare(
@@ -211,10 +217,11 @@ export class Indexer implements Storage {
 			for (const tx of block.transactions ?? []) {
 				const deposits = this.findNbtcDeposits(tx);
 				if (deposits.length > 0) {
+					// Use service binding instead of direct URL
 					const newSenderStmts = await getSenderInsertStmts(
 						tx,
 						this.d1,
-						env.ELECTRS_API_URL,
+						this.electrsService, // Pass service binding instead of URL
 					);
 					senderInsertStmts = senderInsertStmts.concat(newSenderStmts);
 				}
@@ -849,7 +856,7 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 async function getSenderInsertStmts(
 	tx: Transaction,
 	d1: D1Database,
-	electrsUrl: string,
+	electrsService: GlobalFetcher,
 ): Promise<D1PreparedStatement[]> {
 	const senderAddresses = new Set<string>();
 	const insertStmt = d1.prepare(
@@ -861,7 +868,10 @@ async function getSenderInsertStmts(
 		const prevTxVout = input.index;
 
 		try {
-			const response = await fetch(`${electrsUrl}/tx/${prevTxId}`);
+			const response = await electrsService.fetch(
+				new Request(`https://electrs-service/tx/${prevTxId}`, { method: "GET" }),
+			);
+
 			if (!response.ok) return;
 
 			const prevTx = (await response.json()) as { vout: { scriptpubkey_address?: string }[] };
@@ -871,7 +881,7 @@ async function getSenderInsertStmts(
 			}
 		} catch (e) {
 			console.error({
-				msg: "Failed to fetch previous tx for sender address",
+				msg: "Failed to fetch previous tx for sender address via service binding",
 				error: toSerializableError(e),
 				prevTxId,
 			});

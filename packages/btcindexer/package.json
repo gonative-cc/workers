@@ -16,6 +16,7 @@
 		"test": "bun test"
 	},
 	"dependencies": {
+		"@mysten/bcs": "^1.8.0",
 		"@mysten/sui": "^1.38.0",
 		"bitcoinjs-lib": "^6.1.7",
 		"crypto-js": "^4.2.0",

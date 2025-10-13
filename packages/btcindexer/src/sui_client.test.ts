@@ -1,7 +1,9 @@
 import { describe, it, expect } from "bun:test";
+import { Block, networks } from "bitcoinjs-lib";
+
 import { Indexer } from "./btcindexer";
 import SuiClient, { SuiClientCfg } from "./sui_client";
-import { Block, networks } from "bitcoinjs-lib";
+import { mkElectrsServiceMock } from "./electrs.test";
 
 const REGTEST_DATA_MINT = {
 	BLOCK_HEX:
@@ -36,6 +38,7 @@ describe.skip("Sui Contract Integration (Mint)", () => {
 			8,
 			2,
 			100,
+			mkElectrsServiceMock(),
 		);
 		const block = Block.fromHex(REGTEST_DATA_MINT.BLOCK_HEX);
 		const txIndex = block.transactions?.findIndex(

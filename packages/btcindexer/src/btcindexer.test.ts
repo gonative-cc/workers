@@ -99,7 +99,7 @@ const mkMockEnv = () =>
 			get: vi.fn(),
 			put: vi.fn(),
 		},
-		electrs: mkElectrsServiceMock,
+		electrs: mkElectrsServiceMock(),
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	}) as any;
 
@@ -454,7 +454,7 @@ describe("getSenderInsertStmts logic", () => {
 			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
-		const serviceFetchSpy = mockEnv.electrs.getTx.mockResolvedValue(
+		const electrsSpy = mockEnv.electrs.getTx.mockResolvedValue(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: fakeSenderAddress }],
@@ -469,10 +469,9 @@ describe("getSenderInsertStmts logic", () => {
 		const prevTxId = Buffer.from(targetTx.ins[0].hash).reverse().toString("hex");
 
 		// Check that the service binding fetch was called with the right request
-		expect(serviceFetchSpy).toHaveBeenCalledTimes(1);
-		const requestArg = serviceFetchSpy.mock.calls[0][0];
-		expect(requestArg).toBeInstanceOf(Request);
-		expect(requestArg.url).toContain(`/tx/${prevTxId}`);
+		expect(electrsSpy).toHaveBeenCalledTimes(1);
+		const requestArg = electrsSpy.mock.calls[0][0];
+		expect(requestArg).toEqual(prevTxId);
 
 		const batchCalls = mockEnv.DB.batch.mock.calls[0][0];
 		expect(batchCalls).toHaveLength(2); // One for nbtc_minting and one for nbtc_sender_deposits

@@ -22,6 +22,10 @@ graph TD
     F -- "Finalized TXs trigger minting" --> G[SUI Smart Contract];
 ```
 
+## API
+
+See [API.md](./API.md)
+
 ## Components
 
 - Relayer: An external service that acts as source of truth for Bitcoin blocks.

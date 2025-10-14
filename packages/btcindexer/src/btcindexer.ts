@@ -19,8 +19,6 @@ import {
 import { toSerializableError } from "./errutils";
 import { Electrs, ElectrsService } from "./electrs";
 
-export type GlobalFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
 export function storageFromEnv(env: Env): Storage {
 	return { d1: env.DB, blocksDB: env.btc_blocks, nbtcTxDB: env.nbtc_txs };
 }

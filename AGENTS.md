@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a Cloudflare Workers project that implements various services for Go Native (https://github.com/gonative-cc).
+This is a Cloudflare Workers project that implements various services for [Go Native](https://github.com/gonative-cc).
 It uses [Bun](https://bun.com/) for JavaScript and Typescript runtime and package management (instead of Nodejs + npm).
 
 The content is organized into a Bun workspace in the root @package.json .
@@ -150,7 +150,7 @@ The project consists of:
 
 Regenerate using `tree --gitignore`.
 
-```
+```text
 ├── .git/
 ├── api/
 │   └── btcindexer/

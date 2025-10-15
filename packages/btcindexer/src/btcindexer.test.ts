@@ -1,4 +1,4 @@
-import { describe, it, vi, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import { describe, test, vi, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
 
 import { join } from "path";
@@ -137,7 +137,7 @@ function checkTxProof(proofResult: ProofResult | null, block: Block) {
 }
 
 describe("Indexer.findNbtcDeposits", () => {
-	it("should correctly parse a single deposit from a real regtest transaction", () => {
+	test("should correctly parse a single deposit from a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		const targetTx = block.transactions?.find(
 			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
@@ -151,7 +151,7 @@ describe("Indexer.findNbtcDeposits", () => {
 		expect(deposits[0].suiRecipient).toEqual(REGTEST_DATA[329].txs[1].suiAddr);
 		expect(deposits[0].vout).toEqual(0);
 	});
-	it("should find multiple deposits within a single block containing multiple transactions", () => {
+	test("should find multiple deposits within a single block containing multiple transactions", () => {
 		const block = Block.fromHex(REGTEST_DATA[327].rawBlockHex);
 		expect(block.transactions).toBeDefined();
 
@@ -174,13 +174,13 @@ describe("Indexer.findNbtcDeposits", () => {
 });
 
 describe.skip("Indexer.scanNewBlocks", () => {
-	it("should be tested later", () => {
+	test("should be tested later", () => {
 		// TODO: add a test for the scanNewBlocks using the same data
 	});
 });
 
 describe("Indexer.constructMerkleProof", () => {
-	it("should generate a valid proof for a real regtest transaction", () => {
+	test("should generate a valid proof for a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		const targetTx = block.transactions?.find(
 			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
@@ -196,7 +196,7 @@ describe("Indexer.constructMerkleProof", () => {
 		checkTxProof({ proofPath: proofPath!, merkleRoot }, block);
 	});
 
-	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
+	test("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
 		const block = Block.fromHex(REGTEST_DATA[327].rawBlockHex);
 		const targetTx = block.transactions?.find(
 			(tx) => tx.getId() === REGTEST_DATA[327].txs[2].id,
@@ -214,7 +214,7 @@ describe("Indexer.constructMerkleProof", () => {
 });
 
 describe("Indexer.handleReorgs", () => {
-	it("should do nothing if no reorg", async () => {
+	test("should do nothing if no reorg", async () => {
 		const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
 		const db = await mf.getD1Database("DB");
 		await db
@@ -228,7 +228,7 @@ describe("Indexer.handleReorgs", () => {
 		expect(reorgUpdates.length).toEqual(0);
 	});
 
-	it("should generate a reset statement if reorg detected", async () => {
+	test("should generate a reset statement if reorg detected", async () => {
 		const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
 		const db = await mf.getD1Database("DB");
 		await db
@@ -243,14 +243,14 @@ describe("Indexer.handleReorgs", () => {
 });
 
 describe("Indexer.findFinalizedTxs", () => {
-	it("should generate a finalize statement when enough confirmations", () => {
+	test("should generate a finalize statement when enough confirmations", () => {
 		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
 		const latestHeight = 107;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
 		expect(updates.length).toEqual(1);
 	});
 
-	it("should do nothing when not enough confirmations", () => {
+	test("should do nothing when not enough confirmations", () => {
 		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
 		const latestHeight = 106;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
@@ -259,13 +259,13 @@ describe("Indexer.findFinalizedTxs", () => {
 });
 
 describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
-	it("should be tested later", () => {
+	test("should be tested later", () => {
 		// TODO: add a test for the scanNewBlocks using the same data
 	});
 });
 
 describe("Block Parsing", () => {
-	it("should correctly parse block 94160 from testnet", async () => {
+	test("should correctly parse block 94160 from testnet", async () => {
 		// Paste the full raw block hex from bitcoin-cli here
 		const rawBlockHex = await Bun.file(join(__dirname, "testdata/block94160.txt")).text();
 
@@ -283,7 +283,7 @@ describe("Block Parsing", () => {
 });
 
 describe("Indexer.registerBroadcastedNbtcTx", () => {
-	it("should register a tx with a single deposit", async () => {
+	test("should register a tx with a single deposit", async () => {
 		const blockData = REGTEST_DATA[329];
 		const block = Block.fromHex(blockData.rawBlockHex);
 		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1].id);
@@ -301,7 +301,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		expect(results[0].amount_sats).toEqual(blockData.txs[1].amountSats);
 	});
 
-	it("should throw an error for a transaction with no valid deposits", async () => {
+	test("should throw an error for a transaction with no valid deposits", async () => {
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		expect(block.transactions).toBeDefined();
 		// The first tx in a block is coinbase
@@ -314,7 +314,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 });
 
 describe("Indexer.processFinalizedTransactions", () => {
-	it("should process finalized transactions, group them, and call the SUI batch mint function", async () => {
+	test("should process finalized transactions, group them, and call the SUI batch mint function", async () => {
 		const block329 = REGTEST_DATA[329];
 		const tx329 = block329.txs[1];
 
@@ -357,7 +357,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 });
 
 describe("Indexer.processFinalizedTransactions Retry Logic", () => {
-	it("should retry a failed tx and succeed", async () => {
+	test("should retry a failed tx and succeed", async () => {
 		const blockData = REGTEST_DATA[329];
 		const txData = blockData.txs[1];
 
@@ -399,7 +399,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		expect(results[0].sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 
-	it("should retry a failed tx, fail again, and increment retry_count", async () => {
+	test("should retry a failed tx, fail again, and increment retry_count", async () => {
 		const blockData = REGTEST_DATA[329];
 		const txData = blockData.txs[1];
 
@@ -442,7 +442,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 });
 
 describe("getSenderInsertStmts logic", () => {
-	it("should fetch sender addresses and store them when scanning a block", async () => {
+	test("should fetch sender addresses and store them when scanning a block", async () => {
 		const blockData = REGTEST_DATA[329];
 
 		const db = await mf.getD1Database("DB");

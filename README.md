@@ -53,7 +53,10 @@ bun run dev
 Watch for changes and automatically test:
 
 ```sh
+# This will run test with surpassing all log, debug and info console logs.
 bun run test
+# to keep logs:
+bun test
 # To test only some packages
 bun run --filter package_pattern test
 ```

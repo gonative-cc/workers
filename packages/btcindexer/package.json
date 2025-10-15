@@ -13,7 +13,7 @@
 		"db:migrate:backstage": "wrangler d1 migrations apply btcindexer-dev --remote",
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
-		"test": "bun test"
+		"test": "bun test --preload ../../test-setup-muted.ts"
 	},
 	"dependencies": {
 		"@mysten/bcs": "^1.8.0",

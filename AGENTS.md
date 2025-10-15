@@ -53,7 +53,7 @@ To run tests of a specific package, firstly enter into the package directory and
 
 ```bash
 # Run tests
-bun run test
+AGENT=1 bun run test
 
 # Type checking
 bun run typecheck

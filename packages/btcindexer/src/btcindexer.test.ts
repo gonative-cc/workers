@@ -116,7 +116,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	const db = await mf.getD1Database("DB");
-	const tables = ["btc_blocks", ...]
+	const tables = ["btc_blocks", "nbtc_minting", "nbtc_withdrawal", "nbtc_sender_deposits"];
 	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
 	await db.exec(dropStms);
 });

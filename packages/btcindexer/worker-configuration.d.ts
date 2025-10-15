@@ -29,24 +29,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv
-		extends StringifyValues<
-			Pick<
-				Cloudflare.Env,
-				| "SUI_NETWORK"
-				| "NBTC_PACKAGE_ID"
-				| "NBTC_CONTRACT_ID"
-				| "LIGHT_CLIENT_OBJECT_ID"
-				| "LIGHT_CLIENT_PACKAGE_ID"
-				| "BITCOIN_NETWORK"
-				| "NBTC_DEPOSIT_ADDRESS"
-				| "SUI_FALLBACK_ADDRESS"
-				| "CONFIRMATION_DEPTH"
-				| "ELECTRS_API_URL"
-				| "MAX_NBTC_MINT_TX_RETRIES"
-				| "BTC_BLOCK_PROCESSING_BATCH_SIZE"
-			>
-		> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SUI_NETWORK" | "NBTC_PACKAGE_ID" | "NBTC_CONTRACT_ID" | "LIGHT_CLIENT_OBJECT_ID" | "LIGHT_CLIENT_PACKAGE_ID" | "BITCOIN_NETWORK" | "NBTC_DEPOSIT_ADDRESS" | "SUI_FALLBACK_ADDRESS" | "CONFIRMATION_DEPTH" | "ELECTRS_API_URL" | "MAX_NBTC_MINT_TX_RETRIES" | "BTC_BLOCK_PROCESSING_BATCH_SIZE">> {}
 }
 
 // Begin runtime types

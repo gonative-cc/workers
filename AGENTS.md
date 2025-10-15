@@ -18,7 +18,6 @@ Check @README.md for more details.
 
 Details about each package is in described in the sections below.
 
-
 ### Core Technologies
 
 - [Bun](https://bun.com/)
@@ -31,6 +30,7 @@ Details about each package is in described in the sections below.
 - Sui Blockchain integration
 
 Key components:
+
 - **Service Bindings**: Implements proper Cloudflare service-to-service communication using service bindings instead of direct HTTP calls
 
 ### Setup

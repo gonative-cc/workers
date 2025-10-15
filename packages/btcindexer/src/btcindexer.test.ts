@@ -1,12 +1,14 @@
 import { describe, it, vi, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
 
-import { Indexer, storageFromEnv } from "../src/btcindexer";
+import { join } from "path";
 import { Block, networks } from "bitcoinjs-lib";
+
+import { Indexer, storageFromEnv } from "../src/btcindexer";
 import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Deposit, ProofResult } from "./models";
-import { join } from "path";
 import { initDb } from "./db.test";
+import { mkElectrsServiceMock } from "./electrs.test";
 
 interface TxInfo {
 	id: string;
@@ -83,7 +85,9 @@ beforeAll(async () => {
 		modules: true,
 		d1Databases: ["DB"],
 		kvNamespaces: ["btc_blocks", "nbtc_txs"],
-
+		bindings: {
+			electrs: "hello_world", //TODO: doesnt work
+		},
 		d1Persist: false,
 		kvPersist: false,
 		cachePersist: false,
@@ -109,6 +113,7 @@ beforeEach(async () => {
 		8,
 		2,
 		100,
+		mkElectrsServiceMock(), // Pass the service binding
 	);
 });
 
@@ -455,9 +460,10 @@ describe("getSenderInsertStmts logic", () => {
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
-		// Electrs fetch call
 		const fakeSenderAddress = "bc1qtestsenderaddress";
-		const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue(
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const env = (await mf.getBindings()) as any;
+		const electrsSpy = env.electrs.getTx.mockResolvedValue(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: fakeSenderAddress }],
@@ -465,14 +471,16 @@ describe("getSenderInsertStmts logic", () => {
 			),
 		);
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const env = (await mf.getBindings()) as any;
-		await indexer.scanNewBlocks(env);
+		await indexer.scanNewBlocks();
 
 		const block = Block.fromHex(blockData.rawBlockHex);
 		const targetTx = block.transactions![1];
 		const prevTxId = Buffer.from(targetTx.ins[0].hash).reverse().toString("hex");
-		expect(fetchSpy).toHaveBeenCalledWith(`${env.ELECTRS_API_URL}/tx/${prevTxId}`);
+
+		// Check that the service binding fetch was called with the right request
+		expect(electrsSpy).toHaveBeenCalledTimes(1);
+		const requestArg = electrsSpy.mock.calls[0][0];
+		expect(requestArg).toEqual(prevTxId);
 
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
 		expect(mintingResults.length).toEqual(1);

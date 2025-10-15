@@ -116,10 +116,9 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	const db = await mf.getD1Database("DB");
-	await db.exec("DROP TABLE IF EXISTS btc_blocks;");
-	await db.exec("DROP TABLE IF EXISTS nbtc_minting;");
-	await db.exec("DROP TABLE IF EXISTS nbtc_withdrawal;");
-	await db.exec("DROP TABLE IF EXISTS nbtc_sender_deposits;");
+	const tables = ["btc_blocks", ...]
+	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
+	await db.exec(dropStms);
 });
 
 function checkTxProof(proofResult: ProofResult | null, block: Block) {

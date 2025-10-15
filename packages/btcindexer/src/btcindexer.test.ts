@@ -1,10 +1,12 @@
-import { describe, it, vi, expect } from "bun:test";
+import { describe, it, vi, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import { Miniflare } from "miniflare";
 
 import { Indexer, storageFromEnv } from "../src/btcindexer";
 import { Block, networks } from "bitcoinjs-lib";
 import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Deposit, ProofResult } from "./models";
 import { join } from "path";
+import { initDb } from "./db.test";
 
 interface TxInfo {
 	id: string;
@@ -59,20 +61,6 @@ const REGTEST_DATA: TestBlocks = {
 };
 
 const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
-// TODO: ideally we should use Miniflare here, as in the auction tests. We can do it later.
-// https://github.com/gonative-cc/byield/blob/master/app/server/BeelieversAuction/auction.server.test.ts
-const createMockStmt = () => ({
-	bind: vi.fn().mockReturnThis(),
-	all: vi.fn().mockResolvedValue({ results: [] }),
-	run: vi.fn().mockResolvedValue({ success: true }),
-});
-
-function mkMockD1() {
-	return {
-		prepare: vi.fn().mockImplementation(() => createMockStmt()),
-		batch: vi.fn().mockResolvedValue({ success: true }),
-	};
-}
 
 const SUI_CLIENT_CFG: SuiClientCfg = {
 	network: "testnet",
@@ -86,25 +74,33 @@ const SUI_CLIENT_CFG: SuiClientCfg = {
 		"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic",
 };
 
-const mkMockEnv = () =>
-	({
-		DB: mkMockD1(),
-		btc_blocks: {
-			get: vi.fn(),
-			put: vi.fn(),
-		},
-		nbtc_txs: {
-			get: vi.fn(),
-			put: vi.fn(),
-		},
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	}) as any;
+let mf: Miniflare;
+let indexer: Indexer;
 
-function prepareIndexer() {
-	const mockEnv = mkMockEnv();
-	const storage = storageFromEnv(mockEnv);
+beforeAll(async () => {
+	mf = new Miniflare({
+		script: "",
+		modules: true,
+		d1Databases: ["DB"],
+		kvNamespaces: ["btc_blocks", "nbtc_txs"],
 
-	const indexer = new Indexer(
+		d1Persist: false,
+		kvPersist: false,
+		cachePersist: false,
+	});
+});
+
+afterAll(async () => {
+	await mf.dispose();
+});
+
+beforeEach(async () => {
+	const db = await mf.getD1Database("DB");
+	await initDb(db);
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const env = (await mf.getBindings()) as any;
+	const storage = storageFromEnv(env);
+	indexer = new Indexer(
 		storage,
 		new SuiClient(SUI_CLIENT_CFG),
 		REGTEST_DATA[329].depositAddr,
@@ -114,8 +110,15 @@ function prepareIndexer() {
 		2,
 		100,
 	);
-	return { mockEnv, indexer };
-}
+});
+
+afterEach(async () => {
+	const db = await mf.getD1Database("DB");
+	await db.exec("DROP TABLE IF EXISTS btc_blocks;");
+	await db.exec("DROP TABLE IF EXISTS nbtc_minting;");
+	await db.exec("DROP TABLE IF EXISTS nbtc_withdrawal;");
+	await db.exec("DROP TABLE IF EXISTS nbtc_sender_deposits;");
+});
 
 function checkTxProof(proofResult: ProofResult | null, block: Block) {
 	expect(proofResult).toBeDefined();
@@ -133,7 +136,6 @@ function checkTxProof(proofResult: ProofResult | null, block: Block) {
 }
 
 describe("Indexer.findNbtcDeposits", () => {
-	const indexer = prepareIndexer().indexer;
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		const targetTx = block.transactions?.find(
@@ -177,7 +179,6 @@ describe.skip("Indexer.scanNewBlocks", () => {
 });
 
 describe("Indexer.constructMerkleProof", () => {
-	const indexer = prepareIndexer().indexer;
 	it("should generate a valid proof for a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		const targetTx = block.transactions?.find(
@@ -212,32 +213,35 @@ describe("Indexer.constructMerkleProof", () => {
 });
 
 describe("Indexer.handleReorgs", () => {
-	const { mockEnv, indexer } = prepareIndexer();
 	it("should do nothing if no reorg", async () => {
 		const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
-		const mockStatement = {
-			bind: vi.fn().mockReturnThis(),
-			first: vi.fn().mockResolvedValue({ hash: "hash_A" }),
-		};
-		mockEnv.DB.prepare.mockReturnValue(mockStatement);
+		const db = await mf.getD1Database("DB");
+		await db
+			.prepare(
+				"INSERT INTO btc_blocks (height, hash, processed_at, status) VALUES (?, ?, ?, ?)",
+			)
+			.bind(100, "hash_A", Date.now(), "scanned")
+			.run();
+
 		const { reorgUpdates } = await indexer.handleReorgs([pendingTx]);
 		expect(reorgUpdates.length).toEqual(0);
 	});
 
 	it("should generate a reset statement if reorg detected", async () => {
 		const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
-		const mockStatement = {
-			bind: vi.fn().mockReturnThis(),
-			first: vi.fn().mockResolvedValue({ hash: "hash_A_reorged" }),
-		};
-		mockEnv.DB.prepare.mockReturnValue(mockStatement);
+		const db = await mf.getD1Database("DB");
+		await db
+			.prepare(
+				"INSERT INTO btc_blocks (height, hash, processed_at, status) VALUES (?, ?, ?, ?)",
+			)
+			.bind(100, "hash_A_reorged", Date.now(), "scanned")
+			.run();
 		const { reorgUpdates } = await indexer.handleReorgs([pendingTx]);
 		expect(reorgUpdates.length).toEqual(1);
 	});
 });
 
 describe("Indexer.findFinalizedTxs", () => {
-	const indexer = prepareIndexer().indexer;
 	it("should generate a finalize statement when enough confirmations", () => {
 		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
 		const latestHeight = 107;
@@ -279,7 +283,6 @@ describe("Block Parsing", () => {
 
 describe("Indexer.registerBroadcastedNbtcTx", () => {
 	it("should register a tx with a single deposit", async () => {
-		const { mockEnv, indexer } = prepareIndexer();
 		const blockData = REGTEST_DATA[329];
 		const block = Block.fromHex(blockData.rawBlockHex);
 		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1].id);
@@ -288,22 +291,16 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		const txHex = targetTx!.toHex();
 		await indexer.registerBroadcastedNbtcTx(txHex);
 
-		const insertStmt = mockEnv.DB.prepare.mock.results[0].value;
-		expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
-			expect.stringContaining("INSERT OR IGNORE INTO nbtc_minting"),
-		);
-		expect(insertStmt.bind).toHaveBeenCalledWith(
-			blockData.txs[1].id,
-			0, // vout
-			blockData.txs[1].suiAddr,
-			blockData.txs[1].amountSats,
-			expect.any(Number),
-			expect.any(Number),
-		);
+		const db = await mf.getD1Database("DB");
+		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		expect(results.length).toEqual(1);
+		expect(results[0].tx_id).toEqual(blockData.txs[1].id);
+		expect(results[0].vout).toEqual(0);
+		expect(results[0].sui_recipient).toEqual(blockData.txs[1].suiAddr);
+		expect(results[0].amount_sats).toEqual(blockData.txs[1].amountSats);
 	});
 
 	it("should throw an error for a transaction with no valid deposits", async () => {
-		const { indexer } = prepareIndexer();
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
 		expect(block.transactions).toBeDefined();
 		// The first tx in a block is coinbase
@@ -317,27 +314,29 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 
 describe("Indexer.processFinalizedTransactions", () => {
 	it("should process finalized transactions, group them, and call the SUI batch mint function", async () => {
-		const { mockEnv, indexer } = prepareIndexer();
 		const block329 = REGTEST_DATA[329];
 		const tx329 = block329.txs[1];
-		const mockFinalizedTxs = {
-			results: [
-				{
-					tx_id: tx329.id,
-					vout: 0,
-					block_hash: block329.hash,
-					block_height: block329.height,
-				},
-			],
-		};
-		const mockSelectStmt = createMockStmt();
-		mockSelectStmt.all.mockResolvedValue(mockFinalizedTxs);
 
-		const mockUpdateStmt = createMockStmt();
-		mockEnv.DB.prepare.mockReturnValueOnce(mockSelectStmt).mockReturnValue(mockUpdateStmt);
+		const db = await mf.getD1Database("DB");
+		await db
+			.prepare(
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			)
+			.bind(
+				tx329.id,
+				0,
+				block329.hash,
+				block329.height,
+				tx329.suiAddr,
+				tx329.amountSats,
+				"finalized",
+				Date.now(),
+				Date.now(),
+			)
+			.run();
 
-		const mockKvGet = vi.fn().mockResolvedValue(Buffer.from(block329.rawBlockHex, "hex"));
-		mockEnv.btc_blocks.get = mockKvGet;
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(block329.hash, Buffer.from(block329.rawBlockHex, "hex").buffer);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		const suiClientSpy = vi
@@ -347,42 +346,42 @@ describe("Indexer.processFinalizedTransactions", () => {
 		await indexer.processFinalizedTransactions();
 		expect(suiClientSpy).toHaveBeenCalledTimes(1);
 
-		const finalDbBatchCall = mockEnv.DB.batch.mock.calls[0][0];
-		expect(finalDbBatchCall).toHaveLength(1);
-		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(
-			fakeSuiTxDigest,
-			expect.any(Number),
-			tx329.id,
-			0,
-		);
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(tx329.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0].sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 });
 
 describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 	it("should retry a failed tx and succeed", async () => {
-		const { mockEnv, indexer } = prepareIndexer();
 		const blockData = REGTEST_DATA[329];
 		const txData = blockData.txs[1];
 
-		const mockFailedTx = {
-			results: [
-				{
-					tx_id: txData.id,
-					vout: 0,
-					block_hash: blockData.hash,
-					block_height: blockData.height,
-					retry_count: 0,
-				},
-			],
-		};
-		const mockSelectStmt = createMockStmt();
-		mockSelectStmt.all.mockResolvedValue(mockFailedTx);
-		const mockUpdateStmt = createMockStmt();
-		mockEnv.DB.prepare.mockReturnValueOnce(mockSelectStmt).mockReturnValue(mockUpdateStmt);
+		const db = await mf.getD1Database("DB");
+		await db
+			.prepare(
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			)
+			.bind(
+				txData.id,
+				0,
+				blockData.hash,
+				blockData.height,
+				txData.suiAddr,
+				txData.amountSats,
+				"finalized",
+				Date.now(),
+				Date.now(),
+				0,
+			)
+			.run();
 
-		mockEnv.btc_blocks.get = vi
-			.fn()
-			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		const suiClientSpy = vi
 			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
@@ -391,38 +390,40 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await indexer.processFinalizedTransactions();
 
 		expect(suiClientSpy).toHaveBeenCalledTimes(1);
-		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(
-			fakeSuiTxDigest,
-			expect.any(Number),
-			txData.id,
-			0,
-		);
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0].sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 
 	it("should retry a failed tx, fail again, and increment retry_count", async () => {
-		const { mockEnv, indexer } = prepareIndexer();
 		const blockData = REGTEST_DATA[329];
 		const txData = blockData.txs[1];
 
-		const mockFailedTx = {
-			results: [
-				{
-					tx_id: txData.id,
-					vout: 0,
-					block_hash: blockData.hash,
-					block_height: blockData.height,
-					retry_count: 1,
-				},
-			],
-		};
-		const mockSelectStmt = createMockStmt();
-		mockSelectStmt.all.mockResolvedValue(mockFailedTx);
-		const mockUpdateStmt = createMockStmt();
-		mockEnv.DB.prepare.mockReturnValueOnce(mockSelectStmt).mockReturnValue(mockUpdateStmt);
+		const db = await mf.getD1Database("DB");
+		await db
+			.prepare(
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			)
+			.bind(
+				txData.id,
+				0,
+				blockData.hash,
+				blockData.height,
+				txData.suiAddr,
+				txData.amountSats,
+				"finalized",
+				Date.now(),
+				Date.now(),
+				1,
+			)
+			.run();
 
-		mockEnv.btc_blocks.get = vi
-			.fn()
-			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
 		const suiClientSpy = vi
 			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
 			.mockResolvedValue(null);
@@ -430,24 +431,29 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await indexer.processFinalizedTransactions();
 
 		expect(suiClientSpy).toHaveBeenCalledTimes(1);
-		expect(mockUpdateStmt.bind).toHaveBeenCalledWith(expect.any(Number), txData.id, 0);
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0].retry_count).toEqual(2);
 	});
 });
 
 describe("getSenderInsertStmts logic", () => {
 	it("should fetch sender addresses and store them when scanning a block", async () => {
-		const { mockEnv, indexer } = prepareIndexer();
 		const blockData = REGTEST_DATA[329];
 
-		const mockSelectStmt = createMockStmt();
-		mockSelectStmt.all.mockResolvedValue({
-			results: [{ height: blockData.height, hash: blockData.hash }],
-		});
-		mockEnv.DB.prepare.mockReturnValue(mockSelectStmt);
+		const db = await mf.getD1Database("DB");
+		await db
+			.prepare(
+				"INSERT INTO btc_blocks (height, hash, processed_at, status) VALUES (?, ?, ?, ?)",
+			)
+			.bind(blockData.height, blockData.hash, Date.now(), "new")
+			.run();
 
-		mockEnv.btc_blocks.get = vi
-			.fn()
-			.mockResolvedValue(Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		// Electrs fetch call
 		const fakeSenderAddress = "bc1qtestsenderaddress";
@@ -459,23 +465,22 @@ describe("getSenderInsertStmts logic", () => {
 			),
 		);
 
-		await indexer.scanNewBlocks(mockEnv);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const env = (await mf.getBindings()) as any;
+		await indexer.scanNewBlocks(env);
 
 		const block = Block.fromHex(blockData.rawBlockHex);
 		const targetTx = block.transactions![1];
 		const prevTxId = Buffer.from(targetTx.ins[0].hash).reverse().toString("hex");
-		expect(fetchSpy).toHaveBeenCalledWith(`${mockEnv.ELECTRS_API_URL}/tx/${prevTxId}`);
+		expect(fetchSpy).toHaveBeenCalledWith(`${env.ELECTRS_API_URL}/tx/${prevTxId}`);
 
-		const batchCalls = mockEnv.DB.batch.mock.calls[0][0];
-		expect(batchCalls).toHaveLength(2); // One for nbtc_minting and one for nbtc_sender_deposits
+		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		expect(mintingResults.length).toEqual(1);
 
-		const prepareCalls = mockEnv.DB.prepare.mock.calls;
-		const mintingSQL = prepareCalls.find((call: [string]) => call[0].includes("nbtc_minting"));
-		const senderSQL = prepareCalls.find((call: [string]) =>
-			call[0].includes("nbtc_sender_deposits"),
-		);
-
-		expect(mintingSQL).toBeDefined();
-		expect(senderSQL).toBeDefined();
+		const { results: senderResults } = await db
+			.prepare("SELECT * FROM nbtc_sender_deposits")
+			.all();
+		expect(senderResults.length).toEqual(1);
+		expect(senderResults[0].sender).toEqual(fakeSenderAddress);
 	});
 });

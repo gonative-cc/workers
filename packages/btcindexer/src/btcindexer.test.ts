@@ -85,9 +85,6 @@ beforeAll(async () => {
 		modules: true,
 		d1Databases: ["DB"],
 		kvNamespaces: ["btc_blocks", "nbtc_txs"],
-		bindings: {
-			electrs: "hello_world", //TODO: doesnt work
-		},
 		d1Persist: false,
 		kvPersist: false,
 		cachePersist: false,
@@ -462,8 +459,7 @@ describe("getSenderInsertStmts logic", () => {
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const env = (await mf.getBindings()) as any;
-		const electrsSpy = env.electrs.getTx.mockResolvedValue(
+		(indexer.electrs.getTx as any).mockResolvedValue(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: fakeSenderAddress }],
@@ -478,8 +474,9 @@ describe("getSenderInsertStmts logic", () => {
 		const prevTxId = Buffer.from(targetTx.ins[0].hash).reverse().toString("hex");
 
 		// Check that the service binding fetch was called with the right request
-		expect(electrsSpy).toHaveBeenCalledTimes(1);
-		const requestArg = electrsSpy.mock.calls[0][0];
+		expect(indexer.electrs.getTx).toHaveBeenCalledTimes(1);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const requestArg = (indexer.electrs.getTx as any).mock.calls[0][0];
 		expect(requestArg).toEqual(prevTxId);
 
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();

@@ -1,4 +1,4 @@
 [test]
 # This tells Bun to run our setup file before any tests.
 # The file disables all the logs. In order to disable it for debugging just comment out the `preload` line
-preload = ["./tests/setup.ts"]
+preload = ["../../tests/setup.ts"]

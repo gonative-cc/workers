@@ -4,7 +4,8 @@ import { Miniflare } from "miniflare";
 import { join } from "path";
 import { Block, networks } from "bitcoinjs-lib";
 
-import { Indexer, storageFromEnv } from "../src/btcindexer";
+import { Indexer } from "../src/btcindexer";
+import { D1KVStorage } from "./d1kv-storage";
 import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Deposit, ProofResult } from "./models";
 import { initDb } from "./db.test";
@@ -100,7 +101,7 @@ beforeEach(async () => {
 	await initDb(db);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const env = (await mf.getBindings()) as any;
-	const storage = storageFromEnv(env);
+	const storage = new D1KVStorage(env.DB, env.btc_blocks, env.nbtc_txs);
 	indexer = new Indexer(
 		storage,
 		new SuiClient(SUI_CLIENT_CFG),
@@ -224,8 +225,8 @@ describe("Indexer.handleReorgs", () => {
 			.bind(100, "hash_A", Date.now(), "scanned")
 			.run();
 
-		const { reorgUpdates } = await indexer.handleReorgs([pendingTx]);
-		expect(reorgUpdates.length).toEqual(0);
+		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
+		expect(reorgedTxIds.length).toEqual(0);
 	});
 
 	it("should generate a reset statement if reorg detected", async () => {
@@ -237,8 +238,8 @@ describe("Indexer.handleReorgs", () => {
 			)
 			.bind(100, "hash_A_reorged", Date.now(), "scanned")
 			.run();
-		const { reorgUpdates } = await indexer.handleReorgs([pendingTx]);
-		expect(reorgUpdates.length).toEqual(1);
+		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
+		expect(reorgedTxIds.length).toEqual(1);
 	});
 });
 

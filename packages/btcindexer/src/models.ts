@@ -35,12 +35,6 @@ export interface GroupedFinalizedTx {
 	deposits: FinalizedTxRow[];
 }
 
-export interface Storage {
-	d1: D1Database; // SQL DB
-	blocksDB: KVNamespace;
-	nbtcTxDB: KVNamespace;
-}
-
 /**
  * Represents the lifecycle status of an nBTC minting tx.
  * - **broadcasting**: The deposit transaction has been broadcast to the Bitcoin network, but has not yet been included in a block.

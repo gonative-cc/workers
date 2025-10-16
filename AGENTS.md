@@ -49,6 +49,18 @@ To run all tests:
 bun run test
 ```
 
+To enable verbose logging, run:
+
+```bash
+ENABLE_LOGS=1 bun run test
+```
+
+To indicate that the tests are being run by an agent, run:
+
+```bash
+AGENT=1 bun run test
+```
+
 To run tests of a specific package, firstly enter into the package directory and then:
 
 ```bash

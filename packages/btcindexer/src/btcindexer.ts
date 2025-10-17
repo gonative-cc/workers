@@ -18,7 +18,7 @@ import {
 import { toSerializableError } from "./errutils";
 import { Electrs, ElectrsService } from "./electrs";
 import { Storage } from "./storage";
-import { D1KVStorage } from "./d1kv-storage";
+import { CFStorage } from "./cf-storage";
 
 export type GlobalFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -30,7 +30,7 @@ const btcNetworks = {
 const validBtcNet = Object.keys(btcNetworks).keys();
 
 export async function indexerFromEnv(env: Env): Promise<Indexer> {
-	const storage = new D1KVStorage(env.DB, env.btc_blocks, env.nbtc_txs);
+	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
 	const sc = await suiClientFromEnv(env);
 
 	if (!env.BITCOIN_NETWORK) throw Error("BITCOIN_NETWORK env must be set");

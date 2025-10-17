@@ -4,8 +4,8 @@ import { Miniflare } from "miniflare";
 import { join } from "path";
 import { Block, networks } from "bitcoinjs-lib";
 
-import { Indexer } from "../src/btcindexer";
-import { D1KVStorage } from "./d1kv-storage";
+import { Indexer } from "./btcindexer";
+import { CFStorage } from "./cf-storage";
 import { SuiClient, SuiClientCfg } from "./sui_client";
 import { Deposit, ProofResult } from "./models";
 import { initDb } from "./db.test";
@@ -101,7 +101,7 @@ beforeEach(async () => {
 	await initDb(db);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const env = (await mf.getBindings()) as any;
-	const storage = new D1KVStorage(env.DB, env.btc_blocks, env.nbtc_txs);
+	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
 	indexer = new Indexer(
 		storage,
 		new SuiClient(SUI_CLIENT_CFG),

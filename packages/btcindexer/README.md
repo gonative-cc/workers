@@ -37,19 +37,15 @@ graph TD
     SuiClient -- "4. Mints nBTC" --> Sui
 ```
 
-## Documentation
-
-This document provides an overview of the `btcindexer` worker, its architecture, state machine, and API endpoints.
-
-### 1. Overview
+## 1. Overview
 
 The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bitcoin blockchain for nBTC deposits, processing them, and coordinating the minting of nBTC tokens on the Sui blockchain.
 
-### 2. Componets
+## 2. Componets
 
 - **Main Worker (`src/index.ts`):** The entry point for all incoming requests. It handles HTTP requests, and scheduled cron jobs, and delegates tasks to the appropriate modules.
 - **Indexer (`src/btcindexer.ts`):** The core logic for processing Bitcoin blocks and transactions. It identifies nBTC deposits, tracks their confirmation status, and manages the minting process.
-- **Router (`src/router.ts`):** Defines the API endpoints and routes incoming requests to the correct handlers.
+- **Router (`src/router.ts`):** Defines the REST API endpoints and routes incoming requests to the correct handlers.
 - **Sui Client (`src/sui_client.ts`):** Interacts with the Sui blockchain to mint nBTC tokens.
 - **Storage (`src/storage.ts`, `src/cf-storage.ts`):** Manages data persistence using Cloudflare D1 and KV stores.
 
@@ -68,9 +64,9 @@ The `status` field of a transaction can have one of the following values:
 - `finalized-reorg`: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
 - `finalized-failed`: An attempt to mint a finalized tx failed, but it may be retried.
 
-### 4. Cron Job
+### 4. Cron Handler
 
-The worker runs a scheduled cron job every minute (`* * * * *`) to perform the following tasks:
+The worker is triggered by a Cloudflare cron every minute (`* * * * *`) to perform the following tasks:
 
 - Scan for new blocks that have been added via the `PUT /bitcoin/blocks` endpoint.
 - Process new blocks to find nBTC deposits.

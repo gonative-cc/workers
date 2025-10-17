@@ -2,7 +2,8 @@
 
 ## Objectives
 
-- Proving and tracking nBTC deposits.
+- Tracking nbtc transactions
+- Creating merkle proofs and triggering the mint on Sui
 
 ## Architecture Overview
 
@@ -49,7 +50,7 @@ The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bi
 - **Sui Client (`src/sui_client.ts`):** Interacts with the Sui blockchain to mint nBTC tokens.
 - **Storage (`src/storage.ts`, `src/cf-storage.ts`):** Manages data persistence using Cloudflare D1 and KV stores.
 
-### 3. State Machine
+## 3. State Machine
 
 The `btcindexer` tracks the state of nBTC minting transactions as they progress through the system. The state is stored in the `nbtc_minting` table in the D1 database.
 
@@ -64,7 +65,7 @@ The `status` field of a transaction can have one of the following values:
 - `finalized-reorg`: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
 - `finalized-failed`: An attempt to mint a finalized tx failed, but it may be retried.
 
-### 4. Cron Handler
+## 4. Cron Handler
 
 The worker is triggered by a Cloudflare cron every minute (`* * * * *`) to perform the following tasks:
 
@@ -75,15 +76,15 @@ The worker is triggered by a Cloudflare cron every minute (`* * * * *`) to perfo
 - Initiate the minting process for finalized transactions.
 - Retry failed minting attempts.
 
-### 5. Reorg Handling
+## 5. Reorg Handling
 
 The `btcindexer` worker handles Bitcoin reorgs to ensure that only transactions on the canonical chain are processed. The worker relies on a combination of an external relayer and a Sui light client for verification.
 
-1.  Relayer: Its the source of truth for the full blocks, its the same service responsible for keeping the on-chain light client up to date, The data it sends to the worker is the same.
+1.  Relayer: Its the source for the full blocks, its the same service responsible for keeping the on-chain light client up to date, The data it sends to the worker is the same.
 
-2.  Sui Light Client: The ultimate source of truth for the canonical chain is a. The worker communicates with this light client to verify the validity of block headers before finalizing any transactions. This has been introduced as a safety measure in case the relayer is compromised, or there is a `better` relayer running, updating only the light client.
+2.  Sui Light Client: The source of truth for the canonical chain. The worker communicates with this light client to verify the validity of block headers before finalizing any transactions. This has been introduced as a safety measure in case the relayer is compromised, or there is a `better` relayer running, updating only the light client.
 
-#### Detection
+### Detection
 
 The worker employs two primary mechanisms to detect reorgs:
 
@@ -91,9 +92,9 @@ The worker employs two primary mechanisms to detect reorgs:
 
 2.  Internal Consistency Check: The worker continuously checks for internal consistency. When processing pending transactions, it compares the block hash stored with the transaction against the block hash stored for that same block height in its own database. If the hashes do not match, it indicates that the relayer has provided a new block for that height, and a reorg has occurred. The affected transaction is then marked with the `reorg` status.
 
-### 6. Workflow
+## 6. Workflow
 
-#### 1. Block Ingestion Flow (push)
+### 1. Block Ingestion Flow (push)
 
 This is triggered every time the Relayer sends new block data to the indexer
 
@@ -101,7 +102,7 @@ This is triggered every time the Relayer sends new block data to the indexer
 2.  **Reorg Handling:** If the Relayer sends a block for a `height` that already exists in the `processed_blocks` table, the indexer overwrites it with the new one. This means a reorg happened on Bitcoin.
 3.  **Storage:** The indexer saves the full raw block data to the KV store and adds (or updates) the light block info (`height`, `hash`) in the `processed_blocks` table in D1. This table acts as a "to-do" for the cron job.
 
-#### 2. Processing Flow (Cron Job)
+### 2. Processing Flow (Cron Job)
 
 A cron job runs on a fixed schedule (e.g., every 1 minute)
 
@@ -110,6 +111,6 @@ A cron job runs on a fixed schedule (e.g., every 1 minute)
     - **Confirmation Update:** It calculates the number of confirmations for each transaction based on the latest known block height. If a transaction has enough confirmations its status is updated to `finalized`.
     - **Reorg Detection:** It checks if the `block_hash` for a transaction's block height still exists in the `processed_blocks` table. If it doesn't (because it was overwritten during ingestion), the transaction has been reorged. Its status is changed to `reorg`. This transaction is now considered invalid, but we keep the record for indexing purposes.
 
-#### 3. nBTC Tx (Push)
+### 3. nBTC Tx (Push)
 
 To quickly handle UI nBTC transaction observability, BYield UI will push nBTC transaction, in order to let the indexer start monitoring it. This way UI will have the quick status about the TX, before the tx is added to the blockchain.

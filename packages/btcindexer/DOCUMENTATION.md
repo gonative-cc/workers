@@ -79,11 +79,13 @@ Pushes new Bitcoin blocks to the indexer for processing. This endpoint is intend
 Registers a new nBTC deposit transaction that has been broadcasted to the Bitcoin network.
 
 - **Request Body:**
+
   ```json
   {
     "txHex": "<string>"
   }
   ```
+
 - **Response:**
   - `200 OK`: `{ "success": true, "tx_id": "<string>", "registered_deposits": <number> }`
   - `400 Bad Request`: If the request body is invalid or the transaction fails to be registered.
@@ -96,6 +98,7 @@ Retrieves the status of a specific nBTC deposit transaction by its Bitcoin trans
   - `txid`: The Bitcoin transaction ID.
 - **Response:**
   - `200 OK`: A `TxStatusResp` object.
+
     ```json
     {
       "btc_tx_id": "<string>",
@@ -107,6 +110,7 @@ Retrieves the status of a specific nBTC deposit transaction by its Bitcoin trans
       "sui_tx_id": "<string | null>"
     }
     ```
+
   - `404 Not Found`: If the transaction is not found.
 
 ### `GET /nbtc`

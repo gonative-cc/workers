@@ -25,6 +25,7 @@
 		"msgpackr": "^1.11.5"
 	},
 	"devDependencies": {
-		"@types/crypto-js": "^4.2.2"
+		"@types/crypto-js": "^4.2.2",
+		"miniflare": "4.20251008.0"
 	}
 }

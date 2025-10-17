@@ -13,7 +13,7 @@
 		"lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
 		"format": "prettier --write .",
 		"dev": "bun run --filter '*' dev",
-		"test": "bun test"
+		"test": "bun run --filter '*' test"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.9.2",
@@ -24,6 +24,7 @@
 		"eslint": "^9.35.0",
 		"eslint-config-prettier": "^10.1.8",
 		"lint-staged": "^16.2.0",
+		"miniflare": "^4.20251008.0",
 		"typescript": "^5.9.2",
 		"typescript-eslint": "^8.43.0",
 		"vitest": "^3.2.4",

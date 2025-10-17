@@ -58,6 +58,12 @@ bun run test
 bun run --filter package_pattern test
 ```
 
+To enable logs during testing, use the `ENABLE_LOGS` environment variable:
+
+```sh
+ENABLE_LOGS=1 bun run test
+```
+
 ### Typegen
 
 Whenever you make changes to `wrangler.jsonc` or update `wrangler`, generate types for your Cloudflare bindings:

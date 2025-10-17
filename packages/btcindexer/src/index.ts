@@ -10,6 +10,7 @@
 import { indexerFromEnv } from "./btcindexer";
 import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
+import { BtcIndexerRpc } from "./rpc";
 
 const router = new HttpRouter(undefined);
 
@@ -62,3 +63,6 @@ export default {
 		}
 	},
 } satisfies ExportedHandler<Env>;
+
+// Export the RPC entrypoint for service bindings
+export { BtcIndexerRpc };

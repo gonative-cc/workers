@@ -20,8 +20,6 @@ import { Electrs, ElectrsService } from "./electrs";
 import { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 
-export type GlobalFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
 const btcNetworks = {
 	mainnet: networks.bitcoin,
 	testnet: networks.testnet,

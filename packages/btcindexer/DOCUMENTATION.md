@@ -8,7 +8,38 @@ The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bi
 
 ## 2. Architecture
 
-The worker's key components:
+```mermaid
+graph TD
+    subgraph "External Systems"
+        UI[bYield UI]
+        Relayer[Bitcoin Relayer]
+        Bitcoin[Bitcoin Network]
+        Sui[Sui Network]
+    end
+
+    subgraph "BTCIndexer Worker"
+        Router[Router]
+        Indexer[Indexer Logic]
+        SuiClient[Sui Client]
+        DB[D1 Database]
+        BlockStore[KV Block Storage]
+    end
+
+    UI -- "1. POST /nbtc (txHex)" --> Router
+    Relayer -- "2. PUT /bitcoin/blocks" --> Router
+    Relayer -- "Gets blocks from" --> Bitcoin
+
+    Router --> Indexer
+
+    Indexer -- "Stores/retrieves tx state" --> DB
+    Indexer -- "Stores/retrieves raw blocks" --> BlockStore
+    Indexer -- "Uses" --> SuiClient
+
+    SuiClient -- "3. Verifies blocks" --> Sui
+    SuiClient -- "4. Mints nBTC" --> Sui
+```
+
+The worker is composed of several key components:
 
 - **Main Worker (`src/index.ts`):** The entry point for all incoming requests. It handles HTTP requests, and scheduled cron jobs, and delegates tasks to the appropriate modules.
 - **Indexer (`src/btcindexer.ts`):** The core logic for processing Bitcoin blocks and transactions. It identifies nBTC deposits, tracks their confirmation status, and manages the minting process.

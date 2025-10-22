@@ -38,7 +38,11 @@ graph TD
     SuiClient -- "4. Mints nBTC" --> Sui
 ```
 
-## 1. Overview
+## API
+
+See [API.md](./API.md)
+
+## Components
 
 The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bitcoin blockchain for nBTC deposits, processing them, and coordinating the minting of nBTC tokens on the Sui blockchain.
 

@@ -8,19 +8,14 @@ import {
 	PendingTx,
 	TxStatus,
 	TxStatusResp as TxStatusResp,
-	NbtcTxRow,
 	MintBatchArg,
-	FinalizedTxRow,
 	GroupedFinalizedTx,
-	BlockInfo,
 	BlockStatus,
 } from "./models";
 import { toSerializableError } from "./errutils";
 import { Electrs, ElectrsService } from "./electrs";
 import { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
-
-export type GlobalFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 const btcNetworks = {
 	mainnet: networks.bitcoin,

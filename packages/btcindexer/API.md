@@ -18,9 +18,9 @@ To use the RPC interface from another worker, you need to set up a service bindi
     {
       "binding": "BTCINDEXER",
       "service": "btcindexer",
-      "entrypoint": "BtcIndexerRpc"
-    }
-  ]
+      "entrypoint": "BtcIndexerRpc",
+    },
+  ],
 }
 ```
 
@@ -45,7 +45,7 @@ export default {
     const transactions = await btcIndexer.getStatusBySuiAddress("0x...");
 
     return new Response("OK");
-  }
+  },
 };
 ```
 
@@ -56,6 +56,7 @@ export default {
 Stores new Bitcoin blocks in the indexer's kv store.
 
 **Parameters:**
+
 - `blocks`: Array of blocks to store
 
 **Returns:** Number of blocks inserted
@@ -71,6 +72,7 @@ Get the latest block height stored in the indexer.
 Register a broadcasted nBTC transaction.
 
 **Parameters:**
+
 - `txHex`: The transaction hex string
 
 **Returns:** Transaction ID and number of registered deposits
@@ -80,6 +82,7 @@ Register a broadcasted nBTC transaction.
 Get nBTC transaction status by Bitcoin transaction ID.
 
 **Parameters:**
+
 - `txid`: Bitcoin transaction ID
 
 **Returns:** Transaction status or null if not found
@@ -89,6 +92,7 @@ Get nBTC transaction status by Bitcoin transaction ID.
 Get all nBTC transactions for a specific Sui address.
 
 **Parameters:**
+
 - `suiAddress`: Sui recipient address
 
 **Returns:** Array of transaction statuses
@@ -101,6 +105,7 @@ Both interfaces remain available:
 - **RPC Interface**: Use for inter-worker communication within Cloudflare Workers for better performance and type safety
 
 The HTTP endpoints are still available at:
+
 - `PUT /bitcoin/blocks` - Store blocks
 - `GET /bitcoin/latest-height` - Get latest height
 - `POST /nbtc` - Register nBTC transaction

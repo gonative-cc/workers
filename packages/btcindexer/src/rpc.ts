@@ -1,6 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
 import { PutBlocks } from "./api/put-blocks";
+import { TxStatusResp } from "./models";
 
 /**
  * RPC entrypoint for btcindexer worker.
@@ -25,7 +26,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 */
 	async putBlocks(blocks: PutBlocks[]): Promise<number> {
 		const indexer = await this.getIndexer();
-		return await indexer.putBlocks(blocks);
+		return indexer.putBlocks(blocks);
 	}
 
 	/**
@@ -34,7 +35,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 */
 	async latestHeight(): Promise<{ height: number | null }> {
 		const indexer = await this.getIndexer();
-		return await indexer.getLatestHeight();
+		return indexer.getLatestHeight();
 	}
 
 	/**
@@ -46,7 +47,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 		txHex: string,
 	): Promise<{ tx_id: string; registered_deposits: number }> {
 		const indexer = await this.getIndexer();
-		return await indexer.registerBroadcastedNbtcTx(txHex);
+		return indexer.registerBroadcastedNbtcTx(txHex);
 	}
 
 	/**
@@ -54,9 +55,9 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 * @param txid - Bitcoin transaction ID
 	 * @returns Transaction status or null if not found
 	 */
-	async statusByTxid(txid: string): Promise<NbtcTxStatusResp | null> {
+	async statusByTxid(txid: string): Promise<TxStatusResp | null> {
 		const indexer = await this.getIndexer();
-		return await indexer.getStatusByTxid(txid);
+		return indexer.getStatusByTxid(txid);
 	}
 
 	/**
@@ -64,8 +65,8 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 * @param suiAddress - Sui recipient address
 	 * @returns Array of transaction statuses
 	 */
-	async statusBySuiAddress(suiAddress: string): Promise<NbtcTxStatusResp[]> {
+	async statusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
 		const indexer = await this.getIndexer();
-		return await indexer.getStatusBySuiAddress(suiAddress);
+		return indexer.getStatusBySuiAddress(suiAddress);
 	}
 }

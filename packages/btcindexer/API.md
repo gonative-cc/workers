@@ -6,11 +6,9 @@ This package exposes HTTP API and Cloudflare RPC.
 
 Cloudflare RPC is designed and limited to communicate directly between Cloudflare Workers, without going through HTTP endpoints. This enables efficient inter-worker communication using [Service Bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/).
 
-The RPC interface is provided through the `BtcIndexerRpc` class, which extends `WorkerEntrypoint` from Cloudflare Workers. 
+The RPC interface is provided through the `BtcIndexerRpc` class, which extends `WorkerEntrypoint` from Cloudflare Workers.
 
-### Usage
-
-#### Setting up Service Binding
+### Setting up Service Binding
 
 To use the RPC interface from another worker, you need to set up a service binding in your `wrangler.jsonc`:
 
@@ -55,7 +53,7 @@ export default {
 
 ### `putBlocks(blocks: PutBlocks[]): Promise<number>`
 
-Store new Bitcoin blocks in the indexer.
+Stores new Bitcoin blocks in the indexer's kv store.
 
 **Parameters:**
 - `blocks`: Array of blocks to store

@@ -1,7 +1,6 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { Indexer } from "./btcindexer";
+import { indexerFromEnv, Indexer } from "./btcindexer";
 import { PutBlocks } from "./api/put-blocks";
-import { TxStatusResp } from "./models";
 
 /**
  * RPC entrypoint for btcindexer worker.
@@ -10,11 +9,13 @@ import { TxStatusResp } from "./models";
  * @see https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/
  */
 export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
-	indexer: Indexer;
+	#indexer?: Indexer;
 
-	constructor(ctx: ExecutionContext, env: Env, indexer: Indexer) {
-		super(ctx, env);
-		this.indexer = indexer;
+	private async getIndexer(): Promise<Indexer> {
+		if (!this.#indexer) {
+			this.#indexer = await indexerFromEnv(this.env);
+		}
+		return this.#indexer;
 	}
 
 	/**
@@ -22,16 +23,18 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 * @param blocks - Array of blocks to store
 	 * @returns Number of blocks inserted
 	 */
-	putBlocks(blocks: PutBlocks[]): Promise<number> {
-		return this.indexer.putBlocks(blocks);
+	async putBlocks(blocks: PutBlocks[]): Promise<number> {
+		const indexer = await this.getIndexer();
+		return await indexer.putBlocks(blocks);
 	}
 
 	/**
 	 * Get the latest block height stored in the indexer.
 	 * @returns Object containing the latest height (or null if no blocks exist)
 	 */
-	latestHeight(): Promise<{ height: number | null }> {
-		return this.indexer.getLatestHeight();
+	async latestHeight(): Promise<{ height: number | null }> {
+		const indexer = await this.getIndexer();
+		return await indexer.getLatestHeight();
 	}
 
 	/**
@@ -39,10 +42,11 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 * @param txHex - The transaction hex string
 	 * @returns Transaction ID and number of registered deposits
 	 */
-	registerBroadcastedNbtcTx(
+	async registerBroadcastedNbtcTx(
 		txHex: string,
 	): Promise<{ tx_id: string; registered_deposits: number }> {
-		return this.indexer.registerBroadcastedNbtcTx(txHex);
+		const indexer = await this.getIndexer();
+		return await indexer.registerBroadcastedNbtcTx(txHex);
 	}
 
 	/**
@@ -50,8 +54,9 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 * @param txid - Bitcoin transaction ID
 	 * @returns Transaction status or null if not found
 	 */
-	nbtcStatusByTxid(txid: string): Promise<TxStatusResp | null> {
-		return this.indexer.getStatusByTxid(txid);
+	async statusByTxid(txid: string): Promise<NbtcTxStatusResp | null> {
+		const indexer = await this.getIndexer();
+		return await indexer.getStatusByTxid(txid);
 	}
 
 	/**
@@ -59,7 +64,8 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 * @param suiAddress - Sui recipient address
 	 * @returns Array of transaction statuses
 	 */
-	nbtcStatusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
-		return this.indexer.getStatusBySuiAddress(suiAddress);
+	async statusBySuiAddress(suiAddress: string): Promise<NbtcTxStatusResp[]> {
+		const indexer = await this.getIndexer();
+		return await indexer.getStatusBySuiAddress(suiAddress);
 	}
 }

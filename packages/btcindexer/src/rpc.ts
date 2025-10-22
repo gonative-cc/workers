@@ -43,9 +43,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 * @param txHex - The transaction hex string
 	 * @returns Transaction ID and number of registered deposits
 	 */
-	async registerBroadcastedNbtcTx(
-		txHex: string,
-	): Promise<{ tx_id: string; registered_deposits: number }> {
+	async putNbtcTx(txHex: string): Promise<{ tx_id: string; registered_deposits: number }> {
 		const indexer = await this.getIndexer();
 		return indexer.registerBroadcastedNbtcTx(txHex);
 	}
@@ -68,5 +66,13 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	async statusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
 		const indexer = await this.getIndexer();
 		return indexer.getStatusBySuiAddress(suiAddress);
+	}
+
+	/**
+	 * Returns deposit transaction statuses by Bitcoin sender address
+	 */
+	async depositsBySender(address: string): Promise<TxStatusResp[]> {
+		const indexer = await this.getIndexer();
+		return indexer.getDepositsBySender(address);
 	}
 }

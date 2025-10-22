@@ -51,51 +51,7 @@ export default {
 
 ## Available RPC Methods
 
-### `putBlocks(blocks: PutBlocks[]): Promise<number>`
-
-Stores new Bitcoin blocks in the indexer's kv store.
-
-**Parameters:**
-
-- `blocks`: Array of blocks to store
-
-**Returns:** Number of blocks inserted
-
-### `getLatestHeight(): Promise<{ height: number | null }>`
-
-Get the latest block height stored in the indexer.
-
-**Returns:** Object containing the latest height (or null if no blocks exist)
-
-### `registerBroadcastedNbtcTx(txHex: string): Promise<{ tx_id: string; registered_deposits: number }>`
-
-Register a broadcasted nBTC transaction.
-
-**Parameters:**
-
-- `txHex`: The transaction hex string
-
-**Returns:** Transaction ID and number of registered deposits
-
-### `getStatusByTxid(txid: string): Promise<NbtcTxStatusResp | null>`
-
-Get nBTC transaction status by Bitcoin transaction ID.
-
-**Parameters:**
-
-- `txid`: Bitcoin transaction ID
-
-**Returns:** Transaction status or null if not found
-
-### `getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxStatusResp[]>`
-
-Get all nBTC transactions for a specific Sui address.
-
-**Parameters:**
-
-- `suiAddress`: Sui recipient address
-
-**Returns:** Array of transaction statuses
+See [rpc.ts](./src/rpc.ts).
 
 ## HTTP vs RPC
 

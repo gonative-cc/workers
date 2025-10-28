@@ -60,8 +60,7 @@ export class SuiClient {
 		const tx = new SuiTransaction();
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
 
-		// NOTE: the contract is expecting the proofs to be in little-endian format, while the merkletreejs lib operates internally on big-endian.
-		const proofLittleEndian = proof.proofPath.map((p) => Array.from(Buffer.from(p).reverse()));
+		const proofLittleEndian = proof.proofPath.map((p) => Array.from(p));
 		const txBytes = Array.from(transaction.toBuffer());
 		tx.moveCall({
 			target: target,
@@ -119,7 +118,7 @@ export class SuiClient {
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
 
 		for (const args of mintArgs) {
-			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p)).reverse();
+			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));
 			const txBytes = Array.from(args.tx.toBuffer());
 
 			tx.moveCall({

@@ -380,22 +380,34 @@ export class Indexer {
 				msg: "Minting: Sending batch of mints to Sui",
 				count: mintBatchArgs.length,
 			});
-			const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
-			if (suiTxDigest) {
-				console.log({ msg: "Sui batch mint transaction successful", suiTxDigest });
-				await this.storage.batchUpdateNbtcTxs(
-					processedPrimaryKeys.map((p) => ({
-						...p,
-						status: TxStatus.MINTED,
-						suiTxDigest,
-					})),
-				);
+			const result = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
+			let success: boolean;
+			let digest: string | null;
+
+			if (result && typeof result === "object" && "success" in result) {
+				success = result.success;
+				digest = result.digest;
 			} else {
-				console.error({ msg: "Sui batch mint transaction failed" });
-				await this.storage.batchUpdateNbtcTxs(
-					processedPrimaryKeys.map((p) => ({ ...p, status: TxStatus.FINALIZED_FAILED })),
-				);
+				success = result !== null;
+				digest = typeof result === "string" ? result : null;
 			}
+
+			const status = success ? TxStatus.MINTED : TxStatus.FINALIZED_FAILED;
+
+			console.log({
+				msg: success
+					? "Sui batch mint transaction successful"
+					: "Sui batch mint transaction failed",
+				suiTxDigest: digest,
+			});
+
+			await this.storage.batchUpdateNbtcTxs(
+				processedPrimaryKeys.map((p) => ({
+					...p,
+					status,
+					suiTxDigest: digest ?? undefined,
+				})),
+			);
 		}
 	}
 

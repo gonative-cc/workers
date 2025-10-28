@@ -105,7 +105,7 @@ beforeEach(async () => {
 	indexer = new Indexer(
 		storage,
 		new SuiClient(SUI_CLIENT_CFG),
-		REGTEST_DATA[329].depositAddr,
+		[REGTEST_DATA[329].depositAddr],
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
 		8,

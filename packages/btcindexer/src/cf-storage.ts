@@ -14,6 +14,22 @@ export class CFStorage implements Storage {
 		this.nbtcTxDB = nbtcTxDB;
 	}
 
+	async getDepositAddresses(btcNetwork: string): Promise<string[]> {
+		try {
+			const { results } = await this.d1
+				.prepare("SELECT address FROM nbtc_deposit_addresses WHERE btc_network = ?")
+				.bind(btcNetwork)
+				.all<{ address: string }>();
+			return results ? results.map((r) => r.address) : [];
+		} catch (e) {
+			console.error({
+				msg: "Failed to fetch deposit addresses from D1",
+				error: toSerializableError(e),
+				btcNetwork,
+			});
+			throw e;
+		}
+	}
 	async putBlocks(blocks: { height: number; block: Block }[]): Promise<void> {
 		if (!blocks || blocks.length === 0) {
 			return;

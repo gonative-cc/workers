@@ -41,4 +41,7 @@ export interface Storage {
 
 	// Sender operations
 	insertSenderDeposits(senders: { txId: string; sender: string }[]): Promise<void>;
+
+	// Deposit addresses
+	getDepositAddresses(btcNetwork: string): Promise<string[]>;
 }

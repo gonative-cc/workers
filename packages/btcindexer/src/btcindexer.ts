@@ -381,18 +381,7 @@ export class Indexer {
 				count: mintBatchArgs.length,
 			});
 
-			let suiTxDigest: string | null = null;
-			let success = false;
-
-			try {
-				const digest = await this.nbtcClient.mintNbtcBatch(mintBatchArgs);
-				suiTxDigest = digest;
-				success = true;
-			} catch (e) {
-				const error = e as { suiTxDigest?: string };
-				suiTxDigest = error.suiTxDigest ?? null;
-				success = false;
-			}
+			const [success, suiTxDigest] = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
 
 			if (success) {
 				console.log({ msg: "Sui batch mint transaction successful", suiTxDigest });

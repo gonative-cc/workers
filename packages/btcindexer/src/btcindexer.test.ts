@@ -342,8 +342,8 @@ describe("Indexer.processFinalizedTransactions", () => {
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		const suiClientSpy = vi
-			.spyOn(indexer.nbtcClient, "mintNbtcBatch")
-			.mockResolvedValue(fakeSuiTxDigest);
+			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
+			.mockResolvedValue([true, fakeSuiTxDigest]);
 
 		await indexer.processFinalizedTransactions();
 		expect(suiClientSpy).toHaveBeenCalledTimes(1);
@@ -386,8 +386,8 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		const suiClientSpy = vi
-			.spyOn(indexer.nbtcClient, "mintNbtcBatch")
-			.mockResolvedValue(fakeSuiTxDigest);
+			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
+			.mockResolvedValue([true, fakeSuiTxDigest]);
 
 		await indexer.processFinalizedTransactions();
 
@@ -427,8 +427,8 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const suiClientSpy = vi
-			.spyOn(indexer.nbtcClient, "mintNbtcBatch")
-			.mockRejectedValue(new Error("Minting failed"));
+			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
+			.mockResolvedValue([false, null]);
 
 		await indexer.processFinalizedTransactions();
 
@@ -468,9 +468,9 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const failedSuiTxDigest = "0x123abc456def789failed_tx_digest";
-		const error = new Error("Mint transaction failed") as Error & { suiTxDigest: string };
-		error.suiTxDigest = failedSuiTxDigest;
-		const suiClientSpy = vi.spyOn(indexer.nbtcClient, "mintNbtcBatch").mockRejectedValue(error);
+		const suiClientSpy = vi
+			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
+			.mockResolvedValue([false, failedSuiTxDigest]);
 
 		await indexer.processFinalizedTransactions();
 

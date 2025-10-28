@@ -184,7 +184,7 @@ export class CFStorage implements Storage {
 	}
 
 	async batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string }[],
+		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string | null }[],
 	): Promise<void> {
 		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(

@@ -152,10 +152,10 @@ export class SuiClient {
 		blockHeight: number,
 		txIndex: number,
 		proof: ProofResult,
-	): Promise<{ success: boolean; digest: string | null }> {
+	): Promise<boolean> {
 		try {
-			const digest = await this.mintNbtc(transaction, blockHeight, txIndex, proof);
-			return { success: true, digest };
+			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
+			return true;
 		} catch (e) {
 			const error = e as SuiTransactionError;
 			console.error({
@@ -164,7 +164,7 @@ export class SuiClient {
 				btcTxId: transaction.getId(),
 				suiTxDigest: error.suiTxDigest,
 			});
-			return { success: false, digest: error.suiTxDigest || null };
+			return false;
 		}
 	}
 
@@ -217,13 +217,10 @@ export class SuiClient {
 		return result.digest;
 	}
 
-	async tryMintNbtcBatch(
-		mintArgs: MintBatchArg[],
-	): Promise<{ success: boolean; digest: string | null }> {
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
-			const digest = await this.mintNbtcBatch(mintArgs);
-			return { success: true, digest };
+			return await this.mintNbtcBatch(mintArgs);
 		} catch (e) {
 			const error = e as SuiTransactionError;
 			console.error({
@@ -232,7 +229,7 @@ export class SuiClient {
 				btcTxIds: txIds,
 				suiTxDigest: error.suiTxDigest,
 			});
-			return { success: false, digest: error.suiTxDigest ?? null };
+			return error.suiTxDigest || null;
 		}
 	}
 }

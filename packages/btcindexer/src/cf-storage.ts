@@ -17,10 +17,10 @@ export class CFStorage implements Storage {
 	async getDepositAddresses(btcNetwork: string): Promise<string[]> {
 		try {
 			const { results } = await this.d1
-				.prepare("SELECT address FROM nbtc_deposit_addresses WHERE btc_network = ?")
+				.prepare("SELECT btc_address FROM nbtc_addresses WHERE btc_network = ?")
 				.bind(btcNetwork)
-				.all<{ address: string }>();
-			return results ? results.map((r) => r.address) : [];
+				.all<{ btc_address: string }>();
+			return results ? results.map((r) => r.btc_address) : [];
 		} catch (e) {
 			console.error({
 				msg: "Failed to fetch deposit addresses from D1",

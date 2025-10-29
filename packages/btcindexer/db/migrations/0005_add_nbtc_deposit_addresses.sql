@@ -5,5 +5,4 @@ CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
   sui_network TEXT NOT NULL,
   nbtc_pkg TEXT NOT NULL,
   address TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

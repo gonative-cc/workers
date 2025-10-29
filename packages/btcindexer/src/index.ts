@@ -11,13 +11,19 @@ import { indexerFromEnv } from "./btcindexer";
 import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 import { BtcIndexerRpc } from "./rpc";
+import { fetchNbtcAddresses } from "./storage";
+import { NbtcAddress } from "./models";
 
 const router = new HttpRouter(undefined);
 
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		try {
-			const indexer = await indexerFromEnv(env);
+			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
+			const nbtcAddressesMap = new Map<string, NbtcAddress>(
+				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
+			);
+			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
 			console.error({
@@ -33,22 +39,21 @@ export default {
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
 	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
-		// A Cron Trigger can make requests to other endpoints on the Internet,
-		// publish to a Queue, query a D1 Database, and much more.
-		// You could store this result in KV, write to a D1 Database, or publish to a Queue.
-		// In this template, we'll just log the result:
-
-		// TODO:  This should be refactored probably the best is to use chain tip stored in a KV namespace.
-		// ideally use queue
 		console.trace({ msg: "Cron job starting" });
 		try {
-			const d1 = env.DB;
-			// TODO: move this to the indexer directly
-			const latestBlock = await d1
-				.prepare("SELECT MAX(height) as latest_height FROM btc_blocks")
-				.first<{ latest_height: number }>();
+			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
+			const nbtcAddressesMap = new Map<string, NbtcAddress>(
+				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
+			);
+			console.log(
+				`Loaded ${nbtcAddressesMap.size} nbtc addresses into memory for scheduled job.`,
+			);
 
-			const indexer = await indexerFromEnv(env);
+			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
+			const latestBlock = await env.DB.prepare(
+				"SELECT MAX(height) as latest_height FROM btc_blocks",
+			).first<{ latest_height: number }>();
+
 			if (latestBlock && latestBlock.latest_height) {
 				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
 			}

@@ -9,6 +9,7 @@ import { toSerializableError } from "./errutils";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
+	suiNetwork: string; // Added suiNetwork
 	nbtcPkg: string;
 	nbtcModule: string;
 	nbtcContractId: string;
@@ -24,6 +25,7 @@ const LC_MODULE = "light_client";
 export async function suiClientFromEnv(env: Env): Promise<SuiClient> {
 	return new SuiClient({
 		network: env.SUI_NETWORK,
+		suiNetwork: env.SUI_NETWORK, // Pass suiNetwork
 		nbtcPkg: env.NBTC_PACKAGE_ID,
 		nbtcModule: NBTC_MODULE,
 		nbtcContractId: env.NBTC_CONTRACT_ID,
@@ -43,6 +45,7 @@ export class SuiClient {
 	private lightClientObjectId: string;
 	private lightClientPackageId: string;
 	private lightClientModule: string;
+	private suiNetwork: string; // Store suiNetwork
 
 	constructor(config: SuiClientCfg) {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
@@ -59,6 +62,7 @@ export class SuiClient {
 		this.lightClientObjectId = config.lightClientObjectId;
 		this.lightClientPackageId = config.lightClientPackageId;
 		this.lightClientModule = config.lightClientModule;
+		this.suiNetwork = config.suiNetwork; // Store suiNetwork
 	}
 
 	async verifyBlocks(blockHashes: string[]): Promise<boolean[]> {
@@ -97,71 +101,15 @@ export class SuiClient {
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 
-	async mintNbtc(
-		transaction: Transaction,
-		blockHeight: number,
-		txIndex: number,
-		proof: ProofResult,
-	): Promise<void> {
-		const tx = new SuiTransaction();
-		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
-
-		const proofLittleEndian = proof.proofPath.map((p) => Array.from(p));
-		const txBytes = Array.from(transaction.toBuffer());
-		tx.moveCall({
-			target: target,
-			arguments: [
-				tx.object(this.nbtcContractId),
-				tx.object(this.lightClientObjectId),
-				tx.pure.vector("u8", txBytes),
-				tx.pure.vector("vector<u8>", proofLittleEndian),
-				tx.pure.u64(blockHeight),
-				tx.pure.u64(txIndex),
-				tx.pure.vector("u8", []),
-				tx.pure.u32(1),
-			],
-		});
-
-		// TODO: should we move it to config or set it as a constant
-		tx.setGasBudget(1000000000);
-
-		const result = await this.client.signAndExecuteTransaction({
-			signer: this.signer,
-			transaction: tx,
-			options: {
-				showEffects: true,
-			},
-		});
-
-		if (result.effects?.status.status !== "success") {
-			throw new Error(`Mint transaction failed: ${result.effects?.status.error}`);
-		}
-	}
-
-	async tryMintNbtc(
-		transaction: Transaction,
-		blockHeight: number,
-		txIndex: number,
-		proof: ProofResult,
-	): Promise<boolean> {
-		try {
-			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
-			return true;
-		} catch (e) {
-			console.error({
-				msg: "Error during single mint contract call",
-				error: toSerializableError(e),
-				btcTxId: transaction.getId(),
-			});
-			return false;
-		}
-	}
-
 	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest> {
 		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
+		// Assuming all mintArgs in a batch are for the same nbtc_pkg and sui_network for now
+		const firstArg = mintArgs[0];
+		if (!firstArg) throw new Error("Mint arguments cannot be empty.");
+
 		const tx = new SuiTransaction();
-		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
+		const target = `${firstArg.nbtc_pkg}::${this.nbtcModule}::mint` as const; // Use nbtc_pkg from arg
 
 		for (const args of mintArgs) {
 			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));

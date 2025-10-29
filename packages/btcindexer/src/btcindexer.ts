@@ -11,6 +11,7 @@ import {
 	MintBatchArg,
 	GroupedFinalizedTx,
 	BlockStatus,
+	NbtcAddress,
 } from "./models";
 import { toSerializableError } from "./errutils";
 import { Electrs, ElectrsService } from "./electrs";
@@ -24,7 +25,10 @@ const btcNetworks = {
 };
 const validBtcNet = Object.keys(btcNetworks).keys();
 
-export async function indexerFromEnv(env: Env): Promise<Indexer> {
+export async function indexerFromEnv(
+	env: Env,
+	nbtcAddressesMap: Map<string, NbtcAddress>,
+): Promise<Indexer> {
 	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
 	const sc = await suiClientFromEnv(env);
 
@@ -48,21 +52,10 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid BTC_BLOCK_PROCESSING_BATCH_SIZE in config. Must be a number > 0.");
 	}
 
-	let depositAddresses: string[];
-	try {
-		depositAddresses = await storage.getDepositAddresses(env.BITCOIN_NETWORK);
-	} catch (e) {
-		console.error({
-			msg: "Failed to get deposit addresses from storage",
-			error: toSerializableError(e),
-		});
-		throw e;
-	}
-
 	return new Indexer(
 		storage,
 		sc,
-		depositAddresses,
+		nbtcAddressesMap,
 		env.SUI_FALLBACK_ADDRESS,
 		btcNet,
 		confirmationDepth,
@@ -81,11 +74,13 @@ export class Indexer {
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
 	btcBlockProcessingBatchSize: number;
+	nbtcAddressesMap: Map<string, NbtcAddress>;
+	private network: networks.Network;
 
 	constructor(
 		storage: Storage,
 		suiClient: SuiClient,
-		nbtcAddrs: string[],
+		nbtcAddressesMap: Map<string, NbtcAddress>,
 		fallbackAddr: string,
 		network: networks.Network,
 		confirmationDepth: number,
@@ -96,11 +91,10 @@ export class Indexer {
 		this.storage = storage;
 		this.nbtcClient = suiClient;
 		this.suiFallbackAddr = fallbackAddr;
-		if (!Array.isArray(nbtcAddrs)) {
-			console.error({ msg: "nbtcAddrs is not an array", nbtcAddrs });
-			throw new Error("nbtcAddrs must be an array of strings.");
-		}
-		if (nbtcAddrs.length === 0) {
+		this.nbtcAddressesMap = nbtcAddressesMap;
+		this.network = network;
+
+		if (nbtcAddressesMap.size === 0) {
 			const err = new Error("No nBTC deposit addresses configured.");
 			console.error({
 				msg: "No nBTC deposit addresses configured.",
@@ -108,8 +102,8 @@ export class Indexer {
 			});
 			throw err;
 		}
-		this.nbtcScriptHexes = nbtcAddrs.map((addr) =>
-			address.toOutputScript(addr, network).toString("hex"),
+		this.nbtcScriptHexes = Array.from(nbtcAddressesMap.values()).map((addr) =>
+			address.toOutputScript(addr.btc_address, network).toString("hex"),
 		);
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
@@ -161,6 +155,8 @@ export class Indexer {
 			blockHeight: number;
 			suiRecipient: string;
 			amountSats: number;
+			nbtc_pkg: string;
+			sui_network: string;
 		}[] = [];
 		let senders: { txId: string; sender: string }[] = [];
 
@@ -196,6 +192,8 @@ export class Indexer {
 						vout: deposit.vout,
 						amountSats: deposit.amountSats,
 						suiRecipient: deposit.suiRecipient,
+						nbtc_pkg: deposit.nbtc_pkg,
+						sui_network: deposit.sui_network,
 					});
 					nbtcTxs.push({
 						txId: tx.getId(),
@@ -204,6 +202,8 @@ export class Indexer {
 						blockHeight: blockInfo.height,
 						suiRecipient: deposit.suiRecipient,
 						amountSats: deposit.amountSats,
+						nbtc_pkg: deposit.nbtc_pkg,
+						sui_network: deposit.sui_network,
 					});
 				}
 			}
@@ -251,7 +251,10 @@ export class Indexer {
 
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
-			if (this.nbtcScriptHexes.includes(vout.script.toString("hex"))) {
+			const btcAddress = address.fromOutputScript(vout.script, networks.testnet);
+			const matchingNbtcAddress = this.nbtcAddressesMap.get(btcAddress);
+
+			if (matchingNbtcAddress) {
 				console.debug({
 					msg: "Found matching nBTC deposit output",
 					txId: tx.getId(),
@@ -261,6 +264,8 @@ export class Indexer {
 					vout: i,
 					amountSats: Number(vout.value),
 					suiRecipient,
+					nbtc_pkg: matchingNbtcAddress.nbtc_pkg,
+					sui_network: matchingNbtcAddress.sui_network,
 				});
 			}
 		}
@@ -376,6 +381,8 @@ export class Indexer {
 					blockHeight: txGroup.block_height,
 					txIndex: txIndex,
 					proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
+					nbtc_pkg: txGroup.deposits[0].nbtc_pkg,
+					sui_network: txGroup.deposits[0].sui_network,
 				});
 				for (const deposit of txGroup.deposits) {
 					processedPrimaryKeys.push({

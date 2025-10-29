@@ -101,11 +101,12 @@ export class Indexer {
 			throw new Error("nbtcAddrs must be an array of strings.");
 		}
 		if (nbtcAddrs.length === 0) {
+			const err = new Error("No nBTC deposit addresses configured.");
 			console.error({
 				msg: "No nBTC deposit addresses configured.",
-				error: new Error("NBTC_DEPOSIT_ADDRESSES not found in DB"),
+				error: toSerializableError(err),
 			});
-			throw new Error("No nBTC deposit addresses configured.");
+			throw err;
 		}
 		this.nbtcScriptHexes = nbtcAddrs.map((addr) =>
 			address.toOutputScript(addr, network).toString("hex"),

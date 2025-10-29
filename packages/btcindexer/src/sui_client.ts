@@ -7,10 +7,6 @@ import { Transaction } from "bitcoinjs-lib";
 import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
 import { toSerializableError } from "./errutils";
 
-interface SuiTransactionError extends Error {
-	suiTxDigest?: string;
-}
-
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
 	nbtcPkg: string;
@@ -106,7 +102,7 @@ export class SuiClient {
 		blockHeight: number,
 		txIndex: number,
 		proof: ProofResult,
-	): Promise<SuiTxDigest> {
+	): Promise<void> {
 		const tx = new SuiTransaction();
 		const target = `${this.nbtcPkg}::${this.nbtcModule}::mint` as const;
 
@@ -138,13 +134,8 @@ export class SuiClient {
 		});
 
 		if (result.effects?.status.status !== "success") {
-			const error = new Error(
-				`Mint transaction failed: ${result.effects?.status.error}`,
-			) as SuiTransactionError;
-			error.suiTxDigest = result.digest;
-			throw error;
+			throw new Error(`Mint transaction failed: ${result.effects?.status.error}`);
 		}
-		return result.digest;
 	}
 
 	async tryMintNbtc(
@@ -157,12 +148,10 @@ export class SuiClient {
 			await this.mintNbtc(transaction, blockHeight, txIndex, proof);
 			return true;
 		} catch (e) {
-			const error = e as SuiTransactionError;
 			console.error({
 				msg: "Error during single mint contract call",
 				error: toSerializableError(e),
 				btcTxId: transaction.getId(),
-				suiTxDigest: error.suiTxDigest,
 			});
 			return false;
 		}
@@ -210,27 +199,27 @@ export class SuiClient {
 			});
 			const error = new Error(
 				`Batch mint transaction failed: ${result.effects?.status.error}`,
-			) as SuiTransactionError;
-			error.suiTxDigest = result.digest;
+			) as Error & { digest: string };
+			error.digest = result.digest;
 			throw error;
 		}
 		return result.digest;
 	}
 
-	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, string | null]> {
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest | null]> {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
 			const digest = await this.mintNbtcBatch(mintArgs);
 			return [true, digest];
 		} catch (e) {
-			const error = e as SuiTransactionError;
+			const error = e as Error & { digest?: string };
 			console.error({
 				msg: "Error during batch mint contract call",
 				error: toSerializableError(e),
 				btcTxIds: txIds,
-				suiTxDigest: error.suiTxDigest,
+				suiTxDigest: error.digest,
 			});
-			return [false, error.suiTxDigest ?? null];
+			return [false, error.digest || null];
 		}
 	}
 }

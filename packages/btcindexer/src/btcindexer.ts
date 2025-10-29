@@ -380,7 +380,6 @@ export class Indexer {
 				msg: "Minting: Sending batch of mints to Sui",
 				count: mintBatchArgs.length,
 			});
-
 			const [success, suiTxDigest] = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
 
 			if (success) {

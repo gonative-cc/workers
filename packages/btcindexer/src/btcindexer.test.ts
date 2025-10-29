@@ -441,7 +441,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		expect(results[0].retry_count).toEqual(2);
 	});
 
-	it("should capture and store failed transaction digest", async () => {
+	it("should store failed transaction digest for debugging", async () => {
 		const blockData = REGTEST_DATA[329];
 		const txData = blockData.txs[1];
 

@@ -32,7 +32,7 @@ describe.skip("Sui Contract Integration (Mint)", () => {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			{} as any,
 			suiClient,
-			"bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw",
+			["bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw"],
 			"fallback",
 			networks.regtest,
 			8,

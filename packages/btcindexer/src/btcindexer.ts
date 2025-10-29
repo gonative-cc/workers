@@ -48,10 +48,21 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid BTC_BLOCK_PROCESSING_BATCH_SIZE in config. Must be a number > 0.");
 	}
 
+	let depositAddresses: string[];
+	try {
+		depositAddresses = await storage.getDepositAddresses(env.BITCOIN_NETWORK);
+	} catch (e) {
+		console.error({
+			msg: "Failed to get deposit addresses from storage",
+			error: toSerializableError(e),
+		});
+		throw e;
+	}
+
 	return new Indexer(
 		storage,
 		sc,
-		env.NBTC_DEPOSIT_ADDRESS,
+		depositAddresses,
 		env.SUI_FALLBACK_ADDRESS,
 		btcNet,
 		confirmationDepth,
@@ -64,7 +75,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 export class Indexer {
 	storage: Storage;
 	electrs: Electrs;
-	nbtcScriptHex: string;
+	nbtcScriptHexes: string[];
 	suiFallbackAddr: string;
 	nbtcClient: SuiClient;
 	confirmationDepth: number;
@@ -74,7 +85,7 @@ export class Indexer {
 	constructor(
 		storage: Storage,
 		suiClient: SuiClient,
-		nbtcAddr: string,
+		nbtcAddrs: string[],
 		fallbackAddr: string,
 		network: networks.Network,
 		confirmationDepth: number,
@@ -85,7 +96,21 @@ export class Indexer {
 		this.storage = storage;
 		this.nbtcClient = suiClient;
 		this.suiFallbackAddr = fallbackAddr;
-		this.nbtcScriptHex = address.toOutputScript(nbtcAddr, network).toString("hex");
+		if (!Array.isArray(nbtcAddrs)) {
+			console.error({ msg: "nbtcAddrs is not an array", nbtcAddrs });
+			throw new Error("nbtcAddrs must be an array of strings.");
+		}
+		if (nbtcAddrs.length === 0) {
+			const err = new Error("No nBTC deposit addresses configured.");
+			console.error({
+				msg: "No nBTC deposit addresses configured.",
+				error: toSerializableError(err),
+			});
+			throw err;
+		}
+		this.nbtcScriptHexes = nbtcAddrs.map((addr) =>
+			address.toOutputScript(addr, network).toString("hex"),
+		);
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
 		this.btcBlockProcessingBatchSize = scanBatchSize;
@@ -226,7 +251,7 @@ export class Indexer {
 
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
-			if (vout.script.toString("hex") === this.nbtcScriptHex) {
+			if (this.nbtcScriptHexes.includes(vout.script.toString("hex"))) {
 				console.debug({
 					msg: "Found matching nBTC deposit output",
 					txId: tx.getId(),

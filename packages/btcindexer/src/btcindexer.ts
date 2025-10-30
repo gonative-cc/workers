@@ -384,11 +384,14 @@ export class Indexer {
 
 			if (success) {
 				console.log({ msg: "Sui batch mint transaction successful", suiTxDigest });
+				if (!suiTxDigest) {
+					throw new Error("Success returned without sui transaction digest");
+				}
 				await this.storage.batchUpdateNbtcTxs(
 					processedPrimaryKeys.map((p) => ({
 						...p,
 						status: TxStatus.MINTED,
-						suiTxDigest: suiTxDigest ?? undefined,
+						suiTxDigest: suiTxDigest,
 					})),
 				);
 			} else {

@@ -196,13 +196,12 @@ export class CFStorage implements Storage {
 
 		const statements = updates.map((p) => {
 			if (p.status === TxStatus.MINTED) {
-				return setMintedStmt.bind(
-					TxStatus.MINTED,
-					p.suiTxDigest ?? null,
-					now,
-					p.tx_id,
-					p.vout,
-				);
+				if (!p.suiTxDigest) {
+					throw new Error(
+						`MINTED status without sui_tx_id for tx ${p.tx_id} vout ${p.vout}`,
+					);
+				}
+				return setMintedStmt.bind(TxStatus.MINTED, p.suiTxDigest, now, p.tx_id, p.vout);
 			} else {
 				return setFailedStmt.bind(
 					TxStatus.FINALIZED_FAILED,

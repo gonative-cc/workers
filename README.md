@@ -46,13 +46,13 @@ bun run db:migrate:local
 
 The nBTC deposit addresses are stored in the `nbtc_addresses` table in the D1 database. You need to populate this table with the deposit addresses for the networks you want to support.
 
-For example, to add a deposit address for the `regtest` Bitcoin network and the `devnet` Sui network, you can run the following command:
+You can insert address directly to the DB:
 
 ```sh
 bun wrangler d1 execute btcindexer-db --local --command=\"INSERT INTO nbtc_addresses (btc_network, sui_network, nbtc_pkg, btc_address) VALUES ('regtest', 'devnet', '0x...', 'bcrt1q90xm34jqm0kcpfclkdmn868rw6vcv9fzvfg6p6')\"
 ```
 
-You can add multiple addresses for different networks and nBTC packages.
+Or (**Recommended**) refer to this [document](/packages/btcindexer/README.md#populating-the-nbtc_addresses-db) on how to run the scirpt.
 
 ### Run and test
 

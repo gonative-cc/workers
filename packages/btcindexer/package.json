@@ -10,10 +10,12 @@
 		"deploy": "wrangler deploy",
 		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
 		"db:migrate": "wrangler d1 migrations apply btcindexer-dev",
+		"db:migrate:local": "wrangler d1 migrations apply btcindexer-dev --local",
 		"db:migrate:backstage": "wrangler d1 migrations apply btcindexer-dev --remote",
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
-		"test": "bun test"
+		"test": "bun test",
+		"seed:addresses": "bun run scripts/seed-addresses.ts"
 	},
 	"dependencies": {
 		"@mysten/bcs": "^1.8.0",

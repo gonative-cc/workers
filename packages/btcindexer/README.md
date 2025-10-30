@@ -42,6 +42,24 @@ graph TD
 
 See [API.md](./API.md)
 
+## Populating the nbtc_addresses DB
+
+To populate the `nbtc_addresses` you can use the `seed:addresses` script. This script reads addresses from the `scripts/nbtc_addresses.json` file and inserts them into the database.
+
+- For local development:
+
+  ```sh
+  bun run seed:addresses --local
+  ```
+
+- For the remote (production/backstage):
+
+  ```sh
+  bun run seed:addresses
+  ```
+
+  You can add or modify the addresses in the `scripts/nbtc_addresses.json` file to manage the list of deposit addresses.
+
 ## Components
 
 The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bitcoin blockchain for nBTC deposits, processing them, and coordinating the minting of nBTC tokens on the Sui blockchain.

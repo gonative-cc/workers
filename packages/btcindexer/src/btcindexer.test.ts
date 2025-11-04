@@ -67,7 +67,6 @@ const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
 const SUI_CLIENT_CFG: SuiClientCfg = {
 	network: "testnet",
-	suiNetwork: "testnet",
 	nbtcPkg: "0xPACKAGE",
 	nbtcModule: "test",
 	nbtcContractId: "0xNBTC",

@@ -9,7 +9,6 @@ import { toSerializableError } from "./errutils";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
-	suiNetwork: string; // Added suiNetwork
 	nbtcPkg: string;
 	nbtcModule: string;
 	nbtcContractId: string;
@@ -25,7 +24,6 @@ const LC_MODULE = "light_client";
 export async function suiClientFromEnv(env: Env): Promise<SuiClient> {
 	return new SuiClient({
 		network: env.SUI_NETWORK,
-		suiNetwork: env.SUI_NETWORK, // Pass suiNetwork
 		nbtcPkg: env.NBTC_PACKAGE_ID,
 		nbtcModule: NBTC_MODULE,
 		nbtcContractId: env.NBTC_CONTRACT_ID,
@@ -45,7 +43,6 @@ export class SuiClient {
 	private lightClientObjectId: string;
 	private lightClientPackageId: string;
 	private lightClientModule: string;
-	private suiNetwork: string; // Store suiNetwork
 
 	constructor(config: SuiClientCfg) {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
@@ -62,7 +59,6 @@ export class SuiClient {
 		this.lightClientObjectId = config.lightClientObjectId;
 		this.lightClientPackageId = config.lightClientPackageId;
 		this.lightClientModule = config.lightClientModule;
-		this.suiNetwork = config.suiNetwork; // Store suiNetwork
 	}
 
 	async verifyBlocks(blockHashes: string[]): Promise<boolean[]> {

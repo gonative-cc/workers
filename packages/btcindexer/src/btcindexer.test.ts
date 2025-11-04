@@ -7,7 +7,7 @@ import { Block, networks } from "bitcoinjs-lib";
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import { SuiClient, SuiClientCfg } from "./sui_client";
-import { Deposit, ProofResult } from "./models";
+import { Deposit, ProofResult, NbtcAddress } from "./models";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 
@@ -67,6 +67,7 @@ const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
 const SUI_CLIENT_CFG: SuiClientCfg = {
 	network: "testnet",
+	suiNetwork: "testnet",
 	nbtcPkg: "0xPACKAGE",
 	nbtcModule: "test",
 	nbtcContractId: "0xNBTC",
@@ -102,10 +103,19 @@ beforeEach(async () => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const env = (await mf.getBindings()) as any;
 	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
+	const nbtcAddressesMap = new Map<string, NbtcAddress>();
+	const testNbtcAddress: NbtcAddress = {
+		btc_address: REGTEST_DATA[329].depositAddr,
+		btc_network: "regtest",
+		sui_network: "testnet",
+		nbtc_pkg: "0xPACKAGE",
+	};
+	nbtcAddressesMap.set(testNbtcAddress.btc_address, testNbtcAddress);
+
 	indexer = new Indexer(
 		storage,
 		new SuiClient(SUI_CLIENT_CFG),
-		[REGTEST_DATA[329].depositAddr],
+		nbtcAddressesMap,
 		SUI_FALLBACK_ADDRESS,
 		networks.regtest,
 		8,
@@ -322,7 +332,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			)
 			.bind(
 				tx329.id,
@@ -334,6 +344,8 @@ describe("Indexer.processFinalizedTransactions", () => {
 				"finalized",
 				Date.now(),
 				Date.now(),
+				"0xPACKAGE",
+				"testnet",
 			)
 			.run();
 
@@ -365,7 +377,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			)
 			.bind(
 				txData.id,
@@ -378,6 +390,8 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 				Date.now(),
 				Date.now(),
 				0,
+				"0xPACKAGE",
+				"testnet",
 			)
 			.run();
 
@@ -407,7 +421,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			)
 			.bind(
 				txData.id,
@@ -420,6 +434,8 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 				Date.now(),
 				Date.now(),
 				1,
+				"0xPACKAGE",
+				"testnet",
 			)
 			.run();
 

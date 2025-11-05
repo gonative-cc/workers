@@ -354,7 +354,6 @@ describe("Indexer.processFinalizedTransactions", () => {
 			.all();
 		expect(results.length).toEqual(1);
 		expect(results[0].status).toEqual("minted");
-		// On success, sui_tx_id should NEVER be null
 		expect(results[0].sui_tx_id).not.toBeNull();
 		expect(results[0].sui_tx_id).toEqual(fakeSuiTxDigest);
 	});

@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "block-ingestor",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "block-ingestor-db",
+      "database_id": "",
+      "migrations_dir": "db/migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "BLOCK_STORE",
+      "id": ""
+    }
+  ],
+  "queues": {
+    "producers": [
+      { "queue": "block-queue-regtest", "binding": "BLOCK_QUEUE_REGTEST" },
+      { "queue": "block-queue-testnet", "binding": "BLOCK_QUEUE_TESTNET" },
+      { "queue": "block-queue-mainnet", "binding": "BLOCK_QUEUE_MAINNET" }
+    ]
+  },
+  "vars": {
+    "ENVIRONMENT": "development"
+  }
+}

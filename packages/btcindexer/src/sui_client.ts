@@ -206,11 +206,10 @@ export class SuiClient {
 		return result.digest;
 	}
 
-	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest | null]> {
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
-			const digest = await this.mintNbtcBatch(mintArgs);
-			return [true, digest];
+			return await this.mintNbtcBatch(mintArgs);
 		} catch (e) {
 			const error = e as Error & { digest?: string };
 			console.error({
@@ -219,7 +218,7 @@ export class SuiClient {
 				btcTxIds: txIds,
 				suiTxDigest: error.digest,
 			});
-			return [false, error.digest || null];
+			return error.digest || null;
 		}
 	}
 }

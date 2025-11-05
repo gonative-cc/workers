@@ -343,7 +343,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		const suiClientSpy = vi
 			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue([true, fakeSuiTxDigest]);
+			.mockResolvedValue(fakeSuiTxDigest);
 
 		await indexer.processFinalizedTransactions();
 		expect(suiClientSpy).toHaveBeenCalledTimes(1);
@@ -390,7 +390,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		const suiClientSpy = vi
 			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue([true, fakeSuiTxDigest]);
+			.mockResolvedValue(fakeSuiTxDigest);
 
 		await indexer.processFinalizedTransactions();
 
@@ -403,7 +403,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		expect(results[0].sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 
-	it("should retry a failed tx, fail again, and increment retry_count", async () => {
+	it("should handle failed transactions (returns null) and increment retry_count", async () => {
 		const blockData = REGTEST_DATA[329];
 		const txData = blockData.txs[1];
 
@@ -431,7 +431,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 
 		const suiClientSpy = vi
 			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue([false, null]);
+			.mockResolvedValue(null);
 
 		await indexer.processFinalizedTransactions();
 
@@ -442,96 +442,6 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 			.all();
 		expect(results.length).toEqual(1);
 		expect(results[0].retry_count).toEqual(2);
-	});
-
-	it("should store failed transaction digest for execution errors (with digest)", async () => {
-		const blockData = REGTEST_DATA[329];
-		const txData = blockData.txs[1];
-
-		const db = await mf.getD1Database("DB");
-		await db
-			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			)
-			.bind(
-				txData.id,
-				0,
-				blockData.hash,
-				blockData.height,
-				txData.suiAddr,
-				txData.amountSats,
-				"finalized",
-				Date.now(),
-				Date.now(),
-				0,
-			)
-			.run();
-
-		const kv = await mf.getKVNamespace("btc_blocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
-
-		const failedSuiTxDigest = "0x123abc456def789failed_tx_digest";
-		const suiClientSpy = vi
-			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue([false, failedSuiTxDigest]);
-
-		await indexer.processFinalizedTransactions();
-
-		expect(suiClientSpy).toHaveBeenCalledTimes(1);
-		const { results } = await db
-			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
-			.bind(txData.id)
-			.all();
-
-		expect(results.length).toEqual(1);
-		expect(results[0].status).toEqual("finalized-failed");
-		expect(results[0].sui_tx_id).not.toBeNull();
-		expect(results[0].sui_tx_id).toEqual(failedSuiTxDigest);
-		expect(results[0].retry_count).toEqual(1);
-	});
-
-	it("should handle pre-submission errors without digest (no digest)", async () => {
-		const blockData = REGTEST_DATA[329];
-		const txData = blockData.txs[1];
-
-		const db = await mf.getD1Database("DB");
-		await db
-			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			)
-			.bind(
-				txData.id,
-				0,
-				blockData.hash,
-				blockData.height,
-				txData.suiAddr,
-				txData.amountSats,
-				"finalized",
-				Date.now(),
-				Date.now(),
-				0,
-			)
-			.run();
-
-		const kv = await mf.getKVNamespace("btc_blocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
-
-		const suiClientSpy = vi
-			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue([false, null]);
-
-		await indexer.processFinalizedTransactions();
-
-		expect(suiClientSpy).toHaveBeenCalledTimes(1);
-		const { results } = await db
-			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
-			.bind(txData.id)
-			.all();
-
-		expect(results.length).toEqual(1);
-		expect(results[0].status).toEqual("finalized-failed");
-		expect(results[0].sui_tx_id).toBeNull();
-		expect(results[0].retry_count).toEqual(1);
 	});
 });
 

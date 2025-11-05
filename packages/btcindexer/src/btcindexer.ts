@@ -380,18 +380,14 @@ export class Indexer {
 				msg: "Minting: Sending batch of mints to Sui",
 				count: mintBatchArgs.length,
 			});
-			const [success, suiTxDigest] = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
-
-			if (success) {
+			const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
+			if (suiTxDigest) {
 				console.log({ msg: "Sui batch mint transaction successful", suiTxDigest });
-				if (!suiTxDigest) {
-					throw new Error("Success returned without sui transaction digest");
-				}
 				await this.storage.batchUpdateNbtcTxs(
 					processedPrimaryKeys.map((p) => ({
 						...p,
 						status: TxStatus.MINTED,
-						suiTxDigest: suiTxDigest,
+						suiTxDigest,
 					})),
 				);
 			} else {

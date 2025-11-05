@@ -1,9 +1,18 @@
 import { Transaction } from "bitcoinjs-lib";
 
+export interface NbtcAddress {
+	btc_network: string;
+	sui_network: string;
+	nbtc_pkg: string;
+	btc_address: string;
+}
+
 export interface Deposit {
 	vout: number;
 	amountSats: number;
 	suiRecipient: string;
+	nbtc_pkg: string;
+	sui_network: string;
 }
 
 export interface ProofResult {
@@ -22,6 +31,8 @@ export interface FinalizedTxRow {
 	vout: number;
 	block_hash: string;
 	block_height: number;
+	nbtc_pkg: string;
+	sui_network: string;
 }
 
 export interface BlockInfo {
@@ -88,6 +99,8 @@ export interface MintBatchArg {
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
+	nbtc_pkg: string;
+	sui_network: string;
 }
 
 export interface PostNbtcTxRequest {

@@ -4,6 +4,7 @@ import { Block, networks } from "bitcoinjs-lib";
 import { Indexer } from "./btcindexer";
 import SuiClient, { SuiClientCfg } from "./sui_client";
 import { mkElectrsServiceMock } from "./electrs.test";
+import { NbtcAddress } from "./models";
 
 const REGTEST_DATA_MINT = {
 	BLOCK_HEX:
@@ -23,49 +24,6 @@ const SUI_CLIENT_CONFIG_MINT: SuiClientCfg = {
 	signerMnemonic:
 		"your mnemonic your mnemonic your mnemonic your mnemonic your mnemonic your mnemonic",
 };
-
-// NOTE: skip to prevent this test from running in CI
-describe.skip("Sui Contract Integration (Mint)", () => {
-	it("should successfully call the mint function on devnet", async () => {
-		const suiClient = new SuiClient(SUI_CLIENT_CONFIG_MINT);
-		const indexer = new Indexer(
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			{} as any,
-			suiClient,
-			["bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw"],
-			"fallback",
-			networks.regtest,
-			8,
-			2,
-			100,
-			mkElectrsServiceMock(),
-		);
-		const block = Block.fromHex(REGTEST_DATA_MINT.BLOCK_HEX);
-		const txIndex = block.transactions?.findIndex(
-			(tx) => tx.getId() === REGTEST_DATA_MINT.TX_ID,
-		);
-		expect(txIndex).toBeDefined();
-		const targetTx = block.transactions?.[txIndex ?? -1];
-		expect(targetTx).toBeDefined();
-
-		const tree = indexer.constructMerkleTree(block);
-		expect(tree).toBeDefined();
-		const proofPath = indexer.getTxProof(tree!, targetTx!);
-		expect(proofPath).toBeDefined();
-		const calculatedRoot = tree!.getRoot();
-
-		const success = await suiClient.tryMintNbtc(
-			targetTx!,
-			REGTEST_DATA_MINT.BLOCK_HEIGHT,
-			txIndex!,
-			{
-				proofPath: proofPath!,
-				merkleRoot: calculatedRoot.toString("hex"),
-			},
-		);
-		expect(success).toBe(true);
-	});
-});
 
 // NOTE: skip to prevent this test from running in CI
 describe.skip("SuiClient: verifyBlocks Integration Test", () => {

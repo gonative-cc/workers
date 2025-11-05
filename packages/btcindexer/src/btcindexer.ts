@@ -11,6 +11,7 @@ import {
 	MintBatchArg,
 	GroupedFinalizedTx,
 	BlockStatus,
+	NbtcAddress,
 } from "./models";
 import { toSerializableError } from "./errutils";
 import { Electrs, ElectrsService } from "./electrs";
@@ -24,7 +25,10 @@ const btcNetworks = {
 };
 const validBtcNet = Object.keys(btcNetworks).keys();
 
-export async function indexerFromEnv(env: Env): Promise<Indexer> {
+export async function indexerFromEnv(
+	env: Env,
+	nbtcAddressesMap: Map<string, NbtcAddress>,
+): Promise<Indexer> {
 	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
 	const sc = await suiClientFromEnv(env);
 
@@ -48,21 +52,10 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid BTC_BLOCK_PROCESSING_BATCH_SIZE in config. Must be a number > 0.");
 	}
 
-	let depositAddresses: string[];
-	try {
-		depositAddresses = await storage.getDepositAddresses(env.BITCOIN_NETWORK);
-	} catch (e) {
-		console.error({
-			msg: "Failed to get deposit addresses from storage",
-			error: toSerializableError(e),
-		});
-		throw e;
-	}
-
 	return new Indexer(
 		storage,
 		sc,
-		depositAddresses,
+		nbtcAddressesMap,
 		env.SUI_FALLBACK_ADDRESS,
 		btcNet,
 		confirmationDepth,
@@ -81,11 +74,13 @@ export class Indexer {
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
 	btcBlockProcessingBatchSize: number;
+	nbtcAddressesMap: Map<string, NbtcAddress>;
+	private network: networks.Network;
 
 	constructor(
 		storage: Storage,
 		suiClient: SuiClient,
-		nbtcAddrs: string[],
+		nbtcAddressesMap: Map<string, NbtcAddress>,
 		fallbackAddr: string,
 		network: networks.Network,
 		confirmationDepth: number,
@@ -96,11 +91,10 @@ export class Indexer {
 		this.storage = storage;
 		this.nbtcClient = suiClient;
 		this.suiFallbackAddr = fallbackAddr;
-		if (!Array.isArray(nbtcAddrs)) {
-			console.error({ msg: "nbtcAddrs is not an array", nbtcAddrs });
-			throw new Error("nbtcAddrs must be an array of strings.");
-		}
-		if (nbtcAddrs.length === 0) {
+		this.nbtcAddressesMap = nbtcAddressesMap;
+		this.network = network;
+
+		if (nbtcAddressesMap.size === 0) {
 			const err = new Error("No nBTC deposit addresses configured.");
 			console.error({
 				msg: "No nBTC deposit addresses configured.",
@@ -108,8 +102,8 @@ export class Indexer {
 			});
 			throw err;
 		}
-		this.nbtcScriptHexes = nbtcAddrs.map((addr) =>
-			address.toOutputScript(addr, network).toString("hex"),
+		this.nbtcScriptHexes = Array.from(nbtcAddressesMap.values()).map((addr) =>
+			address.toOutputScript(addr.btc_address, network).toString("hex"),
 		);
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
@@ -161,6 +155,8 @@ export class Indexer {
 			blockHeight: number;
 			suiRecipient: string;
 			amountSats: number;
+			nbtc_pkg: string;
+			sui_network: string;
 		}[] = [];
 		let senders: { txId: string; sender: string }[] = [];
 
@@ -196,6 +192,8 @@ export class Indexer {
 						vout: deposit.vout,
 						amountSats: deposit.amountSats,
 						suiRecipient: deposit.suiRecipient,
+						nbtc_pkg: deposit.nbtc_pkg,
+						sui_network: deposit.sui_network,
 					});
 					nbtcTxs.push({
 						txId: tx.getId(),
@@ -204,6 +202,8 @@ export class Indexer {
 						blockHeight: blockInfo.height,
 						suiRecipient: deposit.suiRecipient,
 						amountSats: deposit.amountSats,
+						nbtc_pkg: deposit.nbtc_pkg,
+						sui_network: deposit.sui_network,
 					});
 				}
 			}
@@ -251,17 +251,27 @@ export class Indexer {
 
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
-			if (this.nbtcScriptHexes.includes(vout.script.toString("hex"))) {
-				console.debug({
-					msg: "Found matching nBTC deposit output",
-					txId: tx.getId(),
-					vout: i,
-				});
-				deposits.push({
-					vout: i,
-					amountSats: Number(vout.value),
-					suiRecipient,
-				});
+			try {
+				const btcAddress = address.fromOutputScript(vout.script, this.network);
+				const matchingNbtcAddress = this.nbtcAddressesMap.get(btcAddress);
+
+				if (matchingNbtcAddress) {
+					console.debug({
+						msg: "Found matching nBTC deposit output",
+						txId: tx.getId(),
+						vout: i,
+					});
+					deposits.push({
+						vout: i,
+						amountSats: Number(vout.value),
+						suiRecipient,
+						nbtc_pkg: matchingNbtcAddress.nbtc_pkg,
+						sui_network: matchingNbtcAddress.sui_network,
+					});
+				}
+			} catch (e) {
+				// This is expected for coinbase transactions and other non-standard scripts.
+				console.debug({ msg: "Error parsing output script", error: e });
 			}
 		}
 		return deposits;
@@ -285,7 +295,8 @@ export class Indexer {
 		// Our indexer stores each of these deposits as a separate row.
 		// For the on-chain minting process, however all deposits from a single transaction must be
 		// processed together because they share a single Merkle proof. This grouping step
-		// collects all related deposits so we can generate one proof and make one batch mint call.
+		// collects all related deposits to generate a single proof. These groups are then further
+		// batched by their destination nBTC package for the final minting calls.
 		//
 		// TODO: Consider refactoring the database schema to store one row per transaction, rather than
 		// per deposit output. The schema could have columns like `vouts` (a list of vout indexes),
@@ -306,8 +317,8 @@ export class Indexer {
 			}
 		}
 
-		const mintBatchArgs: MintBatchArg[] = [];
-		const processedPrimaryKeys: { tx_id: string; vout: number; success: boolean }[] = [];
+		const mintBatchArgsByPkg = new Map<string, MintBatchArg[]>();
+		const processedKeysByPkg = new Map<string, { tx_id: string; vout: number }[]>();
 
 		for (const [txId, txGroup] of groupedTxs.entries()) {
 			try {
@@ -371,55 +382,93 @@ export class Indexer {
 					continue;
 				}
 
-				mintBatchArgs.push({
-					tx: targetTx,
-					blockHeight: txGroup.block_height,
-					txIndex: txIndex,
-					proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
-				});
-				for (const deposit of txGroup.deposits) {
-					processedPrimaryKeys.push({
-						tx_id: deposit.tx_id,
-						vout: deposit.vout,
-						success: true,
+				const nbtc_pkg = txGroup.deposits[0].nbtc_pkg;
+				const sui_network = txGroup.deposits[0].sui_network;
+				const pkgKey = `${nbtc_pkg}-${sui_network}`;
+
+				if (!nbtc_pkg || !sui_network) {
+					console.warn({
+						msg: "Minting: Skipping transaction group with missing nbtc_pkg or sui_network, likely old data.",
+						txId,
 					});
+					continue;
+				}
+
+				if (!mintBatchArgsByPkg.has(pkgKey)) {
+					mintBatchArgsByPkg.set(pkgKey, []);
+					processedKeysByPkg.set(pkgKey, []);
+				}
+
+				const mintBatchArgs = mintBatchArgsByPkg.get(pkgKey);
+				if (mintBatchArgs) {
+					mintBatchArgs.push({
+						tx: targetTx,
+						blockHeight: txGroup.block_height,
+						txIndex: txIndex,
+						proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
+						nbtc_pkg: nbtc_pkg,
+						sui_network: sui_network,
+					});
+				}
+
+				for (const deposit of txGroup.deposits) {
+					const processedKeys = processedKeysByPkg.get(pkgKey);
+					if (processedKeys) {
+						processedKeys.push({
+							tx_id: deposit.tx_id,
+							vout: deposit.vout,
+						});
+					}
 				}
 			} catch (e) {
 				console.error({
-					msg: "Minting: Error preparing transaction for minting batch",
+					msg: "Minting: Error preparing transaction for minting batch, will retry",
 					error: toSerializableError(e),
 					txId,
 				});
-				for (const deposit of txGroup.deposits) {
-					processedPrimaryKeys.push({
-						tx_id: deposit.tx_id,
-						vout: deposit.vout,
-						success: false,
-					});
-				}
+				// NOTE: We don't update the status here. The transaction will be picked up
+				// again in the next run of processFinalizedTransactions.
 			}
 		}
 
-		if (mintBatchArgs.length > 0) {
-			console.log({
-				msg: "Minting: Sending batch of mints to Sui",
-				count: mintBatchArgs.length,
-			});
-			const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
-			if (suiTxDigest) {
-				console.log({ msg: "Sui batch mint transaction successful", suiTxDigest });
-				await this.storage.batchUpdateNbtcTxs(
-					processedPrimaryKeys.map((p) => ({
-						...p,
-						status: TxStatus.MINTED,
+		if (mintBatchArgsByPkg.size > 0) {
+			for (const [pkgKey, mintBatchArgs] of mintBatchArgsByPkg.entries()) {
+				const processedPrimaryKeys = processedKeysByPkg.get(pkgKey);
+				if (!processedPrimaryKeys || processedPrimaryKeys.length === 0) {
+					continue;
+				}
+
+				console.log({
+					msg: "Minting: Sending batch of mints to Sui",
+					count: mintBatchArgs.length,
+					pkgKey: pkgKey,
+				});
+
+				const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
+				if (suiTxDigest) {
+					console.log({
+						msg: "Sui batch mint transaction successful",
 						suiTxDigest,
-					})),
-				);
-			} else {
-				console.error({ msg: "Sui batch mint transaction failed" });
-				await this.storage.batchUpdateNbtcTxs(
-					processedPrimaryKeys.map((p) => ({ ...p, status: TxStatus.FINALIZED_FAILED })),
-				);
+						pkgKey,
+					});
+					await this.storage.batchUpdateNbtcTxs(
+						processedPrimaryKeys.map((p) => ({
+							tx_id: p.tx_id,
+							vout: p.vout,
+							status: TxStatus.MINTED,
+							suiTxDigest,
+						})),
+					);
+				} else {
+					console.error({ msg: "Sui batch mint transaction failed", pkgKey });
+					await this.storage.batchUpdateNbtcTxs(
+						processedPrimaryKeys.map((p) => ({
+							tx_id: p.tx_id,
+							vout: p.vout,
+							status: TxStatus.FINALIZED_FAILED,
+						})),
+					);
+				}
 			}
 		}
 	}

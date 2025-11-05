@@ -269,8 +269,9 @@ export class Indexer {
 						sui_network: matchingNbtcAddress.sui_network,
 					});
 				}
-			} catch (_e) {
+			} catch (e) {
 				// This is expected for coinbase transactions and other non-standard scripts.
+				console.debug({ msg: "Error parsing output script", error: e });
 			}
 		}
 		return deposits;

@@ -146,6 +146,33 @@ function checkTxProof(proofResult: ProofResult | null, block: Block) {
 	}
 }
 
+async function insertFinalizedTx(
+	db: D1Database,
+	txData: TxInfo,
+	blockData: TestBlock,
+	retry_count = 0,
+) {
+	await db
+		.prepare(
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		)
+		.bind(
+			txData.id,
+			0,
+			blockData.hash,
+			blockData.height,
+			txData.suiAddr,
+			txData.amountSats,
+			"finalized",
+			Date.now(),
+			Date.now(),
+			retry_count,
+			"0xPACKAGE",
+			"testnet",
+		)
+		.run();
+}
+
 describe("Indexer.findNbtcDeposits", () => {
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
@@ -329,24 +356,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		const tx329 = block329.txs[1];
 
 		const db = await mf.getD1Database("DB");
-		await db
-			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			)
-			.bind(
-				tx329.id,
-				0,
-				block329.hash,
-				block329.height,
-				tx329.suiAddr,
-				tx329.amountSats,
-				"finalized",
-				Date.now(),
-				Date.now(),
-				"0xPACKAGE",
-				"testnet",
-			)
-			.run();
+		await insertFinalizedTx(db, tx329, block329);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(block329.hash, Buffer.from(block329.rawBlockHex, "hex").buffer);
@@ -374,25 +384,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const txData = blockData.txs[1];
 
 		const db = await mf.getD1Database("DB");
-		await db
-			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			)
-			.bind(
-				txData.id,
-				0,
-				blockData.hash,
-				blockData.height,
-				txData.suiAddr,
-				txData.amountSats,
-				"finalized",
-				Date.now(),
-				Date.now(),
-				0,
-				"0xPACKAGE",
-				"testnet",
-			)
-			.run();
+		await insertFinalizedTx(db, txData, blockData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
@@ -418,25 +410,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const txData = blockData.txs[1];
 
 		const db = await mf.getD1Database("DB");
-		await db
-			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			)
-			.bind(
-				txData.id,
-				0,
-				blockData.hash,
-				blockData.height,
-				txData.suiAddr,
-				txData.amountSats,
-				"finalized",
-				Date.now(),
-				Date.now(),
-				1,
-				"0xPACKAGE",
-				"testnet",
-			)
-			.run();
+		await insertFinalizedTx(db, txData, blockData, 1);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);

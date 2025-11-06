@@ -2,7 +2,7 @@
 
 This package exposes [Cloudflare RPC](../../README.md#cloudflare-rpc).
 
-### Setting up Service Binding
+## Setting up Service Binding
 
 To use the RPC interface from another worker, you need to set up a service binding in your `wrangler.jsonc`:
 
@@ -10,17 +10,13 @@ To use the RPC interface from another worker, you need to set up a service bindi
 {
   "services": [
     {
-      "binding": "RdeemSolver",
+      "binding": "RedeemSolver",
       "service": "redeem_solver",
       "entrypoint": "RPC",
     },
   ],
 }
 ```
-
-### Calling RPC Methods
-
-See btcindexer [API](../btcindexer/API.md) for an example.
 
 ## Available RPC Methods
 

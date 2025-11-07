@@ -1,5 +1,6 @@
 {
 	"name": "@gonative-cc/redeem_solver",
+	"type": "module",
 	"license": "MPL-2.0",
 	"version": "0.0.1",
 	"exports": {
@@ -15,7 +16,8 @@
 	},
 	"dependencies": {
 		"@mysten/bcs": "^1.8.0",
-		"@mysten/sui": "^1.38.0"
+		"@mysten/sui": "^1.38.0",
+		"@gonative-cc/lib": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/crypto-js": "^4.2.2",

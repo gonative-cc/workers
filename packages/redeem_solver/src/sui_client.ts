@@ -1,6 +1,8 @@
-// TODO: reuse the one from btcindexer
-export interface SuiClientCfg {
-	network: string;
+import { NbtcCfg } from "@gonative-cc/lib/nsui";
+
+// TODO: need to add more params
+export interface SuiClientCfg extends NbtcCfg {
+	signerMnemonic: string;
 }
 
 export default interface SuiClient {

@@ -3,117 +3,14 @@ import { TxStatus } from "./models";
 import type { TxStatusResp } from "./models";
 import type { PutBlocks as PutBlocksType } from "./api/put-blocks";
 import { Block } from "bitcoinjs-lib";
-
-// We can't directly import MockBtcIndexerRpc in tests because it depends on
-// `cloudflare:workers` module which is only available in the Workers runtime.
-// Instead, we'll test the implementation logic in a runtime-agnostic way.
-
-// Mock implementation that mirrors MockBtcIndexerRpc but doesn't extend WorkerEntrypoint
-class TestMockRpc {
-	#blocks: Map<number, PutBlocksType> = new Map();
-	#transactions: Map<string, TxStatusResp> = new Map();
-	#transactionsBySuiAddress: Map<string, Set<string>> = new Map();
-	#transactionsBySender: Map<string, Set<string>> = new Map();
-
-	async putBlocks(blocks: PutBlocksType[]): Promise<number> {
-		let inserted = 0;
-		for (const block of blocks) {
-			if (!this.#blocks.has(block.height)) {
-				this.#blocks.set(block.height, block);
-				inserted++;
-			}
-		}
-		return inserted;
-	}
-
-	async latestHeight(): Promise<{ height: number | null }> {
-		if (this.#blocks.size === 0) {
-			return { height: null };
-		}
-		const heights = Array.from(this.#blocks.keys());
-		const maxHeight = Math.max(...heights);
-		return { height: maxHeight };
-	}
-
-	async putNbtcTx(txHex: string): Promise<{ tx_id: string; registered_deposits: number }> {
-		const { Transaction } = await import("bitcoinjs-lib");
-		try {
-			const tx = Transaction.fromHex(txHex);
-			const txid = tx.getId();
-
-			const mockStatus: TxStatusResp = {
-				btc_tx_id: txid,
-				status: TxStatus.BROADCASTING,
-				block_height: null,
-				confirmations: 0,
-				sui_recipient: "0x0000000000000000000000000000000000000000000000000000000000000000",
-				amount_sats: 100000,
-				sui_tx_id: null,
-			};
-
-			this.#transactions.set(txid, mockStatus);
-			return { tx_id: txid, registered_deposits: 1 };
-		} catch (error) {
-			throw new Error(`Invalid transaction hex: ${error}`);
-		}
-	}
-
-	async statusByTxid(txid: string): Promise<TxStatusResp | null> {
-		return this.#transactions.get(txid) || null;
-	}
-
-	async statusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
-		const txids = this.#transactionsBySuiAddress.get(suiAddress);
-		if (!txids) {
-			return [];
-		}
-		const results: TxStatusResp[] = [];
-		for (const txid of txids) {
-			const status = this.#transactions.get(txid);
-			if (status) {
-				results.push(status);
-			}
-		}
-		return results;
-	}
-
-	async depositsBySender(address: string): Promise<TxStatusResp[]> {
-		const txids = this.#transactionsBySender.get(address);
-		if (!txids) {
-			return [];
-		}
-		const results: TxStatusResp[] = [];
-		for (const txid of txids) {
-			const status = this.#transactions.get(txid);
-			if (status) {
-				results.push(status);
-			}
-		}
-		return results;
-	}
-
-	addMockTransaction(txStatus: TxStatusResp): void {
-		this.#transactions.set(txStatus.btc_tx_id, txStatus);
-		if (!this.#transactionsBySuiAddress.has(txStatus.sui_recipient)) {
-			this.#transactionsBySuiAddress.set(txStatus.sui_recipient, new Set());
-		}
-		this.#transactionsBySuiAddress.get(txStatus.sui_recipient)!.add(txStatus.btc_tx_id);
-	}
-
-	addMockSender(btcAddress: string, txid: string): void {
-		if (!this.#transactionsBySender.has(btcAddress)) {
-			this.#transactionsBySender.set(btcAddress, new Set());
-		}
-		this.#transactionsBySender.get(btcAddress)!.add(txid);
-	}
-}
+import { BtcIndexerRpcMockBase } from "./rpc-mock-base";
 
 describe("MockBtcIndexerRpc (Logic Tests)", () => {
-	let rpc: TestMockRpc;
+	let rpc: BtcIndexerRpcMockBase;
 
 	beforeEach(() => {
 		// Create a new instance for each test
-		rpc = new TestMockRpc();
+		rpc = new BtcIndexerRpcMockBase();
 	});
 
 	describe("putBlocks", () => {

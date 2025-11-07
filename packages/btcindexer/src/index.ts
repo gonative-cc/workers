@@ -71,7 +71,6 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 // Export the RPC entrypoint for service bindings
-// The RPC implementation to use is determined at build time via the USE_MOCK_RPC environment variable.
-// During local development with mock mode: USE_MOCK_RPC=true bun run dev
-// During normal development: bun run dev
+// Both BtcIndexerRpc (production) and MockBtcIndexerRpc (testing/development) are exported.
+// Service binding consumers can choose which implementation to use.
 export { BtcIndexerRpc, MockBtcIndexerRpc };

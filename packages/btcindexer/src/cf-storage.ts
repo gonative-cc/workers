@@ -184,7 +184,7 @@ export class CFStorage implements Storage {
 	}
 
 	async batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string | null }[],
+		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string }[],
 	): Promise<void> {
 		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
@@ -200,7 +200,7 @@ export class CFStorage implements Storage {
 			} else {
 				return setFailedStmt.bind(
 					TxStatus.FINALIZED_FAILED,
-					p.suiTxDigest ?? null,
+					p.suiTxDigest,
 					now,
 					p.tx_id,
 					p.vout,

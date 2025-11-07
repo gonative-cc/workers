@@ -402,7 +402,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		expect(results[0].sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 
-	it("should handle failed transactions (returns null) and increment retry_count", async () => {
+	it("should retry a failed tx, fail again and increment retry_count", async () => {
 		const blockData = REGTEST_DATA[329];
 		const txData = blockData.txs[1];
 

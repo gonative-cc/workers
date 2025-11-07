@@ -1,4 +1,4 @@
-import { NbtcCfg } from "@gonative-cc/lib/nsui";
+import type { NbtcCfg } from "@gonative-cc/lib/nsui";
 
 // TODO: need to add more params
 export interface SuiClientCfg extends NbtcCfg {

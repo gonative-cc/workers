@@ -1,6 +1,6 @@
 export type SuiNet = "testnet" | "mainnet" | "devnet" | "localnet";
 
-export interface SuiClientCfg {
+export interface NbtcCfg {
 	network: SuiNet;
 	nbtcPkg: string;
 	nbtcModule: string;

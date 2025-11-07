@@ -3,8 +3,7 @@ import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
-import { Transaction } from "bitcoinjs-lib";
-import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
+import type { MintBatchArg, SuiTxDigest } from "./models";
 import { toSerializableError } from "./errutils";
 
 export interface SuiClientCfg {

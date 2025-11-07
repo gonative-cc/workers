@@ -7,7 +7,7 @@
   "kv_namespaces": [
     {
       "binding": "BLOCK_STORE",
-      "id": ""
+      "id": "00000000000000000000000000000000"
     }
   ],
   "queues": {

@@ -1,5 +1,6 @@
-import { TxStatusResp } from "../models";
-import { PutBlocks, PutBlocksReq } from "./put-blocks";
+import type { TxStatusResp } from "../models";
+import type { PutBlocks } from "./put-blocks";
+import { PutBlocksReq } from "./put-blocks";
 
 export enum RestPath {
 	blocks = "/bitcoin/blocks",

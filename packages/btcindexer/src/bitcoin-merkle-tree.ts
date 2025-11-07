@@ -32,11 +32,11 @@ export class BitcoinMerkleTree {
 		this.buildTree();
 		const lastLevel = this.tree[this.tree.length - 1];
 		if (!lastLevel || lastLevel.length === 0) {
-			throw new Error("Merkle tree construction failed");
+			throw new Error("Merkle tree has no levels or empty last level");
 		}
 		const firstNode = lastLevel[0];
 		if (!firstNode) {
-			throw new Error("Merkle tree construction failed");
+			throw new Error("Merkle tree root node is missing");
 		}
 		this.root = firstNode.hash;
 	}
@@ -44,7 +44,7 @@ export class BitcoinMerkleTree {
 	private buildTree(): void {
 		let currentLevel = this.tree[0];
 		if (!currentLevel) {
-			throw new Error("Merkle tree construction failed");
+			throw new Error("Merkle tree has no initial level");
 		}
 		while (currentLevel.length > 1) {
 			const nextLevel: MerkleNode[] = [];
@@ -52,7 +52,9 @@ export class BitcoinMerkleTree {
 			if (currentLevel.length % 2 === 1) {
 				const lastNode = currentLevel[currentLevel.length - 1];
 				if (!lastNode) {
-					throw new Error("Merkle tree construction failed");
+					throw new Error(
+						"Merkle tree last node is missing when duplicating for odd count",
+					);
 				}
 				currentLevel.push(lastNode);
 			}
@@ -62,7 +64,9 @@ export class BitcoinMerkleTree {
 				const right = currentLevel[i + 1];
 
 				if (!left || !right) {
-					throw new Error("Merkle tree construction failed");
+					throw new Error(
+						"Merkle tree has missing left or right node during construction",
+					);
 				}
 
 				const combined = Buffer.concat([left.hash, right.hash]);

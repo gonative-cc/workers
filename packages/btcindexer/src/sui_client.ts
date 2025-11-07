@@ -93,7 +93,7 @@ export class SuiClient {
 		}
 		// The return value is a BCS-encoded vector<bool>.
 		const firstReturnValue = returnValues[0];
-		if (!firstReturnValue || !firstReturnValue[0]) {
+		if (firstReturnValue === undefined || firstReturnValue[0] === undefined) {
 			throw new Error("Invalid return value from devInspectTransactionBlock");
 		}
 		const bytes = firstReturnValue[0];

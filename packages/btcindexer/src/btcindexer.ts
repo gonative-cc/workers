@@ -251,7 +251,7 @@ export class Indexer {
 
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
-			if (!vout) continue;
+			if (vout === undefined) continue;
 			try {
 				const btcAddress = address.fromOutputScript(vout.script, this.network);
 				const matchingNbtcAddress = this.nbtcAddressesMap.get(btcAddress);
@@ -525,7 +525,7 @@ export class Indexer {
 			const invalidHashes: string[] = [];
 			for (let i = 0; i < blockHashes.length; i++) {
 				const hash = blockHashes[i];
-				if (hash && verificationResults[i] === false) {
+				if (hash !== undefined && verificationResults[i] === false) {
 					invalidHashes.push(hash);
 				}
 			}

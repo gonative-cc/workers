@@ -93,12 +93,15 @@ export default class HttpRouter {
 	postNbtcTx = async (req: IRequest) => {
 		const body: PostNbtcTxRequest = await req.json();
 
-		if (!body || typeof body.txHex !== "string") {
-			return error(400, "Request body must be a JSON object with a 'txHex' property.");
+		if (!body || typeof body.txHex !== "string" || !body.network) {
+			return error(
+				400,
+				"Request body must be a JSON object with 'txHex' and 'network' properties.",
+			);
 		}
 
 		try {
-			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex);
+			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex, body.network);
 			return { success: true, ...result };
 		} catch (e: unknown) {
 			console.error({ msg: "Failed to register nBTC tx", error: toSerializableError(e) });

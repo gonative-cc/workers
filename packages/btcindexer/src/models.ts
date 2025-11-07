@@ -24,6 +24,7 @@ export interface PendingTx {
 	tx_id: string;
 	block_hash: string | null;
 	block_height: number;
+	network: string;
 }
 
 export interface FinalizedTxRow {
@@ -105,6 +106,20 @@ export interface MintBatchArg {
 
 export interface PostNbtcTxRequest {
 	txHex: string;
+	network: BitcoinNetwork;
 }
 
 export type SuiTxDigest = string;
+
+export enum BitcoinNetwork {
+	REGTEST = "regtest",
+	TESTNET = "testnet",
+	MAINNET = "mainnet",
+}
+
+export interface BlockQueueMessage {
+	hash: string;
+	height: number;
+	network: BitcoinNetwork;
+	kv_key: string;
+}

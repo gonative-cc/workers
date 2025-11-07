@@ -30,72 +30,46 @@ export class CFStorage implements Storage {
 			throw e;
 		}
 	}
-	async putBlocks(blocks: { height: number; block: Block }[]): Promise<void> {
-		if (!blocks || blocks.length === 0) {
-			return;
-		}
 
-		const blockHeights = blocks.map((b) => b.height);
-		console.log({
-			msg: "Ingesting blocks",
-			count: blocks.length,
-			heights: blockHeights,
-		});
-
+	async insertBlockFromQueue(message: {
+		hash: string;
+		height: number;
+		network: string;
+	}): Promise<void> {
 		const now = Date.now();
-		const insertBlockStmt = this.d1.prepare(
-			`INSERT INTO btc_blocks (height, hash, status, processed_at) VALUES (?, ?, '${BlockStatus.NEW}', ?)
-             ON CONFLICT(height)
-              DO UPDATE SET
-               hash = excluded.hash,
-               processed_at = excluded.processed_at
-             WHERE btc_blocks.hash IS NOT excluded.hash`,
+		const insertStmt = this.d1.prepare(
+			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
+			 ON CONFLICT(height, network) DO UPDATE SET
+			   hash = excluded.hash,
+			   inserted_at = excluded.inserted_at,
+			   status = '${BlockStatus.NEW}'
+			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
-
-		const putKVs = blocks.map((b) => this.blocksDB.put(b.block.getId(), b.block.toBuffer()));
-		const putD1s = blocks.map((b) => insertBlockStmt.bind(b.height, b.block.getId(), now));
-
 		try {
-			await Promise.all([...putKVs, this.d1.batch(putD1s)]);
+			await insertStmt.bind(message.hash, message.height, message.network, now).run();
 		} catch (e) {
 			console.error({
-				msg: "Failed to store one or more blocks in KV or D1",
+				msg: "Failed to insert block from queue message",
 				error: toSerializableError(e),
-				blockHeights,
+				message,
 			});
-			throw new Error(`Could not save all blocks data`);
+			throw e;
 		}
-		console.log({ msg: "Successfully ingested blocks", count: blocks.length });
 	}
 
-	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
-		const blocksToProcess = await this.d1
-			.prepare(
-				`SELECT height, hash FROM btc_blocks WHERE status = '${BlockStatus.NEW}' ORDER BY height ASC LIMIT ?`,
-			)
-			.bind(batchSize)
-			.all<BlockInfo>();
-		return blocksToProcess.results ?? [];
-	}
-
-	async updateBlockStatus(heights: number[], status: string): Promise<void> {
-		if (heights.length === 0) {
-			return;
-		}
-		const placeholders = heights.map(() => "?").join(",");
-		const updateStmt = `UPDATE btc_blocks SET status = '${status}' WHERE height IN (${placeholders})`;
+	async updateBlockStatus(hash: string, network: string, status: string): Promise<void> {
+		const now = Date.now();
+		const updateStmt = `UPDATE btc_blocks SET status = ?, processed_at = ? WHERE hash = ? AND network = ?`;
 		try {
-			await this.d1
-				.prepare(updateStmt)
-				.bind(...heights)
-				.run();
+			await this.d1.prepare(updateStmt).bind(status, now, hash, network).run();
 			console.debug({
-				msg: `Marked blocks as ${status}`,
-				count: heights.length,
+				msg: `Marked block as ${status}`,
+				hash,
+				network,
 			});
 		} catch (e) {
 			console.error({
-				msg: `Failed to mark blocks as ${status}`,
+				msg: `Failed to mark block as ${status}`,
 				error: toSerializableError(e),
 			});
 			throw e;
@@ -122,10 +96,10 @@ export class CFStorage implements Storage {
 		return this.blocksDB.get(hash, { type: "arrayBuffer" });
 	}
 
-	async getBlockInfo(height: number): Promise<{ hash: string } | null> {
+	async getBlockInfo(height: number, network: string): Promise<{ hash: string } | null> {
 		return this.d1
-			.prepare("SELECT hash FROM btc_blocks WHERE height = ?")
-			.bind(height)
+			.prepare("SELECT hash FROM btc_blocks WHERE height = ? AND network = ?")
+			.bind(height, network)
 			.first<{ hash: string }>();
 	}
 
@@ -137,6 +111,9 @@ export class CFStorage implements Storage {
 			blockHeight: number;
 			suiRecipient: string;
 			amountSats: number;
+			network: string;
+			nbtc_pkg: string;
+			sui_network: string;
 		}[],
 	): Promise<void> {
 		if (txs.length === 0) {
@@ -144,13 +121,16 @@ export class CFStorage implements Storage {
 		}
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
-			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, '${TxStatus.CONFIRMING}', ?, ?)
+			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, network, nbtc_pkg, sui_network)
+             VALUES (?, ?, ?, ?, ?, ?, '${TxStatus.CONFIRMING}', ?, ?, ?, ?, ?)
              ON CONFLICT(tx_id, vout) DO UPDATE SET
                 block_hash = excluded.block_hash,
                 block_height = excluded.block_height,
                 status = '${TxStatus.CONFIRMING}',
-                updated_at = excluded.updated_at`,
+                updated_at = excluded.updated_at,
+				network = excluded.network,
+				nbtc_pkg = excluded.nbtc_pkg,
+				sui_network = excluded.sui_network`,
 		);
 		const statements = txs.map((tx) =>
 			insertOrUpdateNbtcTxStmt.bind(
@@ -162,6 +142,9 @@ export class CFStorage implements Storage {
 				tx.amountSats,
 				now,
 				now,
+				tx.network,
+				tx.nbtc_pkg,
+				tx.sui_network,
 			),
 		);
 		try {
@@ -217,6 +200,7 @@ export class CFStorage implements Storage {
 				return setFailedStmt.bind(TxStatus.FINALIZED_FAILED, now, p.tx_id, p.vout);
 			}
 		});
+
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
@@ -255,7 +239,7 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}'`,
+				`SELECT tx_id, block_hash, block_height, network FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}'`,
 			)
 			.all<PendingTx>();
 		return pendingTxs.results ?? [];

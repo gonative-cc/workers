@@ -12,6 +12,8 @@ import {
 	GroupedFinalizedTx,
 	BlockStatus,
 	NbtcAddress,
+	BlockQueueMessage,
+	BitcoinNetwork,
 } from "./models";
 import { toSerializableError } from "./errutils";
 import { Electrs, ElectrsService } from "./electrs";
@@ -32,11 +34,6 @@ export async function indexerFromEnv(
 	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
 	const sc = await suiClientFromEnv(env);
 
-	if (!env.BITCOIN_NETWORK) throw Error("BITCOIN_NETWORK env must be set");
-	if (!(env.BITCOIN_NETWORK in btcNetworks))
-		throw new Error("Invalid BITCOIN_NETWORK value. Must be in " + validBtcNet);
-	const btcNet = btcNetworks[env.BITCOIN_NETWORK];
-
 	const confirmationDepth = parseInt(env.CONFIRMATION_DEPTH || "8", 10);
 	if (isNaN(confirmationDepth) || confirmationDepth < 1) {
 		throw new Error("Invalid CONFIRMATION_DEPTH in config. Must be a number greater than 0.");
@@ -47,20 +44,13 @@ export async function indexerFromEnv(
 		throw new Error("Invalid MAX_NBTC_MINT_TX_RETRIES in config. Must be a number >= 0.");
 	}
 
-	const btcBlockProcessingBatchSize = parseInt(env.BTC_BLOCK_PROCESSING_BATCH_SIZE || "10", 10);
-	if (isNaN(btcBlockProcessingBatchSize) || btcBlockProcessingBatchSize < 1) {
-		throw new Error("Invalid BTC_BLOCK_PROCESSING_BATCH_SIZE in config. Must be a number > 0.");
-	}
-
 	return new Indexer(
 		storage,
 		sc,
 		nbtcAddressesMap,
 		env.SUI_FALLBACK_ADDRESS,
-		btcNet,
 		confirmationDepth,
 		maxNbtcMintTxRetries,
-		btcBlockProcessingBatchSize,
 		new ElectrsService(env.ELECTRS_API_URL),
 	);
 }
@@ -68,31 +58,25 @@ export async function indexerFromEnv(
 export class Indexer {
 	storage: Storage;
 	electrs: Electrs;
-	nbtcScriptHexes: string[];
 	suiFallbackAddr: string;
 	nbtcClient: SuiClient;
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
-	btcBlockProcessingBatchSize: number;
 	nbtcAddressesMap: Map<string, NbtcAddress>;
-	private network: networks.Network;
 
 	constructor(
 		storage: Storage,
 		suiClient: SuiClient,
 		nbtcAddressesMap: Map<string, NbtcAddress>,
 		fallbackAddr: string,
-		network: networks.Network,
 		confirmationDepth: number,
 		maxRetries: number,
-		scanBatchSize: number,
 		electrs: Electrs,
 	) {
 		this.storage = storage;
 		this.nbtcClient = suiClient;
 		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcAddressesMap = nbtcAddressesMap;
-		this.network = network;
 
 		if (nbtcAddressesMap.size === 0) {
 			const err = new Error("No nBTC deposit addresses configured.");
@@ -102,23 +86,19 @@ export class Indexer {
 			});
 			throw err;
 		}
-		this.nbtcScriptHexes = Array.from(nbtcAddressesMap.values()).map((addr) =>
-			address.toOutputScript(addr.btc_address, network).toString("hex"),
-		);
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
-		this.btcBlockProcessingBatchSize = scanBatchSize;
 		this.electrs = electrs;
 	}
 
 	// returns number of processed and add blocks
-	async putBlocks(blocks: PutBlocks[]): Promise<number> {
-		if (!blocks || blocks.length === 0) {
-			return 0;
-		}
-		await this.storage.putBlocks(blocks);
-		return blocks.length;
-	}
+	// async putBlocks(blocks: PutBlocks[]): Promise<number> {
+	// 	if (!blocks || blocks.length === 0) {
+	// 		return 0;
+	// 	}
+	// 	await this.storage.putBlocks(blocks);
+	// 	return blocks.length;
+	// }
 
 	// returns true if tx has not been processed yet, false if it was already inserted
 	async putNbtcTx(): Promise<boolean> {
@@ -132,21 +112,24 @@ export class Indexer {
 		return true;
 	}
 
-	async scanNewBlocks(): Promise<void> {
-		console.debug({ msg: "Cron: Running scanNewBlocks job" });
-		const blocksToProcess = await this.storage.getBlocksToProcess(
-			this.btcBlockProcessingBatchSize,
-		);
-
-		if (!blocksToProcess || blocksToProcess.length === 0) {
-			console.debug({ msg: "Cron: No new blocks to scan" });
-			return;
-		}
-
-		console.debug({
-			msg: "Cron: Found blocks to process",
-			count: blocksToProcess.length,
+	async processBlock(blockInfo: BlockQueueMessage): Promise<void> {
+		console.log({
+			msg: "Processing block from queue",
+			height: blockInfo.height,
+			hash: blockInfo.hash,
+			network: blockInfo.network,
 		});
+
+		const rawBlockBuffer = await this.storage.getBlock(blockInfo.hash);
+		if (!rawBlockBuffer) {
+			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
+		}
+		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+		const network = btcNetworks[blockInfo.network];
+
+		if (!network) {
+			throw new Error(`Unknown network: ${blockInfo.network}`);
+		}
 
 		const nbtcTxs: {
 			txId: string;
@@ -155,82 +138,65 @@ export class Indexer {
 			blockHeight: number;
 			suiRecipient: string;
 			amountSats: number;
+			network: string;
 			nbtc_pkg: string;
 			sui_network: string;
 		}[] = [];
 		let senders: { txId: string; sender: string }[] = [];
 
-		for (const blockInfo of blocksToProcess) {
-			console.log({
-				msg: "Cron: processing block",
-				height: blockInfo.height,
-				hash: blockInfo.hash,
-			});
-			const rawBlockBuffer = await this.storage.getBlock(blockInfo.hash);
-			if (!rawBlockBuffer) {
-				console.warn({
-					msg: "Cron: Block data not found in KV, skipping scan for this block",
+		for (const tx of block.transactions ?? []) {
+			const deposits = this.findNbtcDeposits(tx, network);
+			if (deposits.length > 0) {
+				const newSenders = await this.getSenderAddresses(tx);
+				senders = senders.concat(newSenders.map((s) => ({ txId: tx.getId(), sender: s })));
+			}
+
+			for (const deposit of deposits) {
+				console.log({
+					msg: "Found new nBTC deposit",
+					txId: tx.getId(),
+					vout: deposit.vout,
+					amountSats: deposit.amountSats,
+					suiRecipient: deposit.suiRecipient,
+					nbtc_pkg: deposit.nbtc_pkg,
+					sui_network: deposit.sui_network,
+				});
+
+				nbtcTxs.push({
+					txId: tx.getId(),
+					vout: deposit.vout,
 					blockHash: blockInfo.hash,
 					blockHeight: blockInfo.height,
+					suiRecipient: deposit.suiRecipient,
+					amountSats: deposit.amountSats,
+					network: blockInfo.network,
+					nbtc_pkg: deposit.nbtc_pkg,
+					sui_network: deposit.sui_network,
 				});
-				continue;
-			}
-			const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
-
-			for (const tx of block.transactions ?? []) {
-				const deposits = this.findNbtcDeposits(tx);
-				if (deposits.length > 0) {
-					const newSenders = await this.getSenderAddresses(tx);
-					senders = senders.concat(
-						newSenders.map((s) => ({ txId: tx.getId(), sender: s })),
-					);
-				}
-				for (const deposit of deposits) {
-					console.log({
-						msg: "Cron: Found new nBTC deposit",
-						txId: tx.getId(),
-						vout: deposit.vout,
-						amountSats: deposit.amountSats,
-						suiRecipient: deposit.suiRecipient,
-						nbtc_pkg: deposit.nbtc_pkg,
-						sui_network: deposit.sui_network,
-					});
-					nbtcTxs.push({
-						txId: tx.getId(),
-						vout: deposit.vout,
-						blockHash: blockInfo.hash,
-						blockHeight: blockInfo.height,
-						suiRecipient: deposit.suiRecipient,
-						amountSats: deposit.amountSats,
-						nbtc_pkg: deposit.nbtc_pkg,
-						sui_network: deposit.sui_network,
-					});
-				}
 			}
 		}
 
 		if (nbtcTxs.length > 0) {
 			await this.storage.insertOrUpdateNbtcTxs(nbtcTxs);
 		}
+
 		if (senders.length > 0) {
 			await this.storage.insertSenderDeposits(senders);
 		}
 
 		if (nbtcTxs.length === 0) {
-			console.debug({ msg: "Cron: No new nBTC deposits found in scanned blocks" });
+			console.debug({ msg: "No new nBTC deposits found in block" });
 		}
 
-		const latestHeightProcessed = Math.max(...blocksToProcess.map((b) => b.height));
-		await this.storage.setChainTip(latestHeightProcessed);
-		console.log({ msg: "Cron: Updated chain_tip", latestHeight: latestHeightProcessed });
-
-		const heightsToUpdate = blocksToProcess.map((r) => r.height);
-		if (heightsToUpdate.length > 0) {
-			await this.storage.updateBlockStatus(heightsToUpdate, BlockStatus.SCANNED);
-		}
+		await this.storage.updateBlockStatus(
+			blockInfo.hash,
+			blockInfo.network,
+			BlockStatus.SCANNED,
+		);
+		await this.storage.setChainTip(blockInfo.height);
 	}
 
-	findNbtcDeposits(tx: Transaction): Deposit[] {
+	findNbtcDeposits(tx: Transaction, network: networks.Network): Deposit[] {
 		const deposits: Deposit[] = [];
 		let suiRecipient: string | null = null;
 
@@ -251,10 +217,12 @@ export class Indexer {
 
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
+			if (vout.script && vout.script[0] === OP_RETURN) {
+				continue;
+			}
 			try {
-				const btcAddress = address.fromOutputScript(vout.script, this.network);
+				const btcAddress = address.fromOutputScript(vout.script, network);
 				const matchingNbtcAddress = this.nbtcAddressesMap.get(btcAddress);
-
 				if (matchingNbtcAddress) {
 					console.debug({
 						msg: "Found matching nBTC deposit output",
@@ -279,7 +247,6 @@ export class Indexer {
 
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.storage.getFinalizedTxs(this.maxNbtcMintTxRetries);
-
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;
 		}
@@ -502,7 +469,6 @@ export class Indexer {
 		});
 
 		const blocksToVerify = await this.storage.getConfirmingBlocks();
-
 		if (!blocksToVerify || blocksToVerify.length === 0) {
 			console.debug({ msg: "SPV Check: No confirming blocks to verify." });
 			return;
@@ -512,7 +478,6 @@ export class Indexer {
 
 		try {
 			const verificationResults = await this.nbtcClient.verifyBlocks(blockHashes);
-
 			const invalidHashes: string[] = [];
 			for (let i = 0; i < blockHashes.length; i++) {
 				if (verificationResults[i] === false) {
@@ -542,7 +507,6 @@ export class Indexer {
 		await this.verifyConfirmingBlocks();
 
 		const pendingTxs = await this.storage.getConfirmingTxs();
-
 		if (!pendingTxs || pendingTxs.length === 0) {
 			return;
 		}
@@ -578,11 +542,9 @@ export class Indexer {
 
 	async handleReorgs(pendingTxs: PendingTx[]): Promise<{ reorgedTxIds: string[] }> {
 		const reorgedTxIds: string[] = [];
-
 		for (const tx of pendingTxs) {
 			if (tx.block_hash === null) continue;
-			const newBlockInQueue = await this.storage.getBlockInfo(tx.block_height);
-
+			const newBlockInQueue = await this.storage.getBlockInfo(tx.block_height, tx.network);
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
 					console.warn({
@@ -619,14 +581,11 @@ export class Indexer {
 	async getStatusByTxid(txid: string): Promise<TxStatusResp | null> {
 		const latestHeight = await this.storage.getChainTip();
 		const tx = await this.storage.getStatusByTxid(txid);
-
 		if (!tx) {
 			return null;
 		}
-
 		const blockHeight = tx.block_height as number;
 		const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
-
 		return {
 			...tx,
 			btc_tx_id: tx.tx_id,
@@ -639,7 +598,6 @@ export class Indexer {
 	async getStatusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
 		const latestHeight = await this.storage.getChainTip();
 		const dbResult = await this.storage.getStatusBySuiAddress(suiAddress);
-
 		return dbResult.map((tx): TxStatusResp => {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
@@ -655,18 +613,20 @@ export class Indexer {
 
 	async registerBroadcastedNbtcTx(
 		txHex: string,
+		network: BitcoinNetwork,
 	): Promise<{ tx_id: string; registered_deposits: number }> {
 		const tx = Transaction.fromHex(txHex);
 		const txId = tx.getId();
-
-		const deposits = this.findNbtcDeposits(tx);
+		const btcNetwork = btcNetworks[network];
+		if (!btcNetwork) {
+			throw new Error(`Unknown network: ${network}`);
+		}
+		const deposits = this.findNbtcDeposits(tx, btcNetwork);
 		if (deposits.length === 0) {
 			throw new Error("Transaction does not contain any valid nBTC deposits.");
 		}
-
 		const depositData = deposits.map((d) => ({ ...d, txId }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
-
 		console.log({
 			msg: "New nBTC minting deposit TX registered",
 			txId,
@@ -683,11 +643,9 @@ export class Indexer {
 	async getDepositsBySender(btcAddress: string): Promise<TxStatusResp[]> {
 		const dbResult = await this.storage.getDepositsBySender(btcAddress);
 		const latestHeight = await this.storage.getChainTip();
-
 		return dbResult.map((tx): TxStatusResp => {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
-
 			return {
 				btc_tx_id: tx.tx_id,
 				status: tx.status as TxStatus,
@@ -705,11 +663,9 @@ export class Indexer {
 		const prevTxFetches = tx.ins.map(async (input) => {
 			const prevTxId = Buffer.from(input.hash).reverse().toString("hex");
 			const prevTxVout = input.index;
-
 			try {
 				const response = await this.electrs.getTx(prevTxId);
 				if (!response.ok) return;
-
 				const prevTx = (await response.json()) as {
 					vout: { scriptpubkey_address?: string }[];
 				};
@@ -725,7 +681,6 @@ export class Indexer {
 				});
 			}
 		});
-
 		await Promise.all(prevTxFetches);
 		return Array.from(senderAddresses);
 	}

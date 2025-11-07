@@ -1,7 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
 import { PutBlocks } from "./api/put-blocks";
-import { NbtcAddress, TxStatusResp } from "./models";
+import { BitcoinNetwork, NbtcAddress, TxStatusResp } from "./models";
 import { fetchNbtcAddresses } from "./storage";
 
 /**
@@ -46,11 +46,15 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	/**
 	 * Register a broadcasted nBTC transaction.
 	 * @param txHex - The transaction hex string
+	 * @param network - The Bitcoin network
 	 * @returns Transaction ID and number of registered deposits
 	 */
-	async putNbtcTx(txHex: string): Promise<{ tx_id: string; registered_deposits: number }> {
+	async putNbtcTx(
+		txHex: string,
+		network: BitcoinNetwork,
+	): Promise<{ tx_id: string; registered_deposits: number }> {
 		const indexer = await this.getIndexer();
-		return indexer.registerBroadcastedNbtcTx(txHex);
+		return indexer.registerBroadcastedNbtcTx(txHex, network);
 	}
 
 	/**

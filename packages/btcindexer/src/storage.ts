@@ -4,14 +4,13 @@ import { D1Database } from "@cloudflare/workers-types";
 
 export interface Storage {
 	// Block operations
-	putBlocks(blocks: { height: number; block: Block }[]): Promise<void>;
-	getBlocksToProcess(batchSize: number): Promise<BlockInfo[]>;
-	updateBlockStatus(heights: number[], status: string): Promise<void>;
+	insertBlockFromQueue(message: { hash: string; height: number; network: string }): Promise<void>;
+	updateBlockStatus(hash: string, network: string, status: string): Promise<void>;
 	getLatestBlockHeight(): Promise<number | null>;
 	getChainTip(): Promise<number | null>;
 	setChainTip(height: number): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
-	getBlockInfo(height: number): Promise<{ hash: string } | null>;
+	getBlockInfo(height: number, network: string): Promise<{ hash: string } | null>;
 
 	// nBTC Transaction operations
 	insertOrUpdateNbtcTxs(

@@ -27,14 +27,6 @@ export default {
 				),
 			);
 
-			// Batch DB inserts
-			const stmts = blockMetas.map((meta) =>
-				env.DB.prepare(
-					"INSERT INTO blocks (hash, height, network, kv_key) VALUES (?, ?, ?, ?)",
-				).bind(meta.blockHash, meta.block.height, meta.block.network, meta.kvKey),
-			);
-			await env.DB.batch(stmts);
-
 			// Group messages by network
 			const messagesByNetwork: Record<string, BlockQueueMessage[]> = {};
 			for (const meta of blockMetas) {

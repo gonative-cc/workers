@@ -6,13 +6,13 @@
  * Bind resources to your Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
  * `Env` object can be regenerated with `bun run typegen`.
  */
-
 import { indexerFromEnv } from "./btcindexer";
 import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 import { BtcIndexerRpc } from "./rpc";
 import { fetchNbtcAddresses } from "./storage";
-import { NbtcAddress } from "./models";
+import { NbtcAddress, BlockQueueMessage } from "./models";
+import { CFStorage } from "./cf-storage";
 
 const router = new HttpRouter(undefined);
 
@@ -33,6 +33,31 @@ export default {
 				method: req.method,
 			});
 			return new Response("Internal Server Error", { status: 500 });
+		}
+	},
+
+	async queue(
+		batch: MessageBatch<BlockQueueMessage>,
+		env: Env,
+		_ctx: ExecutionContext,
+	): Promise<void> {
+		console.log(`Processing batch of ${batch.messages.length} messages from ${batch.queue}`);
+		const nbtcAddresses = await fetchNbtcAddresses(env.DB);
+		const nbtcAddressesMap = new Map<string, NbtcAddress>(
+			nbtcAddresses.map((addr) => [addr.btc_address, addr]),
+		);
+		const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
+		const indexer = await indexerFromEnv(env, nbtcAddressesMap);
+
+		for (const message of batch.messages) {
+			try {
+				await storage.insertBlockFromQueue(message.body);
+				await indexer.processBlock(message.body);
+				await message.ack();
+			} catch (e) {
+				console.error("Failed to process block", toSerializableError(e));
+				await message.retry();
+			}
 		}
 	},
 
@@ -57,7 +82,6 @@ export default {
 			if (latestBlock && latestBlock.latest_height) {
 				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
 			}
-			await indexer.scanNewBlocks();
 			await indexer.processFinalizedTransactions();
 			console.log({ msg: "Cron job finished successfully" });
 		} catch (e) {
@@ -67,7 +91,7 @@ export default {
 			});
 		}
 	},
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env, BlockQueueMessage>;
 
 // Export the RPC entrypoint for service bindings
 export { BtcIndexerRpc };

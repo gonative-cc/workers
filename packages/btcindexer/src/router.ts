@@ -2,11 +2,9 @@ import { IRequest, Router, error, json } from "itty-router";
 import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import { Indexer } from "./btcindexer";
-import { RestPath } from "./api/client";
-import { PostNbtcTxRequest } from "./models";
+import { PostNbtcTxRequest, RestPath } from "./models";
 
 import type { AppRouter, CFArgs } from "./routertype";
-import { PutBlocksReq } from "./api/put-blocks";
 import { toSerializableError } from "./errutils";
 
 export default class HttpRouter {
@@ -26,7 +24,6 @@ export default class HttpRouter {
 			finally: [json],
 		});
 		// Bitcoin endpoints
-		r.put(RestPath.blocks, this.putBlocks);
 		r.get(RestPath.latestHeight, this.getLatestHeight);
 
 		r.post(RestPath.nbtcTx, this.postNbtcTx);
@@ -73,22 +70,6 @@ export default class HttpRouter {
 
 	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods
 	// in callbacks.
-
-	// NOTE: we may need to put this to a separate worker
-	putBlocks = async (req: IRequest) => {
-		try {
-			const blocks = PutBlocksReq.decode(await req.arrayBuffer());
-			return { inserted: await this.indexer().putBlocks(blocks) };
-		} catch (e) {
-			console.error({
-				msg: "Failed to decode msgpack body for putBlocks",
-				error: toSerializableError(e),
-			});
-			return new Response("Failed to decode msgpack body. Check wrangler logs for details.", {
-				status: 400,
-			});
-		}
-	};
 
 	postNbtcTx = async (req: IRequest) => {
 		const body: PostNbtcTxRequest = await req.json();

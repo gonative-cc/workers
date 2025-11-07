@@ -1,4 +1,3 @@
-import { PutBlocks } from "./api/put-blocks";
 import { address, networks, Block, Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
@@ -90,15 +89,6 @@ export class Indexer {
 		this.maxNbtcMintTxRetries = maxRetries;
 		this.electrs = electrs;
 	}
-
-	// returns number of processed and add blocks
-	// async putBlocks(blocks: PutBlocks[]): Promise<number> {
-	// 	if (!blocks || blocks.length === 0) {
-	// 		return 0;
-	// 	}
-	// 	await this.storage.putBlocks(blocks);
-	// 	return blocks.length;
-	// }
 
 	// returns true if tx has not been processed yet, false if it was already inserted
 	async putNbtcTx(): Promise<boolean> {

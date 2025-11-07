@@ -1,6 +1,5 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
-import { PutBlocks } from "./api/put-blocks";
 import { BitcoinNetwork, NbtcAddress, TxStatusResp } from "./models";
 import { fetchNbtcAddresses } from "./storage";
 
@@ -22,16 +21,6 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 			this.#indexer = await indexerFromEnv(this.env, nbtcAddressesMap);
 		}
 		return this.#indexer;
-	}
-
-	/**
-	 * Store new Bitcoin blocks in the indexer.
-	 * @param blocks - Array of blocks to store
-	 * @returns Number of blocks inserted
-	 */
-	async putBlocks(blocks: PutBlocks[]): Promise<number> {
-		const indexer = await this.getIndexer();
-		return indexer.putBlocks(blocks);
 	}
 
 	/**

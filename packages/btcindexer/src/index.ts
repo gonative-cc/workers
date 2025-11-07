@@ -11,6 +11,7 @@ import { indexerFromEnv } from "./btcindexer";
 import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 import { BtcIndexerRpc } from "./rpc";
+import { MockBtcIndexerRpc } from "./rpc-mock";
 import { fetchNbtcAddresses } from "./storage";
 import type { NbtcAddress } from "./models";
 
@@ -70,4 +71,7 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 // Export the RPC entrypoint for service bindings
-export { BtcIndexerRpc };
+// The RPC implementation to use is determined at build time via the USE_MOCK_RPC environment variable.
+// During local development with mock mode: USE_MOCK_RPC=true bun run dev
+// During normal development: bun run dev
+export { BtcIndexerRpc, MockBtcIndexerRpc };

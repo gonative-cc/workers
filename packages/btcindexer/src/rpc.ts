@@ -1,7 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
-import { PutBlocks } from "./api/put-blocks";
-import { NbtcAddress, TxStatusResp } from "./models";
+import type { PutBlocks } from "./api/put-blocks";
+import type { NbtcAddress, TxStatusResp } from "./models";
 import { fetchNbtcAddresses } from "./storage";
 
 /**

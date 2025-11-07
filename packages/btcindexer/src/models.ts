@@ -1,12 +1,5 @@
 import { Transaction } from "bitcoinjs-lib";
 
-export interface NbtcAddress {
-	btc_network: string;
-	sui_network: string;
-	nbtc_pkg: string;
-	btc_address: string;
-}
-
 export interface Deposit {
 	vout: number;
 	amountSats: number;

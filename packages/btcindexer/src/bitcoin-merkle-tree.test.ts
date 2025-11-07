@@ -30,7 +30,8 @@ describe("BitcoinMerkleTree", () => {
 	it("should generate the correct Merkle proof", () => {
 		const tree = new BitcoinMerkleTree(transactions);
 		const targetTx = transactions[1];
-		const proof = tree.getProof(targetTx);
+		expect(targetTx).toBeDefined();
+		const proof = tree.getProof(targetTx!);
 
 		const expectedProofHex = [
 			"a2fff7e7aa4ffd33f8a05b3a9b6f3cba22826c0232c4784a2aca1c4fe47597f9",
@@ -38,14 +39,17 @@ describe("BitcoinMerkleTree", () => {
 		];
 		const expectedProof = expectedProofHex.map((hex) => Buffer.from(hex, "hex"));
 
-		expect(proof[0].equals(expectedProof[0])).toBeTrue();
-		expect(proof[1].equals(expectedProof[1])).toBeTrue();
+		expect(proof[0]).toBeDefined();
+		expect(proof[0]?.equals(expectedProof[0]!)).toBeTrue();
+		expect(proof[1]).toBeDefined();
+		expect(proof[1]?.equals(expectedProof[1]!)).toBeTrue();
 	});
 
 	it("should generate the correct Merkle proof for segwit", () => {
 		const tree = new BitcoinMerkleTree(segwitTransactions);
 		const targetTx = segwitTransactions[1];
-		const proof = tree.getProof(targetTx);
+		expect(targetTx).toBeDefined();
+		const proof = tree.getProof(targetTx!);
 
 		const expectedProofHex = [
 			"29bedbc81f5722ed8c3d54b198d7c2945e109e1c79afead08c61467b873cccc8",
@@ -53,6 +57,7 @@ describe("BitcoinMerkleTree", () => {
 		const expectedProof = expectedProofHex.map((hex) => Buffer.from(hex, "hex"));
 
 		expect(proof.length).toEqual(1);
-		expect(proof[0].equals(expectedProof[0])).toBeTrue();
+		expect(proof[0]).toBeDefined();
+		expect(proof[0]?.equals(expectedProof[0]!)).toBeTrue();
 	});
 });

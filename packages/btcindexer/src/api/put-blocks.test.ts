@@ -29,8 +29,9 @@ describe("encode PutBlocks", () => {
 		expect(got).toHaveLength(1);
 
 		const pb0 = got[0];
-		expect(pb0.block.getId()).toEqual(block.getId());
-		expect(pb0.height).toEqual(expected[0].height);
+		expect(pb0).toBeDefined();
+		expect(pb0?.block.getId()).toEqual(block.getId());
+		expect(pb0?.height).toEqual(expected[0]?.height);
 		expect(bufferToHex(reqBytes)).toContain(blockHex);
 	});
 

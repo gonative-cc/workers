@@ -1,7 +1,8 @@
 import { Block } from "bitcoinjs-lib";
 import { toSerializableError } from "./errutils";
-import { BlockInfo, BlockStatus, FinalizedTxRow, NbtcTxRow, PendingTx, TxStatus } from "./models";
-import { Storage } from "./storage";
+import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
+import { BlockStatus, TxStatus } from "./models";
+import type { Storage } from "./storage";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;

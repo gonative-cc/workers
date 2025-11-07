@@ -6,8 +6,8 @@ import { Block, networks } from "bitcoinjs-lib";
 
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
-import { SuiClient, SuiClientCfg } from "./sui_client";
-import { Deposit, ProofResult, NbtcAddress } from "./models";
+import { SuiClient, type SuiClientCfg } from "./sui_client";
+import type { Deposit, ProofResult, NbtcAddress } from "./models";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 

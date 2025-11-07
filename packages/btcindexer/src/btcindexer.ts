@@ -1,21 +1,21 @@
-import { PutBlocks } from "./api/put-blocks";
+import type { PutBlocks } from "./api/put-blocks";
 import { address, networks, Block, Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
-import {
+import type {
 	Deposit,
 	PendingTx,
-	TxStatus,
 	TxStatusResp as TxStatusResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
-	BlockStatus,
 	NbtcAddress,
 } from "./models";
+import { TxStatus, BlockStatus } from "./models";
 import { toSerializableError } from "./errutils";
-import { Electrs, ElectrsService } from "./electrs";
-import { Storage } from "./storage";
+import type { Electrs } from "./electrs";
+import { ElectrsService } from "./electrs";
+import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 
 const btcNetworks = {
@@ -251,6 +251,7 @@ export class Indexer {
 
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
+			if (!vout) continue;
 			try {
 				const btcAddress = address.fromOutputScript(vout.script, this.network);
 				const matchingNbtcAddress = this.nbtcAddressesMap.get(btcAddress);
@@ -382,8 +383,16 @@ export class Indexer {
 					continue;
 				}
 
-				const nbtc_pkg = txGroup.deposits[0].nbtc_pkg;
-				const sui_network = txGroup.deposits[0].sui_network;
+				const firstDeposit = txGroup.deposits[0];
+				if (!firstDeposit) {
+					console.warn({
+						msg: "Minting: Skipping transaction group with no deposits.",
+						txId,
+					});
+					continue;
+				}
+				const nbtc_pkg = firstDeposit.nbtc_pkg;
+				const sui_network = firstDeposit.sui_network;
 				const pkgKey = `${nbtc_pkg}-${sui_network}`;
 
 				if (!nbtc_pkg || !sui_network) {
@@ -515,8 +524,9 @@ export class Indexer {
 
 			const invalidHashes: string[] = [];
 			for (let i = 0; i < blockHashes.length; i++) {
-				if (verificationResults[i] === false) {
-					invalidHashes.push(blockHashes[i]);
+				const hash = blockHashes[i];
+				if (hash && verificationResults[i] === false) {
+					invalidHashes.push(hash);
 				}
 			}
 

@@ -92,7 +92,11 @@ export class SuiClient {
 			throw new Error("No return values from devInspectTransactionBlock");
 		}
 		// The return value is a BCS-encoded vector<bool>.
-		const bytes = returnValues[0][0];
+		const firstReturnValue = returnValues[0];
+		if (!firstReturnValue || !firstReturnValue[0]) {
+			throw new Error("Invalid return value from devInspectTransactionBlock");
+		}
+		const bytes = firstReturnValue[0];
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 

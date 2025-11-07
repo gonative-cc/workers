@@ -1,9 +1,10 @@
-import { IRequest, Router, error, json } from "itty-router";
+import type { IRequest } from "itty-router";
+import { Router, error, json } from "itty-router";
 import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import { Indexer } from "./btcindexer";
 import { RestPath } from "./api/client";
-import { PostNbtcTxRequest } from "./models";
+import type { PostNbtcTxRequest } from "./models";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
@@ -122,11 +123,17 @@ export default class HttpRouter {
 	getTestKV = async (req: IRequest, env: Env) => {
 		const kv = env.btc_blocks;
 		const key = req.params.key;
+		if (!key) {
+			return error(400, "Missing key parameter");
+		}
 		return kv.get(key);
 	};
 
 	getStatusByTxid = async (req: IRequest) => {
 		const { txid } = req.params;
+		if (!txid) {
+			return error(400, "Missing txid parameter");
+		}
 		const result = await this.indexer().getStatusByTxid(txid);
 
 		if (result === null) {

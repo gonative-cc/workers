@@ -30,21 +30,35 @@ export class BitcoinMerkleTree {
 
 		this.tree = [leafNodes];
 		this.buildTree();
-		this.root = this.tree[this.tree.length - 1][0].hash;
+		const lastLevel = this.tree[this.tree.length - 1];
+		if (!lastLevel || !lastLevel[0]) {
+			throw new Error("Failed to build merkle tree");
+		}
+		this.root = lastLevel[0].hash;
 	}
 
 	private buildTree(): void {
 		let currentLevel = this.tree[0];
+		if (!currentLevel) {
+			throw new Error("Invalid tree structure");
+		}
 		while (currentLevel.length > 1) {
 			const nextLevel: MerkleNode[] = [];
 
 			if (currentLevel.length % 2 === 1) {
-				currentLevel.push(currentLevel[currentLevel.length - 1]);
+				const lastNode = currentLevel[currentLevel.length - 1];
+				if (!lastNode) {
+					throw new Error("Invalid node in tree");
+				}
+				currentLevel.push(lastNode);
 			}
 
 			for (let i = 0; i < currentLevel.length; i += 2) {
 				const left = currentLevel[i];
 				const right = currentLevel[i + 1];
+				if (!left || !right) {
+					throw new Error("Invalid node pair in tree");
+				}
 
 				const combined = Buffer.concat([left.hash, right.hash]);
 				nextLevel.push({
@@ -65,13 +79,20 @@ export class BitcoinMerkleTree {
 		const proof: Buffer[] = [];
 		const targetHash = targetTx.getHash();
 
-		let targetIndex = this.tree[0].findIndex((node) => node.hash.equals(targetHash));
+		const firstLevel = this.tree[0];
+		if (!firstLevel) {
+			throw new Error("Invalid tree structure");
+		}
+		let targetIndex = firstLevel.findIndex((node) => node.hash.equals(targetHash));
 		if (targetIndex === -1) {
 			throw new Error("Target leaf not found in the tree.");
 		}
 
 		for (let level = 0; level < this.tree.length - 1; level++) {
 			const currentLevelNodes = this.tree[level];
+			if (!currentLevelNodes) {
+				throw new Error("Invalid tree level");
+			}
 			let siblingIndex: number;
 
 			const isRightNode = targetIndex % 2 === 1;
@@ -87,6 +108,9 @@ export class BitcoinMerkleTree {
 			}
 
 			const siblingNode = currentLevelNodes[siblingIndex];
+			if (!siblingNode) {
+				throw new Error("Invalid sibling node");
+			}
 			proof.push(siblingNode.preimage);
 
 			targetIndex = Math.floor(targetIndex / 2);

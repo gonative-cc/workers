@@ -12,7 +12,7 @@ import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 import { BtcIndexerRpc } from "./rpc";
 import { fetchNbtcAddresses } from "./storage";
-import { NbtcAddress } from "./models";
+import type { NbtcAddress } from "./models";
 
 const router = new HttpRouter(undefined);
 

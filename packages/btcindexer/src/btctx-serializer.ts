@@ -1,4 +1,4 @@
-import { Transaction, TxInput, TxOutput } from "bitcoinjs-lib";
+import type { Transaction, TxInput, TxOutput } from "bitcoinjs-lib";
 
 export interface SerializedBtcTx {
 	version: number[];

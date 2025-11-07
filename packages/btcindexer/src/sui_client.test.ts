@@ -2,9 +2,9 @@ import { describe, it, expect } from "bun:test";
 import { Block, networks } from "bitcoinjs-lib";
 
 import { Indexer } from "./btcindexer";
-import SuiClient, { SuiClientCfg } from "./sui_client";
+import SuiClient, { type SuiClientCfg } from "./sui_client";
 import { mkElectrsServiceMock } from "./electrs.test";
-import { NbtcAddress } from "./models";
+import type { NbtcAddress } from "./models";
 
 const REGTEST_DATA_MINT = {
 	BLOCK_HEX:

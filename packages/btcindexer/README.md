@@ -60,6 +60,39 @@ To populate the `nbtc_addresses` you can use the `seed:addresses` script. This s
 
   You can add or modify the addresses in the `scripts/nbtc_addresses.json` file to manage the list of deposit addresses.
 
+## Mock RPC for Local Development
+
+For local development without relying on all external services (Bitcoin network, Electrs API, D1 database, etc.), you can use the mock RPC implementation.
+
+### Using the Mock RPC
+
+The mock RPC (`MockBtcIndexerRpc`) is a stateless in-memory implementation that provides the same interface as the real `BtcIndexerRpc`. To use it:
+
+```sh
+bun run dev:mock
+```
+
+This sets the `USE_MOCK_RPC=true` environment variable, which tells the worker to export the mock RPC class instead of the real one.
+
+### What the Mock RPC Does
+
+The mock implementation:
+
+- **Stores data in memory**: Uses static Maps to store blocks and transactions (data is lost when the worker restarts)
+- **Validates transactions**: Parses Bitcoin transaction hex to ensure it's valid
+- **Simulates deposit registration**: Accepts transactions and creates mock status entries
+- **Provides query capabilities**: Allows querying by transaction ID or Sui address
+- **Logs operations**: Prefixes all console logs with `[MOCK]` for easy identification
+
+### Limitations
+
+- **No persistence**: Data is stored in memory and lost on restart
+- **Simplified logic**: Doesn't perform actual Bitcoin or Sui operations
+- **No confirmation tracking**: Transactions are always marked as "broadcasting" status
+- **Empty sender queries**: `depositsBySender` always returns empty array
+
+The mock is ideal for testing API endpoints, service bindings, and worker-to-worker communication without the overhead of running full Bitcoin and Sui infrastructure.
+
 ## Components
 
 The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bitcoin blockchain for nBTC deposits, processing them, and coordinating the minting of nBTC tokens on the Sui blockchain.

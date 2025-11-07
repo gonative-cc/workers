@@ -12,7 +12,7 @@
 		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
-		"test": "bun test"
+		"test": "echo no tests"
 	},
 	"dependencies": {
 		"@mysten/bcs": "^1.8.0",

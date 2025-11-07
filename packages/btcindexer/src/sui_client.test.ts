@@ -1,14 +1,5 @@
 import { describe, it, expect } from "bun:test";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { Block, networks } from "bitcoinjs-lib";
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { Indexer } from "./btcindexer";
 import SuiClient, { type SuiClientCfg } from "./sui_client";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { mkElectrsServiceMock } from "./electrs.test";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { NbtcAddress } from "./models";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const REGTEST_DATA_MINT = {

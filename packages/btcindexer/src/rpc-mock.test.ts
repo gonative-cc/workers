@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "bun:test";
 import { TxStatus } from "./models";
 import type { TxStatusResp } from "./models";
 import type { PutBlocks as PutBlocksType } from "./api/put-blocks";
+import { Block } from "bitcoinjs-lib";
 
 // We can't directly import MockBtcIndexerRpc in tests because it depends on
 // `cloudflare:workers` module which is only available in the Workers runtime.
@@ -117,9 +118,17 @@ describe("MockBtcIndexerRpc (Logic Tests)", () => {
 
 	describe("putBlocks", () => {
 		it("should store blocks and return count of inserted blocks", async () => {
+			// Create mock blocks with the correct structure
+			const block1 = Block.fromHex(
+				"0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a45068653ffff7f2002000000",
+			);
+			const block2 = Block.fromHex(
+				"0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a45068653ffff7f2003000000",
+			);
+
 			const blocks: PutBlocksType[] = [
-				{ height: 100, hash: "hash100", raw: new Uint8Array([1, 2, 3]) },
-				{ height: 101, hash: "hash101", raw: new Uint8Array([4, 5, 6]) },
+				{ height: 100, block: block1 },
+				{ height: 101, block: block2 },
 			];
 
 			const result = await rpc.putBlocks(blocks);
@@ -127,9 +136,10 @@ describe("MockBtcIndexerRpc (Logic Tests)", () => {
 		});
 
 		it("should not insert duplicate blocks", async () => {
-			const blocks: PutBlocksType[] = [
-				{ height: 100, hash: "hash100", raw: new Uint8Array([1, 2, 3]) },
-			];
+			const block = Block.fromHex(
+				"0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a45068653ffff7f2002000000",
+			);
+			const blocks: PutBlocksType[] = [{ height: 100, block }];
 
 			await rpc.putBlocks(blocks);
 			const result = await rpc.putBlocks(blocks);
@@ -144,10 +154,20 @@ describe("MockBtcIndexerRpc (Logic Tests)", () => {
 		});
 
 		it("should return the highest block height", async () => {
+			const block1 = Block.fromHex(
+				"0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a45068653ffff7f2002000000",
+			);
+			const block2 = Block.fromHex(
+				"0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a45068653ffff7f2003000000",
+			);
+			const block3 = Block.fromHex(
+				"0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a45068653ffff7f2004000000",
+			);
+
 			const blocks: PutBlocksType[] = [
-				{ height: 100, hash: "hash100", raw: new Uint8Array([1, 2, 3]) },
-				{ height: 105, hash: "hash105", raw: new Uint8Array([4, 5, 6]) },
-				{ height: 102, hash: "hash102", raw: new Uint8Array([7, 8, 9]) },
+				{ height: 100, block: block1 },
+				{ height: 105, block: block2 },
+				{ height: 102, block: block3 },
 			];
 
 			await rpc.putBlocks(blocks);
@@ -216,8 +236,8 @@ describe("MockBtcIndexerRpc (Logic Tests)", () => {
 			const result = await rpc.statusBySuiAddress(suiAddr);
 
 			expect(result).toHaveLength(1);
-			expect(result[0].btc_tx_id).toBe("txid123");
-			expect(result[0].sui_recipient).toBe(suiAddr);
+			expect(result[0]?.btc_tx_id).toBe("txid123");
+			expect(result[0]?.sui_recipient).toBe(suiAddr);
 		});
 	});
 
@@ -246,7 +266,7 @@ describe("MockBtcIndexerRpc (Logic Tests)", () => {
 			const result = await rpc.depositsBySender(btcAddr);
 
 			expect(result).toHaveLength(1);
-			expect(result[0].btc_tx_id).toBe(txid);
+			expect(result[0]?.btc_tx_id).toBe(txid);
 		});
 	});
 

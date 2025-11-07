@@ -42,6 +42,41 @@ graph TD
 
 See [API.md](./API.md)
 
+## Using the Mock RPC for Local Development
+
+The package provides a `MockBtcIndexerRpc` class for local development that doesn't require any external services (Bitcoin network, Sui network, databases, etc.). This allows you to test RPC functionality without setting up the full infrastructure.
+
+### Available RPC Classes
+
+- **`BtcIndexerRpc`**: The production RPC implementation that uses real databases, KV stores, and external services
+- **`MockBtcIndexerRpc`**: An in-memory mock implementation for development and testing
+
+Both classes export the same public API:
+- `putBlocks(blocks)`: Store Bitcoin blocks
+- `latestHeight()`: Get the latest block height
+- `putNbtcTx(txHex)`: Register a broadcasted nBTC transaction
+- `statusByTxid(txid)`: Get transaction status by Bitcoin TX ID
+- `statusBySuiAddress(suiAddress)`: Get transactions for a Sui address
+- `depositsBySender(address)`: Get deposits by Bitcoin sender address
+
+### Choosing Which RPC to Use
+
+Both RPC classes are exported from `src/index.ts`. When using service bindings in Cloudflare Workers, you can choose which one to bind:
+
+```typescript
+// For production - use BtcIndexerRpc
+import { BtcIndexerRpc } from "./src/index.ts";
+
+// For development/testing - use MockBtcIndexerRpc
+import { MockBtcIndexerRpc } from "./src/index.ts";
+```
+
+The mock implementation stores all data in memory and provides helper methods for adding test data:
+- `addMockTransaction(txStatus)`: Add a mock transaction for testing
+- `addMockSender(btcAddress, txid)`: Associate a sender address with a transaction
+
+See `src/rpc-mock.test.ts` for examples of how to use the mock RPC.
+
 ## Populating the nbtc_addresses DB
 
 To populate the `nbtc_addresses` you can use the `seed:addresses` script. This script reads addresses from the `scripts/nbtc_addresses.json` file and inserts them into the database.

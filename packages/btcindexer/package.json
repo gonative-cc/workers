@@ -8,6 +8,7 @@
 	},
 	"scripts": {
 		"dev": "wrangler dev --test-scheduled",
+		"dev:mock": "USE_MOCK_RPC=true wrangler dev --test-scheduled",
 		"deploy": "wrangler deploy",
 		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
 		"db:migrate": "wrangler d1 migrations apply btcindexer-dev",

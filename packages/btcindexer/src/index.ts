@@ -11,6 +11,7 @@ import { indexerFromEnv } from "./btcindexer";
 import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 import { BtcIndexerRpc } from "./rpc";
+import { MockBtcIndexerRpc } from "./mock-rpc";
 import { fetchNbtcAddresses } from "./storage";
 import type { NbtcAddress } from "./models";
 
@@ -70,4 +71,11 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 // Export the RPC entrypoint for service bindings
-export { BtcIndexerRpc };
+// Use mock RPC if USE_MOCK_RPC environment variable is set to "true"
+// Note: This is evaluated at build time, so you need to set it before bundling
+const useMockRpc = process.env.USE_MOCK_RPC === "true";
+
+export const BtcIndexerRpcClass = useMockRpc ? MockBtcIndexerRpc : BtcIndexerRpc;
+
+// Also export with the standard name for backward compatibility
+export { BtcIndexerRpcClass as BtcIndexerRpc };

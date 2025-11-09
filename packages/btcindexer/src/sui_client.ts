@@ -4,7 +4,7 @@ import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import type { MintBatchArg, SuiTxDigest } from "./models";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "./errutils";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -47,7 +47,7 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
-		console.debug({
+		logger.debug({
 			msg: "Sui Client Initialized",
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
 			network: config.network,
@@ -141,7 +141,7 @@ export class SuiClient {
 		});
 
 		if (result.effects?.status.status !== "success") {
-			console.error({
+			logger.error({
 				msg: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
 				error: result.effects?.status.error,
@@ -156,11 +156,7 @@ export class SuiClient {
 		try {
 			return await this.mintNbtcBatch(mintArgs);
 		} catch (e) {
-			console.error({
-				msg: "Error during batch mint contract call",
-				error: toSerializableError(e),
-				btcTxIds: txIds,
-			});
+			logError("Error during batch mint contract call", e, { btcTxIds: txIds });
 			return null;
 		}
 	}

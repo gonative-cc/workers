@@ -1,5 +1,5 @@
 import { Block } from "bitcoinjs-lib";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "./errutils";
 import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
 import { BlockStatus, TxStatus } from "./models";
 import type { Storage } from "./storage";
@@ -23,11 +23,7 @@ export class CFStorage implements Storage {
 				.all<{ btc_address: string }>();
 			return results ? results.map((r) => r.btc_address) : [];
 		} catch (e) {
-			console.error({
-				msg: "Failed to fetch deposit addresses from D1",
-				error: toSerializableError(e),
-				btcNetwork,
-			});
+			logError("Failed to fetch deposit addresses from D1", e, { btcNetwork });
 			throw e;
 		}
 	}
@@ -37,7 +33,7 @@ export class CFStorage implements Storage {
 		}
 
 		const blockHeights = blocks.map((b) => b.height);
-		console.log({
+		logger.info({
 			msg: "Ingesting blocks",
 			count: blocks.length,
 			heights: blockHeights,
@@ -59,14 +55,10 @@ export class CFStorage implements Storage {
 		try {
 			await Promise.all([...putKVs, this.d1.batch(putD1s)]);
 		} catch (e) {
-			console.error({
-				msg: "Failed to store one or more blocks in KV or D1",
-				error: toSerializableError(e),
-				blockHeights,
-			});
+			logError("Failed to store one or more blocks in KV or D1", e, { blockHeights });
 			throw new Error(`Could not save all blocks data`);
 		}
-		console.log({ msg: "Successfully ingested blocks", count: blocks.length });
+		logger.info({ msg: "Successfully ingested blocks", count: blocks.length });
 	}
 
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
@@ -90,15 +82,12 @@ export class CFStorage implements Storage {
 				.prepare(updateStmt)
 				.bind(...heights)
 				.run();
-			console.debug({
+			logger.debug({
 				msg: `Marked blocks as ${status}`,
 				count: heights.length,
 			});
 		} catch (e) {
-			console.error({
-				msg: `Failed to mark blocks as ${status}`,
-				error: toSerializableError(e),
-			});
+			logError(`Failed to mark blocks as ${status}`, e);
 			throw e;
 		}
 	}
@@ -168,10 +157,7 @@ export class CFStorage implements Storage {
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
-			console.error({
-				msg: "Cron: Failed to insert nBTC transactions",
-				error: toSerializableError(e),
-			});
+			logError("Cron: Failed to insert nBTC transactions", e);
 			throw e;
 		}
 	}
@@ -221,10 +207,7 @@ export class CFStorage implements Storage {
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
-			console.error({
-				msg: "Failed to update status",
-				error: toSerializableError(e),
-			});
+			logError("Failed to update status", e);
 			throw e;
 		}
 	}

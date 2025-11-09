@@ -8,7 +8,7 @@
  */
 
 import { indexerFromEnv } from "./btcindexer";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "./errutils";
 import HttpRouter from "./router";
 import { BtcIndexerRpc } from "./rpc";
 import { fetchNbtcAddresses } from "./storage";
@@ -26,9 +26,7 @@ export default {
 			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
-			console.error({
-				msg: "Unhandled exception in fetch handler",
-				error: toSerializableError(e),
+			logError("Unhandled exception in fetch handler", e, {
 				url: req.url,
 				method: req.method,
 			});
@@ -39,15 +37,16 @@ export default {
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
 	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
-		console.trace({ msg: "Cron job starting" });
+		logger.debug({ msg: "Cron job starting" });
 		try {
 			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
 			const nbtcAddressesMap = new Map<string, NbtcAddress>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
-			console.log(
-				`Loaded ${nbtcAddressesMap.size} nbtc addresses into memory for scheduled job.`,
-			);
+			logger.info({
+				msg: "Loaded nbtc addresses into memory for scheduled job",
+				count: nbtcAddressesMap.size,
+			});
 
 			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 			const latestBlock = await env.DB.prepare(
@@ -59,12 +58,9 @@ export default {
 			}
 			await indexer.scanNewBlocks();
 			await indexer.processFinalizedTransactions();
-			console.log({ msg: "Cron job finished successfully" });
+			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
-			console.error({
-				msg: "Cron job failed",
-				error: toSerializableError(e),
-			});
+			logError("Cron job failed", e);
 		}
 	},
 } satisfies ExportedHandler<Env>;

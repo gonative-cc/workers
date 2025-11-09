@@ -8,7 +8,7 @@ import type { PostNbtcTxRequest } from "./models";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
-import { toSerializableError } from "./errutils";
+import { logError } from "./errutils";
 
 export default class HttpRouter {
 	#indexer?: Indexer;
@@ -81,10 +81,7 @@ export default class HttpRouter {
 			const blocks = PutBlocksReq.decode(await req.arrayBuffer());
 			return { inserted: await this.indexer().putBlocks(blocks) };
 		} catch (e) {
-			console.error({
-				msg: "Failed to decode msgpack body for putBlocks",
-				error: toSerializableError(e),
-			});
+			logError("Failed to decode msgpack body for putBlocks", e);
 			return new Response("Failed to decode msgpack body. Check wrangler logs for details.", {
 				status: 400,
 			});
@@ -102,7 +99,7 @@ export default class HttpRouter {
 			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex);
 			return { success: true, ...result };
 		} catch (e: unknown) {
-			console.error({ msg: "Failed to register nBTC tx", error: toSerializableError(e) });
+			logError("Failed to register nBTC tx", e);
 			const message = e instanceof Error ? e.message : "An unknown error occurred.";
 			return new Response(message, { status: 400 });
 		}

@@ -70,4 +70,6 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 // Export the RPC entrypoint for service bindings
+//use mock if BTCINDEXER_MOCK=true environment variable is set
 export { BtcIndexerRpc };
+export { BtcIndexerRpcMock } from "./rpc-mock";

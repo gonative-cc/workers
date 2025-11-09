@@ -26,10 +26,15 @@ export default {
 			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
-			logError("Unhandled exception in fetch handler", e, {
-				url: req.url,
-				method: req.method,
-			});
+			logError(
+				{
+					msg: "Unhandled exception in fetch handler",
+					method: "fetch",
+					url: req.url,
+					httpMethod: req.method,
+				},
+				e,
+			);
 			return new Response("Internal Server Error", { status: 500 });
 		}
 	},
@@ -60,7 +65,7 @@ export default {
 			await indexer.processFinalizedTransactions();
 			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
-			logError("Cron job failed", e);
+			logError({ msg: "Cron job failed", method: "scheduled" }, e);
 		}
 	},
 } satisfies ExportedHandler<Env>;

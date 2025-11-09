@@ -23,7 +23,14 @@ export class CFStorage implements Storage {
 				.all<{ btc_address: string }>();
 			return results ? results.map((r) => r.btc_address) : [];
 		} catch (e) {
-			logError("Failed to fetch deposit addresses from D1", e, { btcNetwork });
+			logError(
+				{
+					msg: "Failed to fetch deposit addresses from D1",
+					method: "getDepositAddresses",
+					btcNetwork,
+				},
+				e,
+			);
 			throw e;
 		}
 	}
@@ -55,7 +62,14 @@ export class CFStorage implements Storage {
 		try {
 			await Promise.all([...putKVs, this.d1.batch(putD1s)]);
 		} catch (e) {
-			logError("Failed to store one or more blocks in KV or D1", e, { blockHeights });
+			logError(
+				{
+					msg: "Failed to store one or more blocks in KV or D1",
+					method: "putBlocks",
+					blockHeights,
+				},
+				e,
+			);
 			throw new Error(`Could not save all blocks data`);
 		}
 		logger.info({ msg: "Successfully ingested blocks", count: blocks.length });
@@ -87,7 +101,10 @@ export class CFStorage implements Storage {
 				count: heights.length,
 			});
 		} catch (e) {
-			logError(`Failed to mark blocks as ${status}`, e);
+			logError(
+				{ msg: `Failed to mark blocks as ${status}`, method: "updateBlockStatus", status },
+				e,
+			);
 			throw e;
 		}
 	}
@@ -157,7 +174,10 @@ export class CFStorage implements Storage {
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
-			logError("Cron: Failed to insert nBTC transactions", e);
+			logError(
+				{ msg: "Failed to insert nBTC transactions", method: "insertOrUpdateNbtcTxs" },
+				e,
+			);
 			throw e;
 		}
 	}
@@ -207,7 +227,7 @@ export class CFStorage implements Storage {
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
-			logError("Failed to update status", e);
+			logError({ msg: "Failed to update status", method: "batchUpdateNbtcTxs" }, e);
 			throw e;
 		}
 	}

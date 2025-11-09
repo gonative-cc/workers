@@ -156,7 +156,14 @@ export class SuiClient {
 		try {
 			return await this.mintNbtcBatch(mintArgs);
 		} catch (e) {
-			logError("Error during batch mint contract call", e, { btcTxIds: txIds });
+			logError(
+				{
+					msg: "Error during batch mint contract call",
+					method: "tryMintNbtcBatch",
+					btcTxIds: txIds,
+				},
+				e,
+			);
 			return null;
 		}
 	}

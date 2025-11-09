@@ -96,7 +96,10 @@ export class Indexer {
 
 		if (nbtcAddressesMap.size === 0) {
 			const err = new Error("No nBTC deposit addresses configured.");
-			logError("No nBTC deposit addresses configured.", err);
+			logError(
+				{ msg: "No nBTC deposit addresses configured.", method: "Indexer.constructor" },
+				err,
+			);
 			throw err;
 		}
 		this.nbtcScriptHexes = Array.from(nbtcAddressesMap.values()).map((addr) =>
@@ -349,9 +352,14 @@ export class Indexer {
 					try {
 						await this.storage.updateTxsStatus([txId], TxStatus.FINALIZED_REORG);
 					} catch (e) {
-						logError("Minting: Failed to update status to 'finalized-reorg'", e, {
-							txId,
-						});
+						logError(
+							{
+								msg: "Failed to update status to 'finalized-reorg'",
+								method: "processFinalizedTransactions",
+								txId,
+							},
+							e,
+						);
 						throw e;
 					}
 					continue;
@@ -427,9 +435,14 @@ export class Indexer {
 					}
 				}
 			} catch (e) {
-				logError("Minting: Error preparing transaction for minting batch, will retry", e, {
-					txId,
-				});
+				logError(
+					{
+						msg: "Error preparing transaction for minting batch, will retry",
+						method: "processFinalizedTransactions",
+						txId,
+					},
+					e,
+				);
 				// NOTE: We don't update the status here. The transaction will be picked up
 				// again in the next run of processFinalizedTransactions.
 			}
@@ -488,7 +501,10 @@ export class Indexer {
 		try {
 			return tree.getProof(targetTx);
 		} catch (e) {
-			logError("Failed to get merkle proof", e, { txId: targetTx.getId() });
+			logError(
+				{ msg: "Failed to get merkle proof", method: "getTxProof", txId: targetTx.getId() },
+				e,
+			);
 			return null;
 		}
 	}
@@ -533,7 +549,13 @@ export class Indexer {
 				logger.debug({ msg: "SPV Check: All confirming blocks are valid." });
 			}
 		} catch (e) {
-			logError("SPV Check: Failed to verify blocks with on-chain light client.", e);
+			logError(
+				{
+					msg: "Failed to verify blocks with on-chain light client",
+					method: "verifyConfirmingBlocks",
+				},
+				e,
+			);
 		}
 	}
 
@@ -718,9 +740,14 @@ export class Indexer {
 					senderAddresses.add(prevOutput.scriptpubkey_address);
 				}
 			} catch (e) {
-				logError("Failed to fetch previous tx for sender address via service binding", e, {
-					prevTxId,
-				});
+				logError(
+					{
+						msg: "Failed to fetch previous tx for sender address via service binding",
+						method: "getSenderAddresses",
+						prevTxId,
+					},
+					e,
+				);
 			}
 		});
 

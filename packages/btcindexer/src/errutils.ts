@@ -9,6 +9,12 @@ export function toSerializableError(e: unknown): object {
 	return { thrownValue: e };
 }
 
+export interface Context {
+	msg: string;
+	method: string;
+	[key: string]: unknown;
+}
+
 interface LogData {
 	msg: string;
 	[key: string]: unknown;
@@ -26,22 +32,18 @@ export const logger = {
 	error: (data: LogData) => log("error", data),
 };
 
-export function logDebug(msg: string, context?: Record<string, unknown>) {
-	logger.debug({ msg, ...context });
-}
-
-export function logInfo(msg: string, context?: Record<string, unknown>) {
-	logger.info({ msg, ...context });
-}
-
-export function logWarn(msg: string, context?: Record<string, unknown>) {
-	logger.warn({ msg, ...context });
-}
-
-export function logError(msg: string, error: unknown, context?: Record<string, unknown>) {
-	logger.error({
-		msg,
-		error: toSerializableError(error),
-		...context,
-	});
+export function logError(ctx: Context, error?: unknown) {
+	if (error !== undefined) {
+		if (error instanceof Error) {
+			ctx.error = {
+				name: error.name,
+				message: error.message,
+				cause: error.cause,
+				stack: error.stack,
+			};
+		} else {
+			ctx.error = error;
+		}
+	}
+	console.error(ctx);
 }

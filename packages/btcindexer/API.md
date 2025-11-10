@@ -6,6 +6,8 @@ This package exposes HTTP API and [Cloudflare RPC](../../README.md#cloudflare-rp
 
 To use the RPC interface from another worker, you need to set up a service binding in your `wrangler.jsonc`:
 
+### Production
+
 ```jsonc
 {
   "services": [
@@ -18,9 +20,31 @@ To use the RPC interface from another worker, you need to set up a service bindi
 }
 ```
 
+### Mock (Local Development/Testing)
+
+For local development without external dependencies, use the mock implementation:
+
+```jsonc
+{
+  "services": [
+    {
+      "binding": "BTCINDEXER",
+      "service": "btcindexer",
+      "entrypoint": "BtcIndexerRpcMock",
+    },
+  ],
+}
+```
+
+The mock provides:
+- In-memory transaction storage (no database required)
+- Simulated block confirmations (1 per 2 minutes)
+- Automatic transaction lifecycle progression
+- No external service dependencies (Sui, Bitcoin, Electrs)
+
 ## Available RPC Methods
 
-See [rpc.ts](./src/rpc.ts).
+See [rpc.ts](./src/rpc.ts) and [rpc-interface.ts](./src/rpc-interface.ts) for the complete API contract.
 
 ## REST API
 

@@ -45,6 +45,20 @@ function getStatus(createdAt: number) {
 	return { status: TxStatus.MINTED, confirmations: confs };
 }
 
+function buildTxStatusResp(txid: string, data: MockTxData): TxStatusResp {
+	const { status, confirmations } = getStatus(data.createdAt);
+
+	return {
+		btc_tx_id: txid,
+		status,
+		block_height: null,
+		confirmations,
+		sui_recipient: data.suiRecipient,
+		amount_sats: data.amountSats,
+		sui_tx_id: null,
+	};
+}
+
 export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements InterfaceBtcIndexerRpc {
 	private get txStatuses() {
 		return txData;
@@ -101,17 +115,7 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 		const data = this.txStatuses.get(txid);
 		if (!data) return null;
 
-		const { status, confirmations } = getStatus(data.createdAt);
-
-		return {
-			btc_tx_id: txid,
-			status,
-			block_height: null,
-			confirmations,
-			sui_recipient: data.suiRecipient,
-			amount_sats: data.amountSats,
-			sui_tx_id: null,
-		};
+		return buildTxStatusResp(txid, data);
 	}
 
 	async statusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
@@ -122,16 +126,7 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 		for (const txId of txIds) {
 			const data = this.txStatuses.get(txId);
 			if (data) {
-				const { status, confirmations } = getStatus(data.createdAt);
-				results.push({
-					btc_tx_id: txId,
-					status,
-					block_height: null,
-					confirmations,
-					sui_recipient: data.suiRecipient,
-					amount_sats: data.amountSats,
-					sui_tx_id: null,
-				});
+				results.push(buildTxStatusResp(txId, data));
 			}
 		}
 

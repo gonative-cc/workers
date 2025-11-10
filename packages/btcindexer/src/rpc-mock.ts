@@ -4,10 +4,21 @@ import type { TxStatusResp } from "./models";
 import { TxStatus } from "./models";
 import { Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
+import type { InterfaceBtcIndexerRpc } from "./rpc-interface";
 
-// in-memory storage
-const txData = new Map<string, { suiRecipient: string; amountSats: number; createdAt: number }>();
+interface MockTxData {
+	suiRecipient: string;
+	amountSats: number;
+	createdAt: number;
+}
+
+// in-memory storage: BTC txid  -> tx data
+const txData = new Map<string, MockTxData>();
+// index: Sui address  -> set of BTC txids
 const addressIndex = new Map<string, Set<string>>();
+
+const CONFIRMATION_DEPTH = 4;
+const MAX_CONFIRMATIONS = 5;
 
 function parseSuiRecipient(script: Buffer): string | null {
 	if (!script.length || script[0] !== OP_RETURN) return null;
@@ -27,14 +38,14 @@ function getStatus(createdAt: number) {
 		return { status: TxStatus.BROADCASTING, confirmations: 0 };
 	}
 
-	const confs = Math.min(Math.floor((elapsed_time - 10) / 120) + 1, 5);
+	const confs = Math.min(Math.floor((elapsed_time - 10) / 120) + 1, MAX_CONFIRMATIONS);
 
-	if (confs < 4) return { status: TxStatus.CONFIRMING, confirmations: confs };
-	if (confs === 4) return { status: TxStatus.FINALIZED, confirmations: 4 };
-	return { status: TxStatus.MINTED, confirmations: 5 };
+	if (confs < CONFIRMATION_DEPTH) return { status: TxStatus.CONFIRMING, confirmations: confs };
+	if (confs === CONFIRMATION_DEPTH) return { status: TxStatus.FINALIZED, confirmations: confs };
+	return { status: TxStatus.MINTED, confirmations: confs };
 }
 
-export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> {
+export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements InterfaceBtcIndexerRpc {
 	private get txStatuses() {
 		return txData;
 	}
@@ -42,8 +53,8 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> {
 		return addressIndex;
 	}
 
-	async putBlocks(_blocks: PutBlocks[]): Promise<number> {
-		return _blocks.length;
+	async putBlocks(blocks: PutBlocks[]): Promise<number> {
+		return blocks.length;
 	}
 
 	async latestHeight(): Promise<{ height: number | null }> {
@@ -127,7 +138,8 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> {
 		return results;
 	}
 
-	async depositsBySender(_address: string): Promise<TxStatusResp[]> {
+	async depositsBySender(address: string): Promise<TxStatusResp[]> {
+		// Mock do not track sender addresses, it returns an  empty array
 		return [];
 	}
 }

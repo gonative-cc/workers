@@ -25,8 +25,7 @@
 		"crypto-js": "^4.2.0",
 		"itty-router": "^5.0.22",
 		"merkletreejs": "^0.5.2",
-		"msgpackr": "^1.11.5",
-		"wrangler": "^4.46.0"
+		"msgpackr": "^1.11.5"
 	},
 	"devDependencies": {}
 }

@@ -8,7 +8,7 @@
  */
 
 import { indexerFromEnv } from "./btcindexer";
-import { logError, logger } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
 import { BtcIndexerRpc } from "./rpc";
 import { fetchNbtcAddresses } from "./storage";

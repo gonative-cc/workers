@@ -8,7 +8,7 @@ import type { PostNbtcTxRequest } from "./models";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
-import { logError } from "./errutils";
+import { logError } from "@gonative-cc/lib/logger";
 
 export default class HttpRouter {
 	#indexer?: Indexer;

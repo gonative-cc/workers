@@ -12,7 +12,7 @@ import type {
 	NbtcAddress,
 } from "./models";
 import { BlockStatus, TxStatus } from "./models";
-import { logError, logger } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
 import type { Storage } from "./storage";

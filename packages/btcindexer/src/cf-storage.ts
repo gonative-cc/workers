@@ -1,5 +1,5 @@
 import { Block } from "bitcoinjs-lib";
-import { logError, logger } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
 import { BlockStatus, TxStatus } from "./models";
 import type { Storage } from "./storage";

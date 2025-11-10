@@ -4,7 +4,7 @@ import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import type { MintBatchArg, SuiTxDigest } from "./models";
-import { logError, logger } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";

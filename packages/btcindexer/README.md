@@ -42,6 +42,8 @@ graph TD
 
 See [API.md](./API.md)
 
+**Note:** A mock implementation (`BtcIndexerRpcMock`) is available for local development and testing. See [API.md](./API.md#mock-local-developmenttesting) for details.
+
 ## Populating the nbtc_addresses DB
 
 To populate the `nbtc_addresses` you can use the `seed:addresses` script. This script reads addresses from the `scripts/nbtc_addresses.json` file and inserts them into the database.

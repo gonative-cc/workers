@@ -37,6 +37,7 @@ For local development without external dependencies, use the mock implementation
 ```
 
 The mock provides:
+
 - In-memory transaction storage (no database required)
 - Simulated block confirmations (1 per 2 minutes)
 - Automatic transaction lifecycle progression

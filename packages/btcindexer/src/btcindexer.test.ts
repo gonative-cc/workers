@@ -496,19 +496,6 @@ describe("Indexer.getLockedBTCDeposit", () => {
 		expect(result).toBe(150000);
 	});
 
-	it("should return null when no matching transactions", async () => {
-		const { mockEnv, indexer } = prepareIndexer();
-		const mockStmt = {
-			bind: vi.fn().mockReturnThis(),
-			first: vi.fn().mockResolvedValue(null),
-		};
-		mockEnv.DB.prepare.mockReturnValue(mockStmt);
-
-		const result = await indexer.getLockedBTCDeposit();
-
-		expect(result).toBeNull();
-	});
-
 	it("should return null when total is null", async () => {
 		const { mockEnv, indexer } = prepareIndexer();
 		const mockStmt = {

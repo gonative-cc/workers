@@ -79,7 +79,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	/**
 	 * Returns total locked BTC
 	 */
-	async lockedBTCDeposit(): Promise<number | undefined> {
+	async lockedBTCDeposit(): Promise<number | null> {
 		const indexer = await this.getIndexer();
 		return indexer.getLockedBTCDeposit();
 	}

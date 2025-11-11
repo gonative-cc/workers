@@ -677,8 +677,11 @@ export class Indexer implements Storage {
 	}
 
 	async getLockedBTCDeposit(): Promise<number | undefined> {
-		const query = `SELECT SUM(amount_sats) as total FROM nbtc_minting WHERE status IN ('${TxStatus.MINTED}', '${TxStatus.FINALIZED_FAILED}')`;
-		const result = await this.d1.prepare(query).first<{ total: number }>();
+		const query = "SELECT SUM(amount_sats) as total FROM nbtc_minting WHERE status IN (?, ?)";
+		const result = await this.d1
+			.prepare(query)
+			.bind(TxStatus.FINALIZED, TxStatus.FINALIZED_FAILED)
+			.first<{ total: number }>();
 		return result?.total;
 	}
 

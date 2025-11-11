@@ -496,16 +496,27 @@ describe("Indexer.getLockedBTCDeposit", () => {
 		expect(result).toBe(150000);
 	});
 
-	it("should return null when total is null", async () => {
+	it("should return 0 when total is 0", async () => {
 		const { mockEnv, indexer } = prepareIndexer();
 		const mockStmt = {
 			bind: vi.fn().mockReturnThis(),
-			first: vi.fn().mockResolvedValue({ total: null }),
+			first: vi.fn().mockResolvedValue({ total: 0 }),
 		};
 		mockEnv.DB.prepare.mockReturnValue(mockStmt);
 
 		const result = await indexer.getLockedBTCDeposit();
 
-		expect(result).toBeNull();
+		expect(result).toBe(0);
+	});
+
+	it("should throw error when total is undefined", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const mockStmt = {
+			bind: vi.fn().mockReturnThis(),
+			first: vi.fn().mockResolvedValue({ total: undefined }),
+		};
+		mockEnv.DB.prepare.mockReturnValue(mockStmt);
+
+		expect(indexer.getLockedBTCDeposit()).rejects.toThrow("Failed to get total locked BTC");
 	});
 });

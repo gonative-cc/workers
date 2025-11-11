@@ -676,6 +676,12 @@ export class Indexer implements Storage {
 		});
 	}
 
+	async getLockedBTCDeposit(): Promise<number | undefined> {
+		const query = `SELECT SUM(amount_sats) as total FROM nbtc_minting WHERE status IN ('${TxStatus.MINTED}', '${TxStatus.FINALIZED_FAILED}')`;
+		const result = await this.d1.prepare(query).first<{ total: number }>();
+		return result?.total;
+	}
+
 	async registerBroadcastedNbtcTx(
 		txHex: string,
 	): Promise<{ tx_id: string; registered_deposits: number }> {

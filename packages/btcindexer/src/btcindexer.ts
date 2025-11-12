@@ -676,14 +676,27 @@ export class Indexer implements Storage {
 		});
 	}
 
-	async getLockedBTCDeposit(): Promise<number> {
-		const query = "SELECT SUM(amount_sats) as total FROM nbtc_minting WHERE status IN (?, ?)";
-		const result = await this.d1
-			.prepare(query)
-			.bind(TxStatus.FINALIZED, TxStatus.FINALIZED_FAILED)
-			.first<{ total: number }>();
-		if (result?.total === undefined) throw new Error("Failed to get total locked BTC");
-		return result?.total;
+	async getLockedBTCDeposit(env: Env, address: string): Promise<number> {
+		try {
+			const response = await fetch(`${env.ELECTRS_API_URL}/address/${address}`);
+			if (!response.ok) {
+				throw new Error("Failed to fetch address balance");
+			}
+			const {
+				chain_stats: { funded_txo_sum, spent_txo_sum },
+			} = (await response.json()) as {
+				chain_stats: { funded_txo_sum: number; spent_txo_sum: number };
+			};
+			const balance = funded_txo_sum - spent_txo_sum;
+			return balance;
+		} catch (e) {
+			console.error({
+				msg: "Failed to register broadcasted nBTC transaction",
+				error: toSerializableError(e),
+				address,
+			});
+			throw e;
+		}
 	}
 
 	async registerBroadcastedNbtcTx(

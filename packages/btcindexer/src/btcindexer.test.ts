@@ -479,44 +479,45 @@ describe("getSenderInsertStmts logic", () => {
 });
 
 describe("Indexer.getLockedBTCDeposit", () => {
-	it("should return total amount for finalized and finalized-failed transactions", async () => {
+	it("should return balance from Electrs API", async () => {
 		const { mockEnv, indexer } = prepareIndexer();
-		const mockStmt = {
-			bind: vi.fn().mockReturnThis(),
-			first: vi.fn().mockResolvedValue({ total: 150000 }),
+		const testAddress = "bc1qtest123";
+		const mockResponse = {
+			chain_stats: {
+				funded_txo_sum: 200000,
+				spent_txo_sum: 50000,
+			},
 		};
-		mockEnv.DB.prepare.mockReturnValue(mockStmt);
 
-		const result = await indexer.getLockedBTCDeposit();
+		const fetchSpy = vi
+			.spyOn(global, "fetch")
+			.mockResolvedValue(new Response(JSON.stringify(mockResponse), { status: 200 }));
 
-		expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
-			"SELECT SUM(amount_sats) as total FROM nbtc_minting WHERE status IN (?, ?)",
-		);
-		expect(mockStmt.bind).toHaveBeenCalledWith(TxStatus.FINALIZED, TxStatus.FINALIZED_FAILED);
-		expect(result).toBe(150000);
+		const result = await indexer.getLockedBTCDeposit(mockEnv, testAddress);
+
+		expect(fetchSpy).toHaveBeenCalledWith(`${mockEnv.ELECTRS_API_URL}/address/${testAddress}`);
+		expect(result).toBe(150000); // 200000 - 50000
 	});
 
-	it("should return 0 when total is 0", async () => {
+	it("should throw error when API request fails", async () => {
 		const { mockEnv, indexer } = prepareIndexer();
-		const mockStmt = {
-			bind: vi.fn().mockReturnThis(),
-			first: vi.fn().mockResolvedValue({ total: 0 }),
-		};
-		mockEnv.DB.prepare.mockReturnValue(mockStmt);
+		const testAddress = "bc1qtest123";
 
-		const result = await indexer.getLockedBTCDeposit();
+		const fetchSpy = vi
+			.spyOn(global, "fetch")
+			.mockResolvedValue(new Response("Not Found", { status: 404 }));
 
-		expect(result).toBe(0);
+		await expect(indexer.getLockedBTCDeposit(mockEnv, testAddress)).rejects.toThrow();
+		expect(fetchSpy).toHaveBeenCalledWith(`${mockEnv.ELECTRS_API_URL}/address/${testAddress}`);
 	});
 
-	it("should throw error when total is undefined", async () => {
+	it("should throw error when fetch fails", async () => {
 		const { mockEnv, indexer } = prepareIndexer();
-		const mockStmt = {
-			bind: vi.fn().mockReturnThis(),
-			first: vi.fn().mockResolvedValue({ total: undefined }),
-		};
-		mockEnv.DB.prepare.mockReturnValue(mockStmt);
+		const testAddress = "bc1qtest123";
 
-		expect(indexer.getLockedBTCDeposit()).rejects.toThrow("Failed to get total locked BTC");
+		const fetchSpy = vi.spyOn(global, "fetch").mockRejectedValue(new Error("Network error"));
+
+		await expect(indexer.getLockedBTCDeposit(mockEnv, testAddress)).rejects.toThrow();
+		expect(fetchSpy).toHaveBeenCalledWith(`${mockEnv.ELECTRS_API_URL}/address/${testAddress}`);
 	});
 });

@@ -492,7 +492,7 @@ describe("Indexer.getLockedBTCDeposit", () => {
 		expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
 			"SELECT SUM(amount_sats) as total FROM nbtc_minting WHERE status IN (?, ?)",
 		);
-		expect(mockStmt.bind).toHaveBeenCalledWith(TxStatus.FINALIZED, TxStatus.FINALIZED_FAILED);
+		expect(mockStmt.bind).toHaveBeenCalledWith(TxStatus.MINTED, TxStatus.FINALIZED_FAILED);
 		expect(result).toBe(150000);
 	});
 

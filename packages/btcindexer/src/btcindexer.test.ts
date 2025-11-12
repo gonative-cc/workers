@@ -3,7 +3,7 @@ import { describe, it, vi, expect } from "bun:test";
 import { Indexer, storageFromEnv } from "../src/btcindexer";
 import { Block, networks } from "bitcoinjs-lib";
 import { SuiClient, SuiClientCfg } from "./sui_client";
-import { Deposit, ProofResult } from "./models";
+import { Deposit, ProofResult, TxStatus } from "./models";
 import { join } from "path";
 
 interface TxInfo {
@@ -475,5 +475,48 @@ describe("getSenderInsertStmts logic", () => {
 
 		expect(mintingSQL).toBeDefined();
 		expect(senderSQL).toBeDefined();
+	});
+});
+
+describe("Indexer.getLockedBTCDeposit", () => {
+	it("should return total amount for finalized and finalized-failed transactions", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const mockStmt = {
+			bind: vi.fn().mockReturnThis(),
+			first: vi.fn().mockResolvedValue({ total: 150000 }),
+		};
+		mockEnv.DB.prepare.mockReturnValue(mockStmt);
+
+		const result = await indexer.getLockedBTCDeposit();
+
+		expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
+			"SELECT SUM(amount_sats) as total FROM nbtc_minting WHERE status IN (?, ?)",
+		);
+		expect(mockStmt.bind).toHaveBeenCalledWith(TxStatus.FINALIZED, TxStatus.FINALIZED_FAILED);
+		expect(result).toBe(150000);
+	});
+
+	it("should return 0 when total is 0", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const mockStmt = {
+			bind: vi.fn().mockReturnThis(),
+			first: vi.fn().mockResolvedValue({ total: 0 }),
+		};
+		mockEnv.DB.prepare.mockReturnValue(mockStmt);
+
+		const result = await indexer.getLockedBTCDeposit();
+
+		expect(result).toBe(0);
+	});
+
+	it("should throw error when total is undefined", async () => {
+		const { mockEnv, indexer } = prepareIndexer();
+		const mockStmt = {
+			bind: vi.fn().mockReturnThis(),
+			first: vi.fn().mockResolvedValue({ total: undefined }),
+		};
+		mockEnv.DB.prepare.mockReturnValue(mockStmt);
+
+		expect(indexer.getLockedBTCDeposit()).rejects.toThrow("Failed to get total locked BTC");
 	});
 });

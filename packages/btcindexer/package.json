@@ -1,19 +1,22 @@
 {
 	"name": "@gonative-cc/btcindexer",
+	"type": "module",
 	"license": "MPL-2.0",
 	"version": "0.0.1",
 	"exports": {
-		"./": "./src/"
+		"./*": "./src/*.ts"
 	},
 	"scripts": {
 		"dev": "wrangler dev --test-scheduled",
 		"deploy": "wrangler deploy",
 		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
 		"db:migrate": "wrangler d1 migrations apply btcindexer-dev",
+		"db:migrate:local": "wrangler d1 migrations apply btcindexer-dev --local",
 		"db:migrate:backstage": "wrangler d1 migrations apply btcindexer-dev --remote",
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
-		"test": "bun test"
+		"test": "bun test",
+		"seed:addresses": "bun run scripts/seed-addresses.ts"
 	},
 	"dependencies": {
 		"@mysten/bcs": "^1.8.0",
@@ -24,8 +27,5 @@
 		"merkletreejs": "^0.5.2",
 		"msgpackr": "^1.11.5"
 	},
-	"devDependencies": {
-		"@types/crypto-js": "^4.2.2",
-		"miniflare": "4.20251008.0"
-	}
+	"devDependencies": {}
 }

@@ -1,0 +1,14 @@
+[
+	{
+		"btc_network": "regtest",
+		"sui_network": "devnet",
+		"nbtc_pkg": "0x50be08b805766cc1a2901b925d3fb80b6362fcb25f269cb78067429237e222ec",
+		"btc_address": "bcrt1q90xm34jqm0kcpfclkdmn868rw6vcv9fzvfg6p6"
+	},
+	{
+		"btc_network": "testnet",
+		"sui_network": "testnet",
+		"nbtc_pkg": "0x...",
+		"btc_address": "tb1q..."
+	}
+]

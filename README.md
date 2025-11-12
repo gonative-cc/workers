@@ -42,6 +42,18 @@ Finally, you will need to set up databases used in local wrangler:
 bun run db:migrate:local
 ```
 
+### Populate nBTC Deposit Addresses
+
+The nBTC deposit addresses are stored in the `nbtc_addresses` table in the D1 database. You need to populate this table with the deposit addresses for the networks you want to support.
+
+You can insert address directly to the DB:
+
+```sh
+bun wrangler d1 execute btcindexer-db --local --command=\"INSERT INTO nbtc_addresses (btc_network, sui_network, nbtc_pkg, btc_address) VALUES ('regtest', 'devnet', '0x...', 'bcrt1q90xm34jqm0kcpfclkdmn868rw6vcv9fzvfg6p6')\"
+```
+
+Or (**Recommended**) refer to this [document](/packages/btcindexer/README.md#populating-the-nbtc_addresses-db) on how to run the scirpt.
+
 ### Run and test
 
 Run the wrangler dev server of all workers (with auto reload):
@@ -71,6 +83,40 @@ Whenever you make changes to `wrangler.jsonc` or update `wrangler`, generate typ
 ```sh
 bun run cf-typegen
 ```
+
+## Cloudflare RPC
+
+Workers expose Cloudflare RPC. It is designed and limited to communicate directly between Cloudflare Workers, without going through HTTP endpoints. This enables efficient inter-worker communication using [Service Bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/).
+
+The RPC interface is provided through an RPC class that extends Cloudflare `WorkerEntrypoint` type.
+
+**RPC Interface** is the preferred way for inter-worker communication within Cloudflare Workers for better performance and type safety.
+
+### Calling RPC Methods
+
+Example usage in your client worker:
+
+```typescript
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // Access the RPC stub using the binding name:
+    const btcIndexer = env.BTCINDEXER;
+
+    // Call RPC methods directly
+    const latestHeight = await btcIndexer.getLatestHeight();
+    console.log(`Latest block height: ${latestHeight.height}`);
+
+    return new Response("OK");
+  },
+};
+```
+
+### Benefits of RPC
+
+1. **Type Safety**: Direct method calls with TypeScript types
+2. **Performance**: No HTTP overhead
+3. **Simplicity**: No need to serialize/deserialize HTTP requests
+4. **Direct Object Passing**: Can pass complex objects directly between workers
 
 ## Contributing
 

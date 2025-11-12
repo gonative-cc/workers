@@ -1,0 +1,26 @@
+{
+	"name": "@gonative-cc/redeem_solver",
+	"type": "module",
+	"license": "MPL-2.0",
+	"version": "0.0.1",
+	"exports": {
+		"./*": "./src/*.ts"
+	},
+	"scripts": {
+		"dev": "wrangler dev --test-scheduled",
+		"deploy": "wrangler deploy",
+		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
+		"typecheck": "tsc",
+		"cf-typegen": "wrangler types",
+		"test": "echo no tests"
+	},
+	"dependencies": {
+		"@mysten/bcs": "^1.8.0",
+		"@mysten/sui": "^1.38.0",
+		"@gonative-cc/lib": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/crypto-js": "^4.2.2",
+		"miniflare": "4.20251008.0"
+	}
+}

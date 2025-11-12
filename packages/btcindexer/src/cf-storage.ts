@@ -1,7 +1,8 @@
 import { Block } from "bitcoinjs-lib";
 import { toSerializableError } from "./errutils";
-import { BlockInfo, BlockStatus, FinalizedTxRow, NbtcTxRow, PendingTx, TxStatus } from "./models";
-import { Storage } from "./storage";
+import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
+import { BlockStatus, TxStatus } from "./models";
+import type { Storage } from "./storage";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;
@@ -14,6 +15,22 @@ export class CFStorage implements Storage {
 		this.nbtcTxDB = nbtcTxDB;
 	}
 
+	async getDepositAddresses(btcNetwork: string): Promise<string[]> {
+		try {
+			const { results } = await this.d1
+				.prepare("SELECT btc_address FROM nbtc_addresses WHERE btc_network = ?")
+				.bind(btcNetwork)
+				.all<{ btc_address: string }>();
+			return results ? results.map((r) => r.btc_address) : [];
+		} catch (e) {
+			console.error({
+				msg: "Failed to fetch deposit addresses from D1",
+				error: toSerializableError(e),
+				btcNetwork,
+			});
+			throw e;
+		}
+	}
 	async putBlocks(blocks: { height: number; block: Block }[]): Promise<void> {
 		if (!blocks || blocks.length === 0) {
 			return;
@@ -162,7 +179,7 @@ export class CFStorage implements Storage {
 	async getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, retry_count FROM nbtc_minting WHERE (status = '${TxStatus.FINALIZED}' OR (status = '${TxStatus.FINALIZED_FAILED}' AND retry_count <= ?)) AND status != '${TxStatus.FINALIZED_REORG}'`,
+				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE (status = '${TxStatus.FINALIZED}' OR (status = '${TxStatus.FINALIZED_FAILED}' AND retry_count <= ?)) AND status != '${TxStatus.FINALIZED_REORG}'`,
 			)
 			.bind(maxRetries)
 			.all<FinalizedTxRow>();

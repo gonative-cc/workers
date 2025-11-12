@@ -73,3 +73,4 @@ export default {
 // Use BtcIndexerRpc for production, BtcIndexerRpcMock for local development/testing
 export { BtcIndexerRpc };
 export { BtcIndexerRpcMock } from "./rpc-mock";
+export * from "./models";

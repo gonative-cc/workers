@@ -108,3 +108,5 @@ export interface PostNbtcTxRequest {
 }
 
 export type SuiTxDigest = string;
+
+export * from "./models";

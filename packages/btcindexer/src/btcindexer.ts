@@ -471,12 +471,17 @@ export class Indexer {
 						})),
 					);
 				} else {
-					console.error({ msg: "Sui batch mint transaction failed", pkgKey });
+					console.error({
+						msg: "Sui batch mint transaction failed",
+						pkgKey,
+						suiTxDigest,
+					});
 					await this.storage.batchUpdateNbtcTxs(
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
 							status: TxStatus.FINALIZED_FAILED,
+							...(suiTxDigest && { suiTxDigest }),
 						})),
 					);
 				}

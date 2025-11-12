@@ -691,7 +691,7 @@ export class Indexer implements Storage {
 			return balance;
 		} catch (e) {
 			console.error({
-				msg: "Failed to register broadcasted nBTC transaction",
+				msg: "Failed to fetch address balance",
 				error: toSerializableError(e),
 				address,
 			});

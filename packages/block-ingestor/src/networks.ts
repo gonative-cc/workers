@@ -3,3 +3,4 @@ export enum BitcoinNetwork {
 	TESTNET = "testnet",
 	MAINNET = "mainnet",
 }
+//TODO: we should have a common package for this

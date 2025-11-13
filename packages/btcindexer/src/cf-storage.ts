@@ -217,7 +217,7 @@ export class CFStorage implements Storage {
 			} else {
 				return setFailedStmt.bind(
 					TxStatus.MINT_FAILED,
-					p.suiTxDigest,
+					p.suiTxDigest ?? null,
 					now,
 					p.tx_id,
 					p.vout,

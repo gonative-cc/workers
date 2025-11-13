@@ -1,7 +1,8 @@
-import { Block } from "bitcoinjs-lib";
 import { toSerializableError } from "./errutils";
-import { BlockInfo, BlockStatus, FinalizedTxRow, NbtcTxRow, PendingTx, TxStatus } from "./models";
-import { Storage } from "./storage";
+import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
+import { BlockStatus, TxStatus } from "./models";
+import type { Storage } from "./storage";
+import { D1Database, KVNamespace } from "@cloudflare/workers-types";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;
@@ -161,7 +162,7 @@ export class CFStorage implements Storage {
 	async getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE (status = '${TxStatus.FINALIZED}' OR (status = '${TxStatus.FINALIZED_FAILED}' AND retry_count <= ?)) AND status != '${TxStatus.FINALIZED_REORG}'`,
+				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE (status = '${TxStatus.FINALIZED}' OR (status = '${TxStatus.MINT_FAILED}' AND retry_count <= ?)) AND status != '${TxStatus.FINALIZED_REORG}'`,
 			)
 			.bind(maxRetries)
 			.all<FinalizedTxRow>();
@@ -197,7 +198,7 @@ export class CFStorage implements Storage {
 			if (p.status === TxStatus.MINTED) {
 				return setMintedStmt.bind(TxStatus.MINTED, p.suiTxDigest, now, p.tx_id, p.vout);
 			} else {
-				return setFailedStmt.bind(TxStatus.FINALIZED_FAILED, now, p.tx_id, p.vout);
+				return setFailedStmt.bind(TxStatus.MINT_FAILED, now, p.tx_id, p.vout);
 			}
 		});
 

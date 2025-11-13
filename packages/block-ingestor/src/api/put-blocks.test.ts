@@ -29,10 +29,10 @@ describe("encode PutBlocks", () => {
 		const got = PutBlocksReq.decode(reqBytes);
 		expect(got).toHaveLength(1);
 
-		const pb0 = got[0];
+		const pb0 = got[0]!;
 		expect(pb0.block.getId()).toEqual(block.getId());
-		expect(pb0.height).toEqual(expected[0].height);
-		expect(pb0.network).toEqual(expected[0].network);
+		expect(pb0.height).toEqual(expected[0]!.height);
+		expect(pb0.network).toEqual(expected[0]!.network);
 		expect(bufferToHex(reqBytes)).toContain(blockHex);
 	});
 

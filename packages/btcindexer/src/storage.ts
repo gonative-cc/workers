@@ -1,5 +1,12 @@
 import { Block } from "bitcoinjs-lib";
-import { BlockInfo, NbtcTxRow, PendingTx, TxStatus, FinalizedTxRow, NbtcAddress } from "./models";
+import type {
+	BlockInfo,
+	NbtcTxRow,
+	PendingTx,
+	TxStatus,
+	FinalizedTxRow,
+	NbtcAddress,
+} from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 
 export interface Storage {

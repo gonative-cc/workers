@@ -2,21 +2,21 @@ import { address, networks, Block, Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
-import {
+import type {
 	Deposit,
 	PendingTx,
-	TxStatus,
 	TxStatusResp as TxStatusResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
-	BlockStatus,
 	NbtcAddress,
 	BlockQueueMessage,
 	BitcoinNetwork,
 } from "./models";
+import { BlockStatus, TxStatus } from "./models";
 import { toSerializableError } from "./errutils";
-import { Electrs, ElectrsService } from "./electrs";
-import { Storage } from "./storage";
+import type { Electrs } from "./electrs";
+import { ElectrsService } from "./electrs";
+import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 
 const btcNetworks = {
@@ -206,7 +206,7 @@ export class Indexer {
 		if (!suiRecipient) suiRecipient = this.suiFallbackAddr;
 
 		for (let i = 0; i < tx.outs.length; i++) {
-			const vout = tx.outs[i];
+			const vout = tx.outs[i]!;
 			if (vout.script && vout.script[0] === OP_RETURN) {
 				continue;
 			}
@@ -304,6 +304,7 @@ export class Indexer {
 						txId,
 					});
 					try {
+						// TODO: need to distniguish FINALIZED_REORG and MINTED_REORG
 						await this.storage.updateTxsStatus([txId], TxStatus.FINALIZED_REORG);
 					} catch (e) {
 						console.error({
@@ -339,8 +340,16 @@ export class Indexer {
 					continue;
 				}
 
-				const nbtc_pkg = txGroup.deposits[0].nbtc_pkg;
-				const sui_network = txGroup.deposits[0].sui_network;
+				const firstDeposit = txGroup.deposits[0];
+				if (!firstDeposit) {
+					console.warn({
+						msg: "Minting: Skipping transaction group with no deposits",
+						txId,
+					});
+					continue;
+				}
+				const nbtc_pkg = firstDeposit.nbtc_pkg;
+				const sui_network = firstDeposit.sui_network;
 				const pkgKey = `${nbtc_pkg}-${sui_network}`;
 
 				if (!nbtc_pkg || !sui_network) {
@@ -422,7 +431,7 @@ export class Indexer {
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
-							status: TxStatus.FINALIZED_FAILED,
+							status: TxStatus.MINT_FAILED,
 						})),
 					);
 				}
@@ -471,7 +480,10 @@ export class Indexer {
 			const invalidHashes: string[] = [];
 			for (let i = 0; i < blockHashes.length; i++) {
 				if (verificationResults[i] === false) {
-					invalidHashes.push(blockHashes[i]);
+					const blockHash = blockHashes[i];
+					if (blockHash) {
+						invalidHashes.push(blockHash);
+					}
 				}
 			}
 

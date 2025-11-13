@@ -6,10 +6,12 @@ import { Block, networks } from "bitcoinjs-lib";
 
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
-import { SuiClient, SuiClientCfg } from "./sui_client";
-import { Deposit, ProofResult, NbtcAddress, BlockQueueMessage, BitcoinNetwork } from "./models";
+import SuiClient, { type SuiClientCfg } from "./sui_client";
+import type { Deposit, ProofResult, NbtcAddress, BlockQueueMessage } from "./models";
+import { BitcoinNetwork } from "./models";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
+import { D1Database } from "@cloudflare/workers-types";
 
 interface TxInfo {
 	id: string;
@@ -104,7 +106,7 @@ beforeEach(async () => {
 	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
 	const nbtcAddressesMap = new Map<string, NbtcAddress>();
 	const testNbtcAddress: NbtcAddress = {
-		btc_address: REGTEST_DATA[329].depositAddr,
+		btc_address: REGTEST_DATA[329]!.depositAddr,
 		btc_network: "regtest",
 		sui_network: "testnet",
 		nbtc_pkg: "0xPACKAGE",
@@ -174,21 +176,21 @@ async function insertFinalizedTx(
 
 describe("Indexer.findNbtcDeposits", () => {
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
-		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[329]!.rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
+			(tx) => tx.getId() === REGTEST_DATA[329]!.txs[1]!.id,
 		);
 
 		expect(targetTx).toBeDefined();
 
 		const deposits = indexer.findNbtcDeposits(targetTx!, networks.regtest);
 		expect(deposits.length).toEqual(1);
-		expect(deposits[0].amountSats).toEqual(REGTEST_DATA[329].txs[1].amountSats);
-		expect(deposits[0].suiRecipient).toEqual(REGTEST_DATA[329].txs[1].suiAddr);
-		expect(deposits[0].vout).toEqual(0);
+		expect(deposits[0]!.amountSats).toEqual(REGTEST_DATA[329]!.txs[1]!.amountSats);
+		expect(deposits[0]!.suiRecipient).toEqual(REGTEST_DATA[329]!.txs[1]!.suiAddr);
+		expect(deposits[0]!.vout).toEqual(0);
 	});
 	it("should find multiple deposits within a single block containing multiple transactions", () => {
-		const block = Block.fromHex(REGTEST_DATA[327].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[327]!.rawBlockHex);
 		expect(block.transactions).toBeDefined();
 
 		const deposits: Deposit[][] = [];
@@ -201,17 +203,17 @@ describe("Indexer.findNbtcDeposits", () => {
 
 		expect(deposits.length).toEqual(2);
 		// TX_1
-		expect(deposits[0][0].suiRecipient).toEqual(REGTEST_DATA[327].txs[1].suiAddr);
-		expect(deposits[0][0].amountSats).toEqual(REGTEST_DATA[327].txs[1].amountSats);
+		expect(deposits[0]![0]!.suiRecipient).toEqual(REGTEST_DATA[327]!.txs[1]!.suiAddr);
+		expect(deposits[0]![0]!.amountSats).toEqual(REGTEST_DATA[327]!.txs[1]!.amountSats);
 		// TX 2
-		expect(deposits[1][0].suiRecipient).toEqual(REGTEST_DATA[327].txs[2].suiAddr);
-		expect(deposits[1][0].amountSats).toEqual(REGTEST_DATA[327].txs[2].amountSats);
+		expect(deposits[1]![0]!.suiRecipient).toEqual(REGTEST_DATA[327]!.txs[2]!.suiAddr);
+		expect(deposits[1]![0]!.amountSats).toEqual(REGTEST_DATA[327]!.txs[2]!.amountSats);
 	});
 });
 
 describe("Indexer.processBlock", () => {
 	it("should process a block and insert nBTC transactions and sender deposits", async () => {
-		const blockData = REGTEST_DATA[329];
+		const blockData = REGTEST_DATA[329]!;
 		const blockQueueMessage: BlockQueueMessage = {
 			hash: blockData.hash,
 			height: blockData.height,
@@ -242,15 +244,15 @@ describe("Indexer.processBlock", () => {
 			.prepare("SELECT * FROM nbtc_sender_deposits")
 			.all();
 		expect(senderResults.length).toEqual(1);
-		expect(senderResults[0].sender).toEqual(fakeSenderAddress);
+		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
 	});
 });
 
 describe("Indexer.constructMerkleProof", () => {
 	it("should generate a valid proof for a real regtest transaction", () => {
-		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[329]!.rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[329].txs[1].id,
+			(tx) => tx.getId() === REGTEST_DATA[329]!.txs[1]!.id,
 		);
 
 		expect(targetTx).toBeDefined();
@@ -264,9 +266,9 @@ describe("Indexer.constructMerkleProof", () => {
 	});
 
 	it("should generate a valid proof for a block with an odd number of transactions (3 txs)", () => {
-		const block = Block.fromHex(REGTEST_DATA[327].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[327]!.rawBlockHex);
 		const targetTx = block.transactions?.find(
-			(tx) => tx.getId() === REGTEST_DATA[327].txs[2].id,
+			(tx) => tx.getId() === REGTEST_DATA[327]!.txs[2]!.id,
 		);
 
 		expect(targetTx).toBeDefined();
@@ -361,9 +363,9 @@ describe("Block Parsing", () => {
 
 describe("Indexer.registerBroadcastedNbtcTx", () => {
 	it("should register a tx with a single deposit", async () => {
-		const blockData = REGTEST_DATA[329];
+		const blockData = REGTEST_DATA[329]!;
 		const block = Block.fromHex(blockData.rawBlockHex);
-		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1].id);
+		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1]!.id);
 		expect(targetTx).toBeDefined();
 
 		//TODO: this test is failing, probalby the deposit address is inccorect
@@ -373,17 +375,17 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		const db = await mf.getD1Database("DB");
 		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
 		expect(results.length).toEqual(1);
-		expect(results[0].tx_id).toEqual(blockData.txs[1].id);
-		expect(results[0].vout).toEqual(0);
-		expect(results[0].sui_recipient).toEqual(blockData.txs[1].suiAddr);
-		expect(results[0].amount_sats).toEqual(blockData.txs[1].amountSats);
+		expect(results[0]!.tx_id).toEqual(blockData.txs[1]!.id);
+		expect(results[0]!.vout).toEqual(0);
+		expect(results[0]!.sui_recipient).toEqual(blockData.txs[1]!.suiAddr);
+		expect(results[0]!.amount_sats).toEqual(blockData.txs[1]!.amountSats);
 	});
 
 	it("should throw an error for a transaction with no valid deposits", async () => {
-		const block = Block.fromHex(REGTEST_DATA[329].rawBlockHex);
+		const block = Block.fromHex(REGTEST_DATA[329]!.rawBlockHex);
 		expect(block.transactions).toBeDefined();
 		// The first tx in a block is coinbase
-		const coinbaseTx = block.transactions![0];
+		const coinbaseTx = block.transactions![0]!;
 
 		expect(
 			indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex(), BitcoinNetwork.REGTEST),
@@ -393,8 +395,8 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 
 describe("Indexer.processFinalizedTransactions", () => {
 	it("should process finalized transactions, group them, and call the SUI batch mint function", async () => {
-		const block329 = REGTEST_DATA[329];
-		const tx329 = block329.txs[1];
+		const block329 = REGTEST_DATA[329]!;
+		const tx329 = block329.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, tx329, block329);
@@ -415,14 +417,14 @@ describe("Indexer.processFinalizedTransactions", () => {
 			.bind(tx329.id)
 			.all();
 		expect(results.length).toEqual(1);
-		expect(results[0].sui_tx_id).toEqual(fakeSuiTxDigest);
+		expect(results[0]!.sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 });
 
 describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 	it("should retry a failed tx and succeed", async () => {
-		const blockData = REGTEST_DATA[329];
-		const txData = blockData.txs[1];
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData, blockData);
@@ -443,12 +445,12 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 			.bind(txData.id)
 			.all();
 		expect(results.length).toEqual(1);
-		expect(results[0].sui_tx_id).toEqual(fakeSuiTxDigest);
+		expect(results[0]!.sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 
 	it("should retry a failed tx, fail again, and increment retry_count", async () => {
-		const blockData = REGTEST_DATA[329];
-		const txData = blockData.txs[1];
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData, blockData, 1);
@@ -468,6 +470,43 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 			.bind(txData.id)
 			.all();
 		expect(results.length).toEqual(1);
-		expect(Number(results[0].retry_count)).toEqual(2);
+		expect(results[0]!.retry_count).toEqual(2);
+	});
+});
+
+describe("Indexer.processBlock", () => {
+	it("should process a block and insert nBTC transactions and sender deposits", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const blockQueueMessage: BlockQueueMessage = {
+			hash: blockData.hash,
+			height: blockData.height,
+			network: BitcoinNetwork.REGTEST,
+			kv_key: `blocks:regtest:${blockData.hash}`,
+		};
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		const fakeSenderAddress = "bc1qtestsenderaddress";
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(indexer.electrs.getTx as any).mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					vout: [{ scriptpubkey_address: fakeSenderAddress }],
+				}),
+			),
+		);
+
+		await indexer.processBlock(blockQueueMessage);
+
+		const db = await mf.getD1Database("DB");
+		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		expect(mintingResults.length).toEqual(1);
+
+		const { results: senderResults } = await db
+			.prepare("SELECT * FROM nbtc_sender_deposits")
+			.all();
+		expect(senderResults.length).toEqual(1);
+		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
 	});
 });

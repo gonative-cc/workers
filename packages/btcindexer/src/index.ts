@@ -93,5 +93,7 @@ export default {
 	},
 } satisfies ExportedHandler<Env, BlockQueueMessage>;
 
-// Export the RPC entrypoint for service bindings
+// Export RPC entrypoints for service bindings
+// Use BtcIndexerRpc for production, BtcIndexerRpcMock for local development/testing
 export { BtcIndexerRpc };
+export { BtcIndexerRpcMock } from "./rpc-mock";

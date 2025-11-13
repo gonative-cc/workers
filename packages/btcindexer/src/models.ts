@@ -1,5 +1,11 @@
 import { Transaction } from "bitcoinjs-lib";
 
+export const enum RestPath {
+	latestHeight = "/height",
+	nbtcTx = "/tx",
+	depositsBySender = "/deposits/sender",
+}
+
 export interface NbtcAddress {
 	btc_network: string;
 	sui_network: string;
@@ -53,7 +59,7 @@ export interface GroupedFinalizedTx {
  * - **confirming**: The deposit tx has been found in a Bitcoin block but does not yet have enough confirmations.
  * - **finalized**: The tx has reached the required confirmation depth and is ready to be minted.
  * - **minted**: The nBTC has been successfully minted on the SUI network.
- * - **finalized-failed**: An attempt to mint a finalized tx failed, but it may be retried.
+ * - **mint-failed**: An attempt to mint a finalized tx failed. Mint should be retried.
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
  */
@@ -61,7 +67,7 @@ export const enum TxStatus {
 	CONFIRMING = "confirming",
 	FINALIZED = "finalized",
 	MINTED = "minted",
-	FINALIZED_FAILED = "finalized-failed",
+	MINT_FAILED = "mint-failed",
 	REORG = "reorg",
 	FINALIZED_REORG = "finalized-reorg",
 	BROADCASTING = "broadcasting",

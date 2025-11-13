@@ -1,0 +1,16 @@
+{
+	"name": "@gonative-cc/lib",
+	"type": "module",
+	"license": "MPL-2.0",
+	"version": "0.0.1",
+	"exports": {
+		"./*": "./src/*.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc",
+		"test": "echo NO TESTS"
+	},
+	"dependencies": {
+		"@mysten/sui": "^1.38.0"
+	}
+}

@@ -3,8 +3,7 @@ import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
-import { Transaction } from "bitcoinjs-lib";
-import { MintBatchArg, ProofResult, SuiTxDigest } from "./models";
+import type { MintBatchArg, SuiTxDigest } from "./models";
 import { toSerializableError } from "./errutils";
 
 export interface SuiClientCfg {
@@ -93,7 +92,14 @@ export class SuiClient {
 			throw new Error("No return values from devInspectTransactionBlock");
 		}
 		// The return value is a BCS-encoded vector<bool>.
-		const bytes = returnValues[0][0];
+		const firstReturnValue = returnValues[0];
+		if (!firstReturnValue) {
+			throw new Error("No return values from devInspectTransactionBlock");
+		}
+		const bytes = firstReturnValue[0];
+		if (!bytes) {
+			throw new Error("No return values from devInspectTransactionBlock");
+		}
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 

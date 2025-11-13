@@ -1,7 +1,9 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
-import { BitcoinNetwork, NbtcAddress, TxStatusResp } from "./models";
+import { BitcoinNetwork } from "./models";
+import type { NbtcAddress, TxStatusResp } from "./models";
 import { fetchNbtcAddresses } from "./storage";
+import type { InterfaceBtcIndexerRpc } from "./rpc-interface";
 
 /**
  * RPC entrypoint for btcindexer worker.
@@ -9,7 +11,7 @@ import { fetchNbtcAddresses } from "./storage";
  *
  * @see https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/
  */
-export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
+export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements InterfaceBtcIndexerRpc {
 	#indexer?: Indexer;
 
 	private async getIndexer(): Promise<Indexer> {
@@ -37,8 +39,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	 * @param txHex - The transaction hex string
 	 * @param network - The Bitcoin network
 	 * @returns Transaction ID and number of registered deposits
-	 */
-	async putNbtcTx(
+	 */	async putNbtcTx(
 		txHex: string,
 		network: BitcoinNetwork,
 	): Promise<{ tx_id: string; registered_deposits: number }> {

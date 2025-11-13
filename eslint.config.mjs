@@ -5,7 +5,12 @@ import tseslint from "typescript-eslint";
 import { globalIgnores } from "eslint/config";
 import prettierConfig from "eslint-config-prettier";
 
-const ignore = globalIgnores(["packages/**/*.d.ts"]);
+const ignore = globalIgnores([
+	"packages/**/*.d.ts",
+	"packages/**/scripts/**",
+	"packages/**/.mf/**",
+	"packages/**/node_modules/**",
+]);
 
 export default tseslint.config(
 	ignore,

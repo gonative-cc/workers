@@ -303,6 +303,17 @@ export class CFStorage implements Storage {
 		await this.d1.batch(statements);
 	}
 
+	async getDepositsBySender(btcAddress: string): Promise<NbtcTxRow[]> {
+		const query = this.d1.prepare(`
+            SELECT m.* FROM nbtc_minting m
+            JOIN nbtc_sender_deposits s ON m.tx_id = s.tx_id
+            WHERE s.sender = ?
+            ORDER BY m.created_at DESC
+        `);
+		const dbResult = await query.bind(btcAddress).all<NbtcTxRow>();
+		return dbResult.results ?? [];
+	}
+
 	async insertSenderDeposits(senders: { txId: string; sender: string }[]): Promise<void> {
 		if (senders.length === 0) {
 			return;

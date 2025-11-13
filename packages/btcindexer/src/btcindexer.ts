@@ -480,7 +480,7 @@ export class Indexer {
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
-							status: TxStatus.FINALIZED_FAILED,
+							status: TxStatus.MINT_FAILED,
 							...(suiTxDigest && { suiTxDigest }),
 						})),
 					);

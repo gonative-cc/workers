@@ -350,7 +350,6 @@ export class Indexer {
 						txId,
 					});
 					try {
-						// TODO: need to distniguish FINALIZED_REORG and MINTED_REORG
 						await this.storage.updateTxsStatus([txId], TxStatus.FINALIZED_REORG);
 					} catch (e) {
 						console.error({
@@ -472,12 +471,17 @@ export class Indexer {
 						})),
 					);
 				} else {
-					console.error({ msg: "Sui batch mint transaction failed", pkgKey });
+					console.error({
+						msg: "Sui batch mint transaction failed",
+						pkgKey,
+						suiTxDigest,
+					});
 					await this.storage.batchUpdateNbtcTxs(
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
 							status: TxStatus.MINT_FAILED,
+							...(suiTxDigest && { suiTxDigest }),
 						})),
 					);
 				}

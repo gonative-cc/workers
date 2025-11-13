@@ -145,8 +145,13 @@ export class SuiClient {
 				msg: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
 				error: result.effects?.status.error,
+				digest: result.digest,
 			});
-			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
+			const error = new Error(
+				`Batch mint transaction failed: ${result.effects?.status.error}`,
+			) as Error & { digest: string };
+			error.digest = result.digest;
+			throw error;
 		}
 		return result.digest;
 	}
@@ -156,12 +161,14 @@ export class SuiClient {
 		try {
 			return await this.mintNbtcBatch(mintArgs);
 		} catch (e) {
+			const error = e as Error & { digest?: string };
 			console.error({
 				msg: "Error during batch mint contract call",
 				error: toSerializableError(e),
 				btcTxIds: txIds,
+				suiTxDigest: error.digest,
 			});
-			return null;
+			return error.digest || null;
 		}
 	}
 }

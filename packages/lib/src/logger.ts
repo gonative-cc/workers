@@ -11,7 +11,7 @@ interface LogData {
 
 function log(level: "debug" | "info" | "warn" | "error", data: LogData) {
 	const output = { ...data, level };
-	console[level === "info" ? "log" : level](output);
+	console[level === "info" ? "log" : level](JSON.stringify(output));
 }
 
 export const logger = {
@@ -34,5 +34,5 @@ export function logError(ctx: Context, error?: unknown) {
 			ctx.error = error;
 		}
 	}
-	console.error(ctx);
+	logger.error(ctx);
 }

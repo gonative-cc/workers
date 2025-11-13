@@ -473,13 +473,22 @@ export class Indexer {
 					);
 				} else {
 					console.error({ msg: "Sui batch mint transaction failed", pkgKey });
-					await this.storage.batchUpdateNbtcTxs(
-						processedPrimaryKeys.map((p) => ({
-							tx_id: p.tx_id,
-							vout: p.vout,
-							status: TxStatus.MINT_FAILED,
-						})),
+
+					const updates = await Promise.all(
+						processedPrimaryKeys.map(async (p) => {
+							const isMinted = await this.nbtcClient.isBtcTxMinted(p.tx_id);
+							if (isMinted) {
+								console.log({
+									msg: "Front-run detected: tx already minted by someone else",
+									btcTxId: p.tx_id,
+								});
+								return { ...p, status: TxStatus.MINTED };
+							}
+							return { ...p, status: TxStatus.MINT_FAILED };
+						}),
 					);
+
+					await this.storage.batchUpdateNbtcTxs(updates);
 				}
 			}
 		}

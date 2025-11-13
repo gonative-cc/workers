@@ -151,6 +151,22 @@ export class SuiClient {
 		return result.digest;
 	}
 
+	async isBtcTxMinted(btcTxId: string): Promise<boolean> {
+		try {
+			const txIdBytes = Array.from(Buffer.from(btcTxId, "hex"));
+			const result = await this.client.getDynamicFieldObject({
+				parentId: this.nbtcContractId,
+				name: {
+					type: "vector<u8>",
+					value: txIdBytes,
+				},
+			});
+			return result.data !== null && result.data !== undefined;
+		} catch (e) {
+			return false;
+		}
+	}
+
 	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {

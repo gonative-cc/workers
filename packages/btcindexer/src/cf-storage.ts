@@ -273,12 +273,19 @@ export class CFStorage implements Storage {
 	}
 
 	async registerBroadcastedNbtcTx(
-		deposits: { txId: string; vout: number; suiRecipient: string; amountSats: number }[],
+		deposits: {
+			txId: string;
+			vout: number;
+			suiRecipient: string;
+			amountSats: number;
+			nbtc_pkg: string;
+			sui_network: string;
+		}[],
 	): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
-			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, '${TxStatus.BROADCASTING}', ?, ?)`,
+			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network)
+         VALUES (?, ?, ?, ?, '${TxStatus.BROADCASTING}', ?, ?, ?, ?)`,
 		);
 
 		const statements = deposits.map((deposit) =>
@@ -289,20 +296,11 @@ export class CFStorage implements Storage {
 				deposit.amountSats,
 				now,
 				now,
+				deposit.nbtc_pkg,
+				deposit.sui_network,
 			),
 		);
 		await this.d1.batch(statements);
-	}
-
-	async getDepositsBySender(btcAddress: string): Promise<NbtcTxRow[]> {
-		const query = this.d1.prepare(`
-            SELECT m.* FROM nbtc_minting m
-            JOIN nbtc_sender_deposits s ON m.tx_id = s.tx_id
-            WHERE s.sender = ?
-            ORDER BY m.created_at DESC
-        `);
-		const dbResult = await query.bind(btcAddress).all<NbtcTxRow>();
-		return dbResult.results ?? [];
 	}
 
 	async insertSenderDeposits(senders: { txId: string; sender: string }[]): Promise<void> {

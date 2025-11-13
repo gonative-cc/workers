@@ -37,7 +37,14 @@ export interface Storage {
 	getStatusByTxid(txid: string): Promise<NbtcTxRow | null>;
 	getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(
-		deposits: { txId: string; vout: number; suiRecipient: string; amountSats: number }[],
+		deposits: {
+			txId: string;
+			vout: number;
+			suiRecipient: string;
+			amountSats: number;
+			nbtc_pkg: string;
+			sui_network: string;
+		}[],
 	): Promise<void>;
 	getDepositsBySender(btcAddress: string): Promise<NbtcTxRow[]>;
 

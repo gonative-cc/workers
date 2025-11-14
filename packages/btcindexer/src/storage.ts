@@ -33,8 +33,8 @@ export interface Storage {
 			sui_network: string;
 		}[],
 	): Promise<void>;
-	getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
-	getTxStatus(txId: string): Promise<TxStatus | null>;
+	getMintCandidateTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
+	getMintedTxs(): Promise<FinalizedTxRow[]>;
 	updateTxsStatus(txIds: string[], status: TxStatus): Promise<void>;
 	batchUpdateNbtcTxs(
 		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string }[],

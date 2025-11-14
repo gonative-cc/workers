@@ -281,7 +281,7 @@ export class Indexer {
 	}
 
 	async processFinalizedTransactions(): Promise<void> {
-		const finalizedTxs = await this.storage.getFinalizedTxs(this.maxNbtcMintTxRetries);
+		const finalizedTxs = await this.storage.getMintCandidateTxs(this.maxNbtcMintTxRetries);
 
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;
@@ -346,25 +346,14 @@ export class Indexer {
 
 				if (txIndex === -1) {
 					console.error({
-						msg: "Minting: Could not find TX within its block. Detecting reorg.",
+						msg: "Minting: Could not find TX within its block. Setting to finalized-reorg.",
 						txId,
 					});
 					try {
-						const currentStatus = await this.storage.getTxStatus(txId);
-						const reorgStatus =
-							currentStatus === TxStatus.MINTED
-								? TxStatus.MINTED_REORG
-								: TxStatus.FINALIZED_REORG;
-						await this.storage.updateTxsStatus([txId], reorgStatus);
-						console.warn({
-							msg: "Minting: Transaction reorged",
-							txId,
-							previousStatus: currentStatus,
-							newStatus: reorgStatus,
-						});
+						await this.storage.updateTxsStatus([txId], TxStatus.FINALIZED_REORG);
 					} catch (e) {
 						console.error({
-							msg: "Minting: Failed to update reorg status",
+							msg: "Minting: Failed to update status to finalized-reorg",
 							error: toSerializableError(e),
 							txId,
 						});
@@ -491,6 +480,52 @@ export class Indexer {
 						})),
 					);
 				}
+			}
+		}
+	}
+
+	async detectMintedReorgs(): Promise<void> {
+		console.debug({ msg: "Cron: Checking for reorgs on minted transactions" });
+
+		const mintedTxs = await this.storage.getMintedTxs();
+
+		if (!mintedTxs || mintedTxs.length === 0) {
+			return;
+		}
+
+		for (const tx of mintedTxs) {
+			try {
+				const rawBlockBuffer = await this.storage.getBlock(tx.block_hash);
+				if (!rawBlockBuffer) {
+					//TODO: use logger once pr merged
+					console.warn({
+						msg: "Block data not found for minted transaction",
+						txId: tx.tx_id,
+						blockHash: tx.block_hash,
+					});
+					continue;
+				}
+
+				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+				const txIndex = block.transactions?.findIndex((t) => t.getId() === tx.tx_id);
+
+				if (txIndex === -1) {
+					await this.storage.updateTxsStatus([tx.tx_id], TxStatus.MINTED_REORG);
+					//TODO: use logger once pr merged
+					console.warn({
+						msg: "CRITICAL: Deep reorg detected on minted transaction",
+						txId: tx.tx_id,
+						blockHash: tx.block_hash,
+						blockHeight: tx.block_height,
+					});
+				}
+			} catch (e) {
+				//TODO: use logger once pr merged
+				console.error({
+					msg: "Error checking minted transaction for reorg",
+					error: toSerializableError(e),
+					txId: tx.tx_id,
+				});
 			}
 		}
 	}

@@ -59,6 +59,7 @@ export default {
 			}
 			await indexer.scanNewBlocks();
 			await indexer.processFinalizedTransactions();
+			await indexer.detectMintedReorgs();
 			console.log({ msg: "Cron job finished successfully" });
 		} catch (e) {
 			console.error({

@@ -8,6 +8,7 @@ import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import SuiClient, { type SuiClientCfg } from "./sui_client";
 import type { Deposit, ProofResult, NbtcAddress } from "./models";
+import { TxStatus } from "./models";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 
@@ -428,6 +429,87 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 			.all();
 		expect(results.length).toEqual(1);
 		expect(results[0]!.retry_count).toEqual(2);
+	});
+});
+
+describe("Indexer.detectMintedReorgs", () => {
+	it("should detect deep reorg on minted transaction and update status to MINTED_REORG", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+
+		await db
+			.prepare(
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			)
+			.bind(
+				txData.id,
+				0,
+				blockData.hash,
+				blockData.height,
+				txData.suiAddr,
+				txData.amountSats,
+				"minted",
+				Date.now(),
+				Date.now(),
+				0,
+				"0xPACKAGE",
+				"testnet",
+			)
+			.run();
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		const differentBlock = REGTEST_DATA[327]!;
+		await kv.put(blockData.hash, Buffer.from(differentBlock.rawBlockHex, "hex").buffer);
+
+		await indexer.detectMintedReorgs();
+
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("minted-reorg");
+	});
+
+	it("should not update status if minted transaction is still in block", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+
+		await db
+			.prepare(
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			)
+			.bind(
+				txData.id,
+				0,
+				blockData.hash,
+				blockData.height,
+				txData.suiAddr,
+				txData.amountSats,
+				"minted",
+				Date.now(),
+				Date.now(),
+				0,
+				"0xPACKAGE",
+				"testnet",
+			)
+			.run();
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		await indexer.detectMintedReorgs();
+
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("minted");
 	});
 });
 

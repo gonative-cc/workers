@@ -309,6 +309,7 @@ export class Indexer {
 
 			if (isMinted) {
 				checkedCount.frontRun++;
+				//TODO: use logger once pr merged
 				console.log({
 					msg: "Front-run detected: tx already minted on-chain",
 					btcTxId: txId,
@@ -323,6 +324,7 @@ export class Indexer {
 		}
 
 		if (checkedCount.frontRun > 0) {
+			//TODO: use logger once pr merged
 			console.log({
 				msg: "Front-run check completed",
 				checked: checkedCount.total,

@@ -154,6 +154,7 @@ export class SuiClient {
 	async isBtcTxMinted(btcTxId: string): Promise<boolean> {
 		try {
 			const txIdBytes = Array.from(Buffer.from(btcTxId, "hex"));
+			// TODO: consider using GraphQL for more efficient queries
 			const result = await this.client.getDynamicFieldObject({
 				parentId: this.nbtcContractId,
 				name: {

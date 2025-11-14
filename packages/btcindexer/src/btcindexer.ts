@@ -23,7 +23,6 @@ const btcNetworks = {
 	testnet: networks.testnet,
 	regtest: networks.regtest,
 };
-const validBtcNet = Object.keys(btcNetworks).keys();
 
 export async function indexerFromEnv(
 	env: Env,
@@ -205,7 +204,10 @@ export class Indexer {
 		if (!suiRecipient) suiRecipient = this.suiFallbackAddr;
 
 		for (let i = 0; i < tx.outs.length; i++) {
-			const vout = tx.outs[i]!;
+			const vout = tx.outs[i];
+			if (!vout) {
+				continue;
+			}
 			if (vout.script && vout.script[0] === OP_RETURN) {
 				continue;
 			}
@@ -545,7 +547,10 @@ export class Indexer {
 		const reorgedTxIds: string[] = [];
 		for (const tx of pendingTxs) {
 			if (tx.block_hash === null) continue;
-			const newBlockInQueue = await this.storage.getBlockInfo(tx.block_height, tx.btc_network);
+			const newBlockInQueue = await this.storage.getBlockInfo(
+				tx.block_height,
+				tx.btc_network,
+			);
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
 					console.warn({

@@ -73,7 +73,7 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 
 	async putNbtcTx(
 		txHex: string,
-		network: BitcoinNetwork,
+		_network: BitcoinNetwork,
 	): Promise<{ tx_id: string; registered_deposits: number }> {
 		const tx = Transaction.fromHex(txHex);
 		const tx_id = tx.getId();
@@ -132,7 +132,7 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 		return results;
 	}
 
-	async depositsBySender(address: string): Promise<TxStatusResp[]> {
+	async depositsBySender(_address: string): Promise<TxStatusResp[]> {
 		// Mock do not track sender addresses, it returns an  empty array
 		return [];
 	}

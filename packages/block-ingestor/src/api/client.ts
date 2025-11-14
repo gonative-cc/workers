@@ -1,5 +1,4 @@
 import { PutBlock, PutBlocksReq } from "./put-blocks";
-import { BitcoinNetwork } from "../networks";
 
 export const RestPath = {
 	blocks: "/",

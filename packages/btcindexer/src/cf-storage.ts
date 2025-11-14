@@ -1,5 +1,5 @@
 import { toSerializableError } from "./errutils";
-import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
+import type { FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
 import { BlockStatus, TxStatus } from "./models";
 import type { Storage } from "./storage";
 

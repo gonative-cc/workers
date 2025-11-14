@@ -111,7 +111,7 @@ export class CFStorage implements Storage {
 			blockHeight: number;
 			suiRecipient: string;
 			amountSats: number;
-			network: string;
+			btc_network: string;
 			nbtc_pkg: string;
 			sui_network: string;
 		}[],
@@ -121,14 +121,14 @@ export class CFStorage implements Storage {
 		}
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
-			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, network, nbtc_pkg, sui_network)
+			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network)
              VALUES (?, ?, ?, ?, ?, ?, '${TxStatus.CONFIRMING}', ?, ?, ?, ?, ?)
              ON CONFLICT(tx_id, vout) DO UPDATE SET
                 block_hash = excluded.block_hash,
                 block_height = excluded.block_height,
                 status = '${TxStatus.CONFIRMING}',
                 updated_at = excluded.updated_at,
-				network = excluded.network,
+				btc_network = excluded.btc_network,
 				nbtc_pkg = excluded.nbtc_pkg,
 				sui_network = excluded.sui_network`,
 		);
@@ -142,7 +142,7 @@ export class CFStorage implements Storage {
 				tx.amountSats,
 				now,
 				now,
-				tx.network,
+				tx.btc_network,
 				tx.nbtc_pkg,
 				tx.sui_network,
 			),
@@ -239,7 +239,7 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, block_hash, block_height, network FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}'`,
+				`SELECT tx_id, block_hash, block_height, btc_network FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}'`,
 			)
 			.all<PendingTx>();
 		return pendingTxs.results ?? [];
@@ -280,12 +280,13 @@ export class CFStorage implements Storage {
 			amountSats: number;
 			nbtc_pkg: string;
 			sui_network: string;
+			btc_network: string;
 		}[],
 	): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
-			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network)
-         VALUES (?, ?, ?, ?, '${TxStatus.BROADCASTING}', ?, ?, ?, ?)`,
+			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network)
+         VALUES (?, ?, ?, ?, '${TxStatus.BROADCASTING}', ?, ?, ?, ?, ?)`,
 		);
 
 		const statements = deposits.map((deposit) =>
@@ -298,9 +299,18 @@ export class CFStorage implements Storage {
 				now,
 				deposit.nbtc_pkg,
 				deposit.sui_network,
+				deposit.btc_network,
 			),
 		);
-		await this.d1.batch(statements);
+		try {
+			await this.d1.batch(statements);
+		} catch (e) {
+			console.error({
+				msg: "Failed to register broadcasted nBTC tx",
+				error: toSerializableError(e),
+			});
+			throw e;
+		}
 	}
 
 	async getDepositsBySender(btcAddress: string): Promise<NbtcTxRow[]> {

@@ -127,7 +127,7 @@ export class Indexer {
 			blockHeight: number;
 			suiRecipient: string;
 			amountSats: number;
-			network: string;
+			btc_network: string;
 			nbtc_pkg: string;
 			sui_network: string;
 		}[] = [];
@@ -158,7 +158,7 @@ export class Indexer {
 					blockHeight: blockInfo.height,
 					suiRecipient: deposit.suiRecipient,
 					amountSats: deposit.amountSats,
-					network: blockInfo.network,
+					btc_network: blockInfo.network,
 					nbtc_pkg: deposit.nbtc_pkg,
 					sui_network: deposit.sui_network,
 				});
@@ -545,7 +545,7 @@ export class Indexer {
 		const reorgedTxIds: string[] = [];
 		for (const tx of pendingTxs) {
 			if (tx.block_hash === null) continue;
-			const newBlockInQueue = await this.storage.getBlockInfo(tx.block_height, tx.network);
+			const newBlockInQueue = await this.storage.getBlockInfo(tx.block_height, tx.btc_network);
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
 					console.warn({
@@ -626,7 +626,7 @@ export class Indexer {
 		if (deposits.length === 0) {
 			throw new Error("Transaction does not contain any valid nBTC deposits.");
 		}
-		const depositData = deposits.map((d) => ({ ...d, txId }));
+		const depositData = deposits.map((d) => ({ ...d, txId, btc_network: network }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
 		console.log({
 			msg: "New nBTC minting deposit TX registered",

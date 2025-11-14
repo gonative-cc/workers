@@ -30,6 +30,7 @@ export interface Storage {
 			amountSats: number;
 			nbtc_pkg: string;
 			sui_network: string;
+			btc_network: string;
 		}[],
 	): Promise<void>;
 	getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
@@ -51,6 +52,7 @@ export interface Storage {
 			amountSats: number;
 			nbtc_pkg: string;
 			sui_network: string;
+			btc_network: string;
 		}[],
 	): Promise<void>;
 	getDepositsBySender(btcAddress: string): Promise<NbtcTxRow[]>;

@@ -30,7 +30,7 @@ export interface PendingTx {
 	tx_id: string;
 	block_hash: string | null;
 	block_height: number;
-	network: string;
+	btc_network: string;
 }
 
 export interface FinalizedTxRow {

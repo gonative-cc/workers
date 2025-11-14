@@ -153,7 +153,7 @@ async function insertFinalizedTx(
 ) {
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			txData.id,
@@ -287,7 +287,7 @@ describe("Indexer.handleReorgs", () => {
 			tx_id: "tx1",
 			block_hash: "hash_A",
 			block_height: 100,
-			network: "regtest",
+			btc_network: "regtest",
 		};
 		const db = await mf.getD1Database("DB");
 		await db
@@ -306,7 +306,7 @@ describe("Indexer.handleReorgs", () => {
 			tx_id: "tx1",
 			block_hash: "hash_A",
 			block_height: 100,
-			network: "regtest",
+			btc_network: "regtest",
 		};
 		const db = await mf.getD1Database("DB");
 		await db
@@ -322,14 +322,14 @@ describe("Indexer.handleReorgs", () => {
 
 describe("Indexer.findFinalizedTxs", () => {
 	it("should generate a finalize statement when enough confirmations", () => {
-		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100, network: "regtest" };
+		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100, btc_network: "regtest" };
 		const latestHeight = 107;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
 		expect(updates.length).toEqual(1);
 	});
 
 	it("should do nothing when not enough confirmations", () => {
-		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100, network: "regtest" };
+		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100, btc_network: "regtest" };
 		const latestHeight = 106;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
 		expect(updates.length).toEqual(0);

@@ -544,6 +544,7 @@ describe("Indexer.processFinalizedTransactions Front-run Detection", () => {
 		const tx2 = blockData.txs[2]!;
 
 		const db = await mf.getD1Database("DB");
+		// TODO: we should be able to insert many txs in batch
 		await insertFinalizedTx(db, tx1, blockData);
 		await insertFinalizedTx(db, tx2, blockData);
 

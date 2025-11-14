@@ -1,4 +1,4 @@
-import { PutBlock, PutBlocksReq } from "./put-blocks";
+import { type PutBlock, PutBlocksReq } from "./put-blocks";
 
 export const RestPath = {
 	blocks: "/",

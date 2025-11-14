@@ -19,7 +19,7 @@ export async function handleIngestBlocks(request: Request, env: Env): Promise<Re
 	);
 
 	// Group messages by network
-	const messagesByNetwork: Record<string, BlockQueueMessage[]> = {};
+	const messagesByNetwork: Partial<Record<BitcoinNetwork, BlockQueueMessage[]>> = {};
 	for (const meta of blockMetas) {
 		const message: BlockQueueMessage = {
 			hash: meta.blockHash,
@@ -27,16 +27,20 @@ export async function handleIngestBlocks(request: Request, env: Env): Promise<Re
 			network: meta.block.network,
 			kv_key: meta.kvKey,
 		};
-		if (!messagesByNetwork[meta.block.network]) {
-			messagesByNetwork[meta.block.network] = [];
+		messagesByNetwork[meta.block.network] ??= [];
+		const messages = messagesByNetwork[meta.block.network];
+		if (messages) {
+			messages.push(message);
 		}
-		messagesByNetwork[meta.block.network].push(message);
 	}
 
 	// Batch queue sends for each network
 	for (const network in messagesByNetwork) {
 		const queue = getQueue(network as BitcoinNetwork, env);
-		await queue.sendBatch(messagesByNetwork[network].map((body) => ({ body })));
+		const messages = messagesByNetwork[network as BitcoinNetwork];
+		if (messages) {
+			await queue.sendBatch(messages.map((body: BlockQueueMessage) => ({ body })));
+		}
 	}
 
 	return new Response("Blocks ingested successfully", { status: 200 });

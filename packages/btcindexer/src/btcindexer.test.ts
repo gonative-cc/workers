@@ -479,23 +479,17 @@ describe("getSenderInsertStmts logic", () => {
 	});
 });
 
-describe("Indexer.processFinalizedTransactions Front-run Detection", () => {
-	it("should skip already-minted transactions before attempting mint", async () => {
+describe("Indexer.checkAndMarkFrontRunTransactions", () => {
+	it("should detect and mark front-run transactions as minted", async () => {
 		const blockData = REGTEST_DATA[329]!;
 		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData, blockData);
 
-		const kv = await mf.getKVNamespace("btc_blocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
-
-		const tryMintSpy = vi.spyOn(indexer.nbtcClient, "tryMintNbtcBatch");
 		vi.spyOn(indexer.nbtcClient, "isBtcTxMinted").mockResolvedValue(true);
 
-		await indexer.processFinalizedTransactions();
-
-		expect(tryMintSpy).not.toHaveBeenCalled();
+		await indexer.checkAndMarkFrontRunTransactions();
 
 		const { results } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
@@ -516,21 +510,12 @@ describe("Indexer.processFinalizedTransactions Front-run Detection", () => {
 		await insertFinalizedTx(db, tx1, blockData);
 		await insertFinalizedTx(db, tx2, blockData);
 
-		const kv = await mf.getKVNamespace("btc_blocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
-
-		const tryMintSpy = vi
-			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue("fake-sui-tx-digest");
 		vi.spyOn(indexer.nbtcClient, "isBtcTxMinted").mockImplementation(async (txId) => {
-			return txId === tx1.id; // tx1 is already minted, tx2 is not
+			return txId === tx1.id;
 		});
 
-		await indexer.processFinalizedTransactions();
-		expect(tryMintSpy).toHaveBeenCalledTimes(1);
-		const mintCall = tryMintSpy.mock.calls[0]![0];
-		expect(mintCall.length).toEqual(1);
-		expect(mintCall[0]!.tx.getId()).toEqual(tx2.id);
+		await indexer.checkAndMarkFrontRunTransactions();
+
 		const { results: results1 } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
 			.bind(tx1.id)
@@ -538,12 +523,31 @@ describe("Indexer.processFinalizedTransactions Front-run Detection", () => {
 		expect(results1.length).toEqual(1);
 		expect(results1[0]!.status).toEqual("minted");
 		expect(results1[0]!.sui_tx_id).toBeNull();
+
 		const { results: results2 } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
 			.bind(tx2.id)
 			.all();
 		expect(results2.length).toEqual(1);
-		expect(results2[0]!.status).toEqual("minted");
-		expect(results2[0]!.sui_tx_id).toEqual("fake-sui-tx-digest");
+		expect(results2[0]!.status).toEqual("finalized");
+	});
+
+	it("should not modify transactions that are not front-run", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+		await insertFinalizedTx(db, txData, blockData);
+
+		vi.spyOn(indexer.nbtcClient, "isBtcTxMinted").mockResolvedValue(false);
+
+		await indexer.checkAndMarkFrontRunTransactions();
+
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("finalized");
 	});
 });

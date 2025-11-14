@@ -9,6 +9,7 @@ import type {
 	TxStatusResp as TxStatusResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
+	FinalizedTxRow,
 	NbtcAddress,
 } from "./models";
 import { BlockStatus, TxStatus } from "./models";
@@ -280,6 +281,56 @@ export class Indexer {
 		return deposits;
 	}
 
+	/**
+	 * Checks for front-run transactions.
+	 * Should be run periodically on cron.
+	 */
+	async checkAndMarkFrontRunTransactions(): Promise<void> {
+		const finalizedTxs = await this.storage.getFinalizedTxs(this.maxNbtcMintTxRetries);
+
+		if (!finalizedTxs || finalizedTxs.length === 0) {
+			return;
+		}
+		const txGroups = new Map<string, FinalizedTxRow[]>();
+		for (const row of finalizedTxs) {
+			const group = txGroups.get(row.tx_id);
+			if (group) {
+				group.push(row);
+			} else {
+				txGroups.set(row.tx_id, [row]);
+			}
+		}
+
+		const checkedCount = { total: 0, frontRun: 0 };
+
+		for (const [txId, txGroup] of txGroups.entries()) {
+			checkedCount.total++;
+			const isMinted = await this.nbtcClient.isBtcTxMinted(txId);
+
+			if (isMinted) {
+				checkedCount.frontRun++;
+				console.log({
+					msg: "Front-run detected: tx already minted on-chain",
+					btcTxId: txId,
+				});
+				const updates = txGroup.map((deposit) => ({
+					tx_id: deposit.tx_id,
+					vout: deposit.vout,
+					status: TxStatus.MINTED,
+				}));
+				await this.storage.batchUpdateNbtcTxs(updates);
+			}
+		}
+
+		if (checkedCount.frontRun > 0) {
+			console.log({
+				msg: "Front-run check completed",
+				checked: checkedCount.total,
+				frontRun: checkedCount.frontRun,
+			});
+		}
+	}
+
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.storage.getFinalizedTxs(this.maxNbtcMintTxRetries);
 
@@ -450,27 +501,13 @@ export class Indexer {
 					continue;
 				}
 
-				const notYetMinted = await this.filterAlreadyMinted(
-					mintBatchArgs,
-					processedPrimaryKeys,
-				);
-
-				if (notYetMinted.mintArgs.length === 0) {
-					//TODO: use logger once pr merged
-					console.log({
-						msg: "All transactions already minted, skipping mint",
-						pkgKey,
-					});
-					continue;
-				}
-
 				console.log({
 					msg: "Minting: Sending batch of mints to Sui",
-					count: notYetMinted.mintArgs.length,
+					count: mintBatchArgs.length,
 					pkgKey: pkgKey,
 				});
 
-				const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(notYetMinted.mintArgs);
+				const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
 				if (suiTxDigest) {
 					console.log({
 						msg: "Sui batch mint transaction successful",
@@ -478,7 +515,7 @@ export class Indexer {
 						pkgKey,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						notYetMinted.keys.map((p) => ({
+						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
 							status: TxStatus.MINTED,
@@ -488,7 +525,7 @@ export class Indexer {
 				} else {
 					console.error({ msg: "Sui batch mint transaction failed", pkgKey });
 					await this.storage.batchUpdateNbtcTxs(
-						notYetMinted.keys.map((p) => ({
+						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
 							status: TxStatus.MINT_FAILED,
@@ -497,46 +534,6 @@ export class Indexer {
 				}
 			}
 		}
-	}
-
-	/*
-	 * Filters out transactions that are already minted.
-	 */
-	private async filterAlreadyMinted(
-		mintArgs: MintBatchArg[],
-		keys: { tx_id: string; vout: number }[],
-	): Promise<{
-		mintArgs: MintBatchArg[];
-		keys: { tx_id: string; vout: number }[];
-	}> {
-		const filteredMintArgs: MintBatchArg[] = [];
-		const filteredKeys: { tx_id: string; vout: number }[] = [];
-
-		for (let i = 0; i < mintArgs.length; i++) {
-			const mintArg = mintArgs[i];
-			const key = keys[i];
-			if (!mintArg || !key) {
-				continue;
-			}
-
-			const isMinted = await this.nbtcClient.isBtcTxMinted(key.tx_id);
-
-			if (isMinted) {
-				//TODO: use logger once pr merged
-				console.log({
-					msg: "Front-run detected: tx already minted, skipping",
-					btcTxId: key.tx_id,
-				});
-				await this.storage.batchUpdateNbtcTxs([
-					{ tx_id: key.tx_id, vout: key.vout, status: TxStatus.MINTED },
-				]);
-			} else {
-				filteredMintArgs.push(mintArg);
-				filteredKeys.push(key);
-			}
-		}
-
-		return { mintArgs: filteredMintArgs, keys: filteredKeys };
 	}
 
 	constructMerkleTree(block: Block): BitcoinMerkleTree | null {

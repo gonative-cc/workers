@@ -1,2 +1,0 @@
-ALTER TABLE nbtc_minting ADD COLUMN nbtc_pkg TEXT NOT NULL DEFAULT '';
-ALTER TABLE nbtc_minting ADD COLUMN sui_network TEXT NOT NULL DEFAULT '';

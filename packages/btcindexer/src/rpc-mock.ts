@@ -1,10 +1,10 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
-import type { PutBlocks } from "./api/put-blocks";
 import type { TxStatusResp } from "./models";
 import { TxStatus } from "./models";
 import { Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import type { InterfaceBtcIndexerRpc } from "./rpc-interface";
+import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
 
 interface MockTxData {
 	suiRecipient: string;
@@ -67,15 +67,14 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 		return addressIndex;
 	}
 
-	async putBlocks(blocks: PutBlocks[]): Promise<number> {
-		return blocks.length;
-	}
-
 	async latestHeight(): Promise<{ height: number | null }> {
 		return { height: 100 };
 	}
 
-	async putNbtcTx(txHex: string): Promise<{ tx_id: string; registered_deposits: number }> {
+	async putNbtcTx(
+		txHex: string,
+		_network: BitcoinNetwork,
+	): Promise<{ tx_id: string; registered_deposits: number }> {
 		const tx = Transaction.fromHex(txHex);
 		const tx_id = tx.getId();
 
@@ -133,7 +132,7 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 		return results;
 	}
 
-	async depositsBySender(address: string): Promise<TxStatusResp[]> {
+	async depositsBySender(_address: string): Promise<TxStatusResp[]> {
 		// Mock do not track sender addresses, it returns an  empty array
 		return [];
 	}

@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "block-ingestor",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    {
+      "binding": "BLOCK_STORE",
+      "id": "00000000000000000000000000000000",
+    },
+  ],
+  "queues": {
+    "producers": [
+      { "queue": "regtest-block-queue", "binding": "BLOCK_QUEUE_REGTEST" },
+      { "queue": "testnet-block-queue", "binding": "BLOCK_QUEUE_TESTNET" },
+      { "queue": "mainnet-block-queue", "binding": "BLOCK_QUEUE_MAINNET" },
+    ],
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+  },
+}

@@ -213,7 +213,13 @@ export class CFStorage implements Storage {
 
 		const statements = updates.map((p) => {
 			if (p.status === TxStatus.MINTED) {
-				return setMintedStmt.bind(TxStatus.MINTED, p.suiTxDigest, now, p.tx_id, p.vout);
+				return setMintedStmt.bind(
+					TxStatus.MINTED,
+					p.suiTxDigest || null,
+					now,
+					p.tx_id,
+					p.vout,
+				);
 			} else {
 				return setFailedStmt.bind(TxStatus.MINT_FAILED, now, p.tx_id, p.vout);
 			}

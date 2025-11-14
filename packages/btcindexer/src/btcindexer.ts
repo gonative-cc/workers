@@ -476,10 +476,21 @@ export class Indexer {
 
 					const updates = await Promise.all(
 						processedPrimaryKeys.map(async (p) => {
+							// First check our DB to see if it's already marked as minted
+							const txRecord = await this.storage.getStatusByTxid(p.tx_id);
+							if (txRecord && txRecord.status === TxStatus.MINTED) {
+								console.log({
+									msg: "Front-run detected: tx already minted in DB",
+									btcTxId: p.tx_id,
+								});
+								return { ...p, status: TxStatus.MINTED };
+							}
+
+							// Fallback: check the blockchain
 							const isMinted = await this.nbtcClient.isBtcTxMinted(p.tx_id);
 							if (isMinted) {
 								console.log({
-									msg: "Front-run detected: tx already minted by someone else",
+									msg: "Front-run detected: tx already minted on chain",
 									btcTxId: p.tx_id,
 								});
 								return { ...p, status: TxStatus.MINTED };

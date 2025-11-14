@@ -480,7 +480,38 @@ describe("getSenderInsertStmts logic", () => {
 });
 
 describe("Indexer.processFinalizedTransactions Front-run Detection", () => {
-	it("should detect when a tx was already minted by someone else and mark it as MINTED", async () => {
+	it("should check DB first and skip blockchain query when tx is already minted in DB", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+		await insertFinalizedTx(db, txData, blockData);
+		await db
+			.prepare("UPDATE nbtc_minting SET status = ? WHERE tx_id = ?")
+			.bind("minted", txData.id)
+			.run();
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		vi.spyOn(indexer.nbtcClient, "tryMintNbtcBatch").mockResolvedValue(null);
+		const isBtcTxMintedSpy = vi
+			.spyOn(indexer.nbtcClient, "isBtcTxMinted")
+			.mockResolvedValue(true);
+
+		await indexer.processFinalizedTransactions();
+		expect(isBtcTxMintedSpy).not.toHaveBeenCalled();
+
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("minted");
+		expect(results[0]!.sui_tx_id).toBeNull();
+	});
+
+	it("should fallback to blockchain check when tx is not minted in DB", async () => {
 		const blockData = REGTEST_DATA[329]!;
 		const txData = blockData.txs[1]!;
 
@@ -491,9 +522,12 @@ describe("Indexer.processFinalizedTransactions Front-run Detection", () => {
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		vi.spyOn(indexer.nbtcClient, "tryMintNbtcBatch").mockResolvedValue(null);
-		vi.spyOn(indexer.nbtcClient, "isBtcTxMinted").mockResolvedValue(true);
+		const isBtcTxMintedSpy = vi
+			.spyOn(indexer.nbtcClient, "isBtcTxMinted")
+			.mockResolvedValue(true);
 
 		await indexer.processFinalizedTransactions();
+		expect(isBtcTxMintedSpy).toHaveBeenCalledWith(txData.id);
 
 		const { results } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")

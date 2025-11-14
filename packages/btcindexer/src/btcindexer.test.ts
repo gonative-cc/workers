@@ -322,14 +322,24 @@ describe("Indexer.handleReorgs", () => {
 
 describe("Indexer.findFinalizedTxs", () => {
 	it("should generate a finalize statement when enough confirmations", () => {
-		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100, btc_network: "regtest" };
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: null,
+			block_height: 100,
+			btc_network: "regtest",
+		};
 		const latestHeight = 107;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
 		expect(updates.length).toEqual(1);
 	});
 
 	it("should do nothing when not enough confirmations", () => {
-		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100, btc_network: "regtest" };
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: null,
+			block_height: 100,
+			btc_network: "regtest",
+		};
 		const latestHeight = 106;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
 		expect(updates.length).toEqual(0);

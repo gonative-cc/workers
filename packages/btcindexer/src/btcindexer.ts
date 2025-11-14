@@ -346,15 +346,25 @@ export class Indexer {
 
 				if (txIndex === -1) {
 					console.error({
-						msg: "Minting: Could not find TX within its block. Setting status to 'finalized-reorg'.",
+						msg: "Minting: Could not find TX within its block. Detecting reorg.",
 						txId,
 					});
 					try {
-						// TODO: need to distniguish FINALIZED_REORG and MINTED_REORG
-						await this.storage.updateTxsStatus([txId], TxStatus.FINALIZED_REORG);
+						const currentStatus = await this.storage.getTxStatus(txId);
+						const reorgStatus =
+							currentStatus === TxStatus.MINTED
+								? TxStatus.MINTED_REORG
+								: TxStatus.FINALIZED_REORG;
+						await this.storage.updateTxsStatus([txId], reorgStatus);
+						console.warn({
+							msg: "Minting: Transaction reorged",
+							txId,
+							previousStatus: currentStatus,
+							newStatus: reorgStatus,
+						});
 					} catch (e) {
 						console.error({
-							msg: "Minting: Failed to update status to 'finalized-reorg'",
+							msg: "Minting: Failed to update reorg status",
 							error: toSerializableError(e),
 							txId,
 						});

@@ -8,6 +8,7 @@ import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import SuiClient, { type SuiClientCfg } from "./sui_client";
 import type { Deposit, ProofResult, NbtcAddress } from "./models";
+import { TxStatus } from "./models";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 
@@ -428,6 +429,33 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 			.all();
 		expect(results.length).toEqual(1);
 		expect(results[0]!.retry_count).toEqual(2);
+	});
+
+	it("should set MINTED_REORG status when tx not found in block but status changed to minted during processing", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+
+		await insertFinalizedTx(db, txData, blockData);
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		const differentBlock = REGTEST_DATA[327]!;
+		await kv.put(blockData.hash, Buffer.from(differentBlock.rawBlockHex, "hex").buffer);
+
+		const getTxStatusSpy = vi
+			.spyOn(indexer.storage, "getTxStatus")
+			.mockResolvedValue(TxStatus.MINTED);
+
+		await indexer.processFinalizedTransactions();
+		expect(getTxStatusSpy).toHaveBeenCalledWith(txData.id);
+
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("minted-reorg");
 	});
 });
 

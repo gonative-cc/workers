@@ -55,6 +55,7 @@ export interface GroupedFinalizedTx {
  * - **mint-failed**: An attempt to mint a finalized tx failed. Mint should be retried.
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
+ * - **minted-reorg**: An edge-case where a tx was successfully minted on Sui, but the Bitcoin deposit was later reorged. Tracked for monitoring purposes for now.
  */
 export const enum TxStatus {
 	CONFIRMING = "confirming",
@@ -63,6 +64,7 @@ export const enum TxStatus {
 	MINT_FAILED = "mint-failed",
 	REORG = "reorg",
 	FINALIZED_REORG = "finalized-reorg",
+	MINTED_REORG = "minted-reorg",
 	BROADCASTING = "broadcasting",
 }
 

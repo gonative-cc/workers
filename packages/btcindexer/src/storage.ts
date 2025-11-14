@@ -34,6 +34,7 @@ export interface Storage {
 		}[],
 	): Promise<void>;
 	getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
+	getTxStatus(txId: string): Promise<TxStatus | null>;
 	updateTxsStatus(txIds: string[], status: TxStatus): Promise<void>;
 	batchUpdateNbtcTxs(
 		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string }[],

@@ -11,6 +11,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@gonative-cc/lib": "workspace:*",
     "msgpackr": "^1.10.0",
     "bitcoinjs-lib": "^6.1.3"
   },

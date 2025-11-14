@@ -11,7 +11,8 @@ import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 import { BtcIndexerRpc } from "./rpc";
 import { fetchNbtcAddresses } from "./storage";
-import { NbtcAddress, BlockQueueMessage } from "./models";
+import { type NbtcAddress } from "./models";
+import { type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 import { CFStorage } from "./cf-storage";
 
 const router = new HttpRouter(undefined);

@@ -1,4 +1,8 @@
-import { BitcoinNetwork } from "./networks";
+export enum BitcoinNetwork {
+	REGTEST = "regtest",
+	TESTNET = "testnet",
+	MAINNET = "mainnet",
+}
 
 export interface BlockQueueMessage {
 	hash: string;

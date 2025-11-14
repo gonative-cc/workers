@@ -110,6 +110,8 @@ export interface MintBatchArg {
 	sui_network: string;
 }
 
+import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
+
 export interface PostNbtcTxRequest {
 	txHex: string;
 	network: BitcoinNetwork;
@@ -117,15 +119,4 @@ export interface PostNbtcTxRequest {
 
 export type SuiTxDigest = string;
 
-export enum BitcoinNetwork {
-	REGTEST = "regtest",
-	TESTNET = "testnet",
-	MAINNET = "mainnet",
-}
-
-export interface BlockQueueMessage {
-	hash: string;
-	height: number;
-	network: BitcoinNetwork;
-	kv_key: string;
-}
+export type { BlockQueueMessage };

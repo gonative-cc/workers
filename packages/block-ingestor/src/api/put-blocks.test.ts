@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { newPutBlock, PutBlocksReq } from "./put-blocks";
 import { Block } from "bitcoinjs-lib";
-import { BitcoinNetwork } from "../networks";
+import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
 
 function bufferToHex(buffer: Buffer) {
 	// Convert to Uint8Array if it's an ArrayBuffer

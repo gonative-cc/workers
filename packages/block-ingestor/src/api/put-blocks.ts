@@ -1,6 +1,6 @@
 import { Block } from "bitcoinjs-lib";
 import { pack, unpack } from "msgpackr";
-import { BitcoinNetwork } from "../networks";
+import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
 
 export interface PutBlock {
 	network: BitcoinNetwork;

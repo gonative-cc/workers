@@ -2,7 +2,6 @@ import { toSerializableError } from "./errutils";
 import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
 import { BlockStatus, TxStatus } from "./models";
 import type { Storage } from "./storage";
-import { D1Database, KVNamespace } from "@cloudflare/workers-types";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;

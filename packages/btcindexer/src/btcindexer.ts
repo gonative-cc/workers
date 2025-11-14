@@ -9,8 +9,6 @@ import type {
 	MintBatchArg,
 	GroupedFinalizedTx,
 	NbtcAddress,
-	BlockQueueMessage,
-	BitcoinNetwork,
 } from "./models";
 import { BlockStatus, TxStatus } from "./models";
 import { toSerializableError } from "./errutils";
@@ -18,6 +16,7 @@ import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
 import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
+import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 
 const btcNetworks = {
 	mainnet: networks.bitcoin,

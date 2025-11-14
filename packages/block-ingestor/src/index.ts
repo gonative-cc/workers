@@ -1,6 +1,5 @@
 import { PutBlocksReq } from "./api/put-blocks";
-import { BitcoinNetwork } from "./networks";
-import { BlockQueueMessage } from "./types";
+import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 
 export async function handleIngestBlocks(request: Request, env: Env): Promise<Response> {
 	const blocks = PutBlocksReq.decode(await request.arrayBuffer());

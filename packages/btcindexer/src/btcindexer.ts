@@ -473,36 +473,42 @@ export class Indexer {
 					);
 				} else {
 					console.error({ msg: "Sui batch mint transaction failed", pkgKey });
-
 					const updates = await Promise.all(
-						processedPrimaryKeys.map(async (p) => {
-							// First check our DB to see if it's already marked as minted
-							const txRecord = await this.storage.getStatusByTxid(p.tx_id);
-							if (txRecord && txRecord.status === TxStatus.MINTED) {
-								console.log({
-									msg: "Front-run detected: tx already minted in DB",
-									btcTxId: p.tx_id,
-								});
-								return { ...p, status: TxStatus.MINTED };
-							}
-
-							// Fallback: check the blockchain
-							const isMinted = await this.nbtcClient.isBtcTxMinted(p.tx_id);
-							if (isMinted) {
-								console.log({
-									msg: "Front-run detected: tx already minted on chain",
-									btcTxId: p.tx_id,
-								});
-								return { ...p, status: TxStatus.MINTED };
-							}
-							return { ...p, status: TxStatus.MINT_FAILED };
-						}),
+						processedPrimaryKeys.map((p) => this.checkTxStatusAfterMintFailure(p)),
 					);
-
 					await this.storage.batchUpdateNbtcTxs(updates);
 				}
 			}
 		}
+	}
+
+	/**
+	 * Checks if tx was front-run.
+	 * First checks the DB, then falls back to blockchain query if not found.
+	 */
+	private async checkTxStatusAfterMintFailure(primaryKey: {
+		tx_id: string;
+		vout: number;
+	}): Promise<{ tx_id: string; vout: number; status: TxStatus }> {
+		const txRecord = await this.storage.getStatusByTxid(primaryKey.tx_id);
+		if (txRecord && txRecord.status === TxStatus.MINTED) {
+			console.log({
+				msg: "Front-run detected: tx already minted in DB",
+				btcTxId: primaryKey.tx_id,
+			});
+			return { ...primaryKey, status: TxStatus.MINTED };
+		}
+
+		const isMinted = await this.nbtcClient.isBtcTxMinted(primaryKey.tx_id);
+		if (isMinted) {
+			console.log({
+				msg: "Front-run detected: tx already minted on chain",
+				btcTxId: primaryKey.tx_id,
+			});
+			return { ...primaryKey, status: TxStatus.MINTED };
+		}
+
+		return { ...primaryKey, status: TxStatus.MINT_FAILED };
 	}
 
 	constructMerkleTree(block: Block): BitcoinMerkleTree | null {

@@ -456,6 +456,7 @@ export class Indexer {
 				);
 
 				if (notYetMinted.mintArgs.length === 0) {
+					//TODO: use logger once pr merged
 					console.log({
 						msg: "All transactions already minted, skipping mint",
 						pkgKey,
@@ -521,6 +522,7 @@ export class Indexer {
 			const isMinted = await this.nbtcClient.isBtcTxMinted(key.tx_id);
 
 			if (isMinted) {
+				//TODO: use logger once pr merged
 				console.log({
 					msg: "Front-run detected: tx already minted, skipping",
 					btcTxId: key.tx_id,

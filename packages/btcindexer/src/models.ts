@@ -1,8 +1,9 @@
 import { Transaction } from "bitcoinjs-lib";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { BtcNet } from "@gonative-cc/lib/nbtc";
 
 export interface NbtcAddress {
-	btc_network: string;
+	btc_network: BtcNet;
 	sui_network: SuiNet;
 	nbtc_pkg: string;
 	btc_address: string;
@@ -96,7 +97,7 @@ export interface NbtcTxRow {
 	retry_count: number;
 	nbtc_pkg: string;
 	sui_network: SuiNet;
-	btc_network: string;
+	btc_network: BtcNet;
 }
 
 export interface MintBatchArg {

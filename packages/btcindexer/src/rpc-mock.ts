@@ -1,4 +1,5 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
+
 import type { PutBlocks } from "./api/put-blocks";
 import type { NbtcTxResp } from "./models";
 import { BtcTxStatus } from "./models";
@@ -65,7 +66,7 @@ function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
 		retry_count: 1,
 		nbtc_pkg: "0x12",
 		sui_network: "mainnet",
-		btc_network: "devnet",
+		btc_network: "regtest",
 	};
 }
 

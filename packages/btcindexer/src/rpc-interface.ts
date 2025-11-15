@@ -8,7 +8,7 @@ export interface BtcIndexerRpcI {
 	putBlocks(blocks: PutBlocks[]): Promise<number>;
 	latestHeight(): Promise<{ height: number | null }>;
 	putNbtcTx(txHex: string): Promise<{ tx_id: string; registered_deposits: number }>;
-	statusByTxid(txid: string): Promise<NbtcTxResp | null>;
-	statusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]>;
+	nbtcMintTx(txId: string): Promise<NbtcTxResp | null>;
+	nbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]>;
 	depositsBySender(address: string): Promise<NbtcTxResp[]>;
 }

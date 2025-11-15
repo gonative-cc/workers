@@ -2,7 +2,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 
 import type { PutBlocks } from "./api/put-blocks";
 import type { NbtcTxResp } from "./models";
-import { BtcTxStatus } from "./models";
+import { MintTxStatus } from "./models";
 import { Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import type { BtcIndexerRpcI } from "./rpc-interface";
@@ -36,15 +36,16 @@ function getStatus(createdAt: number) {
 	const elapsed_time = Math.floor((Date.now() - createdAt) / 1000);
 
 	if (elapsed_time < 10) {
-		return { status: BtcTxStatus.Broadcasting, confirmations: 0 };
+		return { status: MintTxStatus.Broadcasting, confirmations: 0 };
 	}
 
 	const confs = Math.min(Math.floor((elapsed_time - 10) / 120) + 1, MAX_CONFIRMATIONS);
 
-	if (confs < CONFIRMATION_DEPTH) return { status: BtcTxStatus.Confirming, confirmations: confs };
+	if (confs < CONFIRMATION_DEPTH)
+		return { status: MintTxStatus.Confirming, confirmations: confs };
 	if (confs === CONFIRMATION_DEPTH)
-		return { status: BtcTxStatus.Finalized, confirmations: confs };
-	return { status: BtcTxStatus.Minted, confirmations: confs };
+		return { status: MintTxStatus.Finalized, confirmations: confs };
+	return { status: MintTxStatus.Minted, confirmations: confs };
 }
 
 function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
@@ -122,14 +123,14 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements BtcIndex
 		return { tx_id, registered_deposits: 1 };
 	}
 
-	async statusByTxid(txid: string): Promise<NbtcTxResp | null> {
+	async nbtcMintTx(txid: string): Promise<NbtcTxResp | null> {
 		const data = this.txStatuses.get(txid);
 		if (!data) return null;
 
 		return buildTxStatusResp(txid, data);
 	}
 
-	async statusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]> {
+	async nbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]> {
 		const txIds = this.suiAddressIndex.get(suiAddress);
 		if (!txIds || txIds.size === 0) return [];
 

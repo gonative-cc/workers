@@ -3,7 +3,7 @@ import type {
 	BlockInfo,
 	NbtcTxRow,
 	PendingTx,
-	BtcTxStatus,
+	MintTxStatus,
 	FinalizedTxRow,
 	NbtcAddress,
 } from "./models";
@@ -19,6 +19,7 @@ export interface Storage {
 	setChainTip(height: number): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
 	getBlockInfo(height: number): Promise<{ hash: string } | null>;
+	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 
 	// nBTC Transaction operations
 	insertOrUpdateNbtcTxs(
@@ -33,24 +34,24 @@ export interface Storage {
 			sui_network: string;
 		}[],
 	): Promise<void>;
-	getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
-	updateTxsStatus(txIds: string[], status: BtcTxStatus): Promise<void>;
+
+	getNbtcFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
+	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
 	batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: BtcTxStatus; suiTxDigest?: string }[],
+		updates: { tx_id: string; vout: number; status: MintTxStatus; suiTxDigest?: string }[],
 	): Promise<void>;
-	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;
 	getConfirmingTxs(): Promise<PendingTx[]>;
-	finalizeTxs(txIds: string[]): Promise<void>;
-	getStatusByTxid(txid: string): Promise<NbtcTxRow | null>;
-	getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxRow[]>;
+	finalizeNbtcTxs(txIds: string[]): Promise<void>;
+	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
+	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(
 		deposits: { txId: string; vout: number; suiRecipient: string; amountSats: number }[],
 	): Promise<void>;
-	getDepositsBySender(btcAddress: string): Promise<NbtcTxRow[]>;
+	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
 
-	// Sender operations
-	insertSenderDeposits(senders: { txId: string; sender: string }[]): Promise<void>;
+	// Insert BTC deposit for nBTC mint.
+	insertBtcDeposit(senders: { txId: string; sender: string }[]): Promise<void>;
 }
 
 /**

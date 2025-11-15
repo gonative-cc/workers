@@ -58,14 +58,14 @@ export interface GroupedFinalizedTx {
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
  */
-export const enum BtcTxStatus {
+export const enum MintTxStatus {
 	Broadcasting = "broadcasting",
 	Confirming = "confirming",
+	Reorg = "reorg",
 	Finalized = "finalized",
+	FinalizedReorg = "finalized-reorg",
 	Minted = "minted",
 	MintFailed = "mint-failed",
-	Reorg = "reorg",
-	FinalizedReorg = "finalized-reorg",
 }
 
 export const enum BlockStatus {
@@ -75,7 +75,7 @@ export const enum BlockStatus {
 
 export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {
 	btc_tx_id: string;
-	status: BtcTxStatus;
+	status: MintTxStatus;
 	confirmations: number;
 }
 
@@ -88,7 +88,7 @@ export interface NbtcTxRow {
 	block_height: number | null;
 	sui_recipient: string;
 	amount_sats: number;
-	status: BtcTxStatus;
+	status: MintTxStatus;
 	// epoch time in ms
 	created_at: number;
 	// epoch time in ms

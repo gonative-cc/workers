@@ -59,9 +59,9 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	 * @param txid - Bitcoin transaction ID
 	 * @returns Transaction status or null if not found
 	 */
-	async statusByTxid(txid: string): Promise<NbtcTxResp | null> {
+	async nbtcMintTx(txid: string): Promise<NbtcTxResp | null> {
 		const indexer = await this.getIndexer();
-		return indexer.getStatusByTxid(txid);
+		return indexer.getNbtcMintTx(txid);
 	}
 
 	/**
@@ -69,9 +69,9 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	 * @param suiAddress - Sui recipient address
 	 * @returns Array of transaction statuses
 	 */
-	async statusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]> {
+	async nbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]> {
 		const indexer = await this.getIndexer();
-		return indexer.getStatusBySuiAddress(suiAddress);
+		return indexer.getNbtcMintTxsBySuiAddr(suiAddress);
 	}
 
 	/**

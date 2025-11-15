@@ -6,12 +6,12 @@ import SuiClient, { suiClientFromEnv } from "./sui_client";
 import type {
 	Deposit,
 	PendingTx,
-	TxStatusResp as TxStatusResp,
+	NbtcTxResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
 	NbtcAddress,
 } from "./models";
-import { BlockStatus, TxStatus } from "./models";
+import { BlockStatus, BtcTxStatus } from "./models";
 import { toSerializableError } from "./errutils";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
@@ -226,7 +226,7 @@ export class Indexer {
 
 		const heightsToUpdate = blocksToProcess.map((r) => r.height);
 		if (heightsToUpdate.length > 0) {
-			await this.storage.updateBlockStatus(heightsToUpdate, BlockStatus.SCANNED);
+			await this.storage.updateBlockStatus(heightsToUpdate, BlockStatus.Scanned);
 		}
 	}
 
@@ -351,7 +351,7 @@ export class Indexer {
 					});
 					try {
 						// TODO: need to distniguish FINALIZED_REORG and MINTED_REORG
-						await this.storage.updateTxsStatus([txId], TxStatus.FINALIZED_REORG);
+						await this.storage.updateTxsStatus([txId], BtcTxStatus.FinalizedReorg);
 					} catch (e) {
 						console.error({
 							msg: "Minting: Failed to update status to 'finalized-reorg'",
@@ -467,7 +467,7 @@ export class Indexer {
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
-							status: TxStatus.MINTED,
+							status: BtcTxStatus.Minted,
 							suiTxDigest,
 						})),
 					);
@@ -477,7 +477,7 @@ export class Indexer {
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
-							status: TxStatus.MINT_FAILED,
+							status: BtcTxStatus.MintFailed,
 						})),
 					);
 				}
@@ -575,7 +575,7 @@ export class Indexer {
 			});
 			// This requires a new method in the Storage interface like:
 			// updateTxsStatus(txIds: string[], status: TxStatus): Promise<void>
-			await this.storage.updateTxsStatus(reorgedTxIds, TxStatus.REORG);
+			await this.storage.updateTxsStatus(reorgedTxIds, BtcTxStatus.Reorg);
 		}
 
 		// TODO: add a unit test for it so we make sure we do not finalize reorrged tx.
@@ -631,7 +631,7 @@ export class Indexer {
 		return txIds;
 	}
 
-	async getStatusByTxid(txid: string): Promise<TxStatusResp | null> {
+	async getStatusByTxid(txid: string): Promise<NbtcTxResp | null> {
 		const latestHeight = await this.storage.getChainTip();
 		const tx = await this.storage.getStatusByTxid(txid);
 
@@ -645,23 +645,23 @@ export class Indexer {
 		return {
 			...tx,
 			btc_tx_id: tx.tx_id,
-			status: tx.status as TxStatus,
+			status: tx.status as BtcTxStatus,
 			block_height: blockHeight,
 			confirmations: confirmations > 0 ? confirmations : 0,
 		};
 	}
 
-	async getStatusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
+	async getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]> {
 		const latestHeight = await this.storage.getChainTip();
 		const dbResult = await this.storage.getStatusBySuiAddress(suiAddress);
 
-		return dbResult.map((tx): TxStatusResp => {
+		return dbResult.map((tx): NbtcTxResp => {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
 			return {
 				...tx,
 				btc_tx_id: tx.tx_id,
-				status: tx.status as TxStatus,
+				status: tx.status as BtcTxStatus,
 				block_height: blockHeight,
 				confirmations: confirmations > 0 ? confirmations : 0,
 			};
@@ -695,22 +695,21 @@ export class Indexer {
 		return { height };
 	}
 
-	async getDepositsBySender(btcAddress: string): Promise<TxStatusResp[]> {
+	async getDepositsBySender(btcAddress: string): Promise<NbtcTxResp[]> {
 		const dbResult = await this.storage.getDepositsBySender(btcAddress);
 		const latestHeight = await this.storage.getChainTip();
 
-		return dbResult.map((tx): TxStatusResp => {
-			const blockHeight = tx.block_height as number;
-			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
+		return dbResult.map((tx): NbtcTxResp => {
+			const bh = tx.block_height;
+			const confirmations = bh && latestHeight ? latestHeight - bh + 1 : 0;
+			const btc_tx_id = tx.tx_id;
+			// @ts-expect-error The operand of a 'delete' operator must be optional
+			delete tx.tx_id;
 
 			return {
-				btc_tx_id: tx.tx_id,
-				status: tx.status as TxStatus,
-				sui_tx_id: tx.sui_tx_id,
-				block_height: blockHeight,
+				btc_tx_id,
 				confirmations: confirmations > 0 ? confirmations : 0,
-				sui_recipient: tx.sui_recipient,
-				amount_sats: tx.amount_sats,
+				...tx,
 			};
 		});
 	}

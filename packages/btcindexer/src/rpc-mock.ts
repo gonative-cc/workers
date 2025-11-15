@@ -1,10 +1,10 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { PutBlocks } from "./api/put-blocks";
-import type { TxStatusResp } from "./models";
-import { TxStatus } from "./models";
+import type { NbtcTxResp } from "./models";
+import { BtcTxStatus } from "./models";
 import { Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
-import type { InterfaceBtcIndexerRpc } from "./rpc-interface";
+import type { BtcIndexerRpcI } from "./rpc-interface";
 
 interface MockTxData {
 	suiRecipient: string;
@@ -35,31 +35,41 @@ function getStatus(createdAt: number) {
 	const elapsed_time = Math.floor((Date.now() - createdAt) / 1000);
 
 	if (elapsed_time < 10) {
-		return { status: TxStatus.BROADCASTING, confirmations: 0 };
+		return { status: BtcTxStatus.Broadcasting, confirmations: 0 };
 	}
 
 	const confs = Math.min(Math.floor((elapsed_time - 10) / 120) + 1, MAX_CONFIRMATIONS);
 
-	if (confs < CONFIRMATION_DEPTH) return { status: TxStatus.CONFIRMING, confirmations: confs };
-	if (confs === CONFIRMATION_DEPTH) return { status: TxStatus.FINALIZED, confirmations: confs };
-	return { status: TxStatus.MINTED, confirmations: confs };
+	if (confs < CONFIRMATION_DEPTH) return { status: BtcTxStatus.Confirming, confirmations: confs };
+	if (confs === CONFIRMATION_DEPTH)
+		return { status: BtcTxStatus.Finalized, confirmations: confs };
+	return { status: BtcTxStatus.Minted, confirmations: confs };
 }
 
-function buildTxStatusResp(txid: string, data: MockTxData): TxStatusResp {
+function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
 	const { status, confirmations } = getStatus(data.createdAt);
 
 	return {
 		btc_tx_id: txid,
 		status,
-		block_height: null,
 		confirmations,
+
+		vout: 2,
+		block_hash: null,
+		block_height: null,
 		sui_recipient: data.suiRecipient,
 		amount_sats: data.amountSats,
+		created_at: data.createdAt,
+		updated_at: data.createdAt,
 		sui_tx_id: null,
+		retry_count: 1,
+		nbtc_pkg: "0x12",
+		sui_network: "mainnet",
+		btc_network: "devnet",
 	};
 }
 
-export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements InterfaceBtcIndexerRpc {
+export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements BtcIndexerRpcI {
 	private get txStatuses() {
 		return txData;
 	}
@@ -111,18 +121,18 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 		return { tx_id, registered_deposits: 1 };
 	}
 
-	async statusByTxid(txid: string): Promise<TxStatusResp | null> {
+	async statusByTxid(txid: string): Promise<NbtcTxResp | null> {
 		const data = this.txStatuses.get(txid);
 		if (!data) return null;
 
 		return buildTxStatusResp(txid, data);
 	}
 
-	async statusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
+	async statusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]> {
 		const txIds = this.suiAddressIndex.get(suiAddress);
 		if (!txIds || txIds.size === 0) return [];
 
-		const results: TxStatusResp[] = [];
+		const results: NbtcTxResp[] = [];
 		for (const txId of txIds) {
 			const data = this.txStatuses.get(txId);
 			if (data) {
@@ -133,7 +143,7 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 		return results;
 	}
 
-	async depositsBySender(address: string): Promise<TxStatusResp[]> {
+	async depositsBySender(_address: string): Promise<NbtcTxResp[]> {
 		// Mock do not track sender addresses, it returns an  empty array
 		return [];
 	}

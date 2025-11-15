@@ -1,9 +1,9 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
 import type { PutBlocks } from "./api/put-blocks";
-import type { NbtcAddress, TxStatusResp } from "./models";
+import type { NbtcAddress, NbtcTxResp } from "./models";
 import { fetchNbtcAddresses } from "./storage";
-import type { InterfaceBtcIndexerRpc } from "./rpc-interface";
+import type { BtcIndexerRpcI } from "./rpc-interface";
 
 /**
  * RPC entrypoint for btcindexer worker.
@@ -11,7 +11,7 @@ import type { InterfaceBtcIndexerRpc } from "./rpc-interface";
  *
  * @see https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/
  */
-export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements InterfaceBtcIndexerRpc {
+export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRpcI {
 	#indexer?: Indexer;
 
 	private async getIndexer(): Promise<Indexer> {
@@ -59,7 +59,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements InterfaceBtc
 	 * @param txid - Bitcoin transaction ID
 	 * @returns Transaction status or null if not found
 	 */
-	async statusByTxid(txid: string): Promise<TxStatusResp | null> {
+	async statusByTxid(txid: string): Promise<NbtcTxResp | null> {
 		const indexer = await this.getIndexer();
 		return indexer.getStatusByTxid(txid);
 	}
@@ -69,7 +69,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements InterfaceBtc
 	 * @param suiAddress - Sui recipient address
 	 * @returns Array of transaction statuses
 	 */
-	async statusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
+	async statusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]> {
 		const indexer = await this.getIndexer();
 		return indexer.getStatusBySuiAddress(suiAddress);
 	}
@@ -77,7 +77,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements InterfaceBtc
 	/**
 	 * Returns deposit transaction statuses by Bitcoin sender address
 	 */
-	async depositsBySender(address: string): Promise<TxStatusResp[]> {
+	async depositsBySender(address: string): Promise<NbtcTxResp[]> {
 		const indexer = await this.getIndexer();
 		return indexer.getDepositsBySender(address);
 	}

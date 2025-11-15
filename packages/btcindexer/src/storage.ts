@@ -3,7 +3,7 @@ import type {
 	BlockInfo,
 	NbtcTxRow,
 	PendingTx,
-	TxStatus,
+	BtcTxStatus,
 	FinalizedTxRow,
 	NbtcAddress,
 } from "./models";
@@ -34,9 +34,9 @@ export interface Storage {
 		}[],
 	): Promise<void>;
 	getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
-	updateTxsStatus(txIds: string[], status: TxStatus): Promise<void>;
+	updateTxsStatus(txIds: string[], status: BtcTxStatus): Promise<void>;
 	batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string }[],
+		updates: { tx_id: string; vout: number; status: BtcTxStatus; suiTxDigest?: string }[],
 	): Promise<void>;
 	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;

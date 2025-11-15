@@ -1,7 +1,7 @@
 import { Block } from "bitcoinjs-lib";
 import { toSerializableError } from "./errutils";
 import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
-import { BlockStatus, TxStatus } from "./models";
+import { BlockStatus, BtcTxStatus } from "./models";
 import type { Storage } from "./storage";
 
 export class CFStorage implements Storage {
@@ -45,7 +45,7 @@ export class CFStorage implements Storage {
 
 		const now = Date.now();
 		const insertBlockStmt = this.d1.prepare(
-			`INSERT INTO btc_blocks (height, hash, status, processed_at) VALUES (?, ?, '${BlockStatus.NEW}', ?)
+			`INSERT INTO btc_blocks (height, hash, status, processed_at) VALUES (?, ?, '${BlockStatus.New}', ?)
              ON CONFLICT(height)
               DO UPDATE SET
                hash = excluded.hash,
@@ -72,7 +72,7 @@ export class CFStorage implements Storage {
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
 		const blocksToProcess = await this.d1
 			.prepare(
-				`SELECT height, hash FROM btc_blocks WHERE status = '${BlockStatus.NEW}' ORDER BY height ASC LIMIT ?`,
+				`SELECT height, hash FROM btc_blocks WHERE status = '${BlockStatus.New}' ORDER BY height ASC LIMIT ?`,
 			)
 			.bind(batchSize)
 			.all<BlockInfo>();
@@ -146,11 +146,11 @@ export class CFStorage implements Storage {
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
 			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, '${TxStatus.CONFIRMING}', ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, '${BtcTxStatus.Confirming}', ?, ?)
              ON CONFLICT(tx_id, vout) DO UPDATE SET
                 block_hash = excluded.block_hash,
                 block_height = excluded.block_height,
-                status = '${TxStatus.CONFIRMING}',
+                status = '${BtcTxStatus.Confirming}',
                 updated_at = excluded.updated_at`,
 		);
 		const statements = txs.map((tx) =>
@@ -179,14 +179,14 @@ export class CFStorage implements Storage {
 	async getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE (status = '${TxStatus.FINALIZED}' OR (status = '${TxStatus.MINT_FAILED}' AND retry_count <= ?)) AND status != '${TxStatus.FINALIZED_REORG}'`,
+				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE (status = '${BtcTxStatus.Finalized}' OR (status = '${BtcTxStatus.MintFailed}' AND retry_count <= ?)) AND status != '${BtcTxStatus.FinalizedReorg}'`,
 			)
 			.bind(maxRetries)
 			.all<FinalizedTxRow>();
 		return finalizedTxs.results ?? [];
 	}
 
-	async updateTxsStatus(txIds: string[], status: TxStatus): Promise<void> {
+	async updateTxsStatus(txIds: string[], status: BtcTxStatus): Promise<void> {
 		if (txIds.length === 0) {
 			return;
 		}
@@ -201,7 +201,7 @@ export class CFStorage implements Storage {
 	}
 
 	async batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string }[],
+		updates: { tx_id: string; vout: number; status: BtcTxStatus; suiTxDigest?: string }[],
 	): Promise<void> {
 		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
@@ -212,10 +212,10 @@ export class CFStorage implements Storage {
 		);
 
 		const statements = updates.map((p) => {
-			if (p.status === TxStatus.MINTED) {
-				return setMintedStmt.bind(TxStatus.MINTED, p.suiTxDigest, now, p.tx_id, p.vout);
+			if (p.status === BtcTxStatus.Minted) {
+				return setMintedStmt.bind(BtcTxStatus.Minted, p.suiTxDigest, now, p.tx_id, p.vout);
 			} else {
-				return setFailedStmt.bind(TxStatus.MINT_FAILED, now, p.tx_id, p.vout);
+				return setFailedStmt.bind(BtcTxStatus.MintFailed, now, p.tx_id, p.vout);
 			}
 		});
 		try {
@@ -236,7 +236,7 @@ export class CFStorage implements Storage {
 		// This ensures we only try to verify blocks we know about.
 		const blocksToVerify = await this.d1
 			.prepare(
-				`SELECT DISTINCT block_hash FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}' AND block_hash IS NOT NULL`,
+				`SELECT DISTINCT block_hash FROM nbtc_minting WHERE status = '${BtcTxStatus.Confirming}' AND block_hash IS NOT NULL`,
 			)
 			.all<{ block_hash: string }>();
 		return blocksToVerify.results ?? [];
@@ -247,7 +247,7 @@ export class CFStorage implements Storage {
 		const placeholders = blockHashes.map(() => "?").join(",");
 		const updateStmt = this.d1
 			.prepare(
-				`UPDATE nbtc_minting SET status = '${TxStatus.REORG}', updated_at = ? WHERE block_hash IN (${placeholders})`,
+				`UPDATE nbtc_minting SET status = '${BtcTxStatus.Reorg}', updated_at = ? WHERE block_hash IN (${placeholders})`,
 			)
 			.bind(now, ...blockHashes);
 		await updateStmt.run();
@@ -256,7 +256,7 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = '${TxStatus.CONFIRMING}'`,
+				`SELECT tx_id, block_hash, block_height FROM nbtc_minting WHERE status = '${BtcTxStatus.Confirming}'`,
 			)
 			.all<PendingTx>();
 		return pendingTxs.results ?? [];
@@ -268,12 +268,13 @@ export class CFStorage implements Storage {
 		}
 		const now = Date.now();
 		const finalizeStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = '${TxStatus.FINALIZED}', updated_at = ${now} WHERE tx_id = ?`,
+			`UPDATE nbtc_minting SET status = '${BtcTxStatus.Finalized}', updated_at = ${now} WHERE tx_id = ?`,
 		);
 		const statements = txIds.map((txId) => finalizeStmt.bind(txId));
 		await this.d1.batch(statements);
 	}
 
+	// TODO: rename to getNbtcMineTx
 	async getStatusByTxid(txid: string): Promise<NbtcTxRow | null> {
 		return this.d1
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
@@ -295,7 +296,7 @@ export class CFStorage implements Storage {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, '${TxStatus.BROADCASTING}', ?, ?)`,
+         VALUES (?, ?, ?, ?, '${BtcTxStatus.Broadcasting}', ?, ?)`,
 		);
 
 		const statements = deposits.map((deposit) =>

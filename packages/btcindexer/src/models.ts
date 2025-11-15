@@ -1,8 +1,9 @@
 import { Transaction } from "bitcoinjs-lib";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface NbtcAddress {
 	btc_network: string;
-	sui_network: string;
+	sui_network: SuiNet;
 	nbtc_pkg: string;
 	btc_address: string;
 }
@@ -12,7 +13,7 @@ export interface Deposit {
 	amountSats: number;
 	suiRecipient: string;
 	nbtc_pkg: string;
-	sui_network: string;
+	sui_network: SuiNet;
 }
 
 export interface ProofResult {
@@ -31,9 +32,8 @@ export interface FinalizedTxRow {
 	vout: number;
 	block_hash: string;
 	block_height: number;
-	// TODO: use SuiNet
 	nbtc_pkg: string;
-	sui_network: string;
+	sui_network: SuiNet;
 }
 
 export interface BlockInfo {
@@ -95,7 +95,7 @@ export interface NbtcTxRow {
 	sui_tx_id: string | null;
 	retry_count: number;
 	nbtc_pkg: string;
-	sui_network: string;
+	sui_network: SuiNet;
 	btc_network: string;
 }
 
@@ -105,7 +105,7 @@ export interface MintBatchArg {
 	txIndex: number;
 	proof: ProofResult;
 	nbtc_pkg: string;
-	sui_network: string;
+	sui_network: SuiNet;
 }
 
 export interface PostNbtcTxRequest {

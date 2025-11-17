@@ -1,9 +1,12 @@
 import { Transaction } from "bitcoinjs-lib";
 import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
+// TODO: fix the imports 
+import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { BtcNet } from "@gonative-cc/lib/nbtc";
 
 export interface NbtcAddress {
-	btc_network: BitcoinNetwork;
-	sui_network: string;
+	btc_network: BtcNet;
+	sui_network: SuiNet;
 	nbtc_pkg: string;
 	btc_address: string;
 }
@@ -13,7 +16,7 @@ export interface Deposit {
 	amountSats: number;
 	suiRecipient: string;
 	nbtc_pkg: string;
-	sui_network: string;
+	sui_network: SuiNet;
 }
 
 export interface ProofResult {
@@ -34,7 +37,7 @@ export interface FinalizedTxRow {
 	block_hash: string;
 	block_height: number;
 	nbtc_pkg: string;
-	sui_network: string;
+	sui_network: SuiNet;
 }
 
 export interface BlockInfo {
@@ -58,42 +61,46 @@ export interface GroupedFinalizedTx {
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
  */
-export const enum TxStatus {
-	CONFIRMING = "confirming",
-	FINALIZED = "finalized",
-	MINTED = "minted",
-	MINT_FAILED = "mint-failed",
-	REORG = "reorg",
-	FINALIZED_REORG = "finalized-reorg",
-	BROADCASTING = "broadcasting",
+export const enum MintTxStatus {
+	Broadcasting = "broadcasting",
+	Confirming = "confirming",
+	Reorg = "reorg",
+	Finalized = "finalized",
+	FinalizedReorg = "finalized-reorg",
+	Minted = "minted",
+	MintFailed = "mint-failed",
 }
 
 export const enum BlockStatus {
-	NEW = "new",
-	SCANNED = "scanned",
+	New = "new",
+	Scanned = "scanned",
 }
 
-export interface TxStatusResp {
+export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {
 	btc_tx_id: string;
-	status: TxStatus;
-	block_height: number | null;
+	status: MintTxStatus;
 	confirmations: number;
-	sui_recipient: string;
-	amount_sats: number;
-	sui_tx_id: string | null;
 }
 
 export interface NbtcTxRow {
 	tx_id: string;
-	block_hash: string;
-	block_height: number | null;
 	vout: number;
+	// null if tx was detected in mempool
+	block_hash: string | null;
+	// null if tx was detected in mempool
+	block_height: number | null;
 	sui_recipient: string;
 	amount_sats: number;
-	status: TxStatus;
+	status: MintTxStatus;
+	// epoch time in ms
 	created_at: number;
+	// epoch time in ms
 	updated_at: number;
 	sui_tx_id: string | null;
+	retry_count: number;
+	nbtc_pkg: string;
+	sui_network: SuiNet;
+	btc_network: BtcNet;
 }
 
 export interface MintBatchArg {
@@ -102,7 +109,7 @@ export interface MintBatchArg {
 	txIndex: number;
 	proof: ProofResult;
 	nbtc_pkg: string;
-	sui_network: string;
+	sui_network: SuiNet;
 }
 
 export interface PostNbtcTxRequest {

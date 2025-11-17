@@ -1,4 +1,12 @@
-import type { NbtcTxRow, PendingTx, TxStatus, FinalizedTxRow, NbtcAddress } from "./models";
+import { Block } from "bitcoinjs-lib";
+import type {
+	BlockInfo,
+	NbtcTxRow,
+	PendingTx,
+	MintTxStatus,
+	FinalizedTxRow,
+	NbtcAddress,
+} from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 
@@ -11,6 +19,7 @@ export interface Storage {
 	setChainTip(height: number): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
 	getBlockInfo(height: number, network: string): Promise<{ hash: string } | null>;
+	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 
 	// nBTC Transaction operations
 	insertOrUpdateNbtcTxs(
@@ -26,17 +35,17 @@ export interface Storage {
 			btc_network: string;
 		}[],
 	): Promise<void>;
-	getFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
-	updateTxsStatus(txIds: string[], status: TxStatus): Promise<void>;
+
+	getNbtcFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
+	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
 	batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: TxStatus; suiTxDigest?: string }[],
+		updates: { tx_id: string; vout: number; status: MintTxStatus; suiTxDigest?: string }[],
 	): Promise<void>;
-	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;
 	getConfirmingTxs(): Promise<PendingTx[]>;
-	finalizeTxs(txIds: string[]): Promise<void>;
-	getStatusByTxid(txid: string): Promise<NbtcTxRow | null>;
-	getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxRow[]>;
+	finalizeNbtcTxs(txIds: string[]): Promise<void>;
+	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
+	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(
 		deposits: {
 			txId: string;
@@ -48,10 +57,10 @@ export interface Storage {
 			btc_network: string;
 		}[],
 	): Promise<void>;
-	getDepositsBySender(btcAddress: string): Promise<NbtcTxRow[]>;
+	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
 
-	// Sender operations
-	insertSenderDeposits(senders: { txId: string; sender: string }[]): Promise<void>;
+	// Insert BTC deposit for nBTC mint.
+	insertBtcDeposit(senders: { txId: string; sender: string }[]): Promise<void>;
 }
 
 /**

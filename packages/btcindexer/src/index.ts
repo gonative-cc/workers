@@ -9,7 +9,6 @@
 import { indexerFromEnv } from "./btcindexer";
 import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
-import { BtcIndexerRpc } from "./rpc";
 import { fetchNbtcAddresses } from "./storage";
 import { type NbtcAddress } from "./models";
 import { type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
@@ -86,5 +85,5 @@ export default {
 
 // Export RPC entrypoints for service bindings
 // Use BtcIndexerRpc for production, BtcIndexerRpcMock for local development/testing
-export { BtcIndexerRpc };
+export { BtcIndexerRpc } from "./rpc";
 export { BtcIndexerRpcMock } from "./rpc-mock";

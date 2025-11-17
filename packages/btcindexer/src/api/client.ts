@@ -1,5 +1,5 @@
 import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
-import { type TxStatusResp, type PostNbtcTxRequest } from "../models";
+import { type NbtcTxResp, type PostNbtcTxRequest } from "../models";
 
 export const enum RestPath {
 	latestHeight = "/height",
@@ -39,7 +39,7 @@ export class BtcIndexerClient {
 		return res.json();
 	}
 
-	async getStatusByBtcTxId(txid: string): Promise<TxStatusResp | null> {
+	async getStatusByBtcTxId(txid: string): Promise<NbtcTxResp | null> {
 		const res = await fetch(`${this.#url}${RestPath.nbtcTx}/${txid}`);
 		if (res.status === 404) {
 			return null;
@@ -50,9 +50,9 @@ export class BtcIndexerClient {
 		return res.json();
 	}
 
-	async getStatusBySuiAddress(suiRecipient: string): Promise<TxStatusResp[]> {
+	async getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]> {
 		const url = new URL(this.#url + RestPath.nbtcTx);
-		url.searchParams.append("sui_recipient", suiRecipient);
+		url.searchParams.append("sui_recipient", suiAddress);
 
 		const res = await fetch(url.toString());
 		if (!res.ok) {
@@ -61,7 +61,7 @@ export class BtcIndexerClient {
 		return res.json();
 	}
 
-	async getDepositsBySender(senderAddress: string): Promise<TxStatusResp[]> {
+	async getDepositsBySender(senderAddress: string): Promise<NbtcTxResp[]> {
 		const url = new URL(this.#url + RestPath.depositsBySender);
 		url.searchParams.append("sender", senderAddress);
 

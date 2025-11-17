@@ -51,9 +51,10 @@ export default {
 		const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 
 		for (const message of batch.messages) {
+			const blockMessage = message.body;
 			try {
-				await storage.insertBlockFromQueue(message.body);
-				await indexer.processBlock(message.body);
+				await storage.insertBlockInfo(blockMessage);
+				await indexer.processBlock(blockMessage);
 				await message.ack();
 			} catch (e) {
 				console.error("Failed to process block", toSerializableError(e));

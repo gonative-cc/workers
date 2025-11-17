@@ -1,9 +1,10 @@
 import type { NbtcTxRow, PendingTx, TxStatus, FinalizedTxRow, NbtcAddress } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
+import type { BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 
 export interface Storage {
 	// Block operations
-	insertBlockFromQueue(message: { hash: string; height: number; network: string }): Promise<void>;
+	insertBlockInfo(blockMessage: BlockQueueMessage): Promise<void>;
 	updateBlockStatus(hash: string, network: string, status: string): Promise<void>;
 	getLatestBlockHeight(): Promise<number | null>;
 	getChainTip(): Promise<number | null>;

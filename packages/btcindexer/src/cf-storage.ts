@@ -2,6 +2,7 @@ import { toSerializableError } from "./errutils";
 import type { FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
 import { BlockStatus, TxStatus } from "./models";
 import type { Storage } from "./storage";
+import type { BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;
@@ -31,11 +32,7 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async insertBlockFromQueue(message: {
-		hash: string;
-		height: number;
-		network: string;
-	}): Promise<void> {
+	async insertBlockInfo(blockMessage: BlockQueueMessage): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
@@ -46,12 +43,14 @@ export class CFStorage implements Storage {
 			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
 		try {
-			await insertStmt.bind(message.hash, message.height, message.network, now).run();
+			await insertStmt
+				.bind(blockMessage.hash, blockMessage.height, blockMessage.network, now)
+				.run();
 		} catch (e) {
 			console.error({
 				msg: "Failed to insert block from queue message",
 				error: toSerializableError(e),
-				message,
+				message: blockMessage,
 			});
 			throw e;
 		}

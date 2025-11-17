@@ -1,6 +1,5 @@
 import { PutBlocksReq } from "./api/put-blocks";
 import { handleIngestBlocks } from "./ingest";
-import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
 
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {

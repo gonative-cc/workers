@@ -1,5 +1,5 @@
 import { type MessageBatch } from "@cloudflare/workers-types";
-import { type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
+import { type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
 import { type Indexer } from "./btcindexer";
 import { type Storage } from "./storage";
 import { toSerializableError } from "./errutils";

@@ -1,5 +1,5 @@
 import { type PutBlock } from "./api/put-blocks";
-import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
+import { type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
 
 export async function handleIngestBlocks(
 	blocks: PutBlock[],

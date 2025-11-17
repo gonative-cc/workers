@@ -17,14 +17,14 @@ import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
 import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
-import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
+import { BtcNet, type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 
-const btcNetworks: Record<BitcoinNetwork, Network> = {
-	[BitcoinNetwork.MAINNET]: networks.bitcoin,
-	[BitcoinNetwork.TESTNET]: networks.testnet,
-	[BitcoinNetwork.REGTEST]: networks.regtest,
-	[BitcoinNetwork.SIGNET]: networks.testnet,
+const btcNetworks: Record<BtcNet, Network> = {
+	[BtcNet.MAINNET]: networks.bitcoin,
+	[BtcNet.TESTNET]: networks.testnet,
+	[BtcNet.REGTEST]: networks.regtest,
+	[BtcNet.SIGNET]: networks.testnet,
 };
 
 export async function indexerFromEnv(
@@ -615,10 +615,7 @@ export class Indexer {
 		});
 	}
 
-	async registerBroadcastedNbtcTx(
-		txHex: string,
-		network: BitcoinNetwork,
-	): Promise<PutNbtcTxResponse> {
+	async registerBroadcastedNbtcTx(txHex: string, network: BtcNet): Promise<PutNbtcTxResponse> {
 		const tx = Transaction.fromHex(txHex);
 		const txId = tx.getId();
 		const btcNetwork = btcNetworks[network];

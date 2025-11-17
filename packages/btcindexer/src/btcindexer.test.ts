@@ -8,7 +8,7 @@ import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import SuiClient, { type SuiClientCfg } from "./sui_client";
 import type { Deposit, ProofResult, NbtcAddress } from "./models";
-import { TxStatus } from "./models";
+import { MintTxStatus } from "./models";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 

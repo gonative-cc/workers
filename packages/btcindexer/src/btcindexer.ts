@@ -6,12 +6,13 @@ import SuiClient, { suiClientFromEnv } from "./sui_client";
 import type {
 	Deposit,
 	PendingTx,
-	TxStatusResp as TxStatusResp,
+	NbtcTxResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
 	NbtcAddress,
+	NbtcTxRow,
 } from "./models";
-import { BlockStatus, TxStatus } from "./models";
+import { BlockStatus, MintTxStatus } from "./models";
 import { toSerializableError } from "./errutils";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
@@ -213,7 +214,7 @@ export class Indexer {
 			await this.storage.insertOrUpdateNbtcTxs(nbtcTxs);
 		}
 		if (senders.length > 0) {
-			await this.storage.insertSenderDeposits(senders);
+			await this.storage.insertBtcDeposit(senders);
 		}
 
 		if (nbtcTxs.length === 0) {
@@ -226,7 +227,7 @@ export class Indexer {
 
 		const heightsToUpdate = blocksToProcess.map((r) => r.height);
 		if (heightsToUpdate.length > 0) {
-			await this.storage.updateBlockStatus(heightsToUpdate, BlockStatus.SCANNED);
+			await this.storage.updateBlockStatus(heightsToUpdate, BlockStatus.Scanned);
 		}
 	}
 
@@ -281,7 +282,7 @@ export class Indexer {
 	}
 
 	async processFinalizedTransactions(): Promise<void> {
-		const finalizedTxs = await this.storage.getMintCandidateTxs(this.maxNbtcMintTxRetries);
+		const finalizedTxs = await this.storage.getNbtcFinalizedTxs(this.maxNbtcMintTxRetries);
 
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;
@@ -346,14 +347,25 @@ export class Indexer {
 
 				if (txIndex === -1) {
 					console.error({
-						msg: "Minting: Could not find TX within its block. Setting to finalized-reorg.",
+						msg: "Minting: Could not find TX within its block. Detecting reorg.",
 						txId,
 					});
 					try {
-						await this.storage.updateTxsStatus([txId], TxStatus.FINALIZED_REORG);
+						const currentStatus = await this.storage.getTxStatus(txId);
+						const reorgStatus =
+							currentStatus === MintTxStatus.Minted
+								? MintTxStatus.MintedReorg
+								: MintTxStatus.FinalizedReorg;
+						await this.storage.updateNbtcTxsStatus([txId], reorgStatus);
+						console.warn({
+							msg: "Minting: Transaction reorged",
+							txId,
+							previousStatus: currentStatus,
+							newStatus: reorgStatus,
+						});
 					} catch (e) {
 						console.error({
-							msg: "Minting: Failed to update status to finalized-reorg",
+							msg: "Minting: Failed to update reorg status",
 							error: toSerializableError(e),
 							txId,
 						});
@@ -466,7 +478,7 @@ export class Indexer {
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
-							status: TxStatus.MINTED,
+							status: MintTxStatus.Minted,
 							suiTxDigest,
 						})),
 					);
@@ -476,7 +488,7 @@ export class Indexer {
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,
 							vout: p.vout,
-							status: TxStatus.MINT_FAILED,
+							status: MintTxStatus.MintFailed,
 						})),
 					);
 				}
@@ -510,7 +522,7 @@ export class Indexer {
 				const txIndex = block.transactions?.findIndex((t) => t.getId() === tx.tx_id);
 
 				if (txIndex === -1) {
-					await this.storage.updateTxsStatus([tx.tx_id], TxStatus.MINTED_REORG);
+					await this.storage.updateNbtcTxsStatus([tx.tx_id], MintTxStatus.MintedReorg);
 					//TODO: use logger once pr merged
 					console.warn({
 						msg: "CRITICAL: Deep reorg detected on minted transaction",
@@ -620,7 +632,7 @@ export class Indexer {
 			});
 			// This requires a new method in the Storage interface like:
 			// updateTxsStatus(txIds: string[], status: TxStatus): Promise<void>
-			await this.storage.updateTxsStatus(reorgedTxIds, TxStatus.REORG);
+			await this.storage.updateNbtcTxsStatus(reorgedTxIds, MintTxStatus.Reorg);
 		}
 
 		// TODO: add a unit test for it so we make sure we do not finalize reorrged tx.
@@ -632,7 +644,7 @@ export class Indexer {
 				msg: "Finalization: Applying status updates to D1",
 				finalizedCount: finalizationTxIds.length,
 			});
-			await this.storage.finalizeTxs(finalizationTxIds);
+			await this.storage.finalizeNbtcTxs(finalizationTxIds);
 		}
 	}
 
@@ -676,37 +688,27 @@ export class Indexer {
 		return txIds;
 	}
 
-	async getStatusByTxid(txid: string): Promise<TxStatusResp | null> {
+	// queries NbtcTxResp by BTC Tx ID
+	async getNbtcMintTx(txid: string): Promise<NbtcTxResp | null> {
+		const nbtMintRow = await this.storage.getNbtcMintTx(txid);
+		if (!nbtMintRow) return null;
+
 		const latestHeight = await this.storage.getChainTip();
-		const tx = await this.storage.getStatusByTxid(txid);
 
-		if (!tx) {
-			return null;
-		}
-
-		const blockHeight = tx.block_height as number;
-		const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
-
-		return {
-			...tx,
-			btc_tx_id: tx.tx_id,
-			status: tx.status as TxStatus,
-			block_height: blockHeight,
-			confirmations: confirmations > 0 ? confirmations : 0,
-		};
+		return nbtcRowToResp(nbtMintRow, latestHeight);
 	}
 
-	async getStatusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
+	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]> {
 		const latestHeight = await this.storage.getChainTip();
-		const dbResult = await this.storage.getStatusBySuiAddress(suiAddress);
+		const dbResult = await this.storage.getNbtcMintTxsBySuiAddr(suiAddress);
 
-		return dbResult.map((tx): TxStatusResp => {
+		return dbResult.map((tx): NbtcTxResp => {
 			const blockHeight = tx.block_height as number;
 			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
 			return {
 				...tx,
 				btc_tx_id: tx.tx_id,
-				status: tx.status as TxStatus,
+				status: tx.status as MintTxStatus,
 				block_height: blockHeight,
 				confirmations: confirmations > 0 ? confirmations : 0,
 			};
@@ -740,24 +742,11 @@ export class Indexer {
 		return { height };
 	}
 
-	async getDepositsBySender(btcAddress: string): Promise<TxStatusResp[]> {
-		const dbResult = await this.storage.getDepositsBySender(btcAddress);
+	async getDepositsBySender(btcAddress: string): Promise<NbtcTxResp[]> {
+		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress);
 		const latestHeight = await this.storage.getChainTip();
 
-		return dbResult.map((tx): TxStatusResp => {
-			const blockHeight = tx.block_height as number;
-			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
-
-			return {
-				btc_tx_id: tx.tx_id,
-				status: tx.status as TxStatus,
-				sui_tx_id: tx.sui_tx_id,
-				block_height: blockHeight,
-				confirmations: confirmations > 0 ? confirmations : 0,
-				sui_recipient: tx.sui_recipient,
-				amount_sats: tx.amount_sats,
-			};
-		});
+		return nbtcMintRows.map((r) => nbtcRowToResp(r, latestHeight));
 	}
 
 	private async getSenderAddresses(tx: Transaction): Promise<string[]> {
@@ -809,4 +798,18 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 	//TODO: in the future we need to update the relayer to correctly handle the flag 0x01
 	// for now we cannot determine the recipient
 	return null;
+}
+
+function nbtcRowToResp(r: NbtcTxRow, latestHeight: number | null): NbtcTxResp {
+	const bh = r.block_height;
+	const confirmations = bh && latestHeight ? latestHeight - bh + 1 : 0;
+	const btc_tx_id = r.tx_id;
+	// @ts-expect-error The operand of a 'delete' operator must be optional
+	delete r.tx_id;
+
+	return {
+		btc_tx_id,
+		confirmations: confirmations > 0 ? confirmations : 0,
+		...r,
+	};
 }

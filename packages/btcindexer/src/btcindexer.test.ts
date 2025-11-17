@@ -436,9 +436,7 @@ describe("Indexer.detectMintedReorgs", () => {
 	it("should detect deep reorg on minted transaction and update status to MINTED_REORG", async () => {
 		const blockData = REGTEST_DATA[329]!;
 		const txData = blockData.txs[1]!;
-
 		const db = await mf.getD1Database("DB");
-
 		await db
 			.prepare(
 				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

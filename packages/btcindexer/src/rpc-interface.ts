@@ -1,4 +1,4 @@
-import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 import type { NbtcTxResp } from "./models";
 
 export interface PutNbtcTxResponse {
@@ -11,7 +11,7 @@ export interface PutNbtcTxResponse {
  */
 export interface BtcIndexerRpcI {
 	latestHeight(): Promise<{ height: number | null }>;
-	putNbtcTx(txHex: string, network: BitcoinNetwork): Promise<PutNbtcTxResponse>;
+	putNbtcTx(txHex: string, network: BtcNet): Promise<PutNbtcTxResponse>;
 	nbtcMintTx(txid: string): Promise<NbtcTxResp | null>;
 	nbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]>;
 	depositsBySender(address: string): Promise<NbtcTxResp[]>;

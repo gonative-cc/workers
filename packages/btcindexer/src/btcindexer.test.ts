@@ -8,7 +8,7 @@ import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import SuiClient, { type SuiClientCfg } from "./sui_client";
 import type { Deposit, ProofResult, NbtcAddress } from "./models";
-import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
+import { BtcNet, type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 
@@ -106,7 +106,7 @@ beforeEach(async () => {
 	const nbtcAddressesMap = new Map<string, NbtcAddress>();
 	const testNbtcAddress: NbtcAddress = {
 		btc_address: REGTEST_DATA[329]!.depositAddr,
-		btc_network: BitcoinNetwork.REGTEST,
+		btc_network: BtcNet.REGTEST,
 		sui_network: "testnet",
 		nbtc_pkg: "0xPACKAGE",
 	};
@@ -168,7 +168,7 @@ async function insertFinalizedTx(
 			retry_count,
 			"0xPACKAGE",
 			"testnet",
-			BitcoinNetwork.REGTEST,
+			BtcNet.REGTEST,
 		)
 		.run();
 }
@@ -216,7 +216,7 @@ describe("Indexer.processBlock", () => {
 		const blockQueueMessage: BlockQueueMessage = {
 			hash: blockData.hash,
 			height: blockData.height,
-			network: BitcoinNetwork.REGTEST,
+			network: BtcNet.REGTEST,
 			kv_key: `blocks:regtest:${blockData.hash}`,
 		};
 
@@ -287,7 +287,7 @@ describe("Indexer.handleReorgs", () => {
 			tx_id: "tx1",
 			block_hash: "hash_A",
 			block_height: 100,
-			btc_network: BitcoinNetwork.REGTEST,
+			btc_network: BtcNet.REGTEST,
 		};
 		const db = await mf.getD1Database("DB");
 		await db
@@ -306,7 +306,7 @@ describe("Indexer.handleReorgs", () => {
 			tx_id: "tx1",
 			block_hash: "hash_A",
 			block_height: 100,
-			btc_network: BitcoinNetwork.REGTEST,
+			btc_network: BtcNet.REGTEST,
 		};
 		const db = await mf.getD1Database("DB");
 		await db
@@ -326,7 +326,7 @@ describe("Indexer.findFinalizedTxs", () => {
 			tx_id: "tx1",
 			block_hash: null,
 			block_height: 100,
-			btc_network: BitcoinNetwork.REGTEST,
+			btc_network: BtcNet.REGTEST,
 		};
 		const latestHeight = 107;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
@@ -338,7 +338,7 @@ describe("Indexer.findFinalizedTxs", () => {
 			tx_id: "tx1",
 			block_hash: null,
 			block_height: 100,
-			btc_network: BitcoinNetwork.REGTEST,
+			btc_network: BtcNet.REGTEST,
 		};
 		const latestHeight = 106;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
@@ -379,7 +379,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 
 		//TODO: this test is failing, probalby the deposit address is inccorect
 		const txHex = targetTx!.toHex();
-		await indexer.registerBroadcastedNbtcTx(txHex, BitcoinNetwork.REGTEST);
+		await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
 
 		const db = await mf.getD1Database("DB");
 		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
@@ -397,7 +397,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		const coinbaseTx = block.transactions![0]!;
 
 		expect(
-			indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex(), BitcoinNetwork.REGTEST),
+			indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex(), BtcNet.REGTEST),
 		).rejects.toThrow("Transaction does not contain any valid nBTC deposits.");
 	});
 });
@@ -489,7 +489,7 @@ describe("Indexer.processBlock", () => {
 		const blockQueueMessage: BlockQueueMessage = {
 			hash: blockData.hash,
 			height: blockData.height,
-			network: BitcoinNetwork.REGTEST,
+			network: BtcNet.REGTEST,
 			kv_key: `blocks:regtest:${blockData.hash}`,
 		};
 

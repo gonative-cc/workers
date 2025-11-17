@@ -1,4 +1,4 @@
-import { address, networks, Block, Transaction } from "bitcoinjs-lib";
+import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
@@ -18,10 +18,11 @@ import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 
-const btcNetworks = {
-	mainnet: networks.bitcoin,
-	testnet: networks.testnet,
-	regtest: networks.regtest,
+const btcNetworks: Record<BitcoinNetwork, Network> = {
+	[BitcoinNetwork.MAINNET]: networks.bitcoin,
+	[BitcoinNetwork.TESTNET]: networks.testnet,
+	[BitcoinNetwork.REGTEST]: networks.regtest,
+	[BitcoinNetwork.SIGNET]: networks.testnet,
 };
 
 export async function indexerFromEnv(

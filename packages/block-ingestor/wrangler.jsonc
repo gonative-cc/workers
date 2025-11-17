@@ -6,15 +6,16 @@
   "compatibility_flags": ["nodejs_compat"],
   "kv_namespaces": [
     {
-      "binding": "BLOCK_STORE",
+      "binding": "BlockStore",
       "id": "00000000000000000000000000000000",
     },
   ],
   "queues": {
     "producers": [
-      { "queue": "regtest-block-queue", "binding": "BLOCK_QUEUE_REGTEST" },
-      { "queue": "testnet-block-queue", "binding": "BLOCK_QUEUE_TESTNET" },
-      { "queue": "mainnet-block-queue", "binding": "BLOCK_QUEUE_MAINNET" },
+      { "queue": "regtest-block-queue", "binding": "BlockQueueRegtest" },
+      { "queue": "testnet-block-queue", "binding": "BlockQueueTestnet" },
+      { "queue": "mainnet-block-queue", "binding": "BlockQueueMainnet" },
+      { "queue": "signet-block-queue", "binding": "BlockQueueSignet" },
     ],
   },
   "vars": {

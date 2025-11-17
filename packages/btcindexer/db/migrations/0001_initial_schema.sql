@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS btc_blocks (
   hash TEXT NOT NULL,
   height INTEGER NOT NULL,
   network TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'scanned')), -- 'new' | 'scanned'
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'scanned')),
   processed_at INTEGER,  -- timestamp_ms
   inserted_at INTEGER, -- timestamp_ms
   PRIMARY KEY (height, network)

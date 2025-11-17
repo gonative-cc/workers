@@ -15,7 +15,7 @@ const msgPackHeaders = {
 export class BtcIndexerClient {
 	#url: string;
 	constructor(url: string) {
-		this.#url = url;
+		this.#url = url.endsWith("/") ? url.slice(0, -1) : url;
 	}
 
 	async putBlocks(blocks: PutBlock[]): Promise<void> {

@@ -3,7 +3,7 @@ import { indexerFromEnv, Indexer } from "./btcindexer";
 import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
 import type { NbtcAddress, TxStatusResp } from "./models";
 import { fetchNbtcAddresses } from "./storage";
-import type { InterfaceBtcIndexerRpc } from "./rpc-interface";
+import type { InterfaceBtcIndexerRpc, PutNbtcTxResponse } from "./rpc-interface";
 
 /**
  * RPC entrypoint for btcindexer worker.
@@ -39,10 +39,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements InterfaceBtc
 	 * @param txHex - The transaction hex string
 	 * @param network - The Bitcoin network
 	 * @returns Transaction ID and number of registered deposits
-	 */ async putNbtcTx(
-		txHex: string,
-		network: BitcoinNetwork,
-	): Promise<{ tx_id: string; registered_deposits: number }> {
+	 */ async putNbtcTx(txHex: string, network: BitcoinNetwork): Promise<PutNbtcTxResponse> {
 		const indexer = await this.getIndexer();
 		return indexer.registerBroadcastedNbtcTx(txHex, network);
 	}

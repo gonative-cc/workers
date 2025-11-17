@@ -1,5 +1,11 @@
 import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
-import { type TxStatusResp, RestPath, type PostNbtcTxRequest } from "../models";
+import { type TxStatusResp, type PostNbtcTxRequest } from "../models";
+
+export const enum RestPath {
+	latestHeight = "/height",
+	nbtcTx = "/tx",
+	depositsBySender = "/deposits/sender", // ?sender=address
+}
 
 export class BtcIndexerClient {
 	#url: string;

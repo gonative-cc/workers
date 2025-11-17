@@ -4,7 +4,7 @@ import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import { Indexer } from "./btcindexer";
 import type { PostNbtcTxRequest } from "./models";
-import { RestPath } from "./models";
+import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { toSerializableError } from "./errutils";

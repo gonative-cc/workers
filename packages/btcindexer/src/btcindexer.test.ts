@@ -106,7 +106,7 @@ beforeEach(async () => {
 	const nbtcAddressesMap = new Map<string, NbtcAddress>();
 	const testNbtcAddress: NbtcAddress = {
 		btc_address: REGTEST_DATA[329]!.depositAddr,
-		btc_network: "regtest",
+		btc_network: BitcoinNetwork.REGTEST,
 		sui_network: "testnet",
 		nbtc_pkg: "0xPACKAGE",
 	};
@@ -168,7 +168,7 @@ async function insertFinalizedTx(
 			retry_count,
 			"0xPACKAGE",
 			"testnet",
-			"regtest",
+			BitcoinNetwork.REGTEST,
 		)
 		.run();
 }
@@ -287,7 +287,7 @@ describe("Indexer.handleReorgs", () => {
 			tx_id: "tx1",
 			block_hash: "hash_A",
 			block_height: 100,
-			btc_network: "regtest",
+			btc_network: BitcoinNetwork.REGTEST,
 		};
 		const db = await mf.getD1Database("DB");
 		await db
@@ -306,7 +306,7 @@ describe("Indexer.handleReorgs", () => {
 			tx_id: "tx1",
 			block_hash: "hash_A",
 			block_height: 100,
-			btc_network: "regtest",
+			btc_network: BitcoinNetwork.REGTEST,
 		};
 		const db = await mf.getD1Database("DB");
 		await db
@@ -326,7 +326,7 @@ describe("Indexer.findFinalizedTxs", () => {
 			tx_id: "tx1",
 			block_hash: null,
 			block_height: 100,
-			btc_network: "regtest",
+			btc_network: BitcoinNetwork.REGTEST,
 		};
 		const latestHeight = 107;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
@@ -338,7 +338,7 @@ describe("Indexer.findFinalizedTxs", () => {
 			tx_id: "tx1",
 			block_hash: null,
 			block_height: 100,
-			btc_network: "regtest",
+			btc_network: BitcoinNetwork.REGTEST,
 		};
 		const latestHeight = 106;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);

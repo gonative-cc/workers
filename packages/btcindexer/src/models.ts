@@ -1,13 +1,8 @@
 import { Transaction } from "bitcoinjs-lib";
-
-export const enum RestPath {
-	latestHeight = "/height",
-	nbtcTx = "/tx",
-	depositsBySender = "/deposits/sender", // ?sender=address
-}
+import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 
 export interface NbtcAddress {
-	btc_network: string;
+	btc_network: BitcoinNetwork;
 	sui_network: string;
 	nbtc_pkg: string;
 	btc_address: string;
@@ -30,7 +25,7 @@ export interface PendingTx {
 	tx_id: string;
 	block_hash: string | null;
 	block_height: number;
-	btc_network: string;
+	btc_network: BitcoinNetwork;
 }
 
 export interface FinalizedTxRow {
@@ -109,8 +104,6 @@ export interface MintBatchArg {
 	nbtc_pkg: string;
 	sui_network: string;
 }
-
-import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
 
 export interface PostNbtcTxRequest {
 	txHex: string;

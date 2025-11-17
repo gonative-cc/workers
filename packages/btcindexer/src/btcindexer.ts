@@ -17,6 +17,7 @@ import { ElectrsService } from "./electrs";
 import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
+import type { PutNbtcTxResponse } from "./rpc-interface";
 
 const btcNetworks: Record<BitcoinNetwork, Network> = {
 	[BitcoinNetwork.MAINNET]: networks.bitcoin,
@@ -621,7 +622,7 @@ export class Indexer {
 	async registerBroadcastedNbtcTx(
 		txHex: string,
 		network: BitcoinNetwork,
-	): Promise<{ tx_id: string; registered_deposits: number }> {
+	): Promise<PutNbtcTxResponse> {
 		const tx = Transaction.fromHex(txHex);
 		const txId = tx.getId();
 		const btcNetwork = btcNetworks[network];

@@ -4,6 +4,7 @@ import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
 
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+		// TODO: add authentication method here
 		if (request.method !== "POST") {
 			return new Response("Method Not Allowed", { status: 405 });
 		}

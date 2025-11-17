@@ -3,7 +3,7 @@ import type { TxStatusResp } from "./models";
 import { TxStatus } from "./models";
 import { Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
-import type { InterfaceBtcIndexerRpc } from "./rpc-interface";
+import type { InterfaceBtcIndexerRpc, PutNbtcTxResponse } from "./rpc-interface";
 import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
 
 interface MockTxData {
@@ -71,10 +71,7 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements Interfac
 		return { height: 100 };
 	}
 
-	async putNbtcTx(
-		txHex: string,
-		_network: BitcoinNetwork,
-	): Promise<{ tx_id: string; registered_deposits: number }> {
+	async putNbtcTx(txHex: string, _network: BitcoinNetwork): Promise<PutNbtcTxResponse> {
 		const tx = Transaction.fromHex(txHex);
 		const tx_id = tx.getId();
 

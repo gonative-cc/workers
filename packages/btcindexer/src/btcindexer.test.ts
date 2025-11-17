@@ -174,6 +174,32 @@ async function insertFinalizedTx(
 		.run();
 }
 
+async function insertMintedTx(db: D1Database, txData: TxInfo, blockData: TestBlock) {
+	await db
+		.prepare(
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		)
+		.bind(
+			txData.id,
+			0,
+			blockData.hash,
+			blockData.height,
+			txData.suiAddr,
+			txData.amountSats,
+			"minted",
+			Date.now(),
+			Date.now(),
+			0,
+			"0xPACKAGE",
+			"testnet",
+		)
+		.run();
+}
+
+async function setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
+	await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+}
+
 describe("Indexer.findNbtcDeposits", () => {
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329]!.rawBlockHex);
@@ -437,25 +463,8 @@ describe("Indexer.detectMintedReorgs", () => {
 		const blockData = REGTEST_DATA[329]!;
 		const txData = blockData.txs[1]!;
 		const db = await mf.getD1Database("DB");
-		await db
-			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			)
-			.bind(
-				txData.id,
-				0,
-				blockData.hash,
-				blockData.height,
-				txData.suiAddr,
-				txData.amountSats,
-				"minted",
-				Date.now(),
-				Date.now(),
-				0,
-				"0xPACKAGE",
-				"testnet",
-			)
-			.run();
+
+		await insertMintedTx(db, txData, blockData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		const differentBlock = REGTEST_DATA[327]!;
@@ -474,28 +483,9 @@ describe("Indexer.detectMintedReorgs", () => {
 	it("should not update status if minted transaction is still in block", async () => {
 		const blockData = REGTEST_DATA[329]!;
 		const txData = blockData.txs[1]!;
-
 		const db = await mf.getD1Database("DB");
 
-		await db
-			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			)
-			.bind(
-				txData.id,
-				0,
-				blockData.hash,
-				blockData.height,
-				txData.suiAddr,
-				txData.amountSats,
-				"minted",
-				Date.now(),
-				Date.now(),
-				0,
-				"0xPACKAGE",
-				"testnet",
-			)
-			.run();
+		await insertMintedTx(db, txData, blockData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);

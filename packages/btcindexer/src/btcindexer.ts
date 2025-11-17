@@ -352,6 +352,19 @@ export class Indexer {
 					});
 					try {
 						const currentStatus = await this.storage.getTxStatus(txId);
+						if (
+							currentStatus !== MintTxStatus.Minted &&
+							currentStatus !== MintTxStatus.Finalized &&
+							currentStatus !== MintTxStatus.MintFailed
+						) {
+							console.error({
+								msg: "Minting: Unexpected status during reorg detection, skipping",
+								txId,
+								currentStatus,
+							});
+							continue;
+						}
+
 						const reorgStatus =
 							currentStatus === MintTxStatus.Minted
 								? MintTxStatus.MintedReorg
@@ -399,7 +412,7 @@ export class Indexer {
 
 				const firstDeposit = txGroup.deposits[0];
 				if (!firstDeposit) {
-					console.warn({
+					console.error({
 						msg: "Minting: Skipping transaction group with no deposits",
 						txId,
 					});
@@ -500,7 +513,6 @@ export class Indexer {
 		console.debug({ msg: "Cron: Checking for reorgs on minted transactions" });
 
 		const mintedTxs = await this.storage.getMintedTxs();
-
 		if (!mintedTxs || mintedTxs.length === 0) {
 			return;
 		}
@@ -524,7 +536,7 @@ export class Indexer {
 				if (txIndex === -1) {
 					await this.storage.updateNbtcTxsStatus([tx.tx_id], MintTxStatus.MintedReorg);
 					//TODO: use logger once pr merged
-					console.warn({
+					console.error({
 						msg: "CRITICAL: Deep reorg detected on minted transaction",
 						txId: tx.tx_id,
 						blockHash: tx.block_hash,

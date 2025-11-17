@@ -186,15 +186,16 @@ export class CFStorage implements Storage {
 		return finalizedTxs.results ?? [];
 	}
 
+	//TODO: We need to query by network
 	async getMintedTxs(): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}' AND status != '${MintTxStatus.MintedReorg}'`,
+				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}'`,
 			)
 			.all<FinalizedTxRow>();
 		return txs.results ?? [];
 	}
-
+	//TODO: We need to query by network
 	async getTxStatus(txId: string): Promise<MintTxStatus | null> {
 		const result = await this.d1
 			.prepare(`SELECT status FROM nbtc_minting WHERE tx_id = ? LIMIT 1`)

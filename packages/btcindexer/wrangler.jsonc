@@ -97,29 +97,11 @@
   "queues": {
     "consumers": [
       {
-        "queue": "regtest-block-queue",
-        "max_batch_size": 10,
-        "max_batch_timeout": 30,
-        "max_retries": 3,
-      },
-      {
-        "queue": "testnet-block-queue",
-        "max_batch_size": 10,
-        "max_batch_timeout": 30,
-        "max_retries": 3,
-      },
-      {
-        "queue": "mainnet-block-queue",
+        "queue": "block-queue",
         "max_batch_size": 1,
         "max_batch_timeout": 5,
         "max_retries": 3,
-      },
-      {
-        "queue": "signet-block-queue",
-        "max_batch_size": 10,
-        "max_batch_timeout": 30,
-        "max_retries": 3,
-      },
-    ],
+      }
+    ]
   },
 }

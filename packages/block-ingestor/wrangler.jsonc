@@ -12,10 +12,7 @@
   ],
   "queues": {
     "producers": [
-      { "queue": "regtest-block-queue", "binding": "BlockQueueRegtest" },
-      { "queue": "testnet-block-queue", "binding": "BlockQueueTestnet" },
-      { "queue": "mainnet-block-queue", "binding": "BlockQueueMainnet" },
-      { "queue": "signet-block-queue", "binding": "BlockQueueSignet" },
+      { "queue": "block-queue", "binding": "BlockQueue" }
     ],
   },
   "vars": {

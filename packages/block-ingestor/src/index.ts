@@ -11,13 +11,7 @@ export default {
 
 		try {
 			const blocks = PutBlocksReq.decode(await request.arrayBuffer());
-			const queues = new Map<BitcoinNetwork, Queue>([
-				[BitcoinNetwork.REGTEST, env.BlockQueueRegtest],
-				[BitcoinNetwork.TESTNET, env.BlockQueueTestnet],
-				[BitcoinNetwork.MAINNET, env.BlockQueueMainnet],
-				[BitcoinNetwork.SIGNET, env.BlockQueueSignet],
-			]);
-			await handleIngestBlocks(blocks, env.BlockStore, queues);
+			await handleIngestBlocks(blocks, env.BlockStore, env.BlockQueue);
 			return new Response("Blocks ingested successfully", { status: 200 });
 		} catch (e) {
 			console.error("Failed to ingest blocks", e);

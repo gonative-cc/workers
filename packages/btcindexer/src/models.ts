@@ -3,7 +3,7 @@ import { Transaction } from "bitcoinjs-lib";
 export const enum RestPath {
 	latestHeight = "/height",
 	nbtcTx = "/tx",
-	depositsBySender = "/deposits/sender",
+	depositsBySender = "/deposits/sender", // ?sender=address
 }
 
 export interface NbtcAddress {

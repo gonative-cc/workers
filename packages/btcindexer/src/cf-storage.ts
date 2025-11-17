@@ -39,7 +39,7 @@ export class CFStorage implements Storage {
 			 ON CONFLICT(height, network) DO UPDATE SET
 			   hash = excluded.hash,
 			   inserted_at = excluded.inserted_at,
-			   status = '${BlockStatus.NEW}'
+			   status = '${BlockStatus.New}'
 			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
 		try {
@@ -54,7 +54,7 @@ export class CFStorage implements Storage {
 			});
 			throw e;
 		}
-		console.log({ msg: "Successfully ingested blocks", count: blocks.length });
+		console.log({ msg: "Successfully ingested blocks" });
 	}
 
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
@@ -132,11 +132,11 @@ export class CFStorage implements Storage {
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
 			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network)
-             VALUES (?, ?, ?, ?, ?, ?, '${TxStatus.Confirming}', ?, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, ?, ?, ?)
              ON CONFLICT(tx_id, vout) DO UPDATE SET
                 block_hash = excluded.block_hash,
                 block_height = excluded.block_height,
-                status = '${TxStatus.Confirming}',
+                status = '${MintTxStatus.Confirming}',
                 updated_at = excluded.updated_at,
 				btc_network = excluded.btc_network,
 				nbtc_pkg = excluded.nbtc_pkg,
@@ -249,7 +249,7 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, block_hash, block_height, btc_network FROM nbtc_minting WHERE status = '${TxStatus.Confirming}'`,
+				`SELECT tx_id, block_hash, block_height, btc_network FROM nbtc_minting WHERE status = '${MintTxStatus.Confirming}'`,
 			)
 			.all<PendingTx>();
 		return pendingTxs.results ?? [];
@@ -296,7 +296,7 @@ export class CFStorage implements Storage {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network)
-         VALUES (?, ?, ?, ?, '${TxStatus.Broadcasting}', ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, ?, ?, ?)`,
 		);
 
 		const statements = deposits.map((deposit) =>

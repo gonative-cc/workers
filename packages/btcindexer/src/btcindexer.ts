@@ -9,6 +9,7 @@ import type {
 	NbtcTxResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
+	FinalizedTxRow,
 	NbtcAddress,
 	NbtcTxRow,
 } from "./models";
@@ -279,6 +280,58 @@ export class Indexer {
 			}
 		}
 		return deposits;
+	}
+
+	/**
+	 * Checks for front-run transactions.
+	 * Should be run periodically on cron.
+	 */
+	async checkAndMarkFrontRunTransactions(): Promise<void> {
+		const finalizedTxs = await this.storage.getNbtcFinalizedTxs(this.maxNbtcMintTxRetries);
+
+		if (!finalizedTxs || finalizedTxs.length === 0) {
+			return;
+		}
+		const txGroups = new Map<string, FinalizedTxRow[]>();
+		for (const row of finalizedTxs) {
+			const group = txGroups.get(row.tx_id);
+			if (group) {
+				group.push(row);
+			} else {
+				txGroups.set(row.tx_id, [row]);
+			}
+		}
+
+		const checkedCount = { total: 0, frontRun: 0 };
+
+		for (const [txId, txGroup] of txGroups.entries()) {
+			checkedCount.total++;
+			const isMinted = await this.nbtcClient.isBtcTxMinted(txId);
+
+			if (isMinted) {
+				checkedCount.frontRun++;
+				//TODO: use logger once pr merged
+				console.log({
+					msg: "Front-run detected: tx already minted on-chain",
+					btcTxId: txId,
+				});
+				const updates = txGroup.map((deposit) => ({
+					tx_id: deposit.tx_id,
+					vout: deposit.vout,
+					status: MintTxStatus.Minted,
+				}));
+				await this.storage.batchUpdateNbtcTxs(updates);
+			}
+		}
+
+		if (checkedCount.frontRun > 0) {
+			//TODO: use logger once pr merged
+			console.log({
+				msg: "Front-run check completed",
+				checked: checkedCount.total,
+				frontRun: checkedCount.frontRun,
+			});
+		}
 	}
 
 	async processFinalizedTransactions(): Promise<void> {

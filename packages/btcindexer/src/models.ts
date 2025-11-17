@@ -1,6 +1,6 @@
 import { Transaction } from "bitcoinjs-lib";
 import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
-// TODO: fix the imports 
+// TODO: fix the imports
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import type { BtcNet } from "@gonative-cc/lib/nbtc";
 

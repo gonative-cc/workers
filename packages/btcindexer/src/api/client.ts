@@ -1,4 +1,4 @@
-import type { TxStatusResp } from "../models";
+import type { NbtcTxResp } from "../models";
 import type { PutBlocks } from "./put-blocks";
 import { PutBlocksReq } from "./put-blocks";
 
@@ -59,7 +59,7 @@ export default class Client {
 		return response.json();
 	}
 
-	async getStatusByBtcTxId(txid: string): Promise<TxStatusResp | null> {
+	async getStatusByBtcTxId(txid: string): Promise<NbtcTxResp | null> {
 		const url = `${this.baseUrl}${RestPath.nbtcTx}/${txid}`;
 		const response = await fetch(url);
 		if (response.status === 404) {
@@ -71,7 +71,7 @@ export default class Client {
 		return response.json();
 	}
 
-	async getStatusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
+	async getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]> {
 		const url = new URL(this.baseUrl + RestPath.nbtcTx);
 		url.searchParams.append("sui_recipient", suiAddress);
 
@@ -82,7 +82,7 @@ export default class Client {
 		return response.json();
 	}
 
-	async getDepositsBySender(senderAddress: string): Promise<TxStatusResp[]> {
+	async getDepositsBySender(senderAddress: string): Promise<NbtcTxResp[]> {
 		const url = new URL(this.baseUrl + RestPath.depositsBySender);
 		url.searchParams.append("sender", senderAddress);
 

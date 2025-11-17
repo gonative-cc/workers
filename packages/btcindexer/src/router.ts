@@ -8,7 +8,7 @@ import type { PostNbtcTxRequest } from "./models";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { PutBlocksReq } from "./api/put-blocks";
-import { logError } from "@gonative-cc/lib/logger";
+import { logError, logger } from "@gonative-cc/lib/logger";
 
 export default class HttpRouter {
 	#indexer?: Indexer;
@@ -61,7 +61,7 @@ export default class HttpRouter {
 	// Otherwise we would need to setup the server on each fetch request.
 	fetch = async (req: Request, env: Env, indexer: Indexer) => {
 		this.#indexer = indexer;
-		console.trace({ msg: "Incoming request", url: req.url, method: req.method });
+		logger.debug({ msg: "Incoming request", url: req.url, method: req.method });
 		return this.#router.fetch(req, env);
 	};
 

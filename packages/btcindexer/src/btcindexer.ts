@@ -275,7 +275,10 @@ export class Indexer {
 				}
 			} catch (e) {
 				// This is expected for coinbase transactions and other non-standard scripts.
-				logger.debug({ msg: "Error parsing output script", error: e });
+				logger.debug({
+					msg: "Error parsing output script",
+					error: e instanceof Error ? e.message : String(e),
+				});
 			}
 		}
 		return deposits;
@@ -348,6 +351,7 @@ export class Indexer {
 				if (txIndex === -1) {
 					logger.error({
 						msg: "Minting: Could not find TX within its block. Setting status to 'finalized-reorg'.",
+						method: "processFinalizedTransactions",
 						txId,
 					});
 					try {
@@ -479,7 +483,11 @@ export class Indexer {
 						})),
 					);
 				} else {
-					logger.error({ msg: "Sui batch mint transaction failed", pkgKey });
+					logger.error({
+						msg: "Sui batch mint transaction failed",
+						method: "processFinalizedTransactions",
+						pkgKey,
+					});
 					await this.storage.batchUpdateNbtcTxs(
 						processedPrimaryKeys.map((p) => ({
 							tx_id: p.tx_id,

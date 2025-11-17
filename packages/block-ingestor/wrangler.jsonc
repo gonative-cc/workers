@@ -11,9 +11,7 @@
     },
   ],
   "queues": {
-    "producers": [
-      { "queue": "block-queue", "binding": "BlockQueue" }
-    ],
+    "producers": [{ "queue": "block-queue", "binding": "BlockQueue" }],
   },
   "vars": {
     "ENVIRONMENT": "development",

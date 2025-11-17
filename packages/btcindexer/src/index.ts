@@ -10,7 +10,6 @@
 import { indexerFromEnv } from "./btcindexer";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
-import { BtcIndexerRpc } from "./rpc";
 import { fetchNbtcAddresses } from "./storage";
 import type { NbtcAddress } from "./models";
 
@@ -70,5 +69,7 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-// Export the RPC entrypoint for service bindings
-export { BtcIndexerRpc };
+// Export RPC entrypoints for service bindings
+// Use BtcIndexerRpc for production, BtcIndexerRpcMock for local development/testing
+export { BtcIndexerRpc } from "./rpc";
+export { BtcIndexerRpcMock } from "./rpc-mock";

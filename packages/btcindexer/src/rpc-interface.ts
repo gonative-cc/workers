@@ -12,7 +12,7 @@ export interface PutNbtcTxResponse {
 export interface BtcIndexerRpcI {
 	latestHeight(): Promise<{ height: number | null }>;
 	putNbtcTx(txHex: string, network: BitcoinNetwork): Promise<PutNbtcTxResponse>;
-	statusByTxid(txid: string): Promise<NbtcTxResp | null>;
-	statusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]>;
+	nbtcMintTx(txid: string): Promise<NbtcTxResp | null>;
+	nbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]>;
 	depositsBySender(address: string): Promise<NbtcTxResp[]>;
 }

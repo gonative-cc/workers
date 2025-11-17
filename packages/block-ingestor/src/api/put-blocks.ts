@@ -1,23 +1,23 @@
 import { Block } from "bitcoinjs-lib";
 import { pack, unpack } from "msgpackr";
-import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 
 export interface PutBlock {
-	network: BitcoinNetwork;
+	network: BtcNet;
 	height: number;
 	block: Block;
 }
 
-export function newPutBlock(network: BitcoinNetwork, height: number, block: Block): PutBlock {
+export function newPutBlock(network: BtcNet, height: number, block: Block): PutBlock {
 	return { network, height, block };
 }
 
 export class PutBlocksReq {
-	network: BitcoinNetwork;
+	network: BtcNet;
 	height: number;
 	block: Uint8Array;
 
-	constructor(network: BitcoinNetwork, height: number, block: Block) {
+	constructor(network: BtcNet, height: number, block: Block) {
 		this.network = network;
 		this.height = height;
 		this.block = block.toBuffer();

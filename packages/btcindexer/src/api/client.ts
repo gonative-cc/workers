@@ -1,4 +1,4 @@
-import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 import { type NbtcTxResp, type PostNbtcTxRequest } from "../models";
 
 export const enum RestPath {
@@ -24,7 +24,7 @@ export class BtcIndexerClient {
 
 	async postNbtcTx(
 		txHex: string,
-		network: BitcoinNetwork,
+		network: BtcNet,
 	): Promise<{ success: boolean; tx_id: string; registered_deposits: number }> {
 		const body: PostNbtcTxRequest = { txHex, network };
 		const res = await fetch(this.#url + RestPath.nbtcTx, {

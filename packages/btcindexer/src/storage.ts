@@ -1,14 +1,6 @@
-import { Block } from "bitcoinjs-lib";
-import type {
-	BlockInfo,
-	NbtcTxRow,
-	PendingTx,
-	MintTxStatus,
-	FinalizedTxRow,
-	NbtcAddress,
-} from "./models";
+import type { NbtcTxRow, PendingTx, MintTxStatus, FinalizedTxRow, NbtcAddress } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
-import type { BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
+import type { BlockQueueMessage } from "@gonative-cc/lib/nbtc";
 
 export interface Storage {
 	// Block operations

@@ -4,7 +4,7 @@ import { MintTxStatus } from "./models";
 import { Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
 import type { BtcIndexerRpcI, PutNbtcTxResponse } from "./rpc-interface";
-import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 
 interface MockTxData {
 	suiRecipient: string;
@@ -66,7 +66,7 @@ function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
 		retry_count: 1,
 		nbtc_pkg: "0x12",
 		sui_network: "mainnet",
-		btc_network: "regtest",
+		btc_network: BtcNet.REGTEST,
 	};
 }
 
@@ -82,7 +82,7 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements BtcIndex
 		return { height: 100 };
 	}
 
-	async putNbtcTx(txHex: string, _network: BitcoinNetwork): Promise<PutNbtcTxResponse> {
+	async putNbtcTx(txHex: string, _network: BtcNet): Promise<PutNbtcTxResponse> {
 		const tx = Transaction.fromHex(txHex);
 		const tx_id = tx.getId();
 

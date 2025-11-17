@@ -1,8 +1,6 @@
 import { Transaction } from "bitcoinjs-lib";
-import { BitcoinNetwork, type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
-// TODO: fix the imports
+import { BtcNet, type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import type { BtcNet } from "@gonative-cc/lib/nbtc";
 
 export interface NbtcAddress {
 	btc_network: BtcNet;
@@ -28,7 +26,7 @@ export interface PendingTx {
 	tx_id: string;
 	block_hash: string | null;
 	block_height: number;
-	btc_network: BitcoinNetwork;
+	btc_network: BtcNet;
 }
 
 export interface FinalizedTxRow {
@@ -114,7 +112,7 @@ export interface MintBatchArg {
 
 export interface PostNbtcTxRequest {
 	txHex: string;
-	network: BitcoinNetwork;
+	network: BtcNet;
 }
 
 export type SuiTxDigest = string;

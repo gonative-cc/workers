@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { newPutBlock, PutBlocksReq } from "./put-blocks";
 import { Block } from "bitcoinjs-lib";
-import { BitcoinNetwork } from "@gonative-cc/lib/bitcoin";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 
 function bufferToHex(buffer: Buffer) {
 	// Convert to Uint8Array if it's an ArrayBuffer
@@ -23,7 +23,7 @@ describe("encode PutBlocks", () => {
 			"000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
 		);
 
-		const expected = [newPutBlock(BitcoinNetwork.MAINNET, 156, block)];
+		const expected = [newPutBlock(BtcNet.MAINNET, 156, block)];
 		const reqBytes = PutBlocksReq.encode(expected);
 
 		const got = PutBlocksReq.decode(reqBytes);
@@ -39,8 +39,8 @@ describe("encode PutBlocks", () => {
 	it("should decode multiple blocks", async () => {
 		// for simplicity we encode 2 genesis blocks
 		const expected = [
-			newPutBlock(BitcoinNetwork.MAINNET, 10, block),
-			newPutBlock(BitcoinNetwork.TESTNET, 11, block),
+			newPutBlock(BtcNet.MAINNET, 10, block),
+			newPutBlock(BtcNet.TESTNET, 11, block),
 		];
 		const reqBytes = PutBlocksReq.encode(expected);
 		const got = PutBlocksReq.decode(reqBytes);
@@ -55,7 +55,7 @@ describe("encode PutBlocks", () => {
 	});
 
 	it("should abort on an invalid block", async () => {
-		const pbq = new PutBlocksReq(BitcoinNetwork.REGTEST, 2, block);
+		const pbq = new PutBlocksReq(BtcNet.REGTEST, 2, block);
 		const buffer = Buffer.from("invaliddddd", "utf8");
 		pbq.block = new Uint8Array(buffer);
 		const reqBytes = PutBlocksReq.msgpack([pbq]);

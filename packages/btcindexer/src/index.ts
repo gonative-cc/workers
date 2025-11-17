@@ -13,7 +13,7 @@ import { BtcIndexerRpc } from "./rpc";
 import { fetchNbtcAddresses } from "./storage";
 import { type NbtcAddress } from "./models";
 import { type BlockQueueMessage } from "@gonative-cc/lib/bitcoin";
-import { CFStorage } from "./cf-storage";
+import { processBlockBatch } from "./queue-handler";
 
 const router = new HttpRouter(undefined);
 
@@ -47,20 +47,9 @@ export default {
 		const nbtcAddressesMap = new Map<string, NbtcAddress>(
 			nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 		);
-		const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
 		const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 
-		for (const message of batch.messages) {
-			const blockMessage = message.body;
-			try {
-				await storage.insertBlockInfo(blockMessage);
-				await indexer.processBlock(blockMessage);
-				await message.ack();
-			} catch (e) {
-				console.error("Failed to process block", toSerializableError(e));
-				await message.retry();
-			}
-		}
+		await processBlockBatch(batch, indexer.storage, indexer);
 	},
 
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's

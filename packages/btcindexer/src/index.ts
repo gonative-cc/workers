@@ -47,8 +47,7 @@ export default {
 			nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 		);
 		const indexer = await indexerFromEnv(env, nbtcAddressesMap);
-
-		await processBlockBatch(batch, indexer.storage, indexer);
+		return processBlockBatch(batch, indexer.storage, indexer);
 	},
 
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's

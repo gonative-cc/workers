@@ -20,7 +20,7 @@ import { CFStorage } from "./cf-storage";
 import { BtcNet, type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 
-const btcNetworks: Record<BtcNet, Network> = {
+const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
 	[BtcNet.TESTNET]: networks.testnet,
 	[BtcNet.REGTEST]: networks.regtest,

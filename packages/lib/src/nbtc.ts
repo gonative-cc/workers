@@ -5,7 +5,7 @@ export enum BtcNet {
 	SIGNET = "signet",
 }
 
-export interface BlockQueueMessage {
+export interface BlockQueueRecord {
 	hash: string;
 	height: number;
 	network: BtcNet;

@@ -20,6 +20,7 @@ export async function processBlockBatch(
 	// 4. The retried message for `block_100` (the old one) comes up for processing.
 	// 5. The current `insertBlockInfo` logic will overwrite `block_100_new` with `block_100`,
 	//    leading to data inconsistency and potential issues with transaction finalization.
+	const toRetry = [];
 	for (const message of batch.messages) {
 		const blockMessage = message.body;
 		try {
@@ -28,7 +29,10 @@ export async function processBlockBatch(
 			await message.ack();
 		} catch (e) {
 			console.error("Failed to process block", toSerializableError(e));
-			await message.retry();
+			toRetry.push(blockInfo);
 		}
 	}
+	if (toRetry.length === 0) return;
+	await dealy(200);
+	return Promise.all(toRetry.map(br => br.retry());
 }

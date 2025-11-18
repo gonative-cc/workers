@@ -12,7 +12,7 @@ export async function handleIngestBlocks(
 
 	const blockMetas = blocks.map((block) => {
 		const blockHash = block.block.getId();
-		const kvKey = `blocks:${block.network}:${blockHash}`;
+		const kvKey = `b:${block.network}:${blockHash}`;
 		return { block, blockHash, kvKey };
 	});
 

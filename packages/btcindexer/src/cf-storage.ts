@@ -149,9 +149,9 @@ export class CFStorage implements Storage {
 				tx.amountSats,
 				now,
 				now,
-				tx.btc_network,
-				tx.nbtc_pkg,
-				tx.sui_network,
+				tx.btcNetwork,
+				tx.nbtcPkg,
+				tx.suiNetwork,
 			),
 		);
 		try {
@@ -200,9 +200,9 @@ export class CFStorage implements Storage {
 
 		const statements = updates.map((p) => {
 			if (p.status === MintTxStatus.Minted) {
-				return setMintedStmt.bind(MintTxStatus.Minted, p.suiTxDigest, now, p.tx_id, p.vout);
+				return setMintedStmt.bind(MintTxStatus.Minted, p.suiTxDigest, now, p.txId, p.vout);
 			} else {
-				return setFailedStmt.bind(MintTxStatus.MintFailed, now, p.tx_id, p.vout);
+				return setFailedStmt.bind(MintTxStatus.MintFailed, now, p.txId, p.vout);
 			}
 		});
 
@@ -292,9 +292,9 @@ export class CFStorage implements Storage {
 				deposit.amountSats,
 				now,
 				now,
-				deposit.nbtc_pkg,
-				deposit.sui_network,
-				deposit.btc_network,
+				deposit.nbtcPkg,
+				deposit.suiNetwork,
+				deposit.btcNetwork,
 			),
 		);
 		try {
@@ -326,7 +326,7 @@ export class CFStorage implements Storage {
 		const insertStmt = this.d1.prepare(
 			"INSERT OR IGNORE INTO nbtc_sender_deposits (tx_id, sender) VALUES (?, ?)",
 		);
-		const statements = senders.map((s) => insertStmt.bind(s.txId, s.sender));
+		const statements = senders.map((s) => insertStmt.bind(s.tx_id, s.sender));
 		await this.d1.batch(statements);
 	}
 }

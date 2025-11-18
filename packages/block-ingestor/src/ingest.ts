@@ -1,0 +1,38 @@
+import { type PutBlock } from "./api/put-blocks";
+import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+
+export async function handleIngestBlocks(
+	blocks: PutBlock[],
+	blockStore: KVNamespace,
+	blockQueue: Queue,
+): Promise<void> {
+	if (blocks.length === 0) {
+		throw new Error("Empty block batch");
+	}
+
+	const blockMetas = blocks.map((block) => {
+		const blockHash = block.block.getId();
+		const kvKey = `b:${block.network}:${blockHash}`;
+		return { block, blockHash, kvKey };
+	});
+
+	// Batch KV puts
+	await Promise.all(
+		blockMetas.map((meta) => blockStore.put(meta.kvKey, meta.block.block.toBuffer())),
+	);
+
+	const messages: BlockQueueRecord[] = [];
+	for (const meta of blockMetas) {
+		messages.push({
+			hash: meta.blockHash,
+			height: meta.block.height,
+			network: meta.block.network,
+			kv_key: meta.kvKey,
+		});
+	}
+
+	// Enqueue parsing requests
+	if (messages.length > 0) {
+		await blockQueue.sendBatch(messages.map((body: BlockQueueRecord) => ({ body })));
+	}
+}

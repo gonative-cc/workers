@@ -94,4 +94,14 @@
       "id": "93968151e21e4cfa8f23041c0a5baf08",
     },
   ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "block-queue",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+      },
+    ],
+  },
 }

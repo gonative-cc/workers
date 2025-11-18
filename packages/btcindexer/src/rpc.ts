@@ -1,9 +1,9 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
-import type { PutBlocks } from "./api/put-blocks";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 import type { NbtcAddress, NbtcTxResp } from "./models";
 import { fetchNbtcAddresses } from "./storage";
-import type { BtcIndexerRpcI } from "./rpc-interface";
+import type { BtcIndexerRpcI, PutNbtcTxResponse } from "./rpc-interface";
 
 /**
  * RPC entrypoint for btcindexer worker.
@@ -26,16 +26,6 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	}
 
 	/**
-	 * Store new Bitcoin blocks in the indexer.
-	 * @param blocks - Array of blocks to store
-	 * @returns Number of blocks inserted
-	 */
-	async putBlocks(blocks: PutBlocks[]): Promise<number> {
-		const indexer = await this.getIndexer();
-		return indexer.putBlocks(blocks);
-	}
-
-	/**
 	 * Get the latest block height stored in the indexer.
 	 * @returns Object containing the latest height (or null if no blocks exist)
 	 */
@@ -47,11 +37,11 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	/**
 	 * Register a broadcasted nBTC transaction.
 	 * @param txHex - The transaction hex string
+	 * @param network - The Bitcoin network
 	 * @returns Transaction ID and number of registered deposits
-	 */
-	async putNbtcTx(txHex: string): Promise<{ tx_id: string; registered_deposits: number }> {
+	 */ async putNbtcTx(txHex: string, network: BtcNet): Promise<PutNbtcTxResponse> {
 		const indexer = await this.getIndexer();
-		return indexer.registerBroadcastedNbtcTx(txHex);
+		return indexer.registerBroadcastedNbtcTx(txHex, network);
 	}
 
 	/**

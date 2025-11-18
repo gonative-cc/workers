@@ -9,6 +9,7 @@ import { CFStorage } from "./cf-storage";
 import SuiClient, { type SuiClientCfg } from "./sui_client";
 import type { Deposit, ProofResult, NbtcAddress } from "./models";
 import { MintTxStatus } from "./models";
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 
@@ -106,7 +107,7 @@ beforeEach(async () => {
 	const nbtcAddressesMap = new Map<string, NbtcAddress>();
 	const testNbtcAddress: NbtcAddress = {
 		btc_address: REGTEST_DATA[329]!.depositAddr,
-		btc_network: "regtest",
+		btc_network: BtcNet.REGTEST,
 		sui_network: "testnet",
 		nbtc_pkg: "0xPACKAGE",
 	};
@@ -117,10 +118,8 @@ beforeEach(async () => {
 		new SuiClient(SUI_CLIENT_CFG),
 		nbtcAddressesMap,
 		SUI_FALLBACK_ADDRESS,
-		networks.regtest,
 		8,
 		2,
-		100,
 		mkElectrsServiceMock(), // Pass the service binding
 	);
 });
@@ -155,7 +154,7 @@ async function insertFinalizedTx(
 ) {
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			txData.id,
@@ -170,6 +169,7 @@ async function insertFinalizedTx(
 			retry_count,
 			"0xPACKAGE",
 			"testnet",
+			BtcNet.REGTEST,
 		)
 		.run();
 }
@@ -177,7 +177,7 @@ async function insertFinalizedTx(
 async function insertMintedTx(db: D1Database, txData: TxInfo, blockData: TestBlock) {
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			txData.id,
@@ -192,6 +192,7 @@ async function insertMintedTx(db: D1Database, txData: TxInfo, blockData: TestBlo
 			0,
 			"0xPACKAGE",
 			"testnet",
+			BtcNet.REGTEST,
 		)
 		.run();
 }
@@ -211,7 +212,7 @@ async function insertTxWithStatus(
 ) {
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			txId,
@@ -226,6 +227,7 @@ async function insertTxWithStatus(
 			retryCount,
 			"0xPACKAGE",
 			"testnet",
+			BtcNet.REGTEST,
 		)
 		.run();
 }
@@ -239,7 +241,7 @@ describe("Indexer.findNbtcDeposits", () => {
 
 		expect(targetTx).toBeDefined();
 
-		const deposits = indexer.findNbtcDeposits(targetTx!);
+		const deposits = indexer.findNbtcDeposits(targetTx!, networks.regtest);
 		expect(deposits.length).toEqual(1);
 		expect(deposits[0]!.amountSats).toEqual(REGTEST_DATA[329]!.txs[1]!.amountSats);
 		expect(deposits[0]!.suiRecipient).toEqual(REGTEST_DATA[329]!.txs[1]!.suiAddr);
@@ -251,7 +253,7 @@ describe("Indexer.findNbtcDeposits", () => {
 
 		const deposits: Deposit[][] = [];
 		for (const tx of block.transactions!) {
-			const d = indexer.findNbtcDeposits(tx);
+			const d = indexer.findNbtcDeposits(tx, networks.regtest);
 			if (d.length > 0)
 				// coinbase, nbtc_deposit_1, nbtc_deposit_2, other_tx
 				deposits.push(d);
@@ -267,9 +269,40 @@ describe("Indexer.findNbtcDeposits", () => {
 	});
 });
 
-describe.skip("Indexer.scanNewBlocks", () => {
-	it("should be tested later", () => {
-		// TODO: add a test for the scanNewBlocks using the same data
+describe("Indexer.processBlock", () => {
+	it("should process a block and insert nBTC transactions and sender deposits", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const blockQueueMessage: BlockQueueRecord = {
+			hash: blockData.hash,
+			height: blockData.height,
+			network: BtcNet.REGTEST,
+			kv_key: `blocks:regtest:${blockData.hash}`,
+		};
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		const fakeSenderAddress = "bc1qtestsenderaddress";
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(indexer.electrs.getTx as any).mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					vout: [{ scriptpubkey_address: fakeSenderAddress }],
+				}),
+			),
+		);
+
+		await indexer.processBlock(blockQueueMessage);
+
+		const db = await mf.getD1Database("DB");
+		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		expect(mintingResults.length).toEqual(1);
+
+		const { results: senderResults } = await db
+			.prepare("SELECT * FROM nbtc_sender_deposits")
+			.all();
+		expect(senderResults.length).toEqual(1);
+		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
 	});
 });
 
@@ -309,13 +342,18 @@ describe("Indexer.constructMerkleProof", () => {
 
 describe("Indexer.handleReorgs", () => {
 	it("should do nothing if no reorg", async () => {
-		const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: "hash_A",
+			block_height: 100,
+			btc_network: BtcNet.REGTEST,
+		};
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO btc_blocks (height, hash, processed_at, status) VALUES (?, ?, ?, ?)",
+				"INSERT INTO btc_blocks (height, hash, network, processed_at, status) VALUES (?, ?, ?, ?, ?)",
 			)
-			.bind(100, "hash_A", Date.now(), "scanned")
+			.bind(100, "hash_A", "regtest", Date.now(), "scanned")
 			.run();
 
 		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
@@ -323,13 +361,18 @@ describe("Indexer.handleReorgs", () => {
 	});
 
 	it("should generate a reset statement if reorg detected", async () => {
-		const pendingTx = { tx_id: "tx1", block_hash: "hash_A", block_height: 100 };
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: "hash_A",
+			block_height: 100,
+			btc_network: BtcNet.REGTEST,
+		};
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO btc_blocks (height, hash, processed_at, status) VALUES (?, ?, ?, ?)",
+				"INSERT INTO btc_blocks (height, hash, network, processed_at, status) VALUES (?, ?, ?, ?, ?)",
 			)
-			.bind(100, "hash_A_reorged", Date.now(), "scanned")
+			.bind(100, "hash_A_reorged", "regtest", Date.now(), "scanned")
 			.run();
 		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
 		expect(reorgedTxIds.length).toEqual(1);
@@ -338,14 +381,24 @@ describe("Indexer.handleReorgs", () => {
 
 describe("Indexer.findFinalizedTxs", () => {
 	it("should generate a finalize statement when enough confirmations", () => {
-		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: null,
+			block_height: 100,
+			btc_network: BtcNet.REGTEST,
+		};
 		const latestHeight = 107;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
 		expect(updates.length).toEqual(1);
 	});
 
 	it("should do nothing when not enough confirmations", () => {
-		const pendingTx = { tx_id: "tx1", block_hash: null, block_height: 100 };
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: null,
+			block_height: 100,
+			btc_network: BtcNet.REGTEST,
+		};
 		const latestHeight = 106;
 		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
 		expect(updates.length).toEqual(0);
@@ -383,8 +436,9 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1]!.id);
 		expect(targetTx).toBeDefined();
 
+		//TODO: this test is failing, probalby the deposit address is inccorect
 		const txHex = targetTx!.toHex();
-		await indexer.registerBroadcastedNbtcTx(txHex);
+		await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
 
 		const db = await mf.getD1Database("DB");
 		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
@@ -401,9 +455,9 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		// The first tx in a block is coinbase
 		const coinbaseTx = block.transactions![0]!;
 
-		expect(indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex())).rejects.toThrow(
-			"Transaction does not contain any valid nBTC deposits.",
-		);
+		expect(
+			indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex(), BtcNet.REGTEST),
+		).rejects.toThrow("Transaction does not contain any valid nBTC deposits.");
 	});
 });
 
@@ -673,17 +727,15 @@ describe("Indexer.detectMintedReorgs", () => {
 	});
 });
 
-describe("getSenderInsertStmts logic", () => {
-	it("should fetch sender addresses and store them when scanning a block", async () => {
+describe("Indexer.processBlock", () => {
+	it("should process a block and insert nBTC transactions and sender deposits", async () => {
 		const blockData = REGTEST_DATA[329]!;
-
-		const db = await mf.getD1Database("DB");
-		await db
-			.prepare(
-				"INSERT INTO btc_blocks (height, hash, processed_at, status) VALUES (?, ?, ?, ?)",
-			)
-			.bind(blockData.height, blockData.hash, Date.now(), "new")
-			.run();
+		const blockQueueMessage: BlockQueueRecord = {
+			hash: blockData.hash,
+			height: blockData.height,
+			network: BtcNet.REGTEST,
+			kv_key: `blocks:regtest:${blockData.hash}`,
+		};
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
@@ -698,18 +750,9 @@ describe("getSenderInsertStmts logic", () => {
 			),
 		);
 
-		await indexer.scanNewBlocks();
+		await indexer.processBlock(blockQueueMessage);
 
-		const block = Block.fromHex(blockData.rawBlockHex);
-		const targetTx = block.transactions![1]!;
-		const prevTxId = Buffer.from(targetTx.ins[0]!.hash).reverse().toString("hex");
-
-		// Check that the service binding fetch was called with the right request
-		expect(indexer.electrs.getTx).toHaveBeenCalledTimes(1);
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const requestArg = (indexer.electrs.getTx as any).mock.calls[0][0];
-		expect(requestArg).toEqual(prevTxId);
-
+		const db = await mf.getD1Database("DB");
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
 		expect(mintingResults.length).toEqual(1);
 

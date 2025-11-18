@@ -1,24 +1,16 @@
-import { Block } from "bitcoinjs-lib";
-import type {
-	BlockInfo,
-	NbtcTxRow,
-	PendingTx,
-	MintTxStatus,
-	FinalizedTxRow,
-	NbtcAddress,
-} from "./models";
+import type { NbtcTxRow, PendingTx, MintTxStatus, FinalizedTxRow, NbtcAddress } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
+import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export interface Storage {
 	// Block operations
-	putBlocks(blocks: { height: number; block: Block }[]): Promise<void>;
-	getBlocksToProcess(batchSize: number): Promise<BlockInfo[]>;
-	updateBlockStatus(heights: number[], status: string): Promise<void>;
+	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<void>;
+	updateBlockStatus(hash: string, network: string, status: string): Promise<void>;
 	getLatestBlockHeight(): Promise<number | null>;
 	getChainTip(): Promise<number | null>;
 	setChainTip(height: number): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
-	getBlockInfo(height: number): Promise<{ hash: string } | null>;
+	getBlockInfo(height: number, network: string): Promise<{ hash: string } | null>;
 	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 
 	// nBTC Transaction operations
@@ -32,6 +24,7 @@ export interface Storage {
 			amountSats: number;
 			nbtc_pkg: string;
 			sui_network: string;
+			btc_network: string;
 		}[],
 	): Promise<void>;
 
@@ -48,7 +41,15 @@ export interface Storage {
 	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(
-		deposits: { txId: string; vout: number; suiRecipient: string; amountSats: number }[],
+		deposits: {
+			txId: string;
+			vout: number;
+			suiRecipient: string;
+			amountSats: number;
+			nbtc_pkg: string;
+			sui_network: string;
+			btc_network: string;
+		}[],
 	): Promise<void>;
 	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
 
@@ -56,6 +57,9 @@ export interface Storage {
 	insertBtcDeposit(senders: { txId: string; sender: string }[]): Promise<void>;
 }
 
+// TODO: Add support for active/inactive nBTC addresses.
+// The current implementation fetches all addresses, but in the future,
+// we might need to filter by an 'active' status in the 'nbtc_addresses' table.
 /**
  * Fetches all nBTC deposit addresses from the D1 database.
  * @param db The D1 database binding.

@@ -118,3 +118,45 @@ export interface PostNbtcTxRequest {
 export type SuiTxDigest = string;
 
 export type { BlockQueueRecord };
+
+export interface NbtcTxInsertion {
+	txId: string;
+	vout: number;
+	blockHash: string;
+	blockHeight: number;
+	suiRecipient: string;
+	amountSats: number;
+	nbtc_pkg: string;
+	sui_network: string;
+	btc_network: string;
+}
+
+export interface NbtcTxUpdate {
+	tx_id: string;
+	vout: number;
+	status: MintTxStatus;
+	suiTxDigest?: string;
+}
+
+export interface NbtcBroadcastedDeposit {
+	txId: string;
+	vout: number;
+	suiRecipient: string;
+	amountSats: number;
+	nbtc_pkg: string;
+	sui_network: string;
+	btc_network: string;
+}
+
+export interface NbtcDepositSender {
+	txId: string;
+	sender: string;
+}
+
+export interface ElectrsTxVout {
+	scriptpubkey_address?: string;
+}
+
+export interface ElectrsTxResponse {
+	vout: ElectrsTxVout[];
+}

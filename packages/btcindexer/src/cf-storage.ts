@@ -1,5 +1,14 @@
 import { toSerializableError } from "./errutils";
-import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
+import type {
+	BlockInfo,
+	FinalizedTxRow,
+	NbtcTxRow,
+	PendingTx,
+	NbtcTxInsertion,
+	NbtcTxUpdate,
+	NbtcBroadcastedDeposit,
+	NbtcDepositSender,
+} from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import type { Storage } from "./storage";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
@@ -113,19 +122,7 @@ export class CFStorage implements Storage {
 			.first<{ hash: string }>();
 	}
 
-	async insertOrUpdateNbtcTxs(
-		txs: {
-			txId: string;
-			vout: number;
-			blockHash: string;
-			blockHeight: number;
-			suiRecipient: string;
-			amountSats: number;
-			btc_network: string;
-			nbtc_pkg: string;
-			sui_network: string;
-		}[],
-	): Promise<void> {
+	async insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void> {
 		if (txs.length === 0) {
 			return;
 		}
@@ -192,9 +189,7 @@ export class CFStorage implements Storage {
 		await updateStmt.run();
 	}
 
-	async batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: MintTxStatus; suiTxDigest?: string }[],
-	): Promise<void> {
+	async batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void> {
 		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
@@ -282,17 +277,7 @@ export class CFStorage implements Storage {
 		return dbResult.results ?? [];
 	}
 
-	async registerBroadcastedNbtcTx(
-		deposits: {
-			txId: string;
-			vout: number;
-			suiRecipient: string;
-			amountSats: number;
-			nbtc_pkg: string;
-			sui_network: string;
-			btc_network: string;
-		}[],
-	): Promise<void> {
+	async registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network)
@@ -334,7 +319,7 @@ export class CFStorage implements Storage {
 		return dbResult.results ?? [];
 	}
 
-	async insertBtcDeposit(senders: { txId: string; sender: string }[]): Promise<void> {
+	async insertBtcDeposit(senders: NbtcDepositSender[]): Promise<void> {
 		if (senders.length === 0) {
 			return;
 		}

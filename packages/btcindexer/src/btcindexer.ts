@@ -10,6 +10,9 @@ import type {
 	GroupedFinalizedTx,
 	NbtcAddress,
 	NbtcTxRow,
+	NbtcTxInsertion,
+	NbtcDepositSender,
+	ElectrsTxResponse,
 } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import { toSerializableError } from "./errutils";
@@ -122,18 +125,8 @@ export class Indexer {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
-		const nbtcTxs: {
-			txId: string;
-			vout: number;
-			blockHash: string;
-			blockHeight: number;
-			suiRecipient: string;
-			amountSats: number;
-			btc_network: string;
-			nbtc_pkg: string;
-			sui_network: string;
-		}[] = [];
-		let senders: { txId: string; sender: string }[] = [];
+		const nbtcTxs: NbtcTxInsertion[] = [];
+		let senders: NbtcDepositSender[] = [];
 
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
@@ -656,9 +649,7 @@ export class Indexer {
 			try {
 				const response = await this.electrs.getTx(prevTxId);
 				if (!response.ok) return;
-				const prevTx = (await response.json()) as {
-					vout: { scriptpubkey_address?: string }[];
-				};
+				const prevTx = (await response.json()) as ElectrsTxResponse;
 				const prevOutput = prevTx.vout[prevTxVout];
 				if (prevOutput?.scriptpubkey_address) {
 					senderAddresses.add(prevOutput.scriptpubkey_address);

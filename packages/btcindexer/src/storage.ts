@@ -1,4 +1,14 @@
-import type { NbtcTxRow, PendingTx, MintTxStatus, FinalizedTxRow, NbtcAddress } from "./models";
+import type {
+	NbtcTxRow,
+	PendingTx,
+	MintTxStatus,
+	FinalizedTxRow,
+	NbtcAddress,
+	NbtcTxInsertion,
+	NbtcTxUpdate,
+	NbtcBroadcastedDeposit,
+	NbtcDepositSender,
+} from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
@@ -14,44 +24,19 @@ export interface Storage {
 	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 
 	// nBTC Transaction operations
-	insertOrUpdateNbtcTxs(
-		txs: {
-			txId: string;
-			vout: number;
-			blockHash: string;
-			blockHeight: number;
-			suiRecipient: string;
-			amountSats: number;
-			nbtc_pkg: string;
-			sui_network: string;
-			btc_network: string;
-		}[],
-	): Promise<void>;
+	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;
 
 	getNbtcFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
 	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
-	batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: MintTxStatus; suiTxDigest?: string }[],
-	): Promise<void>;
+	batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;
 	getConfirmingTxs(): Promise<PendingTx[]>;
 	finalizeNbtcTxs(txIds: string[]): Promise<void>;
 	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
-	// TODO: create a proper type, instead of inline type
-	registerBroadcastedNbtcTx(
-		deposits: {
-			txId: string;
-			vout: number;
-			suiRecipient: string;
-			amountSats: number;
-			nbtc_pkg: string;
-			sui_network: string;
-			btc_network: string;
-		}[],
-	): Promise<void>;
+	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
 	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
-	insertNbtcMintDeposit(senders: { txId: string; sender: string }[]): Promise<void>;
+	insertNbtcMintDeposit(senders: NbtcDepositSender[]): Promise<void>;
 }
 
 // TODO: Add support for active/inactive nBTC addresses.

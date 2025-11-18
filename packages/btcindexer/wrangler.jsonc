@@ -86,7 +86,7 @@
 
   "kv_namespaces": [
     {
-      "binding": "btc_blocks",
+      "binding": "BtcBlocks",
       "id": "f8bc94f1f427436ab0797535fbc30cb7",
     },
     {

@@ -2,12 +2,10 @@ import { type MessageBatch } from "@cloudflare/workers-types";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { delay } from "@gonative-cc/lib/nbtc";
 import { type Indexer } from "./btcindexer";
-import { type Storage } from "./storage";
 import { logError } from "@gonative-cc/lib/logger";
 
 export async function processBlockBatch(
 	batch: MessageBatch<BlockQueueRecord>,
-	storage: Storage,
 	indexer: Indexer,
 ): Promise<void> {
 	// TODO: Implement robust reorg handling.
@@ -20,29 +18,32 @@ export async function processBlockBatch(
 	//    The `btc_blocks` table now correctly stores `block_100_new`.
 	// 4. The retried message for `block_100` (the old one) comes up for processing.
 	// 5. The current `insertBlockInfo` logic will overwrite `block_100_new` with `block_100`,
-	//    leading to data inconsistency and potential issues with transaction finalization.
+	//    leading to data inconsistency and potential issues with transaction finalization
+	// Make sure we push messages to retry only based on the blocks that didn't propagate on time to
+	// the KV store.
 	const toRetry = [];
-	for (const blockInfo of batch.messages) {
-		const blockMessage = blockInfo.body;
+	for (const m of batch.messages) {
+		const blockInfo = m.body;
 		try {
-			await storage.insertBlockInfo(blockMessage);
-			await indexer.processBlock(blockMessage);
-			await blockInfo.ack();
+			await indexer.processBlock(blockInfo);
+			m.ack();
 		} catch (e) {
 			logError(
 				{
 					msg: "Failed to process block",
 					method: "processBlockBatch",
-					blockHash: blockMessage.hash,
-					blockHeight: blockMessage.height,
-					network: blockMessage.network,
+					blockHash: blockInfo.hash,
+					blockHeight: blockInfo.height,
+					network: blockInfo.network,
 				},
 				e,
 			);
-			toRetry.push(blockInfo);
+			toRetry.push(m);
 		}
 	}
 	if (toRetry.length === 0) return;
+	// push back the block to the queue after a small delay to retry blocks that could not be
+	// processed due to the time difference of the KV store propagation.
 	await delay(200);
-	toRetry.forEach((br) => br.retry());
+	toRetry.forEach((m) => m.retry());
 }

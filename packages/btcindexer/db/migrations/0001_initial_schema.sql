@@ -24,11 +24,11 @@ CREATE TABLE IF NOT EXISTS nbtc_minting (
 	status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted' | 'reorg'
 	created_at INTEGER NOT NULL, -- timestamp_ms
 	updated_at INTEGER NOT NULL, -- timestamp_ms
-  sui_tx_id TEXT,
-  retry_count INTEGER NOT NULL DEFAULT 0,
-  nbtc_pkg TEXT NOT NULL,
-  sui_network TEXT NOT NULL,
-  btc_network TEXT NOT NULL,
+	sui_tx_id TEXT,
+	retry_count INTEGER NOT NULL DEFAULT 0,
+	nbtc_pkg TEXT NOT NULL,
+	sui_network TEXT NOT NULL,
+	btc_network TEXT NOT NULL,
 	PRIMARY KEY (tx_id, vout)
 ) STRICT;
 

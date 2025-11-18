@@ -1,4 +1,6 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
@@ -11,16 +13,14 @@ import type {
 	NbtcAddress,
 	NbtcTxRow,
 	NbtcTxInsertion,
-	NbtcDepositSender,
 	ElectrsTxResponse,
 } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
-import type { Storage } from "./storage";
+import type { Storage, NbtcDepositSender } from "./storage";
 import { CFStorage } from "./cf-storage";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
@@ -34,7 +34,7 @@ export async function indexerFromEnv(
 	env: Env,
 	nbtcAddressesMap: Map<string, NbtcAddress>,
 ): Promise<Indexer> {
-	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
+	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
 	const sc = await suiClientFromEnv(env);
 
 	const confirmationDepth = parseInt(env.CONFIRMATION_DEPTH || "8", 10);
@@ -106,6 +106,8 @@ export class Indexer {
 		return true;
 	}
 
+	// - extracts and processes nBTC deposit transactions in the block
+	// - handles reorgs
 	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
 		logger.info({
 			msg: "Processing block from queue",
@@ -113,21 +115,20 @@ export class Indexer {
 			hash: blockInfo.hash,
 			network: blockInfo.network,
 		});
-
 		const rawBlockBuffer = await this.storage.getBlock(blockInfo.hash);
 		if (!rawBlockBuffer) {
 			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
 		}
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
 		const network = btcNetworkCfg[blockInfo.network];
-
 		if (!network) {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
+		await this.storage.insertBlockInfo(blockInfo);
+
 		const nbtcTxs: NbtcTxInsertion[] = [];
 		let senders: NbtcDepositSender[] = [];
-
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
@@ -165,7 +166,7 @@ export class Indexer {
 		}
 
 		if (senders.length > 0) {
-			await this.storage.insertBtcDeposit(senders);
+			await this.storage.insertNbtcMintDeposit(senders);
 		}
 
 		if (nbtcTxs.length === 0) {
@@ -560,18 +561,15 @@ export class Indexer {
 		const reorgedTxIds: string[] = [];
 		for (const tx of pendingTxs) {
 			if (tx.block_hash === null) continue;
-			const newBlockInQueue = await this.storage.getBlockInfo(
-				tx.block_height,
-				tx.btc_network,
-			);
-			if (newBlockInQueue) {
-				if (newBlockInQueue.hash !== tx.block_hash) {
+			const hash = await this.storage.getBlockHash(tx.block_height, tx.btc_network);
+			if (hash) {
+				if (hash !== tx.block_hash) {
 					logger.warn({
 						msg: "Reorg detected",
 						txId: tx.tx_id,
 						height: tx.block_height,
 						oldHash: tx.block_hash,
-						newHash: newBlockInQueue.hash,
+						newHash: hash,
 					});
 					reorgedTxIds.push(tx.tx_id);
 				}

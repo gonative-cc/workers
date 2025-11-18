@@ -7,13 +7,13 @@
   "kv_namespaces": [
     {
       "binding": "BtcBlocks",
-      "id": "f8bc94f1f427436ab0797535fbc30cb7"
-    }
+      "id": "f8bc94f1f427436ab0797535fbc30cb7",
+    },
   ],
   "queues": {
-    "producers": [{ "queue": "block-queue", "binding": "BlockQueue" }]
+    "producers": [{ "queue": "block-queue", "binding": "BlockQueue" }],
   },
   "vars": {
-    "ENVIRONMENT": "dev"
-  }
+    "ENVIRONMENT": "dev",
+  },
 }

@@ -110,6 +110,8 @@ export class Indexer {
 			hash: blockInfo.hash,
 			network: blockInfo.network,
 		});
+		// TODO: see where to put it
+		await this.storage.insertBlockInfo(blockInfo);
 
 		const rawBlockBuffer = await this.storage.getBlock(blockInfo.hash);
 		if (!rawBlockBuffer) {
@@ -172,7 +174,7 @@ export class Indexer {
 		}
 
 		if (senders.length > 0) {
-			await this.storage.insertBtcDeposit(senders);
+			await this.storage.insertNbtcMintDeposit(senders);
 		}
 
 		if (nbtcTxs.length === 0) {
@@ -551,7 +553,7 @@ export class Indexer {
 		const reorgedTxIds: string[] = [];
 		for (const tx of pendingTxs) {
 			if (tx.block_hash === null) continue;
-			const newBlockInQueue = await this.storage.getBlockInfo(
+			const newBlockInQueue = await this.storage.getBlockHash(
 				tx.block_height,
 				tx.btc_network,
 			);

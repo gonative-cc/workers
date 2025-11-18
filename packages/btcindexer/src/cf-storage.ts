@@ -32,8 +32,7 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async insertBlockInfo(blockMessage: BlockQueueRecord): Promise<void> {
-		const now = Date.now();
+	async insertBlockInfo(b: BlockQueueRecord): Promise<void> {
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
@@ -43,14 +42,12 @@ export class CFStorage implements Storage {
 			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
 		try {
-			await insertStmt
-				.bind(blockMessage.hash, blockMessage.height, blockMessage.network, now)
-				.run();
+			await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
 		} catch (e) {
 			console.error({
 				msg: "Failed to insert block from queue message",
 				error: toSerializableError(e),
-				message: blockMessage,
+				message: b,
 			});
 			throw e;
 		}
@@ -106,11 +103,13 @@ export class CFStorage implements Storage {
 		return this.blocksDB.get(hash, { type: "arrayBuffer" });
 	}
 
-	async getBlockInfo(height: number, network: string): Promise<{ hash: string } | null> {
-		return this.d1
+	async getBlockHash(height: number, network: string): Promise<string | null> {
+		const row = await this.d1
 			.prepare("SELECT hash FROM btc_blocks WHERE height = ? AND network = ?")
 			.bind(height, network)
 			.first<{ hash: string }>();
+		if (row === null) return null;
+		return row.hash;
 	}
 
 	async insertOrUpdateNbtcTxs(
@@ -334,7 +333,7 @@ export class CFStorage implements Storage {
 		return dbResult.results ?? [];
 	}
 
-	async insertBtcDeposit(senders: { txId: string; sender: string }[]): Promise<void> {
+	async insertNbtcMintDeposit(senders: { txId: string; sender: string }[]): Promise<void> {
 		if (senders.length === 0) {
 			return;
 		}

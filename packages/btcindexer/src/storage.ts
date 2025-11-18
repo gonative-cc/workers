@@ -10,7 +10,7 @@ export interface Storage {
 	getChainTip(): Promise<number | null>;
 	setChainTip(height: number): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
-	getBlockInfo(height: number, network: string): Promise<{ hash: string } | null>;
+	getBlockHash(height: number, network: string): Promise<string | null>;
 	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 
 	// nBTC Transaction operations
@@ -38,6 +38,7 @@ export interface Storage {
 	finalizeNbtcTxs(txIds: string[]): Promise<void>;
 	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
+	// TODO: create a proper type, instead of inline type
 	registerBroadcastedNbtcTx(
 		deposits: {
 			txId: string;
@@ -50,9 +51,7 @@ export interface Storage {
 		}[],
 	): Promise<void>;
 	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
-
-	// Insert BTC deposit for nBTC mint.
-	insertBtcDeposit(senders: { txId: string; sender: string }[]): Promise<void>;
+	insertNbtcMintDeposit(senders: { txId: string; sender: string }[]): Promise<void>;
 }
 
 // TODO: Add support for active/inactive nBTC addresses.

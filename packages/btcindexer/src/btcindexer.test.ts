@@ -211,13 +211,14 @@ describe("Indexer.findNbtcDeposits", () => {
 });
 
 describe("Indexer.processBlock", () => {
+	const timestamp_ms = Date.now();
 	it("should process a block and insert nBTC transactions and sender deposits", async () => {
 		const blockData = REGTEST_DATA[329]!;
 		const blockQueueMessage: BlockQueueRecord = {
 			hash: blockData.hash,
 			height: blockData.height,
 			network: BtcNet.REGTEST,
-			kv_key: `blocks:regtest:${blockData.hash}`,
+			timestamp_ms,
 		};
 
 		const kv = await mf.getKVNamespace("btc_blocks");
@@ -484,13 +485,14 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 });
 
 describe("Indexer.processBlock", () => {
+	const timestamp_ms = Date.now();
 	it("should process a block and insert nBTC transactions and sender deposits", async () => {
 		const blockData = REGTEST_DATA[329]!;
-		const blockQueueMessage: BlockQueueRecord = {
+		const blockInfo: BlockQueueRecord = {
 			hash: blockData.hash,
 			height: blockData.height,
 			network: BtcNet.REGTEST,
-			kv_key: `blocks:regtest:${blockData.hash}`,
+			timestamp_ms,
 		};
 
 		const kv = await mf.getKVNamespace("btc_blocks");
@@ -506,7 +508,7 @@ describe("Indexer.processBlock", () => {
 			),
 		);
 
-		await indexer.processBlock(blockQueueMessage);
+		await indexer.processBlock(blockInfo);
 
 		const db = await mf.getD1Database("DB");
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();

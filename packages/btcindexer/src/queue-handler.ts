@@ -2,12 +2,10 @@ import { type MessageBatch } from "@cloudflare/workers-types";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { delay } from "@gonative-cc/lib/nbtc";
 import { type Indexer } from "./btcindexer";
-import { type Storage } from "./storage";
 import { toSerializableError } from "./errutils";
 
 export async function processBlockBatch(
 	batch: MessageBatch<BlockQueueRecord>,
-	storage: Storage,
 	indexer: Indexer,
 ): Promise<void> {
 	// TODO: Implement robust reorg handling.
@@ -22,18 +20,17 @@ export async function processBlockBatch(
 	// 5. The current `insertBlockInfo` logic will overwrite `block_100_new` with `block_100`,
 	//    leading to data inconsistency and potential issues with transaction finalization.
 	const toRetry = [];
-	for (const blockInfo of batch.messages) {
-		const blockMessage = blockInfo.body;
+	for (const m of batch.messages) {
+		const blockInfo = m.body;
 		try {
-			await storage.insertBlockInfo(blockMessage);
-			await indexer.processBlock(blockMessage);
-			await blockInfo.ack();
+			await indexer.processBlock(blockInfo);
+			m.ack();
 		} catch (e) {
 			console.error("Failed to process block", toSerializableError(e));
-			toRetry.push(blockInfo);
+			toRetry.push(m);
 		}
 	}
 	if (toRetry.length === 0) return;
 	await delay(200);
-	toRetry.forEach((br) => br.retry());
+	toRetry.forEach((m) => m.retry());
 }

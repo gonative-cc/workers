@@ -1,6 +1,7 @@
 import { type PutBlock } from "./api/put-blocks";
-import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { type BlockQueueRecord, kvBlocksKey } from "@gonative-cc/lib/nbtc";
 
+/// Enequeue new blocks to the indexer processing queue.
 export async function handleIngestBlocks(
 	blocks: PutBlock[],
 	blockStore: KVNamespace,
@@ -9,30 +10,25 @@ export async function handleIngestBlocks(
 	if (blocks.length === 0) {
 		throw new Error("Empty block batch");
 	}
-
-	const blockMetas = blocks.map((block) => {
-		const blockHash = block.block.getId();
-		const kvKey = `b:${block.network}:${blockHash}`;
-		return { block, blockHash, kvKey };
-	});
-
-	// Batch KV puts
+	const timestamp_ms = Date.now();
+	const batch: MessageSendRequest<BlockQueueRecord>[] = [];
 	await Promise.all(
-		blockMetas.map((meta) => blockStore.put(meta.kvKey, meta.block.block.toBuffer())),
+		blocks.map((b) => {
+			const hash = b.block.getId();
+			batch.push({
+				body: {
+					hash,
+					timestamp_ms,
+					height: b.height,
+					network: b.network,
+				},
+			});
+			const kvKey = kvBlocksKey(b.network, b.block.getId());
+			return blockStore.put(kvKey, b.block.toBuffer());
+		}),
 	);
 
-	const messages: BlockQueueRecord[] = [];
-	for (const meta of blockMetas) {
-		messages.push({
-			hash: meta.blockHash,
-			height: meta.block.height,
-			network: meta.block.network,
-			kv_key: meta.kvKey,
-		});
-	}
-
-	// Enqueue parsing requests
-	if (messages.length > 0) {
-		await blockQueue.sendBatch(messages.map((body: BlockQueueRecord) => ({ body })));
+	if (batch.length > 0) {
+		await blockQueue.sendBatch(batch);
 	}
 }

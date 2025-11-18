@@ -1,5 +1,6 @@
 import * as path from "path";
 import { readdir } from "fs/promises";
+import { D1Database } from "@cloudflare/workers-types";
 
 const MIGRATIONS_PATH = path.resolve(__dirname, "../db/migrations");
 

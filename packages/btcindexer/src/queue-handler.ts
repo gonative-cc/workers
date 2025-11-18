@@ -3,7 +3,7 @@ import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { delay } from "@gonative-cc/lib/nbtc";
 import { type Indexer } from "./btcindexer";
 import { type Storage } from "./storage";
-import { toSerializableError } from "./errutils";
+import { logError } from "@gonative-cc/lib/logger";
 
 export async function processBlockBatch(
 	batch: MessageBatch<BlockQueueRecord>,
@@ -29,7 +29,16 @@ export async function processBlockBatch(
 			await indexer.processBlock(blockMessage);
 			await blockInfo.ack();
 		} catch (e) {
-			console.error("Failed to process block", toSerializableError(e));
+			logError(
+				{
+					msg: "Failed to process block",
+					method: "processBlockBatch",
+					blockHash: blockMessage.hash,
+					blockHeight: blockMessage.height,
+					network: blockMessage.network,
+				},
+				e,
+			);
 			toRetry.push(blockInfo);
 		}
 	}

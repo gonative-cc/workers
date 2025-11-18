@@ -47,7 +47,11 @@ export default {
 		env: Env,
 		_ctx: ExecutionContext,
 	): Promise<void> {
-		console.log(`Processing batch of ${batch.messages.length} messages from ${batch.queue}`);
+		logger.info({
+			msg: "Processing batch",
+			count: batch.messages.length,
+			queue: batch.queue,
+		});
 		// TODO: Add support for active/inactive nBTC addresses.
 		// The current implementation fetches all addresses, but we need to distinguish it,
 		// probably a active (boolean) column in the table.

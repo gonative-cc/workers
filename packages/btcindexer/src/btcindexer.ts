@@ -104,7 +104,7 @@ export class Indexer {
 	}
 
 	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
-		console.log({
+		logger.info({
 			msg: "Processing block from queue",
 			height: blockInfo.height,
 			hash: blockInfo.hash,
@@ -143,7 +143,7 @@ export class Indexer {
 			}
 
 			for (const deposit of deposits) {
-				console.log({
+				logger.info({
 					msg: "Found new nBTC deposit",
 					txId: tx.getId(),
 					vout: deposit.vout,
@@ -176,7 +176,7 @@ export class Indexer {
 		}
 
 		if (nbtcTxs.length === 0) {
-			console.debug({ msg: "No new nBTC deposits found in block" });
+			logger.debug({ msg: "No new nBTC deposits found in block" });
 		}
 
 		await this.storage.updateBlockStatus(
@@ -644,7 +644,7 @@ export class Indexer {
 		}
 		const depositData = deposits.map((d) => ({ ...d, txId, btc_network: network }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
-		console.log({
+		logger.info({
 			msg: "New nBTC minting deposit TX registered",
 			txId,
 			registeredCount: deposits.length,

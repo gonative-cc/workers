@@ -1,4 +1,4 @@
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import type { Storage } from "./storage";
@@ -50,14 +50,17 @@ export class CFStorage implements Storage {
 				.bind(blockMessage.hash, blockMessage.height, blockMessage.network, now)
 				.run();
 		} catch (e) {
-			console.error({
-				msg: "Failed to insert block from queue message",
-				error: toSerializableError(e),
-				message: blockMessage,
-			});
+			logError(
+				{
+					msg: "Failed to insert block from queue message",
+					method: "insertBlockInfo",
+					message: blockMessage,
+				},
+				e,
+			);
 			throw e;
 		}
-		console.log({ msg: "Successfully ingested blocks" });
+		logger.info({ msg: "Successfully ingested blocks" });
 	}
 
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
@@ -75,16 +78,21 @@ export class CFStorage implements Storage {
 		const updateStmt = `UPDATE btc_blocks SET status = ?, processed_at = ? WHERE hash = ? AND network = ?`;
 		try {
 			await this.d1.prepare(updateStmt).bind(status, now, hash, network).run();
-			console.debug({
+			logger.debug({
 				msg: `Marked block as ${status}`,
 				hash,
 				network,
 			});
 		} catch (e) {
-			console.error({
-				msg: `Failed to mark block as ${status}`,
-				error: toSerializableError(e),
-			});
+			logError(
+				{
+					msg: `Failed to mark block as ${status}`,
+					method: "updateBlockStatus",
+					hash,
+					network,
+				},
+				e,
+			);
 			throw e;
 		}
 	}
@@ -315,10 +323,13 @@ export class CFStorage implements Storage {
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
-			console.error({
-				msg: "Failed to register broadcasted nBTC tx",
-				error: toSerializableError(e),
-			});
+			logError(
+				{
+					msg: "Failed to register broadcasted nBTC tx",
+					method: "registerBroadcastedNbtcTx",
+				},
+				e,
+			);
 			throw e;
 		}
 	}

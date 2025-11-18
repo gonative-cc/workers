@@ -7,7 +7,7 @@ import type { PostNbtcTxRequest } from "./models";
 import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 
 export default class HttpRouter {
 	#indexer?: Indexer;

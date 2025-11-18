@@ -1,5 +1,14 @@
 import { logError, logger } from "@gonative-cc/lib/logger";
-import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
+import type {
+	BlockInfo,
+	FinalizedTxRow,
+	NbtcTxRow,
+	PendingTx,
+	NbtcTxInsertion,
+	NbtcTxUpdate,
+	NbtcBroadcastedDeposit,
+	NbtcDepositSender,
+} from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import type { Storage } from "./storage";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
@@ -124,19 +133,7 @@ export class CFStorage implements Storage {
 			.first<{ hash: string }>();
 	}
 
-	async insertOrUpdateNbtcTxs(
-		txs: {
-			txId: string;
-			vout: number;
-			blockHash: string;
-			blockHeight: number;
-			suiRecipient: string;
-			amountSats: number;
-			btc_network: string;
-			nbtc_pkg: string;
-			sui_network: string;
-		}[],
-	): Promise<void> {
+	async insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void> {
 		if (txs.length === 0) {
 			return;
 		}
@@ -163,9 +160,9 @@ export class CFStorage implements Storage {
 				tx.amountSats,
 				now,
 				now,
-				tx.btc_network,
-				tx.nbtc_pkg,
-				tx.sui_network,
+				tx.btcNetwork,
+				tx.nbtcPkg,
+				tx.suiNetwork,
 			),
 		);
 		try {
@@ -203,9 +200,7 @@ export class CFStorage implements Storage {
 		await updateStmt.run();
 	}
 
-	async batchUpdateNbtcTxs(
-		updates: { tx_id: string; vout: number; status: MintTxStatus; suiTxDigest?: string }[],
-	): Promise<void> {
+	async batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void> {
 		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
@@ -216,9 +211,9 @@ export class CFStorage implements Storage {
 
 		const statements = updates.map((p) => {
 			if (p.status === MintTxStatus.Minted) {
-				return setMintedStmt.bind(MintTxStatus.Minted, p.suiTxDigest, now, p.tx_id, p.vout);
+				return setMintedStmt.bind(MintTxStatus.Minted, p.suiTxDigest, now, p.txId, p.vout);
 			} else {
-				return setFailedStmt.bind(MintTxStatus.MintFailed, now, p.tx_id, p.vout);
+				return setFailedStmt.bind(MintTxStatus.MintFailed, now, p.txId, p.vout);
 			}
 		});
 
@@ -290,17 +285,7 @@ export class CFStorage implements Storage {
 		return dbResult.results ?? [];
 	}
 
-	async registerBroadcastedNbtcTx(
-		deposits: {
-			txId: string;
-			vout: number;
-			suiRecipient: string;
-			amountSats: number;
-			nbtc_pkg: string;
-			sui_network: string;
-			btc_network: string;
-		}[],
-	): Promise<void> {
+	async registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network)
@@ -315,9 +300,9 @@ export class CFStorage implements Storage {
 				deposit.amountSats,
 				now,
 				now,
-				deposit.nbtc_pkg,
-				deposit.sui_network,
-				deposit.btc_network,
+				deposit.nbtcPkg,
+				deposit.suiNetwork,
+				deposit.btcNetwork,
 			),
 		);
 		try {
@@ -345,14 +330,14 @@ export class CFStorage implements Storage {
 		return dbResult.results ?? [];
 	}
 
-	async insertBtcDeposit(senders: { txId: string; sender: string }[]): Promise<void> {
+	async insertBtcDeposit(senders: NbtcDepositSender[]): Promise<void> {
 		if (senders.length === 0) {
 			return;
 		}
 		const insertStmt = this.d1.prepare(
 			"INSERT OR IGNORE INTO nbtc_sender_deposits (tx_id, sender) VALUES (?, ?)",
 		);
-		const statements = senders.map((s) => insertStmt.bind(s.txId, s.sender));
+		const statements = senders.map((s) => insertStmt.bind(s.tx_id, s.sender));
 		await this.d1.batch(statements);
 	}
 }

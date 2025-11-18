@@ -10,6 +10,9 @@ import type {
 	GroupedFinalizedTx,
 	NbtcAddress,
 	NbtcTxRow,
+	NbtcTxInsertion,
+	NbtcDepositSender,
+	ElectrsTxResponse,
 } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -122,24 +125,14 @@ export class Indexer {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
-		const nbtcTxs: {
-			txId: string;
-			vout: number;
-			blockHash: string;
-			blockHeight: number;
-			suiRecipient: string;
-			amountSats: number;
-			btc_network: string;
-			nbtc_pkg: string;
-			sui_network: string;
-		}[] = [];
-		let senders: { txId: string; sender: string }[] = [];
+		const nbtcTxs: NbtcTxInsertion[] = [];
+		let senders: NbtcDepositSender[] = [];
 
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
 				const newSenders = await this.getSenderAddresses(tx);
-				senders = senders.concat(newSenders.map((s) => ({ txId: tx.getId(), sender: s })));
+				senders = senders.concat(newSenders.map((s) => ({ tx_id: tx.getId(), sender: s })));
 			}
 
 			for (const deposit of deposits) {
@@ -149,8 +142,8 @@ export class Indexer {
 					vout: deposit.vout,
 					amountSats: deposit.amountSats,
 					suiRecipient: deposit.suiRecipient,
-					nbtc_pkg: deposit.nbtc_pkg,
-					sui_network: deposit.sui_network,
+					nbtcPkg: deposit.nbtcPkg,
+					suiNetwork: deposit.suiNetwork,
 				});
 
 				nbtcTxs.push({
@@ -160,9 +153,9 @@ export class Indexer {
 					blockHeight: blockInfo.height,
 					suiRecipient: deposit.suiRecipient,
 					amountSats: deposit.amountSats,
-					btc_network: blockInfo.network,
-					nbtc_pkg: deposit.nbtc_pkg,
-					sui_network: deposit.sui_network,
+					btcNetwork: blockInfo.network,
+					nbtcPkg: deposit.nbtcPkg,
+					suiNetwork: deposit.suiNetwork,
 				});
 			}
 		}
@@ -227,8 +220,8 @@ export class Indexer {
 						vout: i,
 						amountSats: Number(vout.value),
 						suiRecipient,
-						nbtc_pkg: matchingNbtcAddress.nbtc_pkg,
-						sui_network: matchingNbtcAddress.sui_network,
+						nbtcPkg: matchingNbtcAddress.nbtc_pkg,
+						suiNetwork: matchingNbtcAddress.sui_network,
 					});
 				}
 			} catch (e) {
@@ -275,8 +268,8 @@ export class Indexer {
 				group.deposits.push(row);
 			} else {
 				groupedTxs.set(row.tx_id, {
-					block_hash: row.block_hash,
-					block_height: row.block_height,
+					blockHash: row.block_hash,
+					blockHeight: row.block_height,
 					deposits: [row],
 				});
 			}
@@ -287,12 +280,12 @@ export class Indexer {
 
 		for (const [txId, txGroup] of groupedTxs.entries()) {
 			try {
-				const rawBlockBuffer = await this.storage.getBlock(txGroup.block_hash);
+				const rawBlockBuffer = await this.storage.getBlock(txGroup.blockHash);
 				if (!rawBlockBuffer) {
 					logger.warn({
 						msg: "Minting: Block data not found in KV, skipping transaction.",
 						txId,
-						blockHash: txGroup.block_hash,
+						blockHash: txGroup.blockHash,
 					});
 					continue;
 				}
@@ -360,11 +353,11 @@ export class Indexer {
 					});
 					continue;
 				}
-				const nbtc_pkg = firstDeposit.nbtc_pkg;
-				const sui_network = firstDeposit.sui_network;
-				const pkgKey = `${nbtc_pkg}-${sui_network}`;
+				const nbtcPkg = firstDeposit.nbtc_pkg;
+				const suiNetwork = firstDeposit.sui_network;
+				const pkgKey = `${nbtcPkg}-${suiNetwork}`;
 
-				if (!nbtc_pkg || !sui_network) {
+				if (!nbtcPkg || !suiNetwork) {
 					logger.warn({
 						msg: "Minting: Skipping transaction group with missing nbtc_pkg or sui_network, likely old data.",
 						txId,
@@ -381,11 +374,11 @@ export class Indexer {
 				if (mintBatchArgs) {
 					mintBatchArgs.push({
 						tx: targetTx,
-						blockHeight: txGroup.block_height,
+						blockHeight: txGroup.blockHeight,
 						txIndex: txIndex,
 						proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
-						nbtc_pkg: nbtc_pkg,
-						sui_network: sui_network,
+						nbtcPkg: nbtcPkg,
+						suiNetwork: suiNetwork,
 					});
 				}
 
@@ -434,7 +427,7 @@ export class Indexer {
 					});
 					await this.storage.batchUpdateNbtcTxs(
 						processedPrimaryKeys.map((p) => ({
-							tx_id: p.tx_id,
+							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.Minted,
 							suiTxDigest,
@@ -448,7 +441,7 @@ export class Indexer {
 					});
 					await this.storage.batchUpdateNbtcTxs(
 						processedPrimaryKeys.map((p) => ({
-							tx_id: p.tx_id,
+							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.MintFailed,
 						})),
@@ -623,7 +616,7 @@ export class Indexer {
 			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
 			return {
 				...tx,
-				btc_tx_id: tx.tx_id,
+				btcTxId: tx.tx_id,
 				status: tx.status as MintTxStatus,
 				block_height: blockHeight,
 				confirmations: confirmations > 0 ? confirmations : 0,
@@ -642,7 +635,7 @@ export class Indexer {
 		if (deposits.length === 0) {
 			throw new Error("Transaction does not contain any valid nBTC deposits.");
 		}
-		const depositData = deposits.map((d) => ({ ...d, txId, btc_network: network }));
+		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
 		logger.info({
 			msg: "New nBTC minting deposit TX registered",
@@ -672,9 +665,7 @@ export class Indexer {
 			try {
 				const response = await this.electrs.getTx(prevTxId);
 				if (!response.ok) return;
-				const prevTx = (await response.json()) as {
-					vout: { scriptpubkey_address?: string }[];
-				};
+				const prevTx = (await response.json()) as ElectrsTxResponse;
 				const prevOutput = prevTx.vout[prevTxVout];
 				if (prevOutput?.scriptpubkey_address) {
 					senderAddresses.add(prevOutput.scriptpubkey_address);
@@ -718,12 +709,12 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 function nbtcRowToResp(r: NbtcTxRow, latestHeight: number | null): NbtcTxResp {
 	const bh = r.block_height;
 	const confirmations = bh && latestHeight ? latestHeight - bh + 1 : 0;
-	const btc_tx_id = r.tx_id;
+	const btcTxId = r.tx_id;
 	// @ts-expect-error The operand of a 'delete' operator must be optional
 	delete r.tx_id;
 
 	return {
-		btc_tx_id,
+		btcTxId,
 		confirmations: confirmations > 0 ? confirmations : 0,
 		...r,
 	};

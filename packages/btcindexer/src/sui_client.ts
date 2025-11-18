@@ -106,12 +106,12 @@ export class SuiClient {
 	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest> {
 		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
-		// Assuming all mintArgs in a batch are for the same nbtc_pkg and sui_network for now
+		// Assuming all mintArgs in a batch are for the same nbtcPkg and suiNetwork for now
 		const firstArg = mintArgs[0];
 		if (!firstArg) throw new Error("Mint arguments cannot be empty.");
 
 		const tx = new SuiTransaction();
-		const target = `${firstArg.nbtc_pkg}::${this.nbtcModule}::mint` as const; // Use nbtc_pkg from arg
+		const target = `${firstArg.nbtcPkg}::${this.nbtcModule}::mint` as const; // Use nbtcPkg from arg
 
 		for (const args of mintArgs) {
 			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));

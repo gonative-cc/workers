@@ -51,7 +51,7 @@ function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
 	const { status, confirmations } = getStatus(data.createdAt);
 
 	return {
-		btc_tx_id: txid,
+		btcTxId: txid,
 		status,
 		confirmations,
 

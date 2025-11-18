@@ -13,8 +13,8 @@ export interface Deposit {
 	vout: number;
 	amountSats: number;
 	suiRecipient: string;
-	nbtc_pkg: string;
-	sui_network: SuiNet;
+	nbtcPkg: string;
+	suiNetwork: SuiNet;
 }
 
 export interface ProofResult {
@@ -44,8 +44,8 @@ export interface BlockInfo {
 }
 
 export interface GroupedFinalizedTx {
-	block_hash: string;
-	block_height: number;
+	blockHash: string;
+	blockHeight: number;
 	deposits: FinalizedTxRow[];
 }
 
@@ -75,7 +75,7 @@ export const enum BlockStatus {
 }
 
 export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {
-	btc_tx_id: string;
+	btcTxId: string;
 	status: MintTxStatus;
 	confirmations: number;
 }
@@ -106,8 +106,8 @@ export interface MintBatchArg {
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
-	nbtc_pkg: string;
-	sui_network: SuiNet;
+	nbtcPkg: string;
+	suiNetwork: SuiNet;
 }
 
 export interface PostNbtcTxRequest {
@@ -118,3 +118,45 @@ export interface PostNbtcTxRequest {
 export type SuiTxDigest = string;
 
 export type { BlockQueueRecord };
+
+export interface NbtcTxInsertion {
+	txId: string;
+	vout: number;
+	blockHash: string;
+	blockHeight: number;
+	suiRecipient: string;
+	amountSats: number;
+	nbtcPkg: string;
+	suiNetwork: SuiNet;
+	btcNetwork: BtcNet;
+}
+
+export interface NbtcTxUpdate {
+	txId: string;
+	vout: number;
+	status: MintTxStatus;
+	suiTxDigest?: string;
+}
+
+export interface NbtcBroadcastedDeposit {
+	txId: string;
+	vout: number;
+	suiRecipient: string;
+	amountSats: number;
+	nbtcPkg: string;
+	suiNetwork: SuiNet;
+	btcNetwork: BtcNet;
+}
+
+export interface NbtcDepositSender {
+	tx_id: string;
+	sender: string;
+}
+
+export interface ElectrsTxVout {
+	scriptpubkey_address?: string;
+}
+
+export interface ElectrsTxResponse {
+	vout: ElectrsTxVout[];
+}

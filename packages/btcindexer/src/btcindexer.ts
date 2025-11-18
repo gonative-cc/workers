@@ -10,9 +10,12 @@ import type {
 	GroupedFinalizedTx,
 	NbtcAddress,
 	NbtcTxRow,
+	NbtcTxInsertion,
+	NbtcDepositSender,
+	ElectrsTxResponse,
 } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
 import type { Storage } from "./storage";
@@ -80,10 +83,10 @@ export class Indexer {
 
 		if (nbtcAddressesMap.size === 0) {
 			const err = new Error("No nBTC deposit addresses configured.");
-			console.error({
-				msg: "No nBTC deposit addresses configured.",
-				error: toSerializableError(err),
-			});
+			logError(
+				{ msg: "No nBTC deposit addresses configured.", method: "Indexer.constructor" },
+				err,
+			);
 			throw err;
 		}
 		this.confirmationDepth = confirmationDepth;
@@ -104,7 +107,7 @@ export class Indexer {
 	}
 
 	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
-		console.log({
+		logger.info({
 			msg: "Processing block from queue",
 			height: blockInfo.height,
 			hash: blockInfo.hash,
@@ -122,35 +125,25 @@ export class Indexer {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
-		const nbtcTxs: {
-			txId: string;
-			vout: number;
-			blockHash: string;
-			blockHeight: number;
-			suiRecipient: string;
-			amountSats: number;
-			btc_network: string;
-			nbtc_pkg: string;
-			sui_network: string;
-		}[] = [];
-		let senders: { txId: string; sender: string }[] = [];
+		const nbtcTxs: NbtcTxInsertion[] = [];
+		let senders: NbtcDepositSender[] = [];
 
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
 				const newSenders = await this.getSenderAddresses(tx);
-				senders = senders.concat(newSenders.map((s) => ({ txId: tx.getId(), sender: s })));
+				senders = senders.concat(newSenders.map((s) => ({ tx_id: tx.getId(), sender: s })));
 			}
 
 			for (const deposit of deposits) {
-				console.log({
+				logger.info({
 					msg: "Found new nBTC deposit",
 					txId: tx.getId(),
 					vout: deposit.vout,
 					amountSats: deposit.amountSats,
 					suiRecipient: deposit.suiRecipient,
-					nbtc_pkg: deposit.nbtc_pkg,
-					sui_network: deposit.sui_network,
+					nbtcPkg: deposit.nbtcPkg,
+					suiNetwork: deposit.suiNetwork,
 				});
 
 				nbtcTxs.push({
@@ -160,9 +153,9 @@ export class Indexer {
 					blockHeight: blockInfo.height,
 					suiRecipient: deposit.suiRecipient,
 					amountSats: deposit.amountSats,
-					btc_network: blockInfo.network,
-					nbtc_pkg: deposit.nbtc_pkg,
-					sui_network: deposit.sui_network,
+					btcNetwork: blockInfo.network,
+					nbtcPkg: deposit.nbtcPkg,
+					suiNetwork: deposit.suiNetwork,
 				});
 			}
 		}
@@ -176,7 +169,7 @@ export class Indexer {
 		}
 
 		if (nbtcTxs.length === 0) {
-			console.debug({ msg: "No new nBTC deposits found in block" });
+			logger.debug({ msg: "No new nBTC deposits found in block" });
 		}
 
 		await this.storage.updateBlockStatus(
@@ -195,7 +188,7 @@ export class Indexer {
 			const parsedRecipient = parseSuiRecipientFromOpReturn(vout.script);
 			if (parsedRecipient) {
 				suiRecipient = parsedRecipient;
-				console.debug({
+				logger.debug({
 					msg: "Parsed Sui recipient from OP_RETURN",
 					txId: tx.getId(),
 					suiRecipient,
@@ -218,7 +211,7 @@ export class Indexer {
 				const btcAddress = address.fromOutputScript(vout.script, network);
 				const matchingNbtcAddress = this.nbtcAddressesMap.get(btcAddress);
 				if (matchingNbtcAddress) {
-					console.debug({
+					logger.debug({
 						msg: "Found matching nBTC deposit output",
 						txId: tx.getId(),
 						vout: i,
@@ -227,13 +220,16 @@ export class Indexer {
 						vout: i,
 						amountSats: Number(vout.value),
 						suiRecipient,
-						nbtc_pkg: matchingNbtcAddress.nbtc_pkg,
-						sui_network: matchingNbtcAddress.sui_network,
+						nbtcPkg: matchingNbtcAddress.nbtc_pkg,
+						suiNetwork: matchingNbtcAddress.sui_network,
 					});
 				}
 			} catch (e) {
 				// This is expected for coinbase transactions and other non-standard scripts.
-				console.debug({ msg: "Error parsing output script", error: e });
+				logger.debug({
+					msg: "Error parsing output script",
+					error: e instanceof Error ? e.message : String(e),
+				});
 			}
 		}
 		return deposits;
@@ -245,7 +241,7 @@ export class Indexer {
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;
 		}
-		console.log({
+		logger.info({
 			msg: "Minting: Found deposits to process",
 			count: finalizedTxs.length,
 		});
@@ -272,8 +268,8 @@ export class Indexer {
 				group.deposits.push(row);
 			} else {
 				groupedTxs.set(row.tx_id, {
-					block_hash: row.block_hash,
-					block_height: row.block_height,
+					blockHash: row.block_hash,
+					blockHeight: row.block_height,
 					deposits: [row],
 				});
 			}
@@ -284,12 +280,12 @@ export class Indexer {
 
 		for (const [txId, txGroup] of groupedTxs.entries()) {
 			try {
-				const rawBlockBuffer = await this.storage.getBlock(txGroup.block_hash);
+				const rawBlockBuffer = await this.storage.getBlock(txGroup.blockHash);
 				if (!rawBlockBuffer) {
-					console.warn({
+					logger.warn({
 						msg: "Minting: Block data not found in KV, skipping transaction.",
 						txId,
-						blockHash: txGroup.block_hash,
+						blockHash: txGroup.blockHash,
 					});
 					continue;
 				}
@@ -304,8 +300,9 @@ export class Indexer {
 				const txIndex = block.transactions.findIndex((tx) => tx.getId() === txId);
 
 				if (txIndex === -1) {
-					console.error({
+					logger.error({
 						msg: "Minting: Could not find TX within its block. Detecting reorg.",
+						method: "processFinalizedTransactions",
 						txId,
 					});
 					try {
@@ -315,8 +312,9 @@ export class Indexer {
 							currentStatus !== MintTxStatus.Finalized &&
 							currentStatus !== MintTxStatus.MintFailed
 						) {
-							console.error({
+							logger.error({
 								msg: "Minting: Unexpected status during reorg detection, skipping",
+								method: "processFinalizedTransactions",
 								txId,
 								currentStatus,
 							});
@@ -328,18 +326,22 @@ export class Indexer {
 								? MintTxStatus.MintedReorg
 								: MintTxStatus.FinalizedReorg;
 						await this.storage.updateNbtcTxsStatus([txId], reorgStatus);
-						console.warn({
+						logger.warn({
 							msg: "Minting: Transaction reorged",
+							method: "processFinalizedTransactions",
 							txId,
 							previousStatus: currentStatus,
 							newStatus: reorgStatus,
 						});
 					} catch (e) {
-						console.error({
-							msg: "Minting: Failed to update reorg status",
-							error: toSerializableError(e),
-							txId,
-						});
+						logError(
+							{
+								msg: "Minting: Failed to update reorg status",
+								method: "processFinalizedTransactions",
+								txId,
+							},
+							e,
+						);
 						throw e;
 					}
 					continue;
@@ -359,7 +361,7 @@ export class Indexer {
 					!proof ||
 					(block.merkleRoot !== undefined && !block.merkleRoot.equals(calculatedRoot))
 				) {
-					console.error({
+					logger.error({
 						msg: "Failed to generate a valid merkle proof. Root mismatch.",
 						txId,
 						blockRoot: block.merkleRoot?.toString("hex"),
@@ -370,18 +372,19 @@ export class Indexer {
 
 				const firstDeposit = txGroup.deposits[0];
 				if (!firstDeposit) {
-					console.error({
+					logger.warn({
 						msg: "Minting: Skipping transaction group with no deposits",
+						method: "processFinalizedTransactions",
 						txId,
 					});
 					continue;
 				}
-				const nbtc_pkg = firstDeposit.nbtc_pkg;
-				const sui_network = firstDeposit.sui_network;
-				const pkgKey = `${nbtc_pkg}-${sui_network}`;
+				const nbtcPkg = firstDeposit.nbtc_pkg;
+				const suiNetwork = firstDeposit.sui_network;
+				const pkgKey = `${nbtcPkg}-${suiNetwork}`;
 
-				if (!nbtc_pkg || !sui_network) {
-					console.warn({
+				if (!nbtcPkg || !suiNetwork) {
+					logger.warn({
 						msg: "Minting: Skipping transaction group with missing nbtc_pkg or sui_network, likely old data.",
 						txId,
 					});
@@ -397,11 +400,11 @@ export class Indexer {
 				if (mintBatchArgs) {
 					mintBatchArgs.push({
 						tx: targetTx,
-						blockHeight: txGroup.block_height,
+						blockHeight: txGroup.blockHeight,
 						txIndex: txIndex,
 						proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
-						nbtc_pkg: nbtc_pkg,
-						sui_network: sui_network,
+						nbtcPkg: nbtcPkg,
+						suiNetwork: suiNetwork,
 					});
 				}
 
@@ -415,11 +418,14 @@ export class Indexer {
 					}
 				}
 			} catch (e) {
-				console.error({
-					msg: "Minting: Error preparing transaction for minting batch, will retry",
-					error: toSerializableError(e),
-					txId,
-				});
+				logError(
+					{
+						msg: "Error preparing transaction for minting batch, will retry",
+						method: "processFinalizedTransactions",
+						txId,
+					},
+					e,
+				);
 				// NOTE: We don't update the status here. The transaction will be picked up
 				// again in the next run of processFinalizedTransactions.
 			}
@@ -432,7 +438,7 @@ export class Indexer {
 					continue;
 				}
 
-				console.log({
+				logger.info({
 					msg: "Minting: Sending batch of mints to Sui",
 					count: mintBatchArgs.length,
 					pkgKey: pkgKey,
@@ -440,24 +446,28 @@ export class Indexer {
 
 				const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
 				if (suiTxDigest) {
-					console.log({
+					logger.info({
 						msg: "Sui batch mint transaction successful",
 						suiTxDigest,
 						pkgKey,
 					});
 					await this.storage.batchUpdateNbtcTxs(
 						processedPrimaryKeys.map((p) => ({
-							tx_id: p.tx_id,
+							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.Minted,
 							suiTxDigest,
 						})),
 					);
 				} else {
-					console.error({ msg: "Sui batch mint transaction failed", pkgKey });
+					logger.error({
+						msg: "Sui batch mint transaction failed",
+						method: "processFinalizedTransactions",
+						pkgKey,
+					});
 					await this.storage.batchUpdateNbtcTxs(
 						processedPrimaryKeys.map((p) => ({
-							tx_id: p.tx_id,
+							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.MintFailed,
 						})),
@@ -468,7 +478,7 @@ export class Indexer {
 	}
 
 	async detectMintedReorgs(): Promise<void> {
-		console.debug({ msg: "Cron: Checking for reorgs on minted transactions" });
+		logger.debug({ msg: "Cron: Checking for reorgs on minted transactions" });
 
 		const mintedTxs = await this.storage.getMintedTxs();
 		if (!mintedTxs || mintedTxs.length === 0) {
@@ -479,9 +489,9 @@ export class Indexer {
 			try {
 				const rawBlockBuffer = await this.storage.getBlock(tx.block_hash);
 				if (!rawBlockBuffer) {
-					//TODO: use logger once pr merged
-					console.warn({
+					logger.warn({
 						msg: "Block data not found for minted transaction",
+						method: "detectMintedReorgs",
 						txId: tx.tx_id,
 						blockHash: tx.block_hash,
 					});
@@ -493,21 +503,23 @@ export class Indexer {
 
 				if (txIndex === -1) {
 					await this.storage.updateNbtcTxsStatus([tx.tx_id], MintTxStatus.MintedReorg);
-					//TODO: use logger once pr merged
-					console.error({
+					logger.error({
 						msg: "CRITICAL: Deep reorg detected on minted transaction",
+						method: "detectMintedReorgs",
 						txId: tx.tx_id,
 						blockHash: tx.block_hash,
 						blockHeight: tx.block_height,
 					});
 				}
 			} catch (e) {
-				//TODO: use logger once pr merged
-				console.error({
-					msg: "Error checking minted transaction for reorg",
-					error: toSerializableError(e),
-					txId: tx.tx_id,
-				});
+				logError(
+					{
+						msg: "Error checking minted transaction for reorg",
+						method: "detectMintedReorgs",
+						txId: tx.tx_id,
+					},
+					e,
+				);
 			}
 		}
 	}
@@ -523,11 +535,10 @@ export class Indexer {
 		try {
 			return tree.getProof(targetTx);
 		} catch (e) {
-			console.error({
-				msg: "Failed to get merkle proof",
-				error: toSerializableError(e),
-				txId: targetTx.getId(),
-			});
+			logError(
+				{ msg: "Failed to get merkle proof", method: "getTxProof", txId: targetTx.getId() },
+				e,
+			);
 			return null;
 		}
 	}
@@ -536,13 +547,13 @@ export class Indexer {
 	// 'confirming' txs are still part of the canonical chain.
 	// This is used to detect reorgs before proceeding to finalization attempts.
 	async verifyConfirmingBlocks(): Promise<void> {
-		console.debug({
+		logger.debug({
 			msg: "SPV Check: Verifying 'confirming' blocks with on-chain light client.",
 		});
 
 		const blocksToVerify = await this.storage.getConfirmingBlocks();
 		if (!blocksToVerify || blocksToVerify.length === 0) {
-			console.debug({ msg: "SPV Check: No confirming blocks to verify." });
+			logger.debug({ msg: "SPV Check: No confirming blocks to verify." });
 			return;
 		}
 
@@ -561,19 +572,22 @@ export class Indexer {
 			}
 
 			if (invalidHashes.length > 0) {
-				console.warn({
+				logger.warn({
 					msg: "SPV Check: Detected reorged blocks. Updating transaction statuses.",
 					reorgedBlockHashes: invalidHashes,
 				});
 				await this.storage.updateConfirmingTxsToReorg(invalidHashes);
 			} else {
-				console.debug({ msg: "SPV Check: All confirming blocks are valid." });
+				logger.debug({ msg: "SPV Check: All confirming blocks are valid." });
 			}
 		} catch (e) {
-			console.error({
-				msg: "SPV Check: Failed to verify blocks with on-chain light client.",
-				error: toSerializableError(e),
-			});
+			logError(
+				{
+					msg: "Failed to verify blocks with on-chain light client",
+					method: "verifyConfirmingBlocks",
+				},
+				e,
+			);
 		}
 	}
 
@@ -585,7 +599,7 @@ export class Indexer {
 		if (!pendingTxs || pendingTxs.length === 0) {
 			return;
 		}
-		console.debug({
+		logger.debug({
 			msg: "Finalization: Checking 'confirming' transactions",
 			count: pendingTxs.length,
 			chainTipHeight: latestHeight,
@@ -593,7 +607,7 @@ export class Indexer {
 
 		const { reorgedTxIds } = await this.handleReorgs(pendingTxs);
 		if (reorgedTxIds.length > 0) {
-			console.debug({
+			logger.debug({
 				msg: "Finalization: Updating reorged transactions",
 				count: reorgedTxIds.length,
 			});
@@ -607,7 +621,7 @@ export class Indexer {
 		const finalizationTxIds = this.selectFinalizedNbtcTxs(validPendingTxs, latestHeight);
 
 		if (finalizationTxIds.length > 0) {
-			console.debug({
+			logger.debug({
 				msg: "Finalization: Applying status updates to D1",
 				finalizedCount: finalizationTxIds.length,
 			});
@@ -625,7 +639,7 @@ export class Indexer {
 			);
 			if (newBlockInQueue) {
 				if (newBlockInQueue.hash !== tx.block_hash) {
-					console.warn({
+					logger.warn({
 						msg: "Reorg detected",
 						txId: tx.tx_id,
 						height: tx.block_height,
@@ -644,7 +658,7 @@ export class Indexer {
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= this.confirmationDepth) {
-				console.log({
+				logger.info({
 					msg: "Transaction has enough confirmations, finalizing.",
 					txId: tx.tx_id,
 					confirmations,
@@ -675,7 +689,7 @@ export class Indexer {
 			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
 			return {
 				...tx,
-				btc_tx_id: tx.tx_id,
+				btcTxId: tx.tx_id,
 				status: tx.status as MintTxStatus,
 				block_height: blockHeight,
 				confirmations: confirmations > 0 ? confirmations : 0,
@@ -694,9 +708,9 @@ export class Indexer {
 		if (deposits.length === 0) {
 			throw new Error("Transaction does not contain any valid nBTC deposits.");
 		}
-		const depositData = deposits.map((d) => ({ ...d, txId, btc_network: network }));
+		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
-		console.log({
+		logger.info({
 			msg: "New nBTC minting deposit TX registered",
 			txId,
 			registeredCount: deposits.length,
@@ -724,19 +738,20 @@ export class Indexer {
 			try {
 				const response = await this.electrs.getTx(prevTxId);
 				if (!response.ok) return;
-				const prevTx = (await response.json()) as {
-					vout: { scriptpubkey_address?: string }[];
-				};
+				const prevTx = (await response.json()) as ElectrsTxResponse;
 				const prevOutput = prevTx.vout[prevTxVout];
 				if (prevOutput?.scriptpubkey_address) {
 					senderAddresses.add(prevOutput.scriptpubkey_address);
 				}
 			} catch (e) {
-				console.error({
-					msg: "Failed to fetch previous tx for sender address via service binding",
-					error: toSerializableError(e),
-					prevTxId,
-				});
+				logError(
+					{
+						msg: "Failed to fetch previous tx for sender address via service binding",
+						method: "getSenderAddresses",
+						prevTxId,
+					},
+					e,
+				);
 			}
 		});
 		await Promise.all(prevTxFetches);
@@ -767,12 +782,12 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 function nbtcRowToResp(r: NbtcTxRow, latestHeight: number | null): NbtcTxResp {
 	const bh = r.block_height;
 	const confirmations = bh && latestHeight ? latestHeight - bh + 1 : 0;
-	const btc_tx_id = r.tx_id;
+	const btcTxId = r.tx_id;
 	// @ts-expect-error The operand of a 'delete' operator must be optional
 	delete r.tx_id;
 
 	return {
-		btc_tx_id,
+		btcTxId,
 		confirmations: confirmations > 0 ? confirmations : 0,
 		...r,
 	};

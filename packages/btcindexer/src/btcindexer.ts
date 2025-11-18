@@ -106,6 +106,8 @@ export class Indexer {
 		return true;
 	}
 
+	// - extracts and process nBTC deposit transactions in the block
+	// - handles reorgs
 	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
 		console.log({
 			msg: "Processing block from queue",
@@ -113,23 +115,20 @@ export class Indexer {
 			hash: blockInfo.hash,
 			network: blockInfo.network,
 		});
-		// TODO: see where to put it
-		await this.storage.insertBlockInfo(blockInfo);
-
 		const rawBlockBuffer = await this.storage.getBlock(blockInfo.hash);
 		if (!rawBlockBuffer) {
 			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
 		}
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
 		const network = btcNetworkCfg[blockInfo.network];
-
 		if (!network) {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
+		await this.storage.insertBlockInfo(blockInfo);
+
 		const nbtcTxs: NbtcTxInsertion[] = [];
 		let senders: NbtcDepositSender[] = [];
-
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {

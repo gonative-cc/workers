@@ -42,6 +42,8 @@ export class CFStorage implements Storage {
 	}
 
 	async insertBlockInfo(b: BlockQueueRecord): Promise<void> {
+		// TODO: handle conflicts. We should not process the block if
+		// we have a newer block already processed.
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET

@@ -7,7 +7,7 @@ import type { PostNbtcTxRequest } from "./models";
 import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 
 export default class HttpRouter {
 	#indexer?: Indexer;
@@ -59,7 +59,7 @@ export default class HttpRouter {
 	// Otherwise we would need to setup the server on each fetch request.
 	fetch = async (req: Request, env: Env, indexer: Indexer) => {
 		this.#indexer = indexer;
-		console.trace({ msg: "Incoming request", url: req.url, method: req.method });
+		logger.debug({ msg: "Incoming request", url: req.url, method: req.method });
 		return this.#router.fetch(req, env);
 	};
 
@@ -87,7 +87,7 @@ export default class HttpRouter {
 			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex, body.network);
 			return { success: true, ...result };
 		} catch (e: unknown) {
-			console.error({ msg: "Failed to register nBTC tx", error: toSerializableError(e) });
+			logError({ msg: "Failed to register nBTC tx", method: "postNbtcTx" }, e);
 			const message = e instanceof Error ? e.message : "An unknown error occurred.";
 			return new Response(message, { status: 400 });
 		}

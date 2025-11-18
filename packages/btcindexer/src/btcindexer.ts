@@ -1,4 +1,6 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
@@ -11,16 +13,14 @@ import type {
 	NbtcAddress,
 	NbtcTxRow,
 	NbtcTxInsertion,
-	NbtcDepositSender,
 	ElectrsTxResponse,
 } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import { toSerializableError } from "./errutils";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
-import type { Storage } from "./storage";
+import type { Storage, NbtcDepositSender } from "./storage";
 import { CFStorage } from "./cf-storage";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {

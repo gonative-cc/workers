@@ -148,11 +148,6 @@ export interface NbtcBroadcastedDeposit {
 	btcNetwork: BtcNet;
 }
 
-export interface NbtcDepositSender {
-	tx_id: string;
-	sender: string;
-}
-
 export interface ElectrsTxVout {
 	scriptpubkey_address?: string;
 }

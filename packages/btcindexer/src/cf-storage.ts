@@ -7,10 +7,9 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
-	NbtcDepositSender,
 } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
-import type { Storage } from "./storage";
+import type { Storage, NbtcDepositSender } from "./storage";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export class CFStorage implements Storage {

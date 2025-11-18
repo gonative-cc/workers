@@ -7,7 +7,6 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
-	NbtcDepositSender,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
@@ -50,4 +49,9 @@ export interface Storage {
 export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcAddress[]> {
 	const { results } = await db.prepare("SELECT * FROM nbtc_addresses").all<NbtcAddress>();
 	return results || [];
+}
+
+export interface NbtcDepositSender {
+	tx_id: string;
+	sender: string;
 }

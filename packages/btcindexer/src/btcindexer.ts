@@ -546,18 +546,15 @@ export class Indexer {
 		const reorgedTxIds: string[] = [];
 		for (const tx of pendingTxs) {
 			if (tx.block_hash === null) continue;
-			const newBlockInQueue = await this.storage.getBlockHash(
-				tx.block_height,
-				tx.btc_network,
-			);
-			if (newBlockInQueue) {
-				if (newBlockInQueue.hash !== tx.block_hash) {
+			const hash = await this.storage.getBlockHash(tx.block_height, tx.btc_network);
+			if (hash) {
+				if (hash !== tx.block_hash) {
 					console.warn({
 						msg: "Reorg detected",
 						txId: tx.tx_id,
 						height: tx.block_height,
 						oldHash: tx.block_hash,
-						newHash: newBlockInQueue.hash,
+						newHash: hash,
 					});
 					reorgedTxIds.push(tx.tx_id);
 				}

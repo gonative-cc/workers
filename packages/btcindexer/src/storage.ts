@@ -35,7 +35,7 @@ export interface Storage {
 		}[],
 	): Promise<void>;
 
-	getNbtcFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
+	getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]>;
 	getMintedTxs(): Promise<FinalizedTxRow[]>;
 	getTxStatus(txId: string): Promise<MintTxStatus | null>;
 	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;

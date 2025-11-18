@@ -200,6 +200,36 @@ async function setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
 	await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 }
 
+async function insertTxWithStatus(
+	db: D1Database,
+	txId: string,
+	suiRecipient: string,
+	amountSats: number,
+	status: MintTxStatus,
+	blockData: TestBlock,
+	retryCount = 0,
+) {
+	await db
+		.prepare(
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		)
+		.bind(
+			txId,
+			0,
+			blockData.hash,
+			blockData.height,
+			suiRecipient,
+			amountSats,
+			status,
+			Date.now(),
+			Date.now(),
+			retryCount,
+			"0xPACKAGE",
+			"testnet",
+		)
+		.run();
+}
+
 describe("Indexer.findNbtcDeposits", () => {
 	it("should correctly parse a single deposit from a real regtest transaction", () => {
 		const block = Block.fromHex(REGTEST_DATA[329]!.rawBlockHex);
@@ -455,6 +485,148 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 			.all();
 		expect(results.length).toEqual(1);
 		expect(results[0]!.retry_count).toEqual(2);
+	});
+});
+
+describe("Storage.getNbtcMintCandidates", () => {
+	it("should return finalized txs as mint candidates", async () => {
+		const db = await mf.getD1Database("DB");
+		const blockData = REGTEST_DATA[329]!;
+
+		await insertTxWithStatus(
+			db,
+			"finalized_tx",
+			"0xfinalized",
+			10000,
+			MintTxStatus.Finalized,
+			blockData,
+		);
+
+		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+
+		expect(candidates.length).toEqual(1);
+		expect(candidates[0]!.tx_id).toEqual("finalized_tx");
+	});
+
+	it("should return mint-failed txs within retry limit as mint candidates", async () => {
+		const db = await mf.getD1Database("DB");
+		const blockData = REGTEST_DATA[329]!;
+
+		await insertTxWithStatus(
+			db,
+			"failed_tx",
+			"0xfailed",
+			20000,
+			MintTxStatus.MintFailed,
+			blockData,
+			2,
+		);
+
+		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+
+		expect(candidates.length).toEqual(1);
+		expect(candidates[0]!.tx_id).toEqual("failed_tx");
+	});
+
+	it("should NOT return mint-failed txs exceeding retry limit", async () => {
+		const db = await mf.getD1Database("DB");
+		const blockData = REGTEST_DATA[329]!;
+
+		await insertTxWithStatus(
+			db,
+			"failed_tx_exceeds",
+			"0xfailed",
+			30000,
+			MintTxStatus.MintFailed,
+			blockData,
+			5,
+		);
+
+		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+
+		expect(candidates.length).toEqual(0);
+	});
+
+	it("should NOT return minted txs", async () => {
+		const db = await mf.getD1Database("DB");
+		const blockData = REGTEST_DATA[329]!;
+
+		await insertTxWithStatus(
+			db,
+			"minted_tx",
+			"0xminted",
+			40000,
+			MintTxStatus.Minted,
+			blockData,
+		);
+
+		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+
+		expect(candidates.length).toEqual(0);
+	});
+
+	it("should NOT return reorg txs (finalized-reorg or minted-reorg)", async () => {
+		const db = await mf.getD1Database("DB");
+		const blockData = REGTEST_DATA[329]!;
+
+		await insertTxWithStatus(
+			db,
+			"finalized_reorg_tx",
+			"0xfreorg",
+			50000,
+			MintTxStatus.FinalizedReorg,
+			blockData,
+		);
+		await insertTxWithStatus(
+			db,
+			"minted_reorg_tx",
+			"0xmreorg",
+			60000,
+			MintTxStatus.MintedReorg,
+			blockData,
+		);
+
+		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+
+		expect(candidates.length).toEqual(0);
+	});
+
+	it("should return both finalized and mint-failed txs within retry limit together", async () => {
+		const db = await mf.getD1Database("DB");
+		const blockData = REGTEST_DATA[329]!;
+
+		await insertTxWithStatus(
+			db,
+			"finalized_tx",
+			"0xfinalized",
+			10000,
+			MintTxStatus.Finalized,
+			blockData,
+		);
+		await insertTxWithStatus(
+			db,
+			"failed_tx_within_limit",
+			"0xfailed",
+			20000,
+			MintTxStatus.MintFailed,
+			blockData,
+			2,
+		);
+		await insertTxWithStatus(
+			db,
+			"failed_tx_exceeds_limit",
+			"0xfailed2",
+			30000,
+			MintTxStatus.MintFailed,
+			blockData,
+			5,
+		);
+
+		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+
+		expect(candidates.length).toEqual(2);
+		const txIds = candidates.map((c) => c.tx_id).sort();
+		expect(txIds).toEqual(["failed_tx_within_limit", "finalized_tx"]);
 	});
 });
 

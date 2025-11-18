@@ -31,7 +31,7 @@ export async function indexerFromEnv(
 	env: Env,
 	nbtcAddressesMap: Map<string, NbtcAddress>,
 ): Promise<Indexer> {
-	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
+	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
 	const sc = await suiClientFromEnv(env);
 
 	const confirmationDepth = parseInt(env.CONFIRMATION_DEPTH || "8", 10);

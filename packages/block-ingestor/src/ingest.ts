@@ -4,7 +4,7 @@ import { type BlockQueueRecord, kvBlocksKey } from "@gonative-cc/lib/nbtc";
 /// Enequeue new blocks to the indexer processing queue.
 export async function handleIngestBlocks(
 	blocks: PutBlock[],
-	blockStore: KVNamespace,
+	btcBlocksStore: KVNamespace,
 	blockQueue: Queue,
 ): Promise<void> {
 	if (blocks.length === 0) {
@@ -24,7 +24,7 @@ export async function handleIngestBlocks(
 				},
 			});
 			const kvKey = kvBlocksKey(b.network, b.block.getId());
-			return blockStore.put(kvKey, b.block.toBuffer());
+			return btcBlocksStore.put(kvKey, b.block.toBuffer());
 		}),
 	);
 

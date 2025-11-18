@@ -97,7 +97,7 @@ export default class HttpRouter {
 	// TODO: remove this
 	//
 	putTestKV = async (req: IRequest, env: Env) => {
-		const kv = env.btc_blocks;
+		const kv = env.BtcBlocks;
 		const data = await req.json<{ key: string; val: string }>();
 		if (!data.key || !data.val) return new Error("Wrong Request: body must by {key, val} JSON");
 		await kv.put(data.key, data.val);
@@ -106,7 +106,7 @@ export default class HttpRouter {
 		// return 1;
 	};
 	getTestKV = async (req: IRequest, env: Env) => {
-		const kv = env.btc_blocks;
+		const kv = env.BtcBlocks;
 		const params = req.params;
 		if (!params) {
 			return error(400, "Missing parameters");

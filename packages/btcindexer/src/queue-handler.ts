@@ -2,7 +2,6 @@ import { type MessageBatch } from "@cloudflare/workers-types";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { delay } from "@gonative-cc/lib/nbtc";
 import { type Indexer } from "./btcindexer";
-import { type Storage } from "./storage";
 import { logError } from "@gonative-cc/lib/logger";
 
 export async function processBlockBatch(
@@ -19,7 +18,9 @@ export async function processBlockBatch(
 	//    The `btc_blocks` table now correctly stores `block_100_new`.
 	// 4. The retried message for `block_100` (the old one) comes up for processing.
 	// 5. The current `insertBlockInfo` logic will overwrite `block_100_new` with `block_100`,
-	//    leading to data inconsistency and potential issues with transaction finalization.
+	//    leading to data inconsistency and potential issues with transaction finalization
+	// Make sure we push messages to retry only based on the blocks that didn't propage on time to
+	// the KV store.
 	const toRetry = [];
 	for (const m of batch.messages) {
 		const blockInfo = m.body;
@@ -37,10 +38,12 @@ export async function processBlockBatch(
 				},
 				e,
 			);
-			toRetry.push(blockInfo);
+			toRetry.push(m);
 		}
 	}
 	if (toRetry.length === 0) return;
+	// push back the block to the queue after a small delay to retry blocks that could not be
+	// processing due to time diff of store the KV propagation.
 	await delay(200);
 	toRetry.forEach((m) => m.retry());
 }

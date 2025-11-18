@@ -17,7 +17,7 @@ import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
 import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
-import { BtcNet, type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
@@ -103,7 +103,7 @@ export class Indexer {
 		return true;
 	}
 
-	async processBlock(blockInfo: BlockQueueMessage): Promise<void> {
+	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
 		console.log({
 			msg: "Processing block from queue",
 			height: blockInfo.height,
@@ -116,7 +116,7 @@ export class Indexer {
 			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
 		}
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
-		const network = btcNetworks[blockInfo.network];
+		const network = btcNetworkCfg[blockInfo.network];
 
 		if (!network) {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
@@ -618,7 +618,7 @@ export class Indexer {
 	async registerBroadcastedNbtcTx(txHex: string, network: BtcNet): Promise<PutNbtcTxResponse> {
 		const tx = Transaction.fromHex(txHex);
 		const txId = tx.getId();
-		const btcNetwork = btcNetworks[network];
+		const btcNetwork = btcNetworkCfg[network];
 		if (!btcNetwork) {
 			throw new Error(`Unknown network: ${network}`);
 		}

@@ -1,5 +1,5 @@
 import { Transaction } from "bitcoinjs-lib";
-import { BtcNet, type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface NbtcAddress {
@@ -117,4 +117,4 @@ export interface PostNbtcTxRequest {
 
 export type SuiTxDigest = string;
 
-export type { BlockQueueMessage };
+export type { BlockQueueRecord };

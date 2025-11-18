@@ -11,7 +11,7 @@ import { toSerializableError } from "./errutils";
 import HttpRouter from "./router";
 import { fetchNbtcAddresses } from "./storage";
 import { type NbtcAddress } from "./models";
-import { type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
+import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { processBlockBatch } from "./queue-handler";
 
 const router = new HttpRouter(undefined);
@@ -19,6 +19,9 @@ const router = new HttpRouter(undefined);
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		try {
+			// TODO: Add support for active/inactive nBTC addresses.
+			// The current implementation fetches all addresses, but in the future,
+			// we might need to filter by an 'active' status in the 'nbtc_addresses' table.
 			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
 			const nbtcAddressesMap = new Map<string, NbtcAddress>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
@@ -37,11 +40,14 @@ export default {
 	},
 
 	async queue(
-		batch: MessageBatch<BlockQueueMessage>,
+		batch: MessageBatch<BlockQueueRecord>,
 		env: Env,
 		_ctx: ExecutionContext,
 	): Promise<void> {
 		console.log(`Processing batch of ${batch.messages.length} messages from ${batch.queue}`);
+		// TODO: Add support for active/inactive nBTC addresses.
+		// The current implementation fetches all addresses, but we need to distinguish it,
+		// probably a active (boolean) column in the table.
 		const nbtcAddresses = await fetchNbtcAddresses(env.DB);
 		const nbtcAddressesMap = new Map<string, NbtcAddress>(
 			nbtcAddresses.map((addr) => [addr.btc_address, addr]),
@@ -80,7 +86,7 @@ export default {
 			});
 		}
 	},
-} satisfies ExportedHandler<Env, BlockQueueMessage>;
+} satisfies ExportedHandler<Env, BlockQueueRecord>;
 
 // Export RPC entrypoints for service bindings
 // Use BtcIndexerRpc for production, BtcIndexerRpcMock for local development/testing

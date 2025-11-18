@@ -2,7 +2,7 @@ import { toSerializableError } from "./errutils";
 import type { BlockInfo, FinalizedTxRow, NbtcTxRow, PendingTx } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import type { Storage } from "./storage";
-import type { BlockQueueMessage } from "@gonative-cc/lib/nbtc";
+import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;
@@ -32,7 +32,7 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async insertBlockInfo(blockMessage: BlockQueueMessage): Promise<void> {
+	async insertBlockInfo(blockMessage: BlockQueueRecord): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)

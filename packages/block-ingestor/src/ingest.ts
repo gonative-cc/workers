@@ -1,5 +1,5 @@
 import { type PutBlock } from "./api/put-blocks";
-import { type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
+import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export async function handleIngestBlocks(
 	blocks: PutBlock[],
@@ -21,7 +21,7 @@ export async function handleIngestBlocks(
 		blockMetas.map((meta) => blockStore.put(meta.kvKey, meta.block.block.toBuffer())),
 	);
 
-	const messages: BlockQueueMessage[] = [];
+	const messages: BlockQueueRecord[] = [];
 	for (const meta of blockMetas) {
 		messages.push({
 			hash: meta.blockHash,
@@ -33,6 +33,6 @@ export async function handleIngestBlocks(
 
 	// Enqueue parsing requests
 	if (messages.length > 0) {
-		await blockQueue.sendBatch(messages.map((body: BlockQueueMessage) => ({ body })));
+		await blockQueue.sendBatch(messages.map((body: BlockQueueRecord) => ({ body })));
 	}
 }

@@ -1,10 +1,10 @@
 import type { NbtcTxRow, PendingTx, MintTxStatus, FinalizedTxRow, NbtcAddress } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
-import type { BlockQueueMessage } from "@gonative-cc/lib/nbtc";
+import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export interface Storage {
 	// Block operations
-	insertBlockInfo(blockMessage: BlockQueueMessage): Promise<void>;
+	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<void>;
 	updateBlockStatus(hash: string, network: string, status: string): Promise<void>;
 	getLatestBlockHeight(): Promise<number | null>;
 	getChainTip(): Promise<number | null>;
@@ -55,6 +55,9 @@ export interface Storage {
 	insertBtcDeposit(senders: { txId: string; sender: string }[]): Promise<void>;
 }
 
+// TODO: Add support for active/inactive nBTC addresses.
+// The current implementation fetches all addresses, but in the future,
+// we might need to filter by an 'active' status in the 'nbtc_addresses' table.
 /**
  * Fetches all nBTC deposit addresses from the D1 database.
  * @param db The D1 database binding.

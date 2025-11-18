@@ -1,11 +1,12 @@
 import { type MessageBatch } from "@cloudflare/workers-types";
-import { type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
+import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { delay } from "@gonative-cc/lib/nbtc";
 import { type Indexer } from "./btcindexer";
 import { type Storage } from "./storage";
 import { toSerializableError } from "./errutils";
 
 export async function processBlockBatch(
-	batch: MessageBatch<BlockQueueMessage>,
+	batch: MessageBatch<BlockQueueRecord>,
 	storage: Storage,
 	indexer: Indexer,
 ): Promise<void> {
@@ -21,18 +22,18 @@ export async function processBlockBatch(
 	// 5. The current `insertBlockInfo` logic will overwrite `block_100_new` with `block_100`,
 	//    leading to data inconsistency and potential issues with transaction finalization.
 	const toRetry = [];
-	for (const message of batch.messages) {
-		const blockMessage = message.body;
+	for (const blockInfo of batch.messages) {
+		const blockMessage = blockInfo.body;
 		try {
 			await storage.insertBlockInfo(blockMessage);
 			await indexer.processBlock(blockMessage);
-			await message.ack();
+			await blockInfo.ack();
 		} catch (e) {
 			console.error("Failed to process block", toSerializableError(e));
 			toRetry.push(blockInfo);
 		}
 	}
 	if (toRetry.length === 0) return;
-	await dealy(200);
-	return Promise.all(toRetry.map(br => br.retry());
+	await delay(200);
+	toRetry.forEach((br) => br.retry());
 }

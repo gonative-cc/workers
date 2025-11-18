@@ -8,7 +8,7 @@ import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import SuiClient, { type SuiClientCfg } from "./sui_client";
 import type { Deposit, ProofResult, NbtcAddress } from "./models";
-import { BtcNet, type BlockQueueMessage } from "@gonative-cc/lib/nbtc";
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 
@@ -213,7 +213,7 @@ describe("Indexer.findNbtcDeposits", () => {
 describe("Indexer.processBlock", () => {
 	it("should process a block and insert nBTC transactions and sender deposits", async () => {
 		const blockData = REGTEST_DATA[329]!;
-		const blockQueueMessage: BlockQueueMessage = {
+		const blockQueueMessage: BlockQueueRecord = {
 			hash: blockData.hash,
 			height: blockData.height,
 			network: BtcNet.REGTEST,
@@ -486,7 +486,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 describe("Indexer.processBlock", () => {
 	it("should process a block and insert nBTC transactions and sender deposits", async () => {
 		const blockData = REGTEST_DATA[329]!;
-		const blockQueueMessage: BlockQueueMessage = {
+		const blockQueueMessage: BlockQueueRecord = {
 			hash: blockData.hash,
 			height: blockData.height,
 			network: BtcNet.REGTEST,

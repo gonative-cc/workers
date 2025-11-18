@@ -106,7 +106,7 @@ export class Indexer {
 		return true;
 	}
 
-	// - extracts and process nBTC deposit transactions in the block
+	// - extracts and processes nBTC deposit transactions in the block
 	// - handles reorgs
 	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
 		logger.info({

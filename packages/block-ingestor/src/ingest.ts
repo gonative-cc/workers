@@ -1,7 +1,7 @@
 import { type PutBlock } from "./api/put-blocks";
 import { type BlockQueueRecord, kvBlocksKey } from "@gonative-cc/lib/nbtc";
 
-/// Enequeue new blocks to the indexer processing queue.
+/// Enqueue new blocks to the indexer processing queue.
 export async function handleIngestBlocks(
 	blocks: PutBlock[],
 	btcBlocksStore: KVNamespace,

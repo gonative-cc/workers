@@ -19,7 +19,7 @@ export async function processBlockBatch(
 	// 4. The retried message for `block_100` (the old one) comes up for processing.
 	// 5. The current `insertBlockInfo` logic will overwrite `block_100_new` with `block_100`,
 	//    leading to data inconsistency and potential issues with transaction finalization
-	// Make sure we push messages to retry only based on the blocks that didn't propage on time to
+	// Make sure we push messages to retry only based on the blocks that didn't propagate on time to
 	// the KV store.
 	const toRetry = [];
 	for (const m of batch.messages) {
@@ -43,7 +43,7 @@ export async function processBlockBatch(
 	}
 	if (toRetry.length === 0) return;
 	// push back the block to the queue after a small delay to retry blocks that could not be
-	// processing due to time diff of store the KV propagation.
+	// processed due to the time difference of the KV store propagation.
 	await delay(200);
 	toRetry.forEach((m) => m.retry());
 }

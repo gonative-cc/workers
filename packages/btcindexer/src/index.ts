@@ -7,7 +7,7 @@
  * `Env` object can be regenerated with `bun run typegen`.
  */
 import { indexerFromEnv } from "./btcindexer";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
 import { fetchNbtcAddresses } from "./storage";
 import { type NbtcAddress } from "./models";
@@ -29,12 +29,15 @@ export default {
 			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
-			console.error({
-				msg: "Unhandled exception in fetch handler",
-				error: toSerializableError(e),
-				url: req.url,
-				method: req.method,
-			});
+			logError(
+				{
+					msg: "Unhandled exception in fetch handler",
+					method: "fetch",
+					url: req.url,
+					httpMethod: req.method,
+				},
+				e,
+			);
 			return new Response("Internal Server Error", { status: 500 });
 		}
 	},
@@ -44,7 +47,11 @@ export default {
 		env: Env,
 		_ctx: ExecutionContext,
 	): Promise<void> {
-		console.log(`Processing batch of ${batch.messages.length} messages from ${batch.queue}`);
+		logger.info({
+			msg: "Processing batch",
+			count: batch.messages.length,
+			queue: batch.queue,
+		});
 		// TODO: Add support for active/inactive nBTC addresses.
 		// The current implementation fetches all addresses, but we need to distinguish it,
 		// probably a active (boolean) column in the table.
@@ -59,15 +66,16 @@ export default {
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
 	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
-		console.trace({ msg: "Cron job starting" });
+		logger.debug({ msg: "Cron job starting" });
 		try {
 			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
 			const nbtcAddressesMap = new Map<string, NbtcAddress>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
-			console.log(
-				`Loaded ${nbtcAddressesMap.size} nbtc addresses into memory for scheduled job.`,
-			);
+			logger.info({
+				msg: "Loaded nbtc addresses into memory for scheduled job",
+				count: nbtcAddressesMap.size,
+			});
 
 			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 			const latestBlock = await env.DB.prepare(
@@ -78,12 +86,9 @@ export default {
 				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
 			}
 			await indexer.processFinalizedTransactions();
-			console.log({ msg: "Cron job finished successfully" });
+			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
-			console.error({
-				msg: "Cron job failed",
-				error: toSerializableError(e),
-			});
+			logError({ msg: "Cron job failed", method: "scheduled" }, e);
 		}
 	},
 } satisfies ExportedHandler<Env, BlockQueueRecord>;

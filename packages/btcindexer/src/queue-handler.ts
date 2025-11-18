@@ -2,7 +2,8 @@ import { type MessageBatch } from "@cloudflare/workers-types";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { delay } from "@gonative-cc/lib/nbtc";
 import { type Indexer } from "./btcindexer";
-import { toSerializableError } from "./errutils";
+import { type Storage } from "./storage";
+import { logError } from "@gonative-cc/lib/logger";
 
 export async function processBlockBatch(
 	batch: MessageBatch<BlockQueueRecord>,
@@ -26,8 +27,17 @@ export async function processBlockBatch(
 			await indexer.processBlock(blockInfo);
 			m.ack();
 		} catch (e) {
-			console.error("Failed to process block", toSerializableError(e));
-			toRetry.push(m);
+			logError(
+				{
+					msg: "Failed to process block",
+					method: "processBlockBatch",
+					blockHash: blockInfo.hash,
+					blockHeight: blockInfo.height,
+					network: blockInfo.network,
+				},
+				e,
+			);
+			toRetry.push(blockInfo);
 		}
 	}
 	if (toRetry.length === 0) return;

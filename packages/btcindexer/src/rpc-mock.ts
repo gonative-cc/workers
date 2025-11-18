@@ -1,11 +1,10 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
-
-import type { PutBlocks } from "./api/put-blocks";
 import type { NbtcTxResp } from "./models";
 import { MintTxStatus } from "./models";
 import { Transaction } from "bitcoinjs-lib";
 import { OP_RETURN } from "./opcodes";
-import type { BtcIndexerRpcI } from "./rpc-interface";
+import type { BtcIndexerRpcI, PutNbtcTxResponse } from "./rpc-interface";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 
 interface MockTxData {
 	suiRecipient: string;
@@ -67,7 +66,7 @@ function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
 		retry_count: 1,
 		nbtc_pkg: "0x12",
 		sui_network: "mainnet",
-		btc_network: "regtest",
+		btc_network: BtcNet.REGTEST,
 	};
 }
 
@@ -79,15 +78,11 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements BtcIndex
 		return addressIndex;
 	}
 
-	async putBlocks(blocks: PutBlocks[]): Promise<number> {
-		return blocks.length;
-	}
-
 	async latestHeight(): Promise<{ height: number | null }> {
 		return { height: 100 };
 	}
 
-	async putNbtcTx(txHex: string): Promise<{ tx_id: string; registered_deposits: number }> {
+	async putNbtcTx(txHex: string, _network: BtcNet): Promise<PutNbtcTxResponse> {
 		const tx = Transaction.fromHex(txHex);
 		const tx_id = tx.getId();
 

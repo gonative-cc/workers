@@ -548,5 +548,85 @@ describe("Indexer.findFinalizedTxs (Inactive)", () => {
 
 		// Restore active state for other tests
 		if (addr) addr.is_active = true;
+  });
+});
+
+describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
+	it("should return TRUE and insert data when block is new", async () => {
+		const record: BlockQueueRecord = {
+			hash: "hash_100_initial",
+			height: 100,
+			network: BtcNet.REGTEST,
+			timestamp_ms: 1000,
+		};
+
+		const result = await indexer.storage.insertBlockInfo(record);
+		expect(result).toBe(true);
+		const db = await mf.getD1Database("DB");
+		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
+		expect(row).toEqual(
+			expect.objectContaining({
+				hash: "hash_100_initial",
+				inserted_at: 1000,
+			}),
+		);
+	});
+
+	it("should return TRUE and update data when incoming block is NEWER (Reorg)", async () => {
+		await indexer.storage.insertBlockInfo({
+			hash: "hash_100_old",
+			height: 100,
+			network: BtcNet.REGTEST,
+			timestamp_ms: 1000,
+		});
+
+		//  "Reorg" block (Newer timestamp)
+		const newerRecord: BlockQueueRecord = {
+			hash: "hash_100_new",
+			height: 100, // Same height
+			network: BtcNet.REGTEST,
+			timestamp_ms: 2000, // 2000 > 1000
+		};
+
+		const result = await indexer.storage.insertBlockInfo(newerRecord);
+		const db = await mf.getD1Database("DB");
+
+		expect(result).toBe(true);
+		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
+		expect(row).toEqual(
+			expect.objectContaining({
+				hash: "hash_100_new",
+				inserted_at: 2000,
+			}),
+		);
+	});
+
+	it("should return FALSE and IGNORE data when incoming block is OLDER (Stale Retry)", async () => {
+		await indexer.storage.insertBlockInfo({
+			hash: "hash_100_new",
+			height: 100,
+			network: BtcNet.REGTEST,
+			timestamp_ms: 2000,
+		});
+
+		// This represents a message stuck in the queue from before the reorg
+		const staleRecord: BlockQueueRecord = {
+			hash: "hash_100_old",
+			height: 100,
+			network: BtcNet.REGTEST,
+			timestamp_ms: 1000, // 1000 < 2000
+		};
+
+		const result = await indexer.storage.insertBlockInfo(staleRecord);
+
+		expect(result).toBe(false); // Update rejected
+		const db = await mf.getD1Database("DB");
+		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
+		expect(row).toEqual(
+			expect.objectContaining({
+				hash: "hash_100_new",
+				inserted_at: 2000,
+			}),
+		);
 	});
 });

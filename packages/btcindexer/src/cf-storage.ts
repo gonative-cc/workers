@@ -34,7 +34,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: "Failed to fetch deposit addresses from D1",
-					method: "getDepositAddresses",
+					method: "CFStorage.getDepositAddresses",
 					btcNetwork,
 				},
 				e,
@@ -43,31 +43,55 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async insertBlockInfo(b: BlockQueueRecord): Promise<void> {
-		// TODO: handle conflicts. We should not process the block if
-		// we have a newer block already processed.
+	/**
+	 * Inserts a new block record into D1 or updates an existing one if the incoming data is newer.
+	 *
+	 * This method implements a "Last-Write-Wins" strategy based on the ingestion timestamp (`inserted_at`)
+	 * to handle out-of-order delivery (race conditions) from the queue.
+	 *
+	 * logic:
+	 * 1. If the (height, network) does not exist -> INSERT.
+	 * 2. If it exists, ONLY UPDATE if:
+	 * - The Hash is different (optimization to skip duplicates).
+	 * - AND The incoming `timestamp_ms` is greater than the stored `inserted_at`.
+	 *
+	 * @param b - The block record from the queue.
+	 * @returns `true` if the block was inserted or updated (fresh data).
+	 * `false` if the block was stale or an exact duplicate (processing should stop).
+	 */
+	async insertBlockInfo(b: BlockQueueRecord): Promise<boolean> {
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
 			   hash = excluded.hash,
 			   inserted_at = excluded.inserted_at,
 			   status = '${BlockStatus.New}'
-			 WHERE btc_blocks.hash IS NOT excluded.hash`,
+			 WHERE btc_blocks.hash IS NOT excluded.hash AND excluded.inserted_at > btc_blocks.inserted_at`,
 		);
 		try {
-			await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
+			const result = await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
+			const isFresh = result.meta.changes > 0;
+			if (!isFresh) {
+				logger.debug({
+					msg: "Ignored stale or duplicate block ingestion",
+					method: "CFStorage.insertBlockInfo",
+					height: b.height,
+					incomingHash: b.hash,
+					incomingTs: b.timestamp_ms,
+				});
+			}
+			return isFresh;
 		} catch (e) {
 			logError(
 				{
 					msg: "Failed to insert block from queue message",
-					method: "insertBlockInfo",
+					method: "CFStorage.insertBlockInfo",
 					message: b,
 				},
 				e,
 			);
 			throw e;
 		}
-		logger.info({ msg: "Successfully ingested blocks" });
 	}
 
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
@@ -94,7 +118,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: `Failed to mark block as ${status}`,
-					method: "updateBlockStatus",
+					method: "CFStorage.updateBlockStatus",
 					hash,
 					network,
 				},
@@ -171,7 +195,10 @@ export class CFStorage implements Storage {
 			await this.d1.batch(statements);
 		} catch (e) {
 			logError(
-				{ msg: "Failed to insert nBTC transactions", method: "insertOrUpdateNbtcTxs" },
+				{
+					msg: "Failed to insert nBTC transactions",
+					method: "CFStorage.insertOrUpdateNbtcTxs",
+				},
 				e,
 			);
 			throw e;
@@ -222,7 +249,7 @@ export class CFStorage implements Storage {
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
-			logError({ msg: "Failed to update status", method: "batchUpdateNbtcTxs" }, e);
+			logError({ msg: "Failed to update status", method: "CFStorage.batchUpdateNbtcTxs" }, e);
 			throw e;
 		}
 	}
@@ -314,7 +341,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: "Failed to register broadcasted nBTC tx",
-					method: "registerBroadcastedNbtcTx",
+					method: "CFStorage.registerBroadcastedNbtcTx",
 				},
 				e,
 			);

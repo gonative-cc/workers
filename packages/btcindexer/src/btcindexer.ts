@@ -125,7 +125,16 @@ export class Indexer {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
-		await this.storage.insertBlockInfo(blockInfo);
+		const isFresh = await this.storage.insertBlockInfo(blockInfo);
+		if (!isFresh) {
+			logger.debug({
+				msg: "Skipping processing of stale block",
+				method: "Indexer.processBlock",
+				height: blockInfo.height,
+				hash: blockInfo.hash,
+			});
+			return;
+		}
 
 		const nbtcTxs: NbtcTxInsertion[] = [];
 		let senders: NbtcDepositSender[] = [];

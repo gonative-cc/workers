@@ -530,7 +530,6 @@ describe("Indexer.processBlock", () => {
 
 describe("Indexer.findFinalizedTxs (Inactive)", () => {
 	it("should return inactiveId if address is not active", () => {
-		// Temporarily set the address in map to inactive
 		const addr = indexer.nbtcAddressesMap.get(REGTEST_DATA[329]!.depositAddr);
 		if (addr) addr.is_active = 0;
 

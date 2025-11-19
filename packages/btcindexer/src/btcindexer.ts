@@ -145,7 +145,7 @@ export class Indexer {
 					suiRecipient: deposit.suiRecipient,
 					nbtcPkg: deposit.nbtcPkg,
 					suiNetwork: deposit.suiNetwork,
-					depositAddr: deposit.depositAddress,
+					depositAddress: deposit.depositAddress,
 				});
 
 				nbtcTxs.push({

@@ -51,7 +51,7 @@ export class CFStorage implements Storage {
 			 ON CONFLICT(height, network) DO UPDATE SET
 			   hash = excluded.hash,
 			   inserted_at = excluded.inserted_at,
-			   processed = 0
+			   is_scanned = 0
 			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
 		try {
@@ -73,7 +73,7 @@ export class CFStorage implements Storage {
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
 		const blocksToProcess = await this.d1
 			.prepare(
-				`SELECT height, hash FROM btc_blocks WHERE processed = 0 ORDER BY height ASC LIMIT ?`,
+				`SELECT height, hash FROM btc_blocks WHERE is_scanned = 0 ORDER BY height ASC LIMIT ?`,
 			)
 			.bind(batchSize)
 			.all<BlockInfo>();
@@ -82,7 +82,7 @@ export class CFStorage implements Storage {
 
 	async markBlockAsProcessed(hash: string, network: string): Promise<void> {
 		const now = Date.now();
-		const updateStmt = `UPDATE btc_blocks SET processed = 1, processed_at = ? WHERE hash = ? AND network = ?`;
+		const updateStmt = `UPDATE btc_blocks SET is_scanned = 1, processed_at = ? WHERE hash = ? AND network = ?`;
 		try {
 			await this.d1.prepare(updateStmt).bind(now, hash, network).run();
 			logger.debug({

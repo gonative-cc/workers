@@ -293,7 +293,7 @@ describe("Indexer.handleReorgs", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, processed) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO btc_blocks (height, hash, network, processed_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
 			)
 			.bind(100, "hash_A", "regtest", Date.now(), 1)
 			.run();
@@ -312,7 +312,7 @@ describe("Indexer.handleReorgs", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, processed) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO btc_blocks (height, hash, network, processed_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
 			)
 			.bind(100, "hash_A_reorged", "regtest", Date.now(), 1)
 			.run();

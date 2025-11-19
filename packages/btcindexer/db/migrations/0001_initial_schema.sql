@@ -3,13 +3,13 @@ CREATE TABLE IF NOT EXISTS btc_blocks (
   hash TEXT NOT NULL,
   height INTEGER NOT NULL,
   network TEXT NOT NULL,
-  processed INTEGER NOT NULL DEFAULT 0,  -- BOOL (SQLite STRICT mode uses INTEGER for booleans)
+  is_scanned INTEGER NOT NULL DEFAULT 0,  -- 0 = not scanned, 1 = scanned
   processed_at INTEGER,  -- timestamp_ms
   inserted_at INTEGER, -- timestamp_ms
   PRIMARY KEY (height, network)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS btc_blocks_processed_height ON btc_blocks (processed, height);
+CREATE INDEX IF NOT EXISTS btc_blocks_is_scanned_height ON btc_blocks (is_scanned, height);
 
 ---------- NBTC Minting and Withdrawal ----------
 

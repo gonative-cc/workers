@@ -548,7 +548,7 @@ describe("Indexer.findFinalizedTxs (Inactive)", () => {
 
 		// Restore active state for other tests
 		if (addr) addr.is_active = true;
-  });
+	});
 });
 
 describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {

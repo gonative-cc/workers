@@ -43,9 +43,23 @@ export class CFStorage implements Storage {
 		}
 	}
 
+	/**
+	 * Inserts a new block record into D1 or updates an existing one if the incoming data is newer.
+	 *
+	 * This method implements a "Last-Write-Wins" strategy based on the ingestion timestamp (`inserted_at`)
+	 * to handle out-of-order delivery (race conditions) from the queue.
+	 *
+	 * logic:
+	 * 1. If the (height, network) does not exist -> INSERT.
+	 * 2. If it exists, ONLY UPDATE if:
+	 * - The Hash is different (optimization to skip duplicates).
+	 * - AND The incoming `timestamp_ms` is greater than the stored `inserted_at`.
+	 *
+	 * @param b - The block record from the queue.
+	 * @returns `true` if the block was inserted or updated (fresh data).
+	 * `false` if the block was stale or an exact duplicate (processing should stop).
+	 */
 	async insertBlockInfo(b: BlockQueueRecord): Promise<boolean> {
-		// NOTE: excluded.inserted_at > btc_blocks.inserted_at ensures we only accept newer blocks
-		// IMPORTANT: the assumtion is a newer block will have always newer timestamp
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
@@ -78,7 +92,6 @@ export class CFStorage implements Storage {
 			);
 			throw e;
 		}
-		logger.info({ msg: "Successfully ingested blocks" });
 	}
 
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {

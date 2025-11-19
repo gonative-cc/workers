@@ -130,6 +130,7 @@ export class Indexer {
 		if (!isFresh) {
 			logger.debug({
 				msg: "Skipping processing of stale block",
+				method: "Indexer.processBlock",
 				height: blockInfo.height,
 				hash: blockInfo.hash,
 			});

@@ -34,7 +34,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: "Failed to fetch deposit addresses from D1",
-					method: "getDepositAddresses",
+					method: "CFStorage.getDepositAddresses",
 					btcNetwork,
 				},
 				e,
@@ -45,6 +45,7 @@ export class CFStorage implements Storage {
 
 	async insertBlockInfo(b: BlockQueueRecord): Promise<boolean> {
 		// NOTE: excluded.inserted_at > btc_blocks.inserted_at ensures we only accept newer blocks
+		// IMPORTANT: the assumtion is a newer block will have always newer timestamp
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
@@ -59,6 +60,7 @@ export class CFStorage implements Storage {
 			if (!isFresh) {
 				logger.debug({
 					msg: "Ignored stale or duplicate block ingestion",
+					method: "CFStorage.insertBlockInfo",
 					height: b.height,
 					incomingHash: b.hash,
 					incomingTs: b.timestamp_ms,
@@ -69,7 +71,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: "Failed to insert block from queue message",
-					method: "insertBlockInfo",
+					method: "CFStorage.insertBlockInfo",
 					message: b,
 				},
 				e,
@@ -103,7 +105,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: `Failed to mark block as ${status}`,
-					method: "updateBlockStatus",
+					method: "CFStorage.updateBlockStatus",
 					hash,
 					network,
 				},
@@ -178,7 +180,10 @@ export class CFStorage implements Storage {
 			await this.d1.batch(statements);
 		} catch (e) {
 			logError(
-				{ msg: "Failed to insert nBTC transactions", method: "insertOrUpdateNbtcTxs" },
+				{
+					msg: "Failed to insert nBTC transactions",
+					method: "CFStorage.insertOrUpdateNbtcTxs",
+				},
 				e,
 			);
 			throw e;
@@ -229,7 +234,7 @@ export class CFStorage implements Storage {
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
-			logError({ msg: "Failed to update status", method: "batchUpdateNbtcTxs" }, e);
+			logError({ msg: "Failed to update status", method: "CFStorage.batchUpdateNbtcTxs" }, e);
 			throw e;
 		}
 	}
@@ -320,7 +325,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: "Failed to register broadcasted nBTC tx",
-					method: "registerBroadcastedNbtcTx",
+					method: "CFStorage.registerBroadcastedNbtcTx",
 				},
 				e,
 			);

@@ -8,7 +8,7 @@ import type {
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
 } from "./models";
-import { BlockStatus, MintTxStatus } from "./models";
+import { MintTxStatus } from "./models";
 import type { Storage, NbtcDepositSender } from "./storage";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
@@ -51,7 +51,7 @@ export class CFStorage implements Storage {
 			 ON CONFLICT(height, network) DO UPDATE SET
 			   hash = excluded.hash,
 			   inserted_at = excluded.inserted_at,
-			   status = '${BlockStatus.New}'
+			   processed = 0
 			 WHERE btc_blocks.hash IS NOT excluded.hash`,
 		);
 		try {
@@ -73,28 +73,28 @@ export class CFStorage implements Storage {
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
 		const blocksToProcess = await this.d1
 			.prepare(
-				`SELECT height, hash FROM btc_blocks WHERE status = '${BlockStatus.New}' ORDER BY height ASC LIMIT ?`,
+				`SELECT height, hash FROM btc_blocks WHERE processed = 0 ORDER BY height ASC LIMIT ?`,
 			)
 			.bind(batchSize)
 			.all<BlockInfo>();
 		return blocksToProcess.results ?? [];
 	}
 
-	async updateBlockStatus(hash: string, network: string, status: string): Promise<void> {
+	async markBlockAsProcessed(hash: string, network: string): Promise<void> {
 		const now = Date.now();
-		const updateStmt = `UPDATE btc_blocks SET status = ?, processed_at = ? WHERE hash = ? AND network = ?`;
+		const updateStmt = `UPDATE btc_blocks SET processed = 1, processed_at = ? WHERE hash = ? AND network = ?`;
 		try {
-			await this.d1.prepare(updateStmt).bind(status, now, hash, network).run();
+			await this.d1.prepare(updateStmt).bind(now, hash, network).run();
 			logger.debug({
-				msg: `Marked block as ${status}`,
+				msg: "Marked block as processed",
 				hash,
 				network,
 			});
 		} catch (e) {
 			logError(
 				{
-					msg: `Failed to mark block as ${status}`,
-					method: "updateBlockStatus",
+					msg: "Failed to mark block as processed",
+					method: "markBlockAsProcessed",
 					hash,
 					network,
 				},

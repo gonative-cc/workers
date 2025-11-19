@@ -293,9 +293,9 @@ describe("Indexer.handleReorgs", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, status) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO btc_blocks (height, hash, network, processed_at, processed) VALUES (?, ?, ?, ?, ?)",
 			)
-			.bind(100, "hash_A", "regtest", Date.now(), "scanned")
+			.bind(100, "hash_A", "regtest", Date.now(), 1)
 			.run();
 
 		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
@@ -312,9 +312,9 @@ describe("Indexer.handleReorgs", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, status) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO btc_blocks (height, hash, network, processed_at, processed) VALUES (?, ?, ?, ?, ?)",
 			)
-			.bind(100, "hash_A_reorged", "regtest", Date.now(), "scanned")
+			.bind(100, "hash_A_reorged", "regtest", Date.now(), 1)
 			.run();
 		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
 		expect(reorgedTxIds.length).toEqual(1);

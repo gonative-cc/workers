@@ -126,7 +126,6 @@ export class Indexer {
 		}
 
 		const isFresh = await this.storage.insertBlockInfo(blockInfo);
-
 		if (!isFresh) {
 			logger.debug({
 				msg: "Skipping processing of stale block",

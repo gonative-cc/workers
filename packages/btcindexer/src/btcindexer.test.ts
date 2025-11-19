@@ -109,6 +109,7 @@ beforeEach(async () => {
 		btc_network: BtcNet.REGTEST,
 		sui_network: "testnet",
 		nbtc_pkg: "0xPACKAGE",
+		is_active: 1,
 	};
 	nbtcAddressesMap.set(testNbtcAddress.btc_address, testNbtcAddress);
 
@@ -153,7 +154,7 @@ async function insertFinalizedTx(
 ) {
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			txData.id,
@@ -169,6 +170,7 @@ async function insertFinalizedTx(
 			"0xPACKAGE",
 			"testnet",
 			BtcNet.REGTEST,
+			blockData.depositAddr,
 		)
 		.run();
 }
@@ -289,6 +291,7 @@ describe("Indexer.handleReorgs", () => {
 			block_hash: "hash_A",
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
 		const db = await mf.getD1Database("DB");
 		await db
@@ -308,6 +311,7 @@ describe("Indexer.handleReorgs", () => {
 			block_hash: "hash_A",
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
 		const db = await mf.getD1Database("DB");
 		await db
@@ -328,10 +332,11 @@ describe("Indexer.findFinalizedTxs", () => {
 			block_hash: null,
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
 		const latestHeight = 107;
-		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		expect(updates.length).toEqual(1);
+		const { activeTxIds } = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+		expect(activeTxIds.length).toEqual(1);
 	});
 
 	it("should do nothing when not enough confirmations", () => {
@@ -340,10 +345,11 @@ describe("Indexer.findFinalizedTxs", () => {
 			block_hash: null,
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
 		const latestHeight = 106;
-		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		expect(updates.length).toEqual(0);
+		const { activeTxIds } = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+		expect(activeTxIds.length).toEqual(0);
 	});
 });
 
@@ -519,5 +525,29 @@ describe("Indexer.processBlock", () => {
 			.all();
 		expect(senderResults.length).toEqual(1);
 		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
+	});
+});
+
+describe("Indexer.findFinalizedTxs (Inactive)", () => {
+	it("should return inactiveId if address is not active", () => {
+		// Temporarily set the address in map to inactive
+		const addr = indexer.nbtcAddressesMap.get(REGTEST_DATA[329]!.depositAddr);
+		if (addr) addr.is_active = 0;
+
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: null,
+			block_height: 100,
+			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
+		};
+		const latestHeight = 107;
+		const result = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+
+		expect(result.activeTxIds.length).toEqual(0);
+		expect(result.inactiveTxIds.length).toEqual(1);
+
+		// Restore active state for other tests
+		if (addr) addr.is_active = 1;
 	});
 });

@@ -139,8 +139,8 @@ export class CFStorage implements Storage {
 		}
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
-			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network)
-             VALUES (?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, ?, ?, ?)
+			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network, deposit_address)
+             VALUES (?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, ?, ?, ?, ?)
              ON CONFLICT(tx_id, vout) DO UPDATE SET
                 block_hash = excluded.block_hash,
                 block_height = excluded.block_height,
@@ -148,7 +148,8 @@ export class CFStorage implements Storage {
                 updated_at = excluded.updated_at,
 				btc_network = excluded.btc_network,
 				nbtc_pkg = excluded.nbtc_pkg,
-				sui_network = excluded.sui_network`,
+				sui_network = excluded.sui_network,
+				deposit_address = excluded.deposit_address`,
 		);
 		const statements = txs.map((tx) =>
 			insertOrUpdateNbtcTxStmt.bind(
@@ -163,6 +164,7 @@ export class CFStorage implements Storage {
 				tx.btcNetwork,
 				tx.nbtcPkg,
 				tx.suiNetwork,
+				tx.depositAddress,
 			),
 		);
 		try {
@@ -252,7 +254,7 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, block_hash, block_height, btc_network FROM nbtc_minting WHERE status = '${MintTxStatus.Confirming}'`,
+				`SELECT tx_id, block_hash, block_height, btc_network, deposit_address FROM nbtc_minting WHERE status = '${MintTxStatus.Confirming}'`,
 			)
 			.all<PendingTx>();
 		return pendingTxs.results ?? [];
@@ -288,8 +290,8 @@ export class CFStorage implements Storage {
 	async registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
-			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network)
-         VALUES (?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, ?, ?, ?)`,
+			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network, deposit_address)
+         VALUES (?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, ?, ?, ?, ?)`,
 		);
 
 		const statements = deposits.map((deposit) =>
@@ -303,6 +305,7 @@ export class CFStorage implements Storage {
 				deposit.nbtcPkg,
 				deposit.suiNetwork,
 				deposit.btcNetwork,
+				deposit.depositAddress,
 			),
 		);
 		try {

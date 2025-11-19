@@ -61,7 +61,7 @@ export interface GroupedFinalizedTx {
  * - **mint-failed**: An attempt to mint a finalized tx failed. Mint should be retried.
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
- * - **finalized-non-active**: The deposit has been finalized, however the minting will not be attempted becasue the desposit address is a non-actvie one. There will be a redemption mechanism for this cases.
+ * - **finalized-non-active**: The deposit has been finalized, however the minting will not be attempted because the deposit address is a non-active one. There will be a redemption mechanism for these cases.
  */
 export const enum MintTxStatus {
 	Broadcasting = "broadcasting",

@@ -154,6 +154,7 @@ export class Indexer {
 					suiRecipient: deposit.suiRecipient,
 					nbtcPkg: deposit.nbtcPkg,
 					suiNetwork: deposit.suiNetwork,
+					depositAddress: deposit.depositAddress,
 				});
 
 				nbtcTxs.push({
@@ -166,6 +167,7 @@ export class Indexer {
 					btcNetwork: blockInfo.network,
 					nbtcPkg: deposit.nbtcPkg,
 					suiNetwork: deposit.suiNetwork,
+					depositAddress: deposit.depositAddress,
 				});
 			}
 		}
@@ -232,6 +234,7 @@ export class Indexer {
 						suiRecipient,
 						nbtcPkg: matchingNbtcAddress.nbtc_pkg,
 						suiNetwork: matchingNbtcAddress.sui_network,
+						depositAddress: btcAddress,
 					});
 				}
 			} catch (e) {
@@ -555,14 +558,26 @@ export class Indexer {
 
 		// TODO: add a unit test for it so we make sure we do not finalize reorrged tx.
 		const validPendingTxs = pendingTxs.filter((tx) => !reorgedTxIds.includes(tx.tx_id));
-		const finalizationTxIds = this.selectFinalizedNbtcTxs(validPendingTxs, latestHeight);
+		const { activeTxIds, inactiveTxIds } = this.selectFinalizedNbtcTxs(
+			validPendingTxs,
+			latestHeight,
+		);
 
-		if (finalizationTxIds.length > 0) {
+		if (activeTxIds.length > 0) {
 			logger.debug({
-				msg: "Finalization: Applying status updates to D1",
-				finalizedCount: finalizationTxIds.length,
+				msg: "Finalization: Updating active transactions in D1",
+				method: "Indexer.updateConfirmationsAndFinalize",
+				count: activeTxIds.length,
 			});
-			await this.storage.finalizeNbtcTxs(finalizationTxIds);
+			await this.storage.finalizeNbtcTxs(activeTxIds);
+		}
+		if (inactiveTxIds.length > 0) {
+			logger.debug({
+				msg: "Finalization: Updating inactive transactions in D1",
+				method: "Indexer.updateConfirmationsAndFinalize",
+				count: inactiveTxIds.length,
+			});
+			await this.storage.updateNbtcTxsStatus(inactiveTxIds, MintTxStatus.FinalizedNonActive);
 		}
 	}
 
@@ -587,21 +602,42 @@ export class Indexer {
 		return { reorgedTxIds };
 	}
 
-	selectFinalizedNbtcTxs(pendingTxs: PendingTx[], latestHeight: number): string[] {
-		const txIds: string[] = [];
+	selectFinalizedNbtcTxs(
+		pendingTxs: PendingTx[],
+		latestHeight: number,
+	): { activeTxIds: string[]; inactiveTxIds: string[] } {
+		const activeTxIds: string[] = [];
+		const inactiveTxIds: string[] = [];
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= this.confirmationDepth) {
-				logger.info({
-					msg: "Transaction has enough confirmations, finalizing.",
-					txId: tx.tx_id,
-					confirmations,
-					required: this.confirmationDepth,
-				});
-				txIds.push(tx.tx_id);
+				const addressInfo = tx.deposit_address
+					? this.nbtcAddressesMap.get(tx.deposit_address)
+					: undefined;
+
+				const isActive = addressInfo && addressInfo.is_active;
+				if (isActive) {
+					logger.info({
+						msg: "Transaction finalized (Active Key)",
+						txId: tx.tx_id,
+						confirmations,
+						required: this.confirmationDepth,
+						depositAddress: tx.deposit_address,
+					});
+					activeTxIds.push(tx.tx_id);
+				} else {
+					logger.info({
+						msg: "Transaction finalized (Inactive Key) - Minting will be skipped",
+						txId: tx.tx_id,
+						confirmations,
+						required: this.confirmationDepth,
+						depositAddress: tx.deposit_address,
+					});
+					inactiveTxIds.push(tx.tx_id);
+				}
 			}
 		}
-		return txIds;
+		return { activeTxIds, inactiveTxIds };
 	}
 
 	// queries NbtcTxResp by BTC Tx ID

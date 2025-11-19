@@ -7,6 +7,7 @@ export interface NbtcAddress {
 	sui_network: SuiNet;
 	nbtc_pkg: string;
 	btc_address: string;
+	is_active: boolean;
 }
 
 export interface Deposit {
@@ -15,6 +16,7 @@ export interface Deposit {
 	suiRecipient: string;
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
+	depositAddress: string;
 }
 
 export interface ProofResult {
@@ -27,6 +29,7 @@ export interface PendingTx {
 	block_hash: string | null;
 	block_height: number;
 	btc_network: BtcNet;
+	deposit_address: string;
 }
 
 export interface FinalizedTxRow {
@@ -58,6 +61,7 @@ export interface GroupedFinalizedTx {
  * - **mint-failed**: An attempt to mint a finalized tx failed. Mint should be retried.
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
+ * - **finalized-non-active**: The deposit has been finalized, however the minting will not be attempted because the deposit address is a non-active one. There will be a redemption mechanism for these cases.
  */
 export const enum MintTxStatus {
 	Broadcasting = "broadcasting",
@@ -67,6 +71,7 @@ export const enum MintTxStatus {
 	FinalizedReorg = "finalized-reorg",
 	Minted = "minted",
 	MintFailed = "mint-failed",
+	FinalizedNonActive = "finalized-non-active",
 }
 
 export const enum BlockStatus {
@@ -129,6 +134,7 @@ export interface NbtcTxInsertion {
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
+	depositAddress: string;
 }
 
 export interface NbtcTxUpdate {
@@ -146,6 +152,7 @@ export interface NbtcBroadcastedDeposit {
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
+	depositAddress: string;
 }
 
 export interface ElectrsTxVout {

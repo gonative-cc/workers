@@ -9,13 +9,16 @@ export interface NbtcAddress {
 	btc_address: string;
 }
 
-export interface Deposit {
+export interface NbtcDepositBase {
 	vout: number;
 	amountSats: number;
 	suiRecipient: string;
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
+	btcNetwork: BtcNet;
 }
+
+export type Deposit = Omit<NbtcDepositBase, "btcNetwork">;
 
 export interface ProofResult {
 	proofPath: Buffer[];
@@ -119,16 +122,10 @@ export type SuiTxDigest = string;
 
 export type { BlockQueueRecord };
 
-export interface NbtcTxInsertion {
+export interface NbtcTxInsertion extends NbtcDepositBase {
 	txId: string;
-	vout: number;
 	blockHash: string;
 	blockHeight: number;
-	suiRecipient: string;
-	amountSats: number;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
-	btcNetwork: BtcNet;
 }
 
 export interface NbtcTxUpdate {
@@ -138,14 +135,8 @@ export interface NbtcTxUpdate {
 	suiTxDigest?: string;
 }
 
-export interface NbtcBroadcastedDeposit {
+export interface NbtcBroadcastedDeposit extends NbtcDepositBase {
 	txId: string;
-	vout: number;
-	suiRecipient: string;
-	amountSats: number;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
-	btcNetwork: BtcNet;
 }
 
 export interface ElectrsTxVout {

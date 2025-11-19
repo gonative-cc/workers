@@ -7,7 +7,7 @@ export interface NbtcAddress {
 	sui_network: SuiNet;
 	nbtc_pkg: string;
 	btc_address: string;
-	is_active: number;
+	is_active: boolean;
 }
 
 export interface Deposit {

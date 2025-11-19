@@ -606,7 +606,7 @@ export class Indexer {
 					? this.nbtcAddressesMap.get(tx.deposit_address)
 					: undefined;
 
-				const isActive = addressInfo && addressInfo.is_active === 1;
+				const isActive = addressInfo && addressInfo.is_active;
 				if (isActive) {
 					logger.info({
 						msg: "Transaction finalized (Active Key)",

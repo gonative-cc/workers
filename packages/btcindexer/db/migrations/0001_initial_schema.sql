@@ -72,6 +72,6 @@ CREATE TABLE IF NOT EXISTS nbtc_addresses (
   sui_network TEXT NOT NULL,
   nbtc_pkg TEXT NOT NULL,
   btc_address TEXT NOT NULL,
-  is_active INTEGER NOT NULL DEFAULT 1,
+  is_active INTEGER NOT NULL DEFAULT TRUE,
   UNIQUE(btc_address, btc_network)
 ) STRICT;

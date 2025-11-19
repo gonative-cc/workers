@@ -109,7 +109,7 @@ beforeEach(async () => {
 		btc_network: BtcNet.REGTEST,
 		sui_network: "testnet",
 		nbtc_pkg: "0xPACKAGE",
-		is_active: 1,
+		is_active: true,
 	};
 	nbtcAddressesMap.set(testNbtcAddress.btc_address, testNbtcAddress);
 
@@ -531,7 +531,7 @@ describe("Indexer.processBlock", () => {
 describe("Indexer.findFinalizedTxs (Inactive)", () => {
 	it("should return inactiveId if address is not active", () => {
 		const addr = indexer.nbtcAddressesMap.get(REGTEST_DATA[329]!.depositAddr);
-		if (addr) addr.is_active = 0;
+		if (addr) addr.is_active = false;
 
 		const pendingTx = {
 			tx_id: "tx1",
@@ -547,6 +547,6 @@ describe("Indexer.findFinalizedTxs (Inactive)", () => {
 		expect(result.inactiveTxIds.length).toEqual(1);
 
 		// Restore active state for other tests
-		if (addr) addr.is_active = 1;
+		if (addr) addr.is_active = true;
 	});
 });

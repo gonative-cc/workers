@@ -43,19 +43,28 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async insertBlockInfo(b: BlockQueueRecord): Promise<void> {
-		// TODO: handle conflicts. We should not process the block if
-		// we have a newer block already processed.
+	async insertBlockInfo(b: BlockQueueRecord): Promise<boolean> {
+		// NOTE: excluded.inserted_at > btc_blocks.inserted_at ensures we only accept newer blocks
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
 			   hash = excluded.hash,
 			   inserted_at = excluded.inserted_at,
 			   status = '${BlockStatus.New}'
-			 WHERE btc_blocks.hash IS NOT excluded.hash`,
+			 WHERE btc_blocks.hash IS NOT excluded.hash AND excluded.inserted_at > btc_blocks.inserted_at`,
 		);
 		try {
-			await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
+			const result = await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
+			const isFresh = result.meta.changes > 0;
+			if (!isFresh) {
+				logger.debug({
+					msg: "Ignored stale or duplicate block ingestion",
+					height: b.height,
+					incomingHash: b.hash,
+					incomingTs: b.timestamp_ms,
+				});
+			}
+			return isFresh;
 		} catch (e) {
 			logError(
 				{

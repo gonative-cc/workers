@@ -13,8 +13,8 @@ import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export interface Storage {
 	// Block operations
+	markBlockAsProcessed(hash: string, network: string): Promise<void>;
 	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<boolean>;
-	updateBlockStatus(hash: string, network: string, status: string): Promise<void>;
 	getLatestBlockHeight(): Promise<number | null>;
 	getChainTip(): Promise<number | null>;
 	setChainTip(height: number): Promise<void>;

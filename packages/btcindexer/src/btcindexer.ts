@@ -15,7 +15,7 @@ import type {
 	NbtcTxInsertion,
 	ElectrsTxResponse,
 } from "./models";
-import { BlockStatus, MintTxStatus } from "./models";
+import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
@@ -184,11 +184,7 @@ export class Indexer {
 			logger.debug({ msg: "No new nBTC deposits found in block" });
 		}
 
-		await this.storage.updateBlockStatus(
-			blockInfo.hash,
-			blockInfo.network,
-			BlockStatus.Scanned,
-		);
+		await this.storage.markBlockAsProcessed(blockInfo.hash, blockInfo.network);
 		await this.storage.setChainTip(blockInfo.height);
 	}
 

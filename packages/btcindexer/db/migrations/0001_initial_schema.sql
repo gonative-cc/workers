@@ -3,13 +3,13 @@ CREATE TABLE IF NOT EXISTS btc_blocks (
   hash TEXT NOT NULL,
   height INTEGER NOT NULL,
   network TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'scanned')), -- TODO: change it to boolean
+  is_scanned INTEGER NOT NULL DEFAULT 0,  -- 0 = not scanned, 1 = scanned
   processed_at INTEGER,  -- timestamp_ms
   inserted_at INTEGER, -- timestamp_ms
   PRIMARY KEY (height, network)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS btc_blocks_status_height ON btc_blocks (status, height);
+CREATE INDEX IF NOT EXISTS btc_blocks_is_scanned_height ON btc_blocks (is_scanned, height);
 
 ---------- NBTC Minting and Withdrawal ----------
 

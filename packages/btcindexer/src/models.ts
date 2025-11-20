@@ -74,11 +74,6 @@ export const enum MintTxStatus {
 	FinalizedNonActive = "finalized-non-active",
 }
 
-export const enum BlockStatus {
-	New = "new",
-	Scanned = "scanned",
-}
-
 export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {
 	btcTxId: string;
 	status: MintTxStatus;

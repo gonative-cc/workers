@@ -2,7 +2,6 @@ import { Transaction } from "bitcoinjs-lib";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
-// Base types for composition
 export interface NetworkConfig {
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
@@ -22,7 +21,6 @@ export interface BlockLocation {
 	blockHeight: number;
 }
 
-// Composed interfaces
 export interface NbtcAddress {
 	btc_network: BtcNet;
 	sui_network: SuiNet;

@@ -1,0 +1,36 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sui-indexer",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-08-12",
+  "observability": {
+    "enabled": true,
+  },
+  "triggers": {
+    // every one minute
+    "crons": [
+      "* * * * *"
+    ]
+  },
+  "vars": {
+    "SUI_GRAPHQL_URL": "https://sui-testnet.mystenlabs.com/graphql",
+    "SUI_NETWORK": "testnet"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "btcindexer-dev",
+      "database_id": "3a43879e-0799-442c-aed5-a3298df1c3bb"
+    }
+  ],
+  // "kv_namespaces": [
+  //   {
+  //     "binding": "BtcBlocks",
+  //     "id": "f8bc94f1f427436ab0797535fbc30cb7"
+  //   }
+  // ]
+}

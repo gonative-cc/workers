@@ -75,3 +75,26 @@ CREATE TABLE IF NOT EXISTS nbtc_addresses (
   is_active INTEGER NOT NULL DEFAULT TRUE,
   UNIQUE(btc_address, btc_network)
 ) STRICT;
+
+CREATE TABLE IF NOT EXISTS nbtc_utxos (
+    sui_id TEXT NOT NULL,
+    txid TEXT NOT NULL,
+    vout INTEGER NOT NULL,
+    address TEXT NOT NULL,
+    amount_sats INTEGER NOT NULL,
+    script_pubkey BLOB NOT NULL,
+    nbtc_pkg TEXT NOT NULL,
+    sui_network TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent'
+    locked_until INTEGER,
+    PRIMARY KEY (sui_id)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_utxos_selection ON nbtc_utxos(nbtc_pkg, sui_network, status, amount_sats);
+CREATE INDEX IF NOT EXISTS idx_utxos_btc_point ON nbtc_utxos(txid, vout);
+
+CREATE TABLE IF NOT EXISTS indexer_state (
+    key TEXT PRIMARY KEY, -- Format: "cursor:<PackageID>"
+    value TEXT NOT NULL,
+    updated_at INTEGER
+) STRICT;

@@ -377,6 +377,56 @@ describe("Block Parsing", () => {
 	});
 });
 
+describe("Indexer.putNbtcTx", () => {
+	it("should return true and register a new tx with a single deposit in db", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const block = Block.fromHex(blockData.rawBlockHex);
+		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1]!.id);
+		expect(targetTx).toBeDefined();
+
+		const txHex = targetTx!.toHex();
+		const result = await indexer.putNbtcTx(txHex, BtcNet.REGTEST);
+		expect(result).toBe(true);
+
+		const db = await mf.getD1Database("DB");
+		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.tx_id).toEqual(blockData.txs[1]!.id);
+		expect(results[0]!.vout).toEqual(0);
+		expect(results[0]!.sui_recipient).toEqual(blockData.txs[1]!.suiAddr);
+		expect(results[0]!.amount_sats).toEqual(blockData.txs[1]!.amountSats);
+	});
+
+	it("should return false when tx already exists in db", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const block = Block.fromHex(blockData.rawBlockHex);
+		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1]!.id);
+		expect(targetTx).toBeDefined();
+
+		const txHex = targetTx!.toHex();
+
+		const firstResult = await indexer.putNbtcTx(txHex, BtcNet.REGTEST);
+		expect(firstResult).toBe(true);
+
+		const secondResult = await indexer.putNbtcTx(txHex, BtcNet.REGTEST);
+		expect(secondResult).toBe(false);
+
+		const db = await mf.getD1Database("DB");
+		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		expect(results.length).toEqual(1);
+	});
+
+	it("should throw error when tx do not contain any valid nBTC deposits", async () => {
+		const block = Block.fromHex(REGTEST_DATA[329]!.rawBlockHex);
+		expect(block.transactions).toBeDefined();
+		const coinbaseTx = block.transactions![0]!;
+
+		expect(indexer.putNbtcTx(coinbaseTx.toHex(), BtcNet.REGTEST)).rejects.toThrow(
+			"Tx do not contain any valid nBTC deposits.",
+		);
+	});
+});
+
 describe("Indexer.registerBroadcastedNbtcTx", () => {
 	it("should register a tx with a single deposit", async () => {
 		const blockData = REGTEST_DATA[329]!;

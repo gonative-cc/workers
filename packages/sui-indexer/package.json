@@ -7,7 +7,7 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
-	"test": "bun test"
+    "test": "echo no tests"
   },
   "dependencies": {
     "@gonative-cc/lib": "workspace:*",

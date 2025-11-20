@@ -12,20 +12,18 @@
   },
   "triggers": {
     // every one minute
-    "crons": [
-      "* * * * *"
-    ]
+    "crons": ["* * * * *"],
   },
   "vars": {
     "SUI_GRAPHQL_URL": "https://sui-testnet.mystenlabs.com/graphql",
-    "SUI_NETWORK": "testnet"
+    "SUI_NETWORK": "testnet",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "btcindexer-dev",
-      "database_id": "3a43879e-0799-442c-aed5-a3298df1c3bb"
-    }
+      "database_id": "3a43879e-0799-442c-aed5-a3298df1c3bb",
+    },
   ],
   // "kv_namespaces": [
   //   {

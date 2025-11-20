@@ -168,7 +168,7 @@ export interface UtxoRecord {
 	vout: number;
 	address: string;
 	amount_sats: number;
-	script_pubkey: Uint8Array; // D1 returns BLOBs as ArrayBuffer/Uint8Array
+	script_pubkey: Uint8Array; // D1 returns BLOBs as ArrayBuffer we need to handle it properly when selecting
 	block_height: number;
 	block_hash: string;
 	nbtc_pkg: string;

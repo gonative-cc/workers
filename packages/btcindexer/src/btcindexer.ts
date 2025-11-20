@@ -221,7 +221,7 @@ export class Indexer {
 			const prevTxId = Buffer.from(input.hash).reverse().toString("hex");
 			const prevVout = input.index;
 
-			// We optimistically delete all inputs, if they are not in our DB they will be ingnored.
+			// We optimistically attempt to mark all inputs as spend, if they are not in our DB they will be ingnored.
 			spends.push({ txid: prevTxId, vout: prevVout });
 		}
 		return spends;

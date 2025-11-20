@@ -92,5 +92,4 @@ CREATE TABLE IF NOT EXISTS nbtc_utxos (
     PRIMARY KEY (txid, vout)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS nbtc_utxos_selection ON nbtc_utxos(nbtc_pkg, sui_network, status, amount_sats);
 CREATE INDEX IF NOT EXISTS nbtc_utxos_block_hash ON nbtc_utxos(block_hash);

@@ -14,6 +14,8 @@ import type {
 	NbtcTxRow,
 	NbtcTxInsertion,
 	ElectrsTxResponse,
+	UtxoKey,
+	UtxoRecord,
 } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -138,7 +140,17 @@ export class Indexer {
 
 		const nbtcTxs: NbtcTxInsertion[] = [];
 		let senders: NbtcDepositSender[] = [];
+
+		const newUtxos: UtxoRecord[] = [];
+		const spentUtxos: UtxoKey[] = [];
+
 		for (const tx of block.transactions ?? []) {
+			const debits = this.processUtxoDebits(tx);
+			spentUtxos.push(...debits);
+
+			const credits = this.processUtxoCredits(tx, blockInfo.height, blockInfo.hash, network);
+			newUtxos.push(...credits);
+
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
 				const newSenders = await this.getSenderAddresses(tx);
@@ -172,6 +184,16 @@ export class Indexer {
 			}
 		}
 
+		if (spentUtxos.length > 0) {
+			await this.storage.markUtxosAsSpent(spentUtxos, blockInfo.hash);
+			logger.debug({ msg: "Processed UTXO debits", count: spentUtxos.length });
+		}
+
+		if (newUtxos.length > 0) {
+			await this.storage.insertUtxos(newUtxos);
+			logger.debug({ msg: "Processed UTXO credits", count: newUtxos.length });
+		}
+
 		if (nbtcTxs.length > 0) {
 			await this.storage.insertOrUpdateNbtcTxs(nbtcTxs);
 		}
@@ -190,6 +212,62 @@ export class Indexer {
 			BlockStatus.Scanned,
 		);
 		await this.storage.setChainTip(blockInfo.height);
+	}
+
+	processUtxoDebits(tx: Transaction): UtxoKey[] {
+		const spends: UtxoKey[] = [];
+
+		for (const input of tx.ins) {
+			const prevTxId = Buffer.from(input.hash).reverse().toString("hex");
+			const prevVout = input.index;
+
+			// We optimistically delete all inputs, if they are not in our DB they will be ingnored.
+			spends.push({ txid: prevTxId, vout: prevVout });
+		}
+		return spends;
+	}
+
+	processUtxoCredits(
+		tx: Transaction,
+		height: number,
+		blockHash: string,
+		network: Network,
+	): UtxoRecord[] {
+		const credits: UtxoRecord[] = [];
+		const txId = tx.getId();
+
+		tx.outs.forEach((out, voutIndex) => {
+			try {
+				const addrStr = address.fromOutputScript(out.script, network);
+				const addrInfo = this.nbtcAddressesMap.get(addrStr);
+
+				if (addrInfo) {
+					credits.push({
+						txid: txId,
+						vout: voutIndex,
+						address: addrStr,
+						amount_sats: Number(out.value),
+						script_pubkey: out.script,
+						block_height: height,
+						block_hash: blockHash,
+						nbtc_pkg: addrInfo.nbtc_pkg,
+						sui_network: addrInfo.sui_network,
+						status: "available",
+						locked_until: null,
+						spent_in_block_hash: null,
+					});
+				}
+			} catch (e) {
+				logger.debug({
+					msg: "Failed to process UTXO, ignoring...",
+					txId: tx.getId(),
+					voutIndex,
+					e,
+				});
+			}
+		});
+
+		return credits;
 	}
 
 	findNbtcDeposits(tx: Transaction, network: networks.Network): Deposit[] {
@@ -583,6 +661,7 @@ export class Indexer {
 
 	async handleReorgs(pendingTxs: PendingTx[]): Promise<{ reorgedTxIds: string[] }> {
 		const reorgedTxIds: string[] = [];
+		const reorgedBlockHashes = new Set<string>();
 		for (const tx of pendingTxs) {
 			if (tx.block_hash === null) continue;
 			const hash = await this.storage.getBlockHash(tx.block_height, tx.btc_network);
@@ -596,9 +675,19 @@ export class Indexer {
 						newHash: hash,
 					});
 					reorgedTxIds.push(tx.tx_id);
+					reorgedBlockHashes.add(tx.block_hash);
 				}
 			}
 		}
+		if (reorgedBlockHashes.size > 0) {
+			for (const blockHash of reorgedBlockHashes) {
+				await this.storage.deleteUtxosByBlockHash(blockHash);
+				await this.storage.unspendUtxosByBlockHash(blockHash);
+
+				logger.info({ msg: "Rolled back UTXO state for reorged block", blockHash });
+			}
+		}
+
 		return { reorgedTxIds };
 	}
 

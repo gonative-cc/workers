@@ -75,3 +75,22 @@ CREATE TABLE IF NOT EXISTS nbtc_addresses (
   is_active INTEGER NOT NULL DEFAULT TRUE,
   UNIQUE(btc_address, btc_network)
 ) STRICT;
+
+CREATE TABLE IF NOT EXISTS nbtc_utxos (
+    txid TEXT NOT NULL,
+    vout INTEGER NOT NULL,
+    address TEXT NOT NULL,
+    amount_sats INTEGER NOT NULL,
+    script_pubkey BLOB NOT NULL, 
+    block_height INTEGER NOT NULL,
+    block_hash TEXT NOT NULL,
+    nbtc_pkg TEXT NOT NULL,
+    sui_network TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent'
+    locked_until INTEGER,
+	spent_in_block_hash TEXT,
+    PRIMARY KEY (txid, vout)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS nbtc_utxos_selection ON nbtc_utxos(nbtc_pkg, sui_network, status, amount_sats);
+CREATE INDEX IF NOT EXISTS nbtc_utxos_block_hash ON nbtc_utxos(block_hash);

@@ -7,6 +7,8 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
+	UtxoRecord,
+	UtxoKey,
 } from "./models";
 import { BlockStatus, MintTxStatus } from "./models";
 import type { Storage, NbtcDepositSender } from "./storage";
@@ -369,5 +371,76 @@ export class CFStorage implements Storage {
 		);
 		const statements = senders.map((s) => insertStmt.bind(s.tx_id, s.sender));
 		await this.d1.batch(statements);
+	}
+
+	async insertUtxos(utxos: UtxoRecord[]): Promise<void> {
+		if (utxos.length === 0) return;
+
+		const stmt = this.d1.prepare(
+			`INSERT OR IGNORE INTO nbtc_utxos 
+            (txid, vout, address, amount_sats, script_pubkey, block_height, block_hash, nbtc_pkg, sui_network)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		);
+
+		const batch = utxos.map((u) =>
+			stmt.bind(
+				u.txid,
+				u.vout,
+				u.address,
+				u.amount_sats,
+				u.script_pubkey,
+				u.block_height,
+				u.block_hash,
+				u.nbtc_pkg,
+				u.sui_network,
+			),
+		);
+
+		try {
+			await this.d1.batch(batch);
+		} catch (e) {
+			logError({ msg: "Failed to insert UTXOs", method: "insertUtxos" }, e);
+			throw e;
+		}
+	}
+
+	async markUtxosAsSpent(spends: UtxoKey[], spentInBlockHash: string): Promise<void> {
+		if (spends.length === 0) return;
+		const stmt = this.d1.prepare(
+			`UPDATE nbtc_utxos 
+             SET status = 'spent', spent_in_block_hash = ? 
+             WHERE txid = ? AND vout = ?`,
+		);
+		const batch = spends.map((s) => stmt.bind(spentInBlockHash, s.txid, s.vout));
+		await this.d1.batch(batch);
+	}
+
+	async deleteUtxosByBlockHash(blockHash: string): Promise<void> {
+		try {
+			await this.d1
+				.prepare("DELETE FROM nbtc_utxos WHERE block_hash = ?")
+				.bind(blockHash)
+				.run();
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to cleanup reorged UTXOs",
+					method: "deleteUtxosByBlockHash",
+					blockHash,
+				},
+				e,
+			);
+			throw e;
+		}
+	}
+	async unspendUtxosByBlockHash(blockHash: string): Promise<void> {
+		await this.d1
+			.prepare(
+				`UPDATE nbtc_utxos 
+             SET status = 'available', spent_in_block_hash = NULL 
+             WHERE spent_in_block_hash = ?`,
+			)
+			.bind(blockHash)
+			.run();
 	}
 }

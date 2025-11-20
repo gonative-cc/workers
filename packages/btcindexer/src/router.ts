@@ -3,12 +3,11 @@ import { Router, error, json } from "itty-router";
 import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import { Indexer } from "./btcindexer";
-import { RestPath } from "./api/client";
 import type { PostNbtcTxRequest } from "./models";
+import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
-import { PutBlocksReq } from "./api/put-blocks";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 
 export default class HttpRouter {
 	#indexer?: Indexer;
@@ -27,13 +26,12 @@ export default class HttpRouter {
 			finally: [json],
 		});
 		// Bitcoin endpoints
-		r.put(RestPath.blocks, this.putBlocks);
 		r.get(RestPath.latestHeight, this.getLatestHeight);
 
 		r.post(RestPath.nbtcTx, this.postNbtcTx);
 		// ?sui_recipient="0x..."  - query by sui address
-		r.get(RestPath.nbtcTx, this.getStatusBySuiAddress);
-		r.get(RestPath.nbtcTx + "/:txid", this.getStatusByTxid); // query by bitcoin_tx_id
+		r.get(RestPath.nbtcTx, this.getNbtcMintTxsBySuiAddr);
+		r.get(RestPath.nbtcTx + "/:txid", this.getNbtcMintTx); // query by bitcoin_tx_id
 		r.get(RestPath.depositsBySender, this.getDepositsBySender);
 
 		//
@@ -61,7 +59,7 @@ export default class HttpRouter {
 	// Otherwise we would need to setup the server on each fetch request.
 	fetch = async (req: Request, env: Env, indexer: Indexer) => {
 		this.#indexer = indexer;
-		console.trace({ msg: "Incoming request", url: req.url, method: req.method });
+		logger.debug({ msg: "Incoming request", url: req.url, method: req.method });
 		return this.#router.fetch(req, env);
 	};
 
@@ -75,34 +73,21 @@ export default class HttpRouter {
 	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods
 	// in callbacks.
 
-	// NOTE: we may need to put this to a separate worker
-	putBlocks = async (req: IRequest) => {
-		try {
-			const blocks = PutBlocksReq.decode(await req.arrayBuffer());
-			return { inserted: await this.indexer().putBlocks(blocks) };
-		} catch (e) {
-			console.error({
-				msg: "Failed to decode msgpack body for putBlocks",
-				error: toSerializableError(e),
-			});
-			return new Response("Failed to decode msgpack body. Check wrangler logs for details.", {
-				status: 400,
-			});
-		}
-	};
-
 	postNbtcTx = async (req: IRequest) => {
 		const body: PostNbtcTxRequest = await req.json();
 
-		if (!body || typeof body.txHex !== "string") {
-			return error(400, "Request body must be a JSON object with a 'txHex' property.");
+		if (!body || typeof body.txHex !== "string" || !body.network) {
+			return error(
+				400,
+				"Request body must be a JSON object with 'txHex' and 'network' properties.",
+			);
 		}
 
 		try {
-			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex);
+			const result = await this.indexer().registerBroadcastedNbtcTx(body.txHex, body.network);
 			return { success: true, ...result };
 		} catch (e: unknown) {
-			console.error({ msg: "Failed to register nBTC tx", error: toSerializableError(e) });
+			logError({ msg: "Failed to register nBTC tx", method: "postNbtcTx" }, e);
 			const message = e instanceof Error ? e.message : "An unknown error occurred.";
 			return new Response(message, { status: 400 });
 		}
@@ -112,7 +97,7 @@ export default class HttpRouter {
 	// TODO: remove this
 	//
 	putTestKV = async (req: IRequest, env: Env) => {
-		const kv = env.btc_blocks;
+		const kv = env.BtcBlocks;
 		const data = await req.json<{ key: string; val: string }>();
 		if (!data.key || !data.val) return new Error("Wrong Request: body must by {key, val} JSON");
 		await kv.put(data.key, data.val);
@@ -121,7 +106,7 @@ export default class HttpRouter {
 		// return 1;
 	};
 	getTestKV = async (req: IRequest, env: Env) => {
-		const kv = env.btc_blocks;
+		const kv = env.BtcBlocks;
 		const params = req.params;
 		if (!params) {
 			return error(400, "Missing parameters");
@@ -133,7 +118,7 @@ export default class HttpRouter {
 		return kv.get(key);
 	};
 
-	getStatusByTxid = async (req: IRequest) => {
+	getNbtcMintTx = async (req: IRequest) => {
 		const params = req.params;
 		if (!params) {
 			return error(400, "Missing parameters");
@@ -142,7 +127,7 @@ export default class HttpRouter {
 		if (!txid) {
 			return error(400, "Missing txid parameter");
 		}
-		const result = await this.indexer().getStatusByTxid(txid);
+		const result = await this.indexer().getNbtcMintTx(txid);
 
 		if (result === null) {
 			return error(404, "Transaction not found.");
@@ -150,7 +135,7 @@ export default class HttpRouter {
 		return result;
 	};
 
-	getStatusBySuiAddress = async (req: IRequest) => {
+	getNbtcMintTxsBySuiAddr = async (req: IRequest) => {
 		const suiRecipient = req.query.sui_recipient;
 		if (!suiRecipient || typeof suiRecipient !== "string") {
 			return error(400, "Missing or invalid sui_recipient query parameter.");
@@ -158,7 +143,7 @@ export default class HttpRouter {
 		if (!isValidSuiAddress(suiRecipient)) {
 			return error(400, "Invalid SUI address format.");
 		}
-		return this.indexer().getStatusBySuiAddress(suiRecipient);
+		return this.indexer().getNbtcMintTxsBySuiAddr(suiRecipient);
 	};
 
 	getLatestHeight = () => {

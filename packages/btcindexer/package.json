@@ -19,13 +19,13 @@
 		"seed:addresses": "bun run scripts/seed-addresses.ts"
 	},
 	"dependencies": {
-		"@mysten/bcs": "^1.8.0",
-		"@mysten/sui": "^1.38.0",
+		"@gonative-cc/lib": "workspace:*",
+		"@mysten/bcs": "^1.9.2",
+		"@mysten/sui": "^1.45.0",
 		"bitcoinjs-lib": "^6.1.7",
 		"crypto-js": "^4.2.0",
 		"itty-router": "^5.0.22",
-		"merkletreejs": "^0.5.2",
-		"msgpackr": "^1.11.5"
+		"merkletreejs": "^0.5.2"
 	},
 	"devDependencies": {}
 }

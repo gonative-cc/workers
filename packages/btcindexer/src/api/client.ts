@@ -1,95 +1,74 @@
-import type { TxStatusResp } from "../models";
-import type { PutBlocks } from "./put-blocks";
-import { PutBlocksReq } from "./put-blocks";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
+import { type NbtcTxResp, type PostNbtcTxRequest } from "../models";
 
-export enum RestPath {
-	blocks = "/bitcoin/blocks",
-	nbtcTx = "/nbtc",
-	latestHeight = "/bitcoin/latest-height",
-	depositsBySender = "/bitcoin/deposits/", // ?sender=address
+export const enum RestPath {
+	latestHeight = "/height",
+	nbtcTx = "/tx",
+	depositsBySender = "/deposits/sender", // ?sender=address
 }
 
-export enum ContentType {
-	msgpack = "application/vnd.msgpack",
-}
+export class BtcIndexerClient {
+	#url: string;
 
-const msgPackHeaders = {
-	"Content-Type": ContentType.msgpack,
-};
-
-export default class Client {
-	baseUrl: string;
-
-	constructor(baseUrl: string) {
-		if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
-		this.baseUrl = baseUrl;
-	}
-
-	async putBlocks(putBlocks: PutBlocks[]) {
-		return fetch(this.baseUrl + RestPath.blocks, {
-			method: "PUT",
-			headers: msgPackHeaders,
-			body: PutBlocksReq.encode(putBlocks),
-		});
+	constructor(url: string) {
+		this.#url = url.endsWith("/") ? url.slice(0, -1) : url;
 	}
 
 	async getLatestHeight(): Promise<{ height: number | null }> {
-		const response = await fetch(this.baseUrl + RestPath.latestHeight);
-		if (!response.ok) {
-			throw new Error(`Failed to fetch latest height: ${response.statusText}`);
+		const res = await fetch(this.#url + RestPath.latestHeight);
+		if (!res.ok) {
+			throw new Error(`Failed to fetch latest height: ${res.statusText}`);
 		}
-		return response.json();
+		return res.json();
 	}
 
 	async postNbtcTx(
 		txHex: string,
+		network: BtcNet,
 	): Promise<{ success: boolean; tx_id: string; registered_deposits: number }> {
-		const response = await fetch(this.baseUrl + RestPath.nbtcTx, {
+		const body: PostNbtcTxRequest = { txHex, network };
+		const res = await fetch(this.#url + RestPath.nbtcTx, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ txHex }),
+			body: JSON.stringify(body),
 		});
-
-		if (!response.ok) {
-			const errorBody = await response.text();
-			throw new Error(
-				`Failed to post nBTC transaction: ${response.statusText} - ${errorBody}`,
-			);
+		if (!res.ok) {
+			const errorBody = await res.text();
+			throw new Error(`Failed to post nBTC transaction: ${res.statusText} - ${errorBody}`);
 		}
-		return response.json();
+		return res.json();
 	}
 
-	async getStatusByBtcTxId(txid: string): Promise<TxStatusResp | null> {
-		const url = `${this.baseUrl}${RestPath.nbtcTx}/${txid}`;
-		const response = await fetch(url);
-		if (response.status === 404) {
+	async getStatusByBtcTxId(txid: string): Promise<NbtcTxResp | null> {
+		const res = await fetch(`${this.#url}${RestPath.nbtcTx}/${txid}`);
+		if (res.status === 404) {
 			return null;
 		}
-		if (!response.ok) {
-			throw new Error(`Failed to get status by BTC txid: ${response.statusText}`);
+		if (!res.ok) {
+			throw new Error(`Failed to get status by BTC txid: ${res.statusText}`);
 		}
-		return response.json();
+		return res.json();
 	}
 
-	async getStatusBySuiAddress(suiAddress: string): Promise<TxStatusResp[]> {
-		const url = new URL(this.baseUrl + RestPath.nbtcTx);
+	async getStatusBySuiAddress(suiAddress: string): Promise<NbtcTxResp[]> {
+		const url = new URL(this.#url + RestPath.nbtcTx);
 		url.searchParams.append("sui_recipient", suiAddress);
 
-		const response = await fetch(url.toString());
-		if (!response.ok) {
-			throw new Error(`Failed to get status by Sui address: ${response.statusText}`);
+		const res = await fetch(url.toString());
+		if (!res.ok) {
+			throw new Error(`Failed to get status by Sui address: ${res.statusText}`);
 		}
-		return response.json();
+		return res.json();
 	}
 
-	async getDepositsBySender(senderAddress: string): Promise<TxStatusResp[]> {
-		const url = new URL(this.baseUrl + RestPath.depositsBySender);
+	async getDepositsBySender(senderAddress: string): Promise<NbtcTxResp[]> {
+		const url = new URL(this.#url + RestPath.depositsBySender);
 		url.searchParams.append("sender", senderAddress);
 
-		const response = await fetch(url.toString());
-		if (!response.ok) {
-			throw new Error(`Failed to get deposits by sender: ${response.statusText}`);
+		const res = await fetch(url.toString());
+		if (!res.ok) {
+			throw new Error(`Failed to get deposits by sender: ${res.statusText}`);
 		}
-		return response.json();
+		return res.json();
 	}
 }

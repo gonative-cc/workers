@@ -1,0 +1,17 @@
+{
+  "name": "block-ingestor",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@gonative-cc/lib": "workspace:*",
+    "msgpackr": "^1.10.0",
+    "bitcoinjs-lib": "^6.1.3"
+  }
+}

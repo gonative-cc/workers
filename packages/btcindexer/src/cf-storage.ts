@@ -377,7 +377,7 @@ export class CFStorage implements Storage {
 		if (utxos.length === 0) return;
 
 		const stmt = this.d1.prepare(
-			`INSERT OR IGNORE INTO nbtc_utxos 
+			`INSERT OR IGNORE INTO nbtc_utxos
             (txid, vout, address, amount_sats, script_pubkey, block_height, block_hash, nbtc_pkg, sui_network)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
@@ -388,7 +388,7 @@ export class CFStorage implements Storage {
 				u.vout,
 				u.address,
 				u.amount_sats,
-				u.script_pubkey,
+				new Uint8Array(u.script_pubkey),
 				u.block_height,
 				u.block_hash,
 				u.nbtc_pkg,
@@ -407,8 +407,8 @@ export class CFStorage implements Storage {
 	async markUtxosAsSpent(spends: UtxoKey[], spentInBlockHash: string): Promise<void> {
 		if (spends.length === 0) return;
 		const stmt = this.d1.prepare(
-			`UPDATE nbtc_utxos 
-             SET status = 'spent', spent_in_block_hash = ? 
+			`UPDATE nbtc_utxos
+             SET status = 'spent', spent_in_block_hash = ?
              WHERE txid = ? AND vout = ?`,
 		);
 		const batch = spends.map((s) => stmt.bind(spentInBlockHash, s.txid, s.vout));
@@ -436,8 +436,8 @@ export class CFStorage implements Storage {
 	async unspendUtxosByBlockHash(blockHash: string): Promise<void> {
 		await this.d1
 			.prepare(
-				`UPDATE nbtc_utxos 
-             SET status = 'available', spent_in_block_hash = NULL 
+				`UPDATE nbtc_utxos
+             SET status = 'available', spent_in_block_hash = NULL
              WHERE spent_in_block_hash = ?`,
 			)
 			.bind(blockHash)

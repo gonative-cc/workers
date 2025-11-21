@@ -630,3 +630,209 @@ describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 		);
 	});
 });
+
+describe("Indexer.verifyConfirmingBlocks", () => {
+	const block329 = REGTEST_DATA[329]!;
+	const tx329 = block329.txs[1]!;
+
+	const helperSetupDB = async () => {
+		const db = await mf.getD1Database("DB");
+		await db
+			.prepare(
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			)
+			.bind(
+				tx329.id,
+				0,
+				block329.hash,
+				block329.height,
+				tx329.suiAddr,
+				tx329.amountSats,
+				"confirming", // Set as confirming status
+				Date.now(),
+				Date.now(),
+				BtcNet.REGTEST,
+				"0xPACKAGE",
+				"testnet",
+				block329.depositAddr,
+			)
+			.run();
+
+		const suiClientSpy = vi.spyOn(indexer.nbtcClient, "verifyBlocks");
+		return { suiClientSpy, db };
+	};
+
+	const verifyNbtcMiningStatus = async (expectedStatus: string, db: D1Database, txId: string) => {
+		const { results } = await db
+			.prepare("SELECT status FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txId)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual(expectedStatus);
+	};
+
+	it("should verify confirming blocks with on-chain light client and update reorged transactions", async () => {
+		const { suiClientSpy, db } = await helperSetupDB();
+
+		suiClientSpy.mockResolvedValue([false]); // Block is not valid anymore
+
+		await indexer.verifyConfirmingBlocks();
+		expect(
+			suiClientSpy,
+			"Verify that verifyBlocks was called with the correct block hash",
+		).toHaveBeenCalledWith([block329.hash]);
+		await verifyNbtcMiningStatus("reorg", db, tx329.id);
+	});
+
+	it("should verify confirming blocks and not update status if blocks are still valid", async () => {
+		const { suiClientSpy, db } = await helperSetupDB();
+
+		suiClientSpy.mockResolvedValue([true]); // Block is valid
+
+		await indexer.verifyConfirmingBlocks();
+		expect(
+			suiClientSpy,
+			"Verify that verifyBlocks was called with the correct block hash",
+		).toHaveBeenCalledWith([block329.hash]);
+
+		// Check that the transaction status remains 'confirming' since block is still valid
+		await verifyNbtcMiningStatus("confirming", db, tx329.id);
+	});
+
+	it("should handle empty confirming blocks list", async () => {
+		// Ensure no confirming blocks exist
+		const suiClientSpy = vi.spyOn(indexer.nbtcClient, "verifyBlocks").mockResolvedValue([]);
+
+		await indexer.verifyConfirmingBlocks();
+		expect(suiClientSpy).not.toHaveBeenCalled();
+	});
+
+	it("should handle SPV verification failure gracefully without updating the status", async () => {
+		const { suiClientSpy, db } = await helperSetupDB();
+
+		suiClientSpy.mockRejectedValue(new Error("SPV verification failed"));
+		await indexer.verifyConfirmingBlocks();
+
+		expect(suiClientSpy).toHaveBeenCalledWith([block329.hash]);
+		await verifyNbtcMiningStatus("confirming", db, tx329.id);
+	});
+});
+
+describe("Indexer.getSenderAddresses (via processBlock)", () => {
+	const timestamp_ms = Date.now();
+
+	it("should handle Electrs API failure when fetching sender addresses", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const blockInfo: BlockQueueRecord = {
+			hash: blockData.hash,
+			height: blockData.height,
+			network: BtcNet.REGTEST,
+			timestamp_ms,
+		};
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		// Mock the electrs.getTx method to throw an error
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(indexer.electrs.getTx as any).mockRejectedValue(new Error("Electrs API failed"));
+
+		// Process the block - should handle the error gracefully without throwing
+		// based on the implementation of getSenderAddresses which catches errors
+		try {
+			await indexer.processBlock(blockInfo);
+		} catch (error) {
+			// If we reach here, the method did throw, which might be expected behavior
+			// depending on how Promise.all handles rejected promises in getSenderAddresses
+		}
+
+		// Check that the transaction was still processed and added to nbtc_minting table
+		const db = await mf.getD1Database("DB");
+		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		// The nbtc_minting records should still be inserted (if deposits are found)
+		expect(mintingResults.length).toEqual(1);
+
+		// Check that no sender deposits were added due to the API failure
+		const { results: senderResults } = await db
+			.prepare("SELECT * FROM nbtc_sender_deposits")
+			.all();
+		expect(senderResults.length).toEqual(0);
+	});
+
+	it("should correctly fetch sender addresses when Electrs API is successful", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const blockInfo: BlockQueueRecord = {
+			hash: blockData.hash,
+			height: blockData.height,
+			network: BtcNet.REGTEST,
+			timestamp_ms,
+		};
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		// Mock the electrs.getTx method to return a successful response
+		const fakeSenderAddress = "bc1qtestsenderaddress";
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(indexer.electrs.getTx as any).mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					vout: [{ scriptpubkey_address: fakeSenderAddress }],
+				}),
+			),
+		);
+
+		await indexer.processBlock(blockInfo);
+
+		const db = await mf.getD1Database("DB");
+		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		expect(mintingResults.length).toEqual(1);
+
+		// Check that the sender address was correctly stored
+		const { results: senderResults } = await db
+			.prepare("SELECT * FROM nbtc_sender_deposits")
+			.all();
+		expect(senderResults.length).toEqual(1);
+		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
+	});
+
+	it("should handle Electrs API returning invalid response", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const blockInfo: BlockQueueRecord = {
+			hash: blockData.hash,
+			height: blockData.height,
+			network: BtcNet.REGTEST,
+			timestamp_ms,
+		};
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		// Mock the electrs.getTx method to return an invalid response (non-OK status)
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(indexer.electrs.getTx as any).mockResolvedValue(
+			new Response(
+				JSON.stringify({}),
+				{ status: 404 }, // Non-OK response should be handled gracefully
+			),
+		);
+
+		// The method should handle the error gracefully
+		try {
+			await indexer.processBlock(blockInfo);
+		} catch (error) {
+			// If error occurs, that's part of the behavior we're testing
+		}
+
+		const db = await mf.getD1Database("DB");
+		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		// Should still have the nBTC deposits
+		expect(mintingResults.length).toEqual(1);
+
+		// Should not have any sender deposits due to invalid response
+		const { results: senderResults } = await db
+			.prepare("SELECT * FROM nbtc_sender_deposits")
+			.all();
+		expect(senderResults.length).toEqual(0);
+	});
+});

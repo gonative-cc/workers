@@ -662,13 +662,13 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		return { suiClientSpy, db };
 	};
 
-	const verifyNbtcMiningStatus = async (expectedStatus: string, db: D1Database, txId: string) => {
+	const verifyMintingStatus = async (expected: string, db: D1Database, txId: string) => {
 		const { results } = await db
 			.prepare("SELECT status FROM nbtc_minting WHERE tx_id = ?")
 			.bind(txId)
 			.all();
 		expect(results.length).toEqual(1);
-		expect(results[0]!.status).toEqual(expectedStatus);
+		expect(results[0]!.status).toEqual(expected);
 	};
 
 	it("should verify confirming blocks with on-chain light client and update reorged transactions", async () => {
@@ -681,7 +681,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			suiClientSpy,
 			"Verify that verifyBlocks was called with the correct block hash",
 		).toHaveBeenCalledWith([block329.hash]);
-		await verifyNbtcMiningStatus("reorg", db, tx329.id);
+		await verifyMintingStatus("reorg", db, tx329.id);
 	});
 
 	it("should verify confirming blocks and not update status if blocks are still valid", async () => {
@@ -696,7 +696,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		).toHaveBeenCalledWith([block329.hash]);
 
 		// Check that the transaction status remains 'confirming' since block is still valid
-		await verifyNbtcMiningStatus("confirming", db, tx329.id);
+		await verifyMintingStatus("confirming", db, tx329.id);
 	});
 
 	it("should handle empty confirming blocks list", async () => {
@@ -714,7 +714,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		await indexer.verifyConfirmingBlocks();
 
 		expect(suiClientSpy).toHaveBeenCalledWith([block329.hash]);
-		await verifyNbtcMiningStatus("confirming", db, tx329.id);
+		await verifyMintingStatus("confirming", db, tx329.id);
 	});
 });
 

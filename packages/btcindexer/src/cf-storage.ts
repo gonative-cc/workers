@@ -205,14 +205,32 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getNbtcFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]> {
+	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE (status = '${MintTxStatus.Finalized}' OR (status = '${MintTxStatus.MintFailed}' AND retry_count <= ?)) AND status != '${MintTxStatus.FinalizedReorg}'`,
+				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Finalized}' OR (status = '${MintTxStatus.MintFailed}' AND retry_count <= ?)`,
 			)
 			.bind(maxRetries)
 			.all<FinalizedTxRow>();
 		return finalizedTxs.results ?? [];
+	}
+
+	//TODO: We need to query by network
+	async getMintedTxs(): Promise<FinalizedTxRow[]> {
+		const txs = await this.d1
+			.prepare(
+				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}'`,
+			)
+			.all<FinalizedTxRow>();
+		return txs.results ?? [];
+	}
+	//TODO: We need to query by network
+	async getTxStatus(txId: string): Promise<MintTxStatus | null> {
+		const result = await this.d1
+			.prepare(`SELECT status FROM nbtc_minting WHERE tx_id = ? LIMIT 1`)
+			.bind(txId)
+			.first<{ status: MintTxStatus }>();
+		return result?.status ?? null;
 	}
 
 	async updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void> {

@@ -245,7 +245,7 @@ export class Indexer {
 	}
 
 	async processFinalizedTransactions(): Promise<void> {
-		const finalizedTxs = await this.storage.getNbtcFinalizedTxs(this.maxNbtcMintTxRetries);
+		const finalizedTxs = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
 
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;
@@ -310,17 +310,42 @@ export class Indexer {
 
 				if (txIndex === -1) {
 					logger.error({
-						msg: "Minting: Could not find TX within its block. Setting status to 'finalized-reorg'.",
+						msg: "Minting: Could not find TX within its block. Detecting reorg.",
 						method: "processFinalizedTransactions",
 						txId,
 					});
 					try {
-						// TODO: need to distniguish FINALIZED_REORG and MINTED_REORG
-						await this.storage.updateNbtcTxsStatus([txId], MintTxStatus.FinalizedReorg);
+						const currentStatus = await this.storage.getTxStatus(txId);
+						if (
+							currentStatus !== MintTxStatus.Minted &&
+							currentStatus !== MintTxStatus.Finalized &&
+							currentStatus !== MintTxStatus.MintFailed
+						) {
+							logger.error({
+								msg: "Minting: Unexpected status during reorg detection, skipping",
+								method: "processFinalizedTransactions",
+								txId,
+								currentStatus,
+							});
+							continue;
+						}
+
+						const reorgStatus =
+							currentStatus === MintTxStatus.Minted
+								? MintTxStatus.MintedReorg
+								: MintTxStatus.FinalizedReorg;
+						await this.storage.updateNbtcTxsStatus([txId], reorgStatus);
+						logger.warn({
+							msg: "Minting: Transaction reorged",
+							method: "processFinalizedTransactions",
+							txId,
+							previousStatus: currentStatus,
+							newStatus: reorgStatus,
+						});
 					} catch (e) {
 						logError(
 							{
-								msg: "Failed to update status to 'finalized-reorg'",
+								msg: "Minting: Failed to update reorg status",
 								method: "processFinalizedTransactions",
 								txId,
 							},
@@ -358,6 +383,7 @@ export class Indexer {
 				if (!firstDeposit) {
 					logger.warn({
 						msg: "Minting: Skipping transaction group with no deposits",
+						method: "processFinalizedTransactions",
 						txId,
 					});
 					continue;
@@ -456,6 +482,53 @@ export class Indexer {
 						})),
 					);
 				}
+			}
+		}
+	}
+
+	async detectMintedReorgs(): Promise<void> {
+		logger.debug({ msg: "Cron: Checking for reorgs on minted transactions" });
+
+		const mintedTxs = await this.storage.getMintedTxs();
+		if (!mintedTxs || mintedTxs.length === 0) {
+			return;
+		}
+
+		for (const tx of mintedTxs) {
+			try {
+				const rawBlockBuffer = await this.storage.getBlock(tx.block_hash);
+				if (!rawBlockBuffer) {
+					logger.warn({
+						msg: "Block data not found for minted transaction",
+						method: "detectMintedReorgs",
+						txId: tx.tx_id,
+						blockHash: tx.block_hash,
+					});
+					continue;
+				}
+
+				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+				const txIndex = block.transactions?.findIndex((t) => t.getId() === tx.tx_id);
+
+				if (txIndex === -1) {
+					await this.storage.updateNbtcTxsStatus([tx.tx_id], MintTxStatus.MintedReorg);
+					logger.error({
+						msg: "CRITICAL: Deep reorg detected on minted transaction",
+						method: "detectMintedReorgs",
+						txId: tx.tx_id,
+						blockHash: tx.block_hash,
+						blockHeight: tx.block_height,
+					});
+				}
+			} catch (e) {
+				logError(
+					{
+						msg: "Error checking minted transaction for reorg",
+						method: "detectMintedReorgs",
+						txId: tx.tx_id,
+					},
+					e,
+				);
 			}
 		}
 	}

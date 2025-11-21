@@ -377,14 +377,21 @@ describe("Block Parsing", () => {
 	});
 });
 
+function getTestTx(blockHeight: number, txIndex: number) {
+	const blockData = REGTEST_DATA[blockHeight];
+	if (!blockData) throw new Error(`Block ${blockHeight} not found in test data`);
+
+	const block = Block.fromHex(blockData.rawBlockHex);
+	const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[txIndex]!.id);
+	expect(targetTx).toBeDefined();
+
+	return { blockData, block, targetTx: targetTx! };
+}
+
 describe("Indexer.putNbtcTx", () => {
 	it("should return true and register a new tx with a single deposit in db", async () => {
-		const blockData = REGTEST_DATA[329]!;
-		const block = Block.fromHex(blockData.rawBlockHex);
-		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1]!.id);
-		expect(targetTx).toBeDefined();
-
-		const txHex = targetTx!.toHex();
+		const { blockData, targetTx } = getTestTx(329, 1);
+		const txHex = targetTx.toHex();
 		const result = await indexer.putNbtcTx(txHex, BtcNet.REGTEST);
 		expect(result).toBe(true);
 
@@ -398,12 +405,8 @@ describe("Indexer.putNbtcTx", () => {
 	});
 
 	it("should return false when tx already exists in db", async () => {
-		const blockData = REGTEST_DATA[329]!;
-		const block = Block.fromHex(blockData.rawBlockHex);
-		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1]!.id);
-		expect(targetTx).toBeDefined();
-
-		const txHex = targetTx!.toHex();
+		const { targetTx } = getTestTx(329, 1);
+		const txHex = targetTx.toHex();
 
 		const firstResult = await indexer.putNbtcTx(txHex, BtcNet.REGTEST);
 		expect(firstResult).toBe(true);
@@ -422,7 +425,7 @@ describe("Indexer.putNbtcTx", () => {
 		const coinbaseTx = block.transactions![0]!;
 
 		expect(indexer.putNbtcTx(coinbaseTx.toHex(), BtcNet.REGTEST)).rejects.toThrow(
-			"Tx do not contain any valid nBTC deposits.",
+			"Transaction does not contain any valid nBTC deposits.",
 		);
 	});
 });

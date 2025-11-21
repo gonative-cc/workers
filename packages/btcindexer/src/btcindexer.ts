@@ -97,16 +97,6 @@ export class Indexer {
 	async putNbtcTx(txHex: string, network: BtcNet): Promise<boolean> {
 		const tx = Transaction.fromHex(txHex);
 		const txId = tx.getId();
-		const btcNetwork = btcNetworkCfg[network];
-		if (!btcNetwork) {
-			throw new Error(`Unknown network: ${network}`);
-		}
-
-		const deposits = this.findNbtcDeposits(tx, btcNetwork);
-		if (deposits.length === 0) {
-			throw new Error("Tx do not contain any valid nBTC deposits.");
-		}
-
 		const existingTx = await this.storage.getNbtcMintTx(txId);
 		if (existingTx) {
 			logger.debug({
@@ -116,17 +106,7 @@ export class Indexer {
 			});
 			return false;
 		}
-
-		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network }));
-		await this.storage.registerBroadcastedNbtcTx(depositData);
-
-		logger.info({
-			msg: "New nBTC minting deposit Tx registered in db",
-			method: "Indexer.putNbtcTx",
-			txId,
-			registeredCount: deposits.length,
-		});
-
+		await this.registerBroadcastedNbtcTx(txHex, network);
 		return true;
 	}
 

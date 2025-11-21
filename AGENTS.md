@@ -15,6 +15,9 @@ Check @README.md for more details.
 ### Packages
 
 - `./packages/btcindexer` : a Bitcoin indexer (btcindexer) for the nBTC project. The project is designed to monitor the Bitcoin blockchain, parse Bitcoin blocks, identify nBTC deposits, and facilitate their minting on the Sui blockchain.
+- `./packages/block-ingestor` : a new worker that exposes REST API to receive new blocks and queue them for processing.
+- `./packages/lib` : a library package where we put common functions to be shared with other packages.
+- `./packages/redeem_solver` : a new worker to propose UTXOs for withdrawals.
 
 Details about each package is in described in the sections below.
 
@@ -129,23 +132,92 @@ The project consists of:
 - Uses KV namespaces for block storage and nBTC transaction caching
 - Implements proper data persistence and querying
 
+## Block Ingestor
+
+The package is in `./packages/block-ingestor`.
+See @packages/block-ingestor/README.md for information about key features and architecture.
+
+### Architecture
+
+The project consists of:
+
+1. A main worker (`src/index.ts`) that handles HTTP requests to receive new blocks
+2. An API module (`src/api/put-blocks.ts`) that handles msgpack encoding/decoding of block data
+3. An ingestion module (`src/ingest.ts`) that processes and queues the received blocks
+4. A client module (`src/api/client.ts`) for sending blocks to the worker
+
+## Lib
+
+The package is in `./packages/lib`.
+
+### Architecture
+
+A shared library package containing common utilities and types used across other packages:
+
+1. Logger module (`src/logger.ts`) for structured logging
+2. Bitcoin network utilities (`src/nbtc.ts`) with common types and functions
+3. Sui network utilities (`src/nsui.ts`) with configuration types
+
+### Core Components
+
+- `packages/lib/src/logger.ts` - Structured logging implementation
+- `packages/lib/src/nbtc.ts` - Bitcoin network types and utility functions
+- `packages/lib/src/nsui.ts` - Sui network configuration types
+
+### Key Features
+
+#### 1. Shared Types
+
+- BtcNet and SuiNet enums for network identification
+- Common interfaces for cross-package communication
+- Block queue record definitions
+
+#### 2. Utilities
+
+- Structured logging with JSON output
+- Utility functions for key generation and management
+- Delay function for async operations
+
+## Redeem Solver
+
+The package is in `./packages/redeem_solver`. See @packages/redeem_solver/README.md for information about key features and architecture.
+
+### Architecture
+
+The project consists of:
+
+1. A main worker (`src/index.ts`) that serves as the entry point
+2. An RPC module (`src/rpc.ts`) that exposes service binding interface
+3. A Sui client (`src/sui_client.ts`) for blockchain interactions
+4. A storage module (`src/storage.ts`) for data persistence
+5. Model definitions (`src/models.ts`) for data structures
+
+#### 2. Service Bindings Implementation
+
+- Exposes Cloudflare RPC interface for inter-worker communication
+- Follows Cloudflare's recommended approach for worker-to-worker communication
+- Designed to integrate with the broader nBTC ecosystem
+
 ## Development Conventions
 
 ### Code Style
 
-- Uses TypeScript with strict type checking
-- Follows ESLint and Prettier for consistent code formatting
+- Uses TypeScript with strict type checking. When finalizing agent work run `bun run typecheck` to typecheck the code.
+- Follows ESLint and Prettier for consistent code (and Markdown) formatting. When finalizing agent work run `bun run format` to format the code.
 - Includes comprehensive type definitions
 
 ### Testing
 
-- Unit tests using Bun's built-in test framework
+- **Test Framework**: Bun's built-in test framework with Miniflare for mocking Workers and CF Env.
 - Tests cover critical functionality including:
   - nBTC deposit detection
   - Merkle tree proof generation
   - Transaction finalization logic
   - Cross-chain minting flow
-- Mock environments for testing without external dependencies
+  - Mock environments for testing without external dependencies
+- **Integration Tests**: Full flow with mocked Sui and electrs
+- **Unit Tests**: Merkle tree, storage, API components
+- **Test Data**: Real Bitcoin regtest blocks (fetched from https://learnmeabitcoin.com/explorer/) in `btcindexer.test.ts`
 
 ### Configuration
 

@@ -7,10 +7,9 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
-	NbtcDepositSender,
 } from "./models";
-import { BlockStatus, MintTxStatus } from "./models";
-import type { Storage } from "./storage";
+import { MintTxStatus } from "./models";
+import type { Storage, NbtcDepositSender } from "./storage";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export class CFStorage implements Storage {
@@ -35,7 +34,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: "Failed to fetch deposit addresses from D1",
-					method: "getDepositAddresses",
+					method: "CFStorage.getDepositAddresses",
 					btcNetwork,
 				},
 				e,
@@ -44,59 +43,82 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async insertBlockInfo(blockMessage: BlockQueueRecord): Promise<void> {
-		const now = Date.now();
+	/**
+	 * Inserts a new block record into D1 or updates an existing one if the incoming data is newer.
+	 *
+	 * This method implements a "Last-Write-Wins" strategy based on the ingestion timestamp (`inserted_at`)
+	 * to handle out-of-order delivery (race conditions) from the queue.
+	 *
+	 * logic:
+	 * 1. If the (height, network) does not exist -> INSERT.
+	 * 2. If it exists, ONLY UPDATE if:
+	 * - The Hash is different (optimization to skip duplicates).
+	 * - AND The incoming `timestamp_ms` is greater than the stored `inserted_at`.
+	 *
+	 * @param b - The block record from the queue.
+	 * @returns `true` if the block was inserted or updated (fresh data).
+	 * `false` if the block was stale or an exact duplicate (processing should stop).
+	 */
+	async insertBlockInfo(b: BlockQueueRecord): Promise<boolean> {
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
 			   hash = excluded.hash,
 			   inserted_at = excluded.inserted_at,
-			   status = '${BlockStatus.New}'
-			 WHERE btc_blocks.hash IS NOT excluded.hash`,
+			   is_scanned = 0
+			 WHERE btc_blocks.hash IS NOT excluded.hash AND excluded.inserted_at > btc_blocks.inserted_at`,
 		);
 		try {
-			await insertStmt
-				.bind(blockMessage.hash, blockMessage.height, blockMessage.network, now)
-				.run();
+			const result = await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
+			const isFresh = result.meta.changes > 0;
+			if (!isFresh) {
+				logger.debug({
+					msg: "Ignored stale or duplicate block ingestion",
+					method: "CFStorage.insertBlockInfo",
+					height: b.height,
+					incomingHash: b.hash,
+					incomingTs: b.timestamp_ms,
+				});
+			}
+			return isFresh;
 		} catch (e) {
 			logError(
 				{
 					msg: "Failed to insert block from queue message",
-					method: "insertBlockInfo",
-					message: blockMessage,
+					method: "CFStorage.insertBlockInfo",
+					message: b,
 				},
 				e,
 			);
 			throw e;
 		}
-		logger.info({ msg: "Successfully ingested blocks" });
 	}
 
 	async getBlocksToProcess(batchSize: number): Promise<BlockInfo[]> {
 		const blocksToProcess = await this.d1
 			.prepare(
-				`SELECT height, hash FROM btc_blocks WHERE status = '${BlockStatus.New}' ORDER BY height ASC LIMIT ?`,
+				`SELECT height, hash FROM btc_blocks WHERE is_scanned = 0 ORDER BY height ASC LIMIT ?`,
 			)
 			.bind(batchSize)
 			.all<BlockInfo>();
 		return blocksToProcess.results ?? [];
 	}
 
-	async updateBlockStatus(hash: string, network: string, status: string): Promise<void> {
+	async markBlockAsProcessed(hash: string, network: string): Promise<void> {
 		const now = Date.now();
-		const updateStmt = `UPDATE btc_blocks SET status = ?, processed_at = ? WHERE hash = ? AND network = ?`;
+		const updateStmt = `UPDATE btc_blocks SET is_scanned = 1, processed_at = ? WHERE hash = ? AND network = ?`;
 		try {
-			await this.d1.prepare(updateStmt).bind(status, now, hash, network).run();
+			await this.d1.prepare(updateStmt).bind(now, hash, network).run();
 			logger.debug({
-				msg: `Marked block as ${status}`,
+				msg: "Marked block as processed",
 				hash,
 				network,
 			});
 		} catch (e) {
 			logError(
 				{
-					msg: `Failed to mark block as ${status}`,
-					method: "updateBlockStatus",
+					msg: "Failed to mark block as processed",
+					method: "markBlockAsProcessed",
 					hash,
 					network,
 				},
@@ -126,11 +148,13 @@ export class CFStorage implements Storage {
 		return this.blocksDB.get(hash, { type: "arrayBuffer" });
 	}
 
-	async getBlockInfo(height: number, network: string): Promise<{ hash: string } | null> {
-		return this.d1
+	async getBlockHash(height: number, network: string): Promise<string | null> {
+		const row = await this.d1
 			.prepare("SELECT hash FROM btc_blocks WHERE height = ? AND network = ?")
 			.bind(height, network)
 			.first<{ hash: string }>();
+		if (row === null) return null;
+		return row.hash;
 	}
 
 	async insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void> {
@@ -139,8 +163,8 @@ export class CFStorage implements Storage {
 		}
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
-			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network)
-             VALUES (?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, ?, ?, ?)
+			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network, deposit_address)
+             VALUES (?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, ?, ?, ?, ?)
              ON CONFLICT(tx_id, vout) DO UPDATE SET
                 block_hash = excluded.block_hash,
                 block_height = excluded.block_height,
@@ -148,7 +172,8 @@ export class CFStorage implements Storage {
                 updated_at = excluded.updated_at,
 				btc_network = excluded.btc_network,
 				nbtc_pkg = excluded.nbtc_pkg,
-				sui_network = excluded.sui_network`,
+				sui_network = excluded.sui_network,
+				deposit_address = excluded.deposit_address`,
 		);
 		const statements = txs.map((tx) =>
 			insertOrUpdateNbtcTxStmt.bind(
@@ -163,13 +188,17 @@ export class CFStorage implements Storage {
 				tx.btcNetwork,
 				tx.nbtcPkg,
 				tx.suiNetwork,
+				tx.depositAddress,
 			),
 		);
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
 			logError(
-				{ msg: "Failed to insert nBTC transactions", method: "insertOrUpdateNbtcTxs" },
+				{
+					msg: "Failed to insert nBTC transactions",
+					method: "CFStorage.insertOrUpdateNbtcTxs",
+				},
 				e,
 			);
 			throw e;
@@ -238,7 +267,7 @@ export class CFStorage implements Storage {
 		try {
 			await this.d1.batch(statements);
 		} catch (e) {
-			logError({ msg: "Failed to update status", method: "batchUpdateNbtcTxs" }, e);
+			logError({ msg: "Failed to update status", method: "CFStorage.batchUpdateNbtcTxs" }, e);
 			throw e;
 		}
 	}
@@ -270,7 +299,7 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, block_hash, block_height, btc_network FROM nbtc_minting WHERE status = '${MintTxStatus.Confirming}'`,
+				`SELECT tx_id, block_hash, block_height, btc_network, deposit_address FROM nbtc_minting WHERE status = '${MintTxStatus.Confirming}'`,
 			)
 			.all<PendingTx>();
 		return pendingTxs.results ?? [];
@@ -306,8 +335,8 @@ export class CFStorage implements Storage {
 	async registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
-			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network)
-         VALUES (?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, ?, ?, ?)`,
+			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network, deposit_address)
+         VALUES (?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, ?, ?, ?, ?)`,
 		);
 
 		const statements = deposits.map((deposit) =>
@@ -321,6 +350,7 @@ export class CFStorage implements Storage {
 				deposit.nbtcPkg,
 				deposit.suiNetwork,
 				deposit.btcNetwork,
+				deposit.depositAddress,
 			),
 		);
 		try {
@@ -329,7 +359,7 @@ export class CFStorage implements Storage {
 			logError(
 				{
 					msg: "Failed to register broadcasted nBTC tx",
-					method: "registerBroadcastedNbtcTx",
+					method: "CFStorage.registerBroadcastedNbtcTx",
 				},
 				e,
 			);
@@ -348,7 +378,7 @@ export class CFStorage implements Storage {
 		return dbResult.results ?? [];
 	}
 
-	async insertBtcDeposit(senders: NbtcDepositSender[]): Promise<void> {
+	async insertNbtcMintDeposit(senders: NbtcDepositSender[]): Promise<void> {
 		if (senders.length === 0) {
 			return;
 		}

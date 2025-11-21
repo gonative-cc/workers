@@ -7,20 +7,19 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
-	NbtcDepositSender,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export interface Storage {
 	// Block operations
-	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<void>;
-	updateBlockStatus(hash: string, network: string, status: string): Promise<void>;
+	markBlockAsProcessed(hash: string, network: string): Promise<void>;
+	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<boolean>;
 	getLatestBlockHeight(): Promise<number | null>;
 	getChainTip(): Promise<number | null>;
 	setChainTip(height: number): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
-	getBlockInfo(height: number, network: string): Promise<{ hash: string } | null>;
+	getBlockHash(height: number, network: string): Promise<string | null>;
 	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
 
 	// nBTC Transaction operations
@@ -38,9 +37,7 @@ export interface Storage {
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
 	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
-
-	// Insert BTC deposit for nBTC mint.
-	insertBtcDeposit(senders: NbtcDepositSender[]): Promise<void>;
+	insertNbtcMintDeposit(senders: NbtcDepositSender[]): Promise<void>;
 }
 
 // TODO: Add support for active/inactive nBTC addresses.
@@ -54,4 +51,9 @@ export interface Storage {
 export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcAddress[]> {
 	const { results } = await db.prepare("SELECT * FROM nbtc_addresses").all<NbtcAddress>();
 	return results || [];
+}
+
+export interface NbtcDepositSender {
+	tx_id: string;
+	sender: string;
 }

@@ -10,7 +10,7 @@ export default {
 
 		try {
 			const blocks = PutBlocksReq.decode(await request.arrayBuffer());
-			await handleIngestBlocks(blocks, env.BlockStore, env.BlockQueue);
+			await handleIngestBlocks(blocks, env.BtcBlocks, env.BlockQueue);
 			return new Response("Blocks ingested successfully", { status: 200 });
 		} catch (e) {
 			console.error("Failed to ingest blocks", e);

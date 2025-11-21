@@ -3,13 +3,13 @@ CREATE TABLE IF NOT EXISTS btc_blocks (
   hash TEXT NOT NULL,
   height INTEGER NOT NULL,
   network TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'scanned')), -- TODO: change it to boolean
+  is_scanned INTEGER NOT NULL DEFAULT 0,  -- 0 = not scanned, 1 = scanned
   processed_at INTEGER,  -- timestamp_ms
   inserted_at INTEGER, -- timestamp_ms
   PRIMARY KEY (height, network)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS btc_blocks_status_height ON btc_blocks (status, height);
+CREATE INDEX IF NOT EXISTS btc_blocks_is_scanned_height ON btc_blocks (is_scanned, height);
 
 ---------- NBTC Minting and Withdrawal ----------
 
@@ -24,11 +24,12 @@ CREATE TABLE IF NOT EXISTS nbtc_minting (
 	status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted' | 'reorg'
 	created_at INTEGER NOT NULL, -- timestamp_ms
 	updated_at INTEGER NOT NULL, -- timestamp_ms
-  sui_tx_id TEXT,
-  retry_count INTEGER NOT NULL DEFAULT 0,
-  nbtc_pkg TEXT NOT NULL,
-  sui_network TEXT NOT NULL,
-  btc_network TEXT NOT NULL,
+	sui_tx_id TEXT,
+	retry_count INTEGER NOT NULL DEFAULT 0,
+	nbtc_pkg TEXT NOT NULL,
+	sui_network TEXT NOT NULL,
+	btc_network TEXT NOT NULL,
+	deposit_address TEXT NOT NULL,
 	PRIMARY KEY (tx_id, vout)
 ) STRICT;
 
@@ -71,5 +72,6 @@ CREATE TABLE IF NOT EXISTS nbtc_addresses (
   sui_network TEXT NOT NULL,
   nbtc_pkg TEXT NOT NULL,
   btc_address TEXT NOT NULL,
+  is_active INTEGER NOT NULL DEFAULT TRUE,
   UNIQUE(btc_address, btc_network)
 ) STRICT;

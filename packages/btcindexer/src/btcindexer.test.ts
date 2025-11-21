@@ -110,6 +110,7 @@ beforeEach(async () => {
 		btc_network: BtcNet.REGTEST,
 		sui_network: "testnet",
 		nbtc_pkg: "0xPACKAGE",
+		is_active: true,
 	};
 	nbtcAddressesMap.set(testNbtcAddress.btc_address, testNbtcAddress);
 
@@ -154,7 +155,7 @@ async function insertFinalizedTx(
 ) {
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			txData.id,
@@ -170,6 +171,7 @@ async function insertFinalizedTx(
 			"0xPACKAGE",
 			"testnet",
 			BtcNet.REGTEST,
+			blockData.depositAddr,
 		)
 		.run();
 }
@@ -270,13 +272,14 @@ describe("Indexer.findNbtcDeposits", () => {
 });
 
 describe("Indexer.processBlock", () => {
+	const timestamp_ms = Date.now();
 	it("should process a block and insert nBTC transactions and sender deposits", async () => {
 		const blockData = REGTEST_DATA[329]!;
 		const blockQueueMessage: BlockQueueRecord = {
 			hash: blockData.hash,
 			height: blockData.height,
 			network: BtcNet.REGTEST,
-			kv_key: `blocks:regtest:${blockData.hash}`,
+			timestamp_ms,
 		};
 
 		const kv = await mf.getKVNamespace("btc_blocks");
@@ -347,13 +350,14 @@ describe("Indexer.handleReorgs", () => {
 			block_hash: "hash_A",
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, status) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO btc_blocks (height, hash, network, processed_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
 			)
-			.bind(100, "hash_A", "regtest", Date.now(), "scanned")
+			.bind(100, "hash_A", "regtest", Date.now(), 1)
 			.run();
 
 		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
@@ -366,13 +370,14 @@ describe("Indexer.handleReorgs", () => {
 			block_hash: "hash_A",
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, status) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO btc_blocks (height, hash, network, processed_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
 			)
-			.bind(100, "hash_A_reorged", "regtest", Date.now(), "scanned")
+			.bind(100, "hash_A_reorged", "regtest", Date.now(), 1)
 			.run();
 		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
 		expect(reorgedTxIds.length).toEqual(1);
@@ -386,10 +391,11 @@ describe("Indexer.findFinalizedTxs", () => {
 			block_hash: null,
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
 		const latestHeight = 107;
-		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		expect(updates.length).toEqual(1);
+		const { activeTxIds } = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+		expect(activeTxIds.length).toEqual(1);
 	});
 
 	it("should do nothing when not enough confirmations", () => {
@@ -398,10 +404,11 @@ describe("Indexer.findFinalizedTxs", () => {
 			block_hash: null,
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
 		const latestHeight = 106;
-		const updates = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		expect(updates.length).toEqual(0);
+		const { activeTxIds } = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+		expect(activeTxIds.length).toEqual(0);
 	});
 });
 
@@ -728,13 +735,14 @@ describe("Indexer.detectMintedReorgs", () => {
 });
 
 describe("Indexer.processBlock", () => {
+	const timestamp_ms = Date.now();
 	it("should process a block and insert nBTC transactions and sender deposits", async () => {
 		const blockData = REGTEST_DATA[329]!;
-		const blockQueueMessage: BlockQueueRecord = {
+		const blockInfo: BlockQueueRecord = {
 			hash: blockData.hash,
 			height: blockData.height,
 			network: BtcNet.REGTEST,
-			kv_key: `blocks:regtest:${blockData.hash}`,
+			timestamp_ms,
 		};
 
 		const kv = await mf.getKVNamespace("btc_blocks");
@@ -750,7 +758,7 @@ describe("Indexer.processBlock", () => {
 			),
 		);
 
-		await indexer.processBlock(blockQueueMessage);
+		await indexer.processBlock(blockInfo);
 
 		const db = await mf.getD1Database("DB");
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
@@ -761,5 +769,108 @@ describe("Indexer.processBlock", () => {
 			.all();
 		expect(senderResults.length).toEqual(1);
 		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
+	});
+});
+
+describe("Indexer.findFinalizedTxs (Inactive)", () => {
+	it("should return inactiveId if address is not active", () => {
+		const addr = indexer.nbtcAddressesMap.get(REGTEST_DATA[329]!.depositAddr);
+		if (addr) addr.is_active = false;
+
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: null,
+			block_height: 100,
+			btc_network: BtcNet.REGTEST,
+			deposit_address: REGTEST_DATA[329]!.depositAddr,
+		};
+		const latestHeight = 107;
+		const result = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+
+		expect(result.activeTxIds.length).toEqual(0);
+		expect(result.inactiveTxIds.length).toEqual(1);
+
+		// Restore active state for other tests
+		if (addr) addr.is_active = true;
+	});
+});
+
+describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
+	it("should return TRUE and insert data when block is new", async () => {
+		const record: BlockQueueRecord = {
+			hash: "hash_100_initial",
+			height: 100,
+			network: BtcNet.REGTEST,
+			timestamp_ms: 1000,
+		};
+
+		const result = await indexer.storage.insertBlockInfo(record);
+		expect(result).toBe(true);
+		const db = await mf.getD1Database("DB");
+		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
+		expect(row).toEqual(
+			expect.objectContaining({
+				hash: "hash_100_initial",
+				inserted_at: 1000,
+			}),
+		);
+	});
+
+	it("should return TRUE and update data when incoming block is NEWER (Reorg)", async () => {
+		await indexer.storage.insertBlockInfo({
+			hash: "hash_100_old",
+			height: 100,
+			network: BtcNet.REGTEST,
+			timestamp_ms: 1000,
+		});
+
+		//  "Reorg" block (Newer timestamp)
+		const newerRecord: BlockQueueRecord = {
+			hash: "hash_100_new",
+			height: 100, // Same height
+			network: BtcNet.REGTEST,
+			timestamp_ms: 2000, // 2000 > 1000
+		};
+
+		const result = await indexer.storage.insertBlockInfo(newerRecord);
+		const db = await mf.getD1Database("DB");
+
+		expect(result).toBe(true);
+		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
+		expect(row).toEqual(
+			expect.objectContaining({
+				hash: "hash_100_new",
+				inserted_at: 2000,
+			}),
+		);
+	});
+
+	it("should return FALSE and IGNORE data when incoming block is OLDER (Stale Retry)", async () => {
+		await indexer.storage.insertBlockInfo({
+			hash: "hash_100_new",
+			height: 100,
+			network: BtcNet.REGTEST,
+			timestamp_ms: 2000,
+		});
+
+		// This represents a message stuck in the queue from before the reorg
+		const staleRecord: BlockQueueRecord = {
+			hash: "hash_100_old",
+			height: 100,
+			network: BtcNet.REGTEST,
+			timestamp_ms: 1000, // 1000 < 2000
+		};
+
+		const result = await indexer.storage.insertBlockInfo(staleRecord);
+
+		expect(result).toBe(false); // Update rejected
+		const db = await mf.getD1Database("DB");
+		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
+		expect(row).toEqual(
+			expect.objectContaining({
+				hash: "hash_100_new",
+				inserted_at: 2000,
+			}),
+		);
 	});
 });

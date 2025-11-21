@@ -1,4 +1,6 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import SuiClient, { suiClientFromEnv } from "./sui_client";
@@ -11,16 +13,14 @@ import type {
 	NbtcAddress,
 	NbtcTxRow,
 	NbtcTxInsertion,
-	NbtcDepositSender,
 	ElectrsTxResponse,
 } from "./models";
-import { BlockStatus, MintTxStatus } from "./models";
+import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
-import type { Storage } from "./storage";
+import type { Storage, NbtcDepositSender } from "./storage";
 import { CFStorage } from "./cf-storage";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
@@ -34,7 +34,7 @@ export async function indexerFromEnv(
 	env: Env,
 	nbtcAddressesMap: Map<string, NbtcAddress>,
 ): Promise<Indexer> {
-	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
+	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
 	const sc = await suiClientFromEnv(env);
 
 	const confirmationDepth = parseInt(env.CONFIRMATION_DEPTH || "8", 10);
@@ -106,6 +106,8 @@ export class Indexer {
 		return true;
 	}
 
+	// - extracts and processes nBTC deposit transactions in the block
+	// - handles reorgs
 	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
 		logger.info({
 			msg: "Processing block from queue",
@@ -113,21 +115,29 @@ export class Indexer {
 			hash: blockInfo.hash,
 			network: blockInfo.network,
 		});
-
 		const rawBlockBuffer = await this.storage.getBlock(blockInfo.hash);
 		if (!rawBlockBuffer) {
 			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
 		}
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
 		const network = btcNetworkCfg[blockInfo.network];
-
 		if (!network) {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
+		const isFresh = await this.storage.insertBlockInfo(blockInfo);
+		if (!isFresh) {
+			logger.debug({
+				msg: "Skipping processing of stale block",
+				method: "Indexer.processBlock",
+				height: blockInfo.height,
+				hash: blockInfo.hash,
+			});
+			return;
+		}
+
 		const nbtcTxs: NbtcTxInsertion[] = [];
 		let senders: NbtcDepositSender[] = [];
-
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
@@ -144,6 +154,7 @@ export class Indexer {
 					suiRecipient: deposit.suiRecipient,
 					nbtcPkg: deposit.nbtcPkg,
 					suiNetwork: deposit.suiNetwork,
+					depositAddress: deposit.depositAddress,
 				});
 
 				nbtcTxs.push({
@@ -156,6 +167,7 @@ export class Indexer {
 					btcNetwork: blockInfo.network,
 					nbtcPkg: deposit.nbtcPkg,
 					suiNetwork: deposit.suiNetwork,
+					depositAddress: deposit.depositAddress,
 				});
 			}
 		}
@@ -165,18 +177,14 @@ export class Indexer {
 		}
 
 		if (senders.length > 0) {
-			await this.storage.insertBtcDeposit(senders);
+			await this.storage.insertNbtcMintDeposit(senders);
 		}
 
 		if (nbtcTxs.length === 0) {
 			logger.debug({ msg: "No new nBTC deposits found in block" });
 		}
 
-		await this.storage.updateBlockStatus(
-			blockInfo.hash,
-			blockInfo.network,
-			BlockStatus.Scanned,
-		);
+		await this.storage.markBlockAsProcessed(blockInfo.hash, blockInfo.network);
 		await this.storage.setChainTip(blockInfo.height);
 	}
 
@@ -222,6 +230,7 @@ export class Indexer {
 						suiRecipient,
 						nbtcPkg: matchingNbtcAddress.nbtc_pkg,
 						suiNetwork: matchingNbtcAddress.sui_network,
+						depositAddress: btcAddress,
 					});
 				}
 			} catch (e) {
@@ -618,14 +627,26 @@ export class Indexer {
 
 		// TODO: add a unit test for it so we make sure we do not finalize reorrged tx.
 		const validPendingTxs = pendingTxs.filter((tx) => !reorgedTxIds.includes(tx.tx_id));
-		const finalizationTxIds = this.selectFinalizedNbtcTxs(validPendingTxs, latestHeight);
+		const { activeTxIds, inactiveTxIds } = this.selectFinalizedNbtcTxs(
+			validPendingTxs,
+			latestHeight,
+		);
 
-		if (finalizationTxIds.length > 0) {
+		if (activeTxIds.length > 0) {
 			logger.debug({
-				msg: "Finalization: Applying status updates to D1",
-				finalizedCount: finalizationTxIds.length,
+				msg: "Finalization: Updating active transactions in D1",
+				method: "Indexer.updateConfirmationsAndFinalize",
+				count: activeTxIds.length,
 			});
-			await this.storage.finalizeNbtcTxs(finalizationTxIds);
+			await this.storage.finalizeNbtcTxs(activeTxIds);
+		}
+		if (inactiveTxIds.length > 0) {
+			logger.debug({
+				msg: "Finalization: Updating inactive transactions in D1",
+				method: "Indexer.updateConfirmationsAndFinalize",
+				count: inactiveTxIds.length,
+			});
+			await this.storage.updateNbtcTxsStatus(inactiveTxIds, MintTxStatus.FinalizedNonActive);
 		}
 	}
 
@@ -633,18 +654,15 @@ export class Indexer {
 		const reorgedTxIds: string[] = [];
 		for (const tx of pendingTxs) {
 			if (tx.block_hash === null) continue;
-			const newBlockInQueue = await this.storage.getBlockInfo(
-				tx.block_height,
-				tx.btc_network,
-			);
-			if (newBlockInQueue) {
-				if (newBlockInQueue.hash !== tx.block_hash) {
+			const hash = await this.storage.getBlockHash(tx.block_height, tx.btc_network);
+			if (hash) {
+				if (hash !== tx.block_hash) {
 					logger.warn({
 						msg: "Reorg detected",
 						txId: tx.tx_id,
 						height: tx.block_height,
 						oldHash: tx.block_hash,
-						newHash: newBlockInQueue.hash,
+						newHash: hash,
 					});
 					reorgedTxIds.push(tx.tx_id);
 				}
@@ -653,21 +671,42 @@ export class Indexer {
 		return { reorgedTxIds };
 	}
 
-	selectFinalizedNbtcTxs(pendingTxs: PendingTx[], latestHeight: number): string[] {
-		const txIds: string[] = [];
+	selectFinalizedNbtcTxs(
+		pendingTxs: PendingTx[],
+		latestHeight: number,
+	): { activeTxIds: string[]; inactiveTxIds: string[] } {
+		const activeTxIds: string[] = [];
+		const inactiveTxIds: string[] = [];
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= this.confirmationDepth) {
-				logger.info({
-					msg: "Transaction has enough confirmations, finalizing.",
-					txId: tx.tx_id,
-					confirmations,
-					required: this.confirmationDepth,
-				});
-				txIds.push(tx.tx_id);
+				const addressInfo = tx.deposit_address
+					? this.nbtcAddressesMap.get(tx.deposit_address)
+					: undefined;
+
+				const isActive = addressInfo && addressInfo.is_active;
+				if (isActive) {
+					logger.info({
+						msg: "Transaction finalized (Active Key)",
+						txId: tx.tx_id,
+						confirmations,
+						required: this.confirmationDepth,
+						depositAddress: tx.deposit_address,
+					});
+					activeTxIds.push(tx.tx_id);
+				} else {
+					logger.info({
+						msg: "Transaction finalized (Inactive Key) - Minting will be skipped",
+						txId: tx.tx_id,
+						confirmations,
+						required: this.confirmationDepth,
+						depositAddress: tx.deposit_address,
+					});
+					inactiveTxIds.push(tx.tx_id);
+				}
 			}
 		}
-		return txIds;
+		return { activeTxIds, inactiveTxIds };
 	}
 
 	// queries NbtcTxResp by BTC Tx ID

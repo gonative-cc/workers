@@ -7,6 +7,7 @@ export interface NbtcAddress {
 	sui_network: SuiNet;
 	nbtc_pkg: string;
 	btc_address: string;
+	is_active: boolean;
 }
 
 export interface Deposit {
@@ -15,6 +16,7 @@ export interface Deposit {
 	suiRecipient: string;
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
+	depositAddress: string;
 }
 
 export interface ProofResult {
@@ -27,6 +29,7 @@ export interface PendingTx {
 	block_hash: string | null;
 	block_height: number;
 	btc_network: BtcNet;
+	deposit_address: string;
 }
 
 export interface FinalizedTxRow {
@@ -59,6 +62,7 @@ export interface GroupedFinalizedTx {
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
  * - **minted-reorg**: An edge-case where a tx was successfully minted on Sui, but the Bitcoin deposit was later reorged. Tracked for monitoring purposes for now.
+ * - **finalized-non-active**: The deposit has been finalized, however the minting will not be attempted because the deposit address is a non-active one. There will be a redemption mechanism for these cases.
  */
 export const enum MintTxStatus {
 	Broadcasting = "broadcasting",
@@ -69,11 +73,7 @@ export const enum MintTxStatus {
 	Minted = "minted",
 	MintedReorg = "minted-reorg",
 	MintFailed = "mint-failed",
-}
-
-export const enum BlockStatus {
-	New = "new",
-	Scanned = "scanned",
+	FinalizedNonActive = "finalized-non-active",
 }
 
 export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {
@@ -131,6 +131,7 @@ export interface NbtcTxInsertion {
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
+	depositAddress: string;
 }
 
 export interface NbtcTxUpdate {
@@ -148,11 +149,7 @@ export interface NbtcBroadcastedDeposit {
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
-}
-
-export interface NbtcDepositSender {
-	tx_id: string;
-	sender: string;
+	depositAddress: string;
 }
 
 export interface ElectrsTxVout {

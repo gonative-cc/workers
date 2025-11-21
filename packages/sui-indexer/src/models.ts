@@ -18,3 +18,8 @@ export interface MintEventRaw {
 	bitcoin_spend_key: number[];
 	amount: string;
 }
+
+export interface NetworkConfig {
+	name: string;
+	url: string;
+}

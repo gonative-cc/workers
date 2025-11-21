@@ -15,8 +15,8 @@
     "crons": ["* * * * *"],
   },
   "vars": {
-    "SUI_GRAPHQL_URL": "https://sui-testnet.mystenlabs.com/graphql",
-    "SUI_NETWORK": "testnet",
+    "SUI_GRAPHQL_URL_TESTNET": "https://sui-testnet.mystenlabs.com/graphql",
+    "SUI_GRAPHQL_URL_MAINNET": "https://sui-mainnet.mystenlabs.com/graphql",
   },
   "d1_databases": [
     {

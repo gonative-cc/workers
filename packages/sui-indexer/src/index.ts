@@ -9,6 +9,8 @@ export default {
 
 		const storage = new IndexerStorage(env.DB);
 
+		//NOTE: assumption there wont be any mint events for inactive depoist addresses
+		// so if we have a nbtc package that has been completely deprecated (all its addresses are inactive) we wont process its events anymore
 		const packages = await env.DB.prepare(
 			"SELECT nbtc_pkg FROM nbtc_addresses WHERE sui_network = ? AND active = 1",
 		)

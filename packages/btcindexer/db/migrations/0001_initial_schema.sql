@@ -85,15 +85,15 @@ CREATE TABLE IF NOT EXISTS nbtc_utxos (
     script_pubkey BLOB NOT NULL,
     nbtc_pkg TEXT NOT NULL,
     sui_network TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent'
+    status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent' TODO: lets remove the 'spent' utxos afrer some time?
     locked_until INTEGER,
     PRIMARY KEY (sui_id)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_utxos_selection ON nbtc_utxos(nbtc_pkg, sui_network, status, amount_sats);
-CREATE INDEX IF NOT EXISTS idx_utxos_btc_point ON nbtc_utxos(txid, vout);
+CREATE INDEX IF NOT EXISTS idx_nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 
-CREATE TABLE IF NOT EXISTS indexer_state (
+CREATE TABLE IF NOT EXISTS indexer_state ( -- TODO: maybe we should just use key-value here?
     key TEXT PRIMARY KEY, -- Format: "cursor:<PackageID>"
     value TEXT NOT NULL,
     updated_at INTEGER

@@ -5,6 +5,9 @@
 Backend workers and indexers for BYield services
 
 - [btcindexer](./packages/btcindexer/) - Bitcoin indexer for nBTC and SPV prover.
+- [block-ingestor](./packages/block-ingestor/) - Worker that exposes REST API to receive new blocks and queue them for processing.
+- [lib](./packages/lib/) - Library package with common functions shared across packages.
+- [redeem_solver](./packages/redeem_solver/) - Worker to propose UTXOs for withdrawals.
 
 ## Setup
 

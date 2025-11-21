@@ -23,10 +23,3 @@ TODO: link full redeem documentation.
 ## API
 
 See [API.md](./API.md)
-
-## Components
-
-- **Main Worker (`src/index.ts`):** The entry point for all incoming requests.
-- **RPC (`src/rpc.ts`):** The RPC server.
-- **Sui Client (`src/sui_client.ts`):** Interacts with the Sui blockchain.
-- **Storage (`src/storage.ts`):** Manages data persistence using Cloudflare D1 (SQL).

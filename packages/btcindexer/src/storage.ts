@@ -7,6 +7,8 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
+	UtxoRecord,
+	UtxoKey,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
@@ -24,7 +26,6 @@ export interface Storage {
 
 	// nBTC Transaction operations
 	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;
-
 	getNbtcFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]>;
 	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
 	batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void>;
@@ -36,11 +37,14 @@ export interface Storage {
 	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
 	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
 	insertNbtcMintDeposit(senders: NbtcDepositSender[]): Promise<void>;
+
+	// UTXO operations
+	insertUtxos(utxos: UtxoRecord[]): Promise<void>;
+	markUtxosAsSpent(spends: UtxoKey[], spentInBlockHash: string): Promise<void>;
+	unspendUtxosByBlockHash(blockHash: string): Promise<void>;
+	deleteUtxosByBlockHash(blockHash: string): Promise<void>;
 }
 
-// TODO: Add support for active/inactive nBTC addresses.
-// The current implementation fetches all addresses, but in the future,
-// we might need to filter by an 'active' status in the 'nbtc_addresses' table.
 /**
  * Fetches all nBTC deposit addresses from the D1 database.
  * @param db The D1 database binding.

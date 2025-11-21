@@ -7,10 +7,11 @@ import { Block, networks } from "bitcoinjs-lib";
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import SuiClient, { type SuiClientCfg } from "./sui_client";
-import type { Deposit, ProofResult, NbtcAddress } from "./models";
+import type { Deposit, ProofResult, NbtcAddress, UtxoRecord } from "./models";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
+import { assert } from "console";
 
 interface TxInfo {
 	id: string;
@@ -628,5 +629,179 @@ describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 				inserted_at: 2000,
 			}),
 		);
+	});
+});
+
+describe("Indexer UTXO Tracking (Credits & Debits)", () => {
+	const blockData = REGTEST_DATA[329]!;
+
+	const getUtxos = async (db: D1Database) => {
+		const { results } = await db.prepare("SELECT * FROM nbtc_utxos").all<UtxoRecord>();
+		return results;
+	};
+
+	it("should track CREDITS: Create new UTXOs for outputs to our addresses", async () => {
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		const blockQueueMessage: BlockQueueRecord = {
+			hash: blockData.hash,
+			height: blockData.height,
+			network: BtcNet.REGTEST,
+			timestamp_ms: Date.now(),
+		};
+
+		await indexer.processBlock(blockQueueMessage);
+
+		const db = await mf.getD1Database("DB");
+		const utxos = await getUtxos(db);
+
+		expect(utxos.length).toBeGreaterThan(0);
+
+		const depositUtxo = utxos.find((u) => u.address === blockData.depositAddr);
+		expect(depositUtxo).toBeDefined();
+		expect(depositUtxo!.status).toBe("available");
+		expect(depositUtxo!.nbtc_pkg).toBe("0xPACKAGE");
+		expect(depositUtxo!.block_height).toBe(329);
+		expect(depositUtxo!.spent_in_block_hash).toBeNull();
+	});
+
+	it("should track DEBITS: Mark UTXOs as spent when consumed by an input", async () => {
+		const block = Block.fromHex(blockData.rawBlockHex);
+		const tx = block.transactions![1];
+		expect(tx).toBeDefined();
+		const input = tx!.ins[0]; // The first input of this tx
+		const prevTxId = Buffer.from(input!.hash).reverse().toString("hex");
+		const prevVout = input!.index;
+
+		const db = await mf.getD1Database("DB");
+
+		// Insert a 'Fake' UTXO that matches the transactoin input so
+		// we can pretend we owned the coin that this transaction is spending
+		await db
+			.prepare(
+				`
+            INSERT INTO nbtc_utxos (
+                txid, vout, address, amount_sats, script_pubkey,
+                block_height, block_hash, nbtc_pkg, sui_network, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'available')
+        `,
+			)
+			.bind(
+				prevTxId,
+				prevVout,
+				"bcrt1_fake_address",
+				100000,
+				new Uint8Array([0x00]), // dummy script
+				320,
+				"old_block_hash",
+				"0xPACKAGE",
+				"testnet",
+			)
+			.run();
+
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		const blockQueueMessage: BlockQueueRecord = {
+			hash: blockData.hash,
+			height: blockData.height,
+			network: BtcNet.REGTEST,
+			timestamp_ms: Date.now(),
+		};
+
+		await indexer.processBlock(blockQueueMessage);
+
+		const utxos = await getUtxos(db);
+		const spentUtxo = utxos.find((u) => u.txid === prevTxId && u.vout === prevVout);
+
+		expect(spentUtxo).toBeDefined();
+		expect(spentUtxo!.status).toBe("spent");
+		expect(spentUtxo!.spent_in_block_hash).toBe(blockData.hash); // Spent in this block
+	});
+});
+
+describe("Indexer UTXO Reorg Safety", () => {
+	const db = () => mf.getD1Database("DB");
+
+	it("should REVIVE spent UTXOs when the spending block is reorged", async () => {
+		const d1 = await db();
+		const BAD_BLOCK_HASH = "0000_bad_block_hash";
+
+		await d1
+			.prepare(
+				`
+            INSERT INTO nbtc_utxos (
+                txid, vout, address, amount_sats, script_pubkey,
+                block_height, block_hash, nbtc_pkg, sui_network,
+                status, spent_in_block_hash
+            ) VALUES (
+                'tx_1', 0, 'addr1', 5000, ?, 100, 'block_100', 'pkg', 'net',
+                'spent', ?
+            )
+        `,
+			)
+			.bind(new Uint8Array([]), BAD_BLOCK_HASH)
+			.run();
+
+		const pendingTx = {
+			tx_id: "tx_in_bad_block",
+			block_hash: BAD_BLOCK_HASH,
+			block_height: 101, // The bad block height
+			btc_network: BtcNet.REGTEST,
+			deposit_address: "addr1",
+		};
+
+		await d1
+			.prepare("INSERT INTO btc_blocks (height, hash, network) VALUES (?, ?, ?)")
+			.bind(101, "0000_good_block_hash", "regtest")
+			.run();
+
+		await indexer.handleReorgs([pendingTx]);
+
+		const utxo = await d1
+			.prepare("SELECT * FROM nbtc_utxos WHERE txid = 'tx_1'")
+			.first<UtxoRecord>();
+		expect(utxo!.status).toBe("available"); // Should be revived
+		expect(utxo!.spent_in_block_hash).toBeNull();
+	});
+
+	it("should DELETE created UTXOs when the creating block is reorged", async () => {
+		const d1 = await db();
+		const BAD_BLOCK_HASH = "0000_bad_block_hash_2";
+
+		await d1
+			.prepare(
+				`
+            INSERT INTO nbtc_utxos (
+                txid, vout, address, amount_sats, script_pubkey,
+                block_height, block_hash, nbtc_pkg, sui_network, status
+            ) VALUES (
+                'tx_created_badly', 0, 'addr1', 5000, ?, 101, ?, 'pkg', 'net', 'available'
+            )
+        `,
+			)
+			.bind(new Uint8Array([]), BAD_BLOCK_HASH)
+			.run();
+
+		const pendingTx = {
+			tx_id: "tx_trigger",
+			block_hash: BAD_BLOCK_HASH,
+			block_height: 101,
+			btc_network: BtcNet.REGTEST,
+			deposit_address: "addr1",
+		};
+
+		await d1
+			.prepare("INSERT INTO btc_blocks (height, hash, network) VALUES (?, ?, ?)")
+			.bind(101, "0000_good_block_hash", "regtest")
+			.run();
+
+		await indexer.handleReorgs([pendingTx]);
+
+		const utxo = await d1
+			.prepare("SELECT * FROM nbtc_utxos WHERE txid = 'tx_created_badly'")
+			.first();
+		expect(utxo).toBeNull(); // Should be deleted
 	});
 });

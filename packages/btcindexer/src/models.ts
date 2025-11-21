@@ -157,3 +157,23 @@ export interface ElectrsTxVout {
 export interface ElectrsTxResponse {
 	vout: ElectrsTxVout[];
 }
+
+export interface UtxoRecord {
+	txid: string;
+	vout: number;
+	address: string;
+	amount_sats: number;
+	script_pubkey: Uint8Array; // D1 returns BLOBs as ArrayBuffer we need to handle it properly when selecting
+	block_height: number;
+	block_hash: string;
+	nbtc_pkg: string;
+	sui_network: string;
+	status: "available" | "locked" | "spent";
+	locked_until: number | null;
+	spent_in_block_hash: string | null;
+}
+
+export interface UtxoKey {
+	txid: string;
+	vout: number;
+}

@@ -145,8 +145,8 @@ export class SuiClient {
 				msg: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
 				error: result.effects?.status.error,
+				digest: result.digest,
 			});
-			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
 		}
 		return result.digest;
 	}

@@ -639,7 +639,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, btc_network, nbtc_pkg, sui_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			)
 			.bind(
 				tx329.id,
@@ -651,6 +651,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 				"confirming", // Set as confirming status
 				Date.now(),
 				Date.now(),
+				0,
 				BtcNet.REGTEST,
 				"0xPACKAGE",
 				"testnet",

@@ -179,7 +179,7 @@ async function insertFinalizedTx(
 async function insertMintedTx(db: D1Database, txData: TxInfo, blockData: TestBlock) {
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			txData.id,
@@ -195,6 +195,7 @@ async function insertMintedTx(db: D1Database, txData: TxInfo, blockData: TestBlo
 			"0xPACKAGE",
 			"testnet",
 			BtcNet.REGTEST,
+			blockData.depositAddr,
 		)
 		.run();
 }
@@ -214,7 +215,7 @@ async function insertTxWithStatus(
 ) {
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			txId,
@@ -230,6 +231,7 @@ async function insertTxWithStatus(
 			"0xPACKAGE",
 			"testnet",
 			BtcNet.REGTEST,
+			blockData.depositAddr,
 		)
 		.run();
 }

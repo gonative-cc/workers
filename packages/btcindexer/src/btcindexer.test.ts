@@ -721,7 +721,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 describe("Indexer.getSenderAddresses (via processBlock)", () => {
 	const timestamp_ms = Date.now();
 
-	it("should handle Electrs API failure when fetching sender addresses", async () => {
+	const helperSetupBlockForSender = async (mockElectrsResponse?: Response) => {
 		const blockData = REGTEST_DATA[329]!;
 		const blockInfo: BlockQueueRecord = {
 			hash: blockData.hash,
@@ -733,48 +733,49 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
-		// Mock the electrs.getTx method to throw an error
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(indexer.electrs.getTx as any).mockRejectedValue(new Error("Electrs API failed"));
-
-		// Process the block - should handle the error gracefully without throwing
-		// based on the implementation of getSenderAddresses which catches errors
-		try {
-			await indexer.processBlock(blockInfo);
-		} catch (error) {
-			// If we reach here, the method did throw, which might be expected behavior
-			// depending on how Promise.all handles rejected promises in getSenderAddresses
+		if (mockElectrsResponse) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(indexer.electrs.getTx as any).mockResolvedValue(mockElectrsResponse);
 		}
 
-		// Check that the transaction was still processed and added to nbtc_minting table
+		return { blockInfo };
+	};
+
+	const verifyNbtcTxAndSenderCount = async (
+		expectedTxCount: number,
+		expectedSenderCount: number,
+		expectedSenderAddress?: string,
+	) => {
 		const db = await mf.getD1Database("DB");
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
-		// The nbtc_minting records should still be inserted (if deposits are found)
-		expect(mintingResults.length).toEqual(1);
+		expect(mintingResults.length).toEqual(expectedTxCount);
 
-		// Check that no sender deposits were added due to the API failure
 		const { results: senderResults } = await db
 			.prepare("SELECT * FROM nbtc_sender_deposits")
 			.all();
-		expect(senderResults.length).toEqual(0);
+		expect(senderResults.length).toEqual(expectedSenderCount);
+
+		if (expectedSenderAddress && expectedSenderCount > 0) {
+			expect(senderResults[0]!.sender).toEqual(expectedSenderAddress);
+		}
+	};
+
+	it("should handle Electrs API failure when fetching sender addresses", async () => {
+		const { blockInfo } = await helperSetupBlockForSender();
+
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(indexer.electrs.getTx as any).mockRejectedValue(new Error("Electrs API failed"));
+
+		await indexer.processBlock(blockInfo);
+
+		// Check that the transaction was still processed and added to nbtc_minting table
+		// but no sender deposits were added due to the API failure
+		await verifyNbtcTxAndSenderCount(1, 0);
 	});
 
 	it("should correctly fetch sender addresses when Electrs API is successful", async () => {
-		const blockData = REGTEST_DATA[329]!;
-		const blockInfo: BlockQueueRecord = {
-			hash: blockData.hash,
-			height: blockData.height,
-			network: BtcNet.REGTEST,
-			timestamp_ms,
-		};
-
-		const kv = await mf.getKVNamespace("btc_blocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
-
-		// Mock the electrs.getTx method to return a successful response
 		const fakeSenderAddress = "bc1qtestsenderaddress";
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(indexer.electrs.getTx as any).mockResolvedValue(
+		const { blockInfo } = await helperSetupBlockForSender(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: fakeSenderAddress }],
@@ -784,55 +785,21 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 
 		await indexer.processBlock(blockInfo);
 
-		const db = await mf.getD1Database("DB");
-		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
-		expect(mintingResults.length).toEqual(1);
-
-		// Check that the sender address was correctly stored
-		const { results: senderResults } = await db
-			.prepare("SELECT * FROM nbtc_sender_deposits")
-			.all();
-		expect(senderResults.length).toEqual(1);
-		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
+		// Check that the transaction was processed and sender address was stored
+		await verifyNbtcTxAndSenderCount(1, 1, fakeSenderAddress);
 	});
 
 	it("should handle Electrs API returning invalid response", async () => {
-		const blockData = REGTEST_DATA[329]!;
-		const blockInfo: BlockQueueRecord = {
-			hash: blockData.hash,
-			height: blockData.height,
-			network: BtcNet.REGTEST,
-			timestamp_ms,
-		};
-
-		const kv = await mf.getKVNamespace("btc_blocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
-
-		// Mock the electrs.getTx method to return an invalid response (non-OK status)
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(indexer.electrs.getTx as any).mockResolvedValue(
+		const { blockInfo } = await helperSetupBlockForSender(
 			new Response(
 				JSON.stringify({}),
 				{ status: 404 }, // Non-OK response should be handled gracefully
 			),
 		);
 
-		// The method should handle the error gracefully
-		try {
-			await indexer.processBlock(blockInfo);
-		} catch (error) {
-			// If error occurs, that's part of the behavior we're testing
-		}
+		await indexer.processBlock(blockInfo);
 
-		const db = await mf.getD1Database("DB");
-		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
-		// Should still have the nBTC deposits
-		expect(mintingResults.length).toEqual(1);
-
-		// Should not have any sender deposits due to invalid response
-		const { results: senderResults } = await db
-			.prepare("SELECT * FROM nbtc_sender_deposits")
-			.all();
-		expect(senderResults.length).toEqual(0);
+		// Should still have the nBTC deposits but no sender deposits due to invalid response
+		await verifyNbtcTxAndSenderCount(1, 0);
 	});
 });

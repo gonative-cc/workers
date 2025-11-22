@@ -94,15 +94,19 @@ export class Indexer {
 		this.electrs = electrs;
 	}
 
-	// returns true if tx has not been processed yet, false if it was already inserted
-	async putNbtcTx(): Promise<boolean> {
-		// TODO
-		// 1. check if tx is nBTC segwit payment
-		// 2. check if not duplicated
-		// 3. insert in D1
-		// 4. insert in nbtcTxDB
-		//    this.saveNbtcTx(tx)
-
+	async putNbtcTx(txHex: string, network: BtcNet): Promise<boolean> {
+		const tx = Transaction.fromHex(txHex);
+		const txId = tx.getId();
+		const existingTx = await this.storage.getNbtcMintTx(txId);
+		if (existingTx) {
+			logger.debug({
+				msg: "Tx already exists in db",
+				method: "Indexer.putNbtcTx",
+				txId,
+			});
+			return false;
+		}
+		await this.registerBroadcastedNbtcTx(txHex, network);
 		return true;
 	}
 

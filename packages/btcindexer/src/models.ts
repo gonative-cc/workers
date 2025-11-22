@@ -2,6 +2,25 @@ import { Transaction } from "bitcoinjs-lib";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
+export interface NetworkConfig {
+	nbtcPkg: string;
+	suiNetwork: SuiNet;
+}
+
+export interface TxOutput {
+	vout: number;
+}
+
+export interface DepositAmount {
+	amountSats: number;
+	suiRecipient: string;
+}
+
+export interface BlockLocation {
+	blockHash: string;
+	blockHeight: number;
+}
+
 export interface NbtcAddress {
 	btc_network: BtcNet;
 	sui_network: SuiNet;
@@ -10,12 +29,7 @@ export interface NbtcAddress {
 	is_active: boolean;
 }
 
-export interface Deposit {
-	vout: number;
-	amountSats: number;
-	suiRecipient: string;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
+export interface Deposit extends NetworkConfig, TxOutput, DepositAmount {
 	depositAddress: string;
 }
 
@@ -101,13 +115,11 @@ export interface NbtcTxRow {
 	btc_network: BtcNet;
 }
 
-export interface MintBatchArg {
+export interface MintBatchArg extends NetworkConfig {
 	tx: Transaction;
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 }
 
 export interface PostNbtcTxRequest {
@@ -119,33 +131,20 @@ export type SuiTxDigest = string;
 
 export type { BlockQueueRecord };
 
-export interface NbtcTxInsertion {
+export interface NbtcTxInsertion extends NetworkConfig, TxOutput, DepositAmount, BlockLocation {
 	txId: string;
-	vout: number;
-	blockHash: string;
-	blockHeight: number;
-	suiRecipient: string;
-	amountSats: number;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
 	depositAddress: string;
 }
 
-export interface NbtcTxUpdate {
+export interface NbtcTxUpdate extends TxOutput {
 	txId: string;
-	vout: number;
 	status: MintTxStatus;
 	suiTxDigest?: string;
 }
 
-export interface NbtcBroadcastedDeposit {
+export interface NbtcBroadcastedDeposit extends NetworkConfig, TxOutput, DepositAmount {
 	txId: string;
-	vout: number;
-	suiRecipient: string;
-	amountSats: number;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
 	depositAddress: string;
 }

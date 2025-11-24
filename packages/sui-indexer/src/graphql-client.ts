@@ -17,7 +17,7 @@ const MINT_EVENT_QUERY = gql`
 		events(
 			filter: {
 				emittingModule: { package: $packageId, module: "nbtc" }
-				eventType: "MintEvent"
+				eventType: "MintEvent" // TODO: probably we need to do {packageId}::nbtc::MintEvent
 			}
 			first: 50
 			after: $cursor

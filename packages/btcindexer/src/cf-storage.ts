@@ -216,11 +216,12 @@ export class CFStorage implements Storage {
 	}
 
 	//TODO: We need to query by network
-	async getMintedTxs(): Promise<FinalizedTxRow[]> {
+	async getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}'`,
+				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}' AND block_height >= ?`,
 			)
+			.bind(blockHeight)
 			.all<FinalizedTxRow>();
 		return txs.results ?? [];
 	}

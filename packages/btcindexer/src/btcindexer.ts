@@ -136,6 +136,9 @@ export class Indexer {
 			return;
 		}
 
+		// Check for minted transaction reorgs when processing a block
+		await this.detectMintedReorgs(blockInfo.height);
+
 		const nbtcTxs: NbtcTxInsertion[] = [];
 		let senders: NbtcDepositSender[] = [];
 		for (const tx of block.transactions ?? []) {
@@ -330,6 +333,12 @@ export class Indexer {
 							continue;
 						}
 
+						// Determine the appropriate reorg status based on the current transaction state.
+						// The status can be Minted here due to a race condition: getNbtcMintCandidates() queries
+						// for Finalized/MintFailed transactions, but while we're processing this reorg, another
+						// concurrent execution of processFinalizedTransactions may have already minted the tx on Sui
+						// and updated its status to Minted. If that's the case, we mark it as MintedReorg (not
+						// FinalizedReorg) to indicate that the mint succeeded before we detected the Bitcoin reorg.
 						const reorgStatus =
 							currentStatus === MintTxStatus.Minted
 								? MintTxStatus.MintedReorg
@@ -486,10 +495,14 @@ export class Indexer {
 		}
 	}
 
-	async detectMintedReorgs(): Promise<void> {
-		logger.debug({ msg: "Cron: Checking for reorgs on minted transactions" });
+	async detectMintedReorgs(blockHeight: number): Promise<void> {
+		logger.debug({
+			msg: "Checking for reorgs on minted transactions",
+			method: "detectMintedReorgs",
+			blockHeight,
+		});
 
-		const mintedTxs = await this.storage.getMintedTxs();
+		const mintedTxs = await this.storage.getMintedTxs(blockHeight);
 		if (!mintedTxs || mintedTxs.length === 0) {
 			return;
 		}

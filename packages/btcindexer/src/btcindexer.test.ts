@@ -147,58 +147,12 @@ function checkTxProof(proofResult: ProofResult | null, block: Block) {
 	}
 }
 
-async function insertFinalizedTx(
-	db: D1Database,
-	txData: TxInfo,
-	blockData: TestBlock,
-	retry_count = 0,
-) {
-	await db
-		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		)
-		.bind(
-			txData.id,
-			0,
-			blockData.hash,
-			blockData.height,
-			txData.suiAddr,
-			txData.amountSats,
-			"finalized",
-			Date.now(),
-			Date.now(),
-			retry_count,
-			"0xPACKAGE",
-			"testnet",
-			BtcNet.REGTEST,
-			blockData.depositAddr,
-		)
-		.run();
+async function insertFinalizedTx(db: D1Database, txData: TxInfo, retry_count = 0) {
+	await insertTxWithStatus(db, txData.id, MintTxStatus.Finalized, retry_count);
 }
 
-async function insertMintedTx(db: D1Database, txData: TxInfo, blockData: TestBlock) {
-	const now = Date.now();
-	await db
-		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		)
-		.bind(
-			txData.id,
-			0,
-			blockData.hash,
-			blockData.height,
-			txData.suiAddr,
-			txData.amountSats,
-			"minted",
-			now,
-			now,
-			0,
-			"0xPACKAGE",
-			"testnet",
-			BtcNet.REGTEST,
-			blockData.depositAddr,
-		)
-		.run();
+async function insertMintedTx(db: D1Database, txData: TxInfo) {
+	await insertTxWithStatus(db, txData.id, MintTxStatus.Minted, 0);
 }
 
 async function setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
@@ -208,12 +162,10 @@ async function setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
 async function insertTxWithStatus(
 	db: D1Database,
 	txId: string,
-	suiRecipient: string,
-	amountSats: number,
 	status: MintTxStatus,
-	blockData: TestBlock,
 	retryCount = 0,
 ) {
+	const blockData = REGTEST_DATA[329]!;
 	await db
 		.prepare(
 			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -223,8 +175,8 @@ async function insertTxWithStatus(
 			0,
 			blockData.hash,
 			blockData.height,
-			suiRecipient,
-			amountSats,
+			"0xtest_recipient",
+			10000,
 			status,
 			Date.now(),
 			Date.now(),
@@ -477,7 +429,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		const tx329 = block329.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx(db, tx329, block329);
+		await insertFinalizedTx(db, tx329);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(block329.hash, Buffer.from(block329.rawBlockHex, "hex").buffer);
@@ -505,7 +457,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx(db, txData, blockData);
+		await insertFinalizedTx(db, txData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
@@ -531,7 +483,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx(db, txData, blockData, 1);
+		await insertFinalizedTx(db, txData, 1);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
@@ -555,16 +507,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 describe("Storage.getNbtcMintCandidates", () => {
 	it("should return finalized txs as mint candidates", async () => {
 		const db = await mf.getD1Database("DB");
-		const blockData = REGTEST_DATA[329]!;
-
-		await insertTxWithStatus(
-			db,
-			"finalized_tx",
-			"0xfinalized",
-			10000,
-			MintTxStatus.Finalized,
-			blockData,
-		);
+		await insertTxWithStatus(db, "finalized_tx", MintTxStatus.Finalized);
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
@@ -574,17 +517,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 
 	it("should return mint-failed txs within retry limit as mint candidates", async () => {
 		const db = await mf.getD1Database("DB");
-		const blockData = REGTEST_DATA[329]!;
-
-		await insertTxWithStatus(
-			db,
-			"failed_tx",
-			"0xfailed",
-			20000,
-			MintTxStatus.MintFailed,
-			blockData,
-			2,
-		);
+		await insertTxWithStatus(db, "failed_tx", MintTxStatus.MintFailed, 2);
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
@@ -594,17 +527,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 
 	it("should NOT return mint-failed txs exceeding retry limit", async () => {
 		const db = await mf.getD1Database("DB");
-		const blockData = REGTEST_DATA[329]!;
-
-		await insertTxWithStatus(
-			db,
-			"failed_tx_exceeds",
-			"0xfailed",
-			30000,
-			MintTxStatus.MintFailed,
-			blockData,
-			5,
-		);
+		await insertTxWithStatus(db, "failed_tx_exceeds", MintTxStatus.MintFailed, 5);
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
@@ -613,16 +536,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 
 	it("should NOT return minted txs", async () => {
 		const db = await mf.getD1Database("DB");
-		const blockData = REGTEST_DATA[329]!;
-
-		await insertTxWithStatus(
-			db,
-			"minted_tx",
-			"0xminted",
-			40000,
-			MintTxStatus.Minted,
-			blockData,
-		);
+		await insertTxWithStatus(db, "minted_tx", MintTxStatus.Minted);
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
@@ -631,24 +545,8 @@ describe("Storage.getNbtcMintCandidates", () => {
 
 	it("should NOT return reorg txs (finalized-reorg or minted-reorg)", async () => {
 		const db = await mf.getD1Database("DB");
-		const blockData = REGTEST_DATA[329]!;
-
-		await insertTxWithStatus(
-			db,
-			"finalized_reorg_tx",
-			"0xfreorg",
-			50000,
-			MintTxStatus.FinalizedReorg,
-			blockData,
-		);
-		await insertTxWithStatus(
-			db,
-			"minted_reorg_tx",
-			"0xmreorg",
-			60000,
-			MintTxStatus.MintedReorg,
-			blockData,
-		);
+		await insertTxWithStatus(db, "finalized_reorg_tx", MintTxStatus.FinalizedReorg);
+		await insertTxWithStatus(db, "minted_reorg_tx", MintTxStatus.MintedReorg);
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
@@ -657,34 +555,9 @@ describe("Storage.getNbtcMintCandidates", () => {
 
 	it("should return both finalized and mint-failed txs within retry limit together", async () => {
 		const db = await mf.getD1Database("DB");
-		const blockData = REGTEST_DATA[329]!;
-
-		await insertTxWithStatus(
-			db,
-			"finalized_tx",
-			"0xfinalized",
-			10000,
-			MintTxStatus.Finalized,
-			blockData,
-		);
-		await insertTxWithStatus(
-			db,
-			"failed_tx_within_limit",
-			"0xfailed",
-			20000,
-			MintTxStatus.MintFailed,
-			blockData,
-			2,
-		);
-		await insertTxWithStatus(
-			db,
-			"failed_tx_exceeds_limit",
-			"0xfailed2",
-			30000,
-			MintTxStatus.MintFailed,
-			blockData,
-			5,
-		);
+		await insertTxWithStatus(db, "finalized_tx", MintTxStatus.Finalized);
+		await insertTxWithStatus(db, "failed_tx_within_limit", MintTxStatus.MintFailed, 2);
+		await insertTxWithStatus(db, "failed_tx_exceeds_limit", MintTxStatus.MintFailed, 5);
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
@@ -700,13 +573,13 @@ describe("Indexer.detectMintedReorgs", () => {
 		const txData = blockData.txs[1]!;
 		const db = await mf.getD1Database("DB");
 
-		await insertMintedTx(db, txData, blockData);
+		await insertMintedTx(db, txData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		const differentBlock = REGTEST_DATA[327]!;
 		await kv.put(blockData.hash, Buffer.from(differentBlock.rawBlockHex, "hex").buffer);
 
-		await indexer.detectMintedReorgs();
+		await indexer.detectMintedReorgs(blockData.height);
 
 		const { results } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
@@ -721,12 +594,12 @@ describe("Indexer.detectMintedReorgs", () => {
 		const txData = blockData.txs[1]!;
 		const db = await mf.getD1Database("DB");
 
-		await insertMintedTx(db, txData, blockData);
+		await insertMintedTx(db, txData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
-		await indexer.detectMintedReorgs();
+		await indexer.detectMintedReorgs(blockData.height);
 
 		const { results } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")

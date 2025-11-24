@@ -86,7 +86,6 @@ export default {
 				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
 			}
 			await indexer.processFinalizedTransactions();
-			await indexer.detectMintedReorgs();
 			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
 			logError({ msg: "Cron job failed", method: "scheduled" }, e);

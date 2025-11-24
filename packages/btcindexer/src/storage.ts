@@ -26,7 +26,7 @@ export interface Storage {
 	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;
 
 	getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]>;
-	getMintedTxs(): Promise<FinalizedTxRow[]>;
+	getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]>;
 	getTxStatus(txId: string): Promise<MintTxStatus | null>;
 	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
 	batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void>;

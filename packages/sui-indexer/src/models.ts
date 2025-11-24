@@ -21,8 +21,6 @@ export interface MintEventRaw {
 
 export interface MintEventNode {
 	json: MintEventRaw;
-	cursor: string;
-	timestamp: number;
 }
 
 export interface NetworkConfig {

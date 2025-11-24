@@ -1,4 +1,5 @@
 import { GraphQLClient, gql } from "graphql-request";
+import type { MintEventNode } from "./models";
 
 interface MintEventsResponse {
 	events: {
@@ -13,11 +14,11 @@ interface MintEventsResponse {
 }
 
 const MINT_EVENT_QUERY = gql`
-	query FetchMintEvents($packageId: String!, $cursor: String) {
+	query FetchMintEvents($eventType: String!, $cursor: String) {
 		events(
 			filter: {
 				emittingModule: { package: $packageId, module: "nbtc" }
-				eventType: "MintEvent" // TODO: probably we need to do {packageId}::nbtc::MintEvent
+				eventType: $eventType
 			}
 			first: 50
 			after: $cursor
@@ -27,9 +28,7 @@ const MINT_EVENT_QUERY = gql`
 				endCursor
 			}
 			nodes {
-				cursor
 				json
-				timestamp
 			}
 		}
 	}
@@ -42,14 +41,18 @@ export class SuiGraphQLClient {
 		this.client = new GraphQLClient(endpoint);
 	}
 
-	async fetchMintEvents(packageId: string, cursor: string | null) {
+	async fetchMintEvents(
+		packageId: string,
+		cursor: string | null,
+	): Promise<{ events: MintEventNode[]; nextCursor: string | null }> {
+		const eventType = `${packageId}::nbtc::MintEvent`;
 		const data = await this.client.request<MintEventsResponse>(MINT_EVENT_QUERY, {
-			packageId,
+			eventType,
 			cursor,
 		});
 
 		return {
-			events: data.events.nodes,
+			events: data.events.nodes as MintEventNode[],
 			nextCursor: data.events.pageInfo.hasNextPage ? data.events.pageInfo.endCursor : null,
 		};
 	}

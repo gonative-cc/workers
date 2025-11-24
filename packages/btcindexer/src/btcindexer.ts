@@ -94,20 +94,9 @@ export class Indexer {
 		this.electrs = electrs;
 	}
 
-	async putNbtcTx(txHex: string, network: BtcNet): Promise<boolean> {
-		const tx = Transaction.fromHex(txHex);
-		const txId = tx.getId();
+	async hasNbtcMintTx(txId: string): Promise<boolean> {
 		const existingTx = await this.storage.getNbtcMintTx(txId);
-		if (existingTx) {
-			logger.debug({
-				msg: "Tx already exists in db",
-				method: "Indexer.putNbtcTx",
-				txId,
-			});
-			return false;
-		}
-		await this.registerBroadcastedNbtcTx(txHex, network);
-		return true;
+		return existingTx !== null;
 	}
 
 	// - extracts and processes nBTC deposit transactions in the block
@@ -678,6 +667,16 @@ export class Indexer {
 		if (deposits.length === 0) {
 			throw new Error("Transaction does not contain any valid nBTC deposits.");
 		}
+
+		if (await this.hasNbtcMintTx(txId)) {
+			logger.debug({
+				msg: "Transaction already exists, skipping registration",
+				method: "Indexer.registerBroadcastedNbtcTx",
+				txId,
+			});
+			return { tx_id: txId, registered_deposits: 0 };
+		}
+
 		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
 		logger.info({

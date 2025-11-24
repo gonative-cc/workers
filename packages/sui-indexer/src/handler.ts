@@ -21,12 +21,12 @@ export async function handleMintEvents(
 			sui_id: event.utxo_idx,
 			txid: txId,
 			vout: event.btc_vout, //TODO: add vout to event, we need to decide if we support multiple or just one
-			address: "", //TODO: prolly we dont need it
 			amount_sats: Number(event.amount),
 			script_pubkey: scriptPubkey,
 			nbtc_pkg: nbtcPkg,
 			sui_network: suiNetwork,
 			status: "available",
+			locked_until: null,
 		});
 	}
 

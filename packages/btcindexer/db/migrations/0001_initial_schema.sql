@@ -78,9 +78,8 @@ CREATE TABLE IF NOT EXISTS nbtc_addresses (
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (
     sui_id TEXT NOT NULL,
-    txid TEXT NOT NULL,
+    txid TEXT NOT NULL, -- Bitcoin transaction ID
     vout INTEGER NOT NULL,
-    address TEXT,
     amount_sats INTEGER NOT NULL,
     script_pubkey BLOB NOT NULL,
     nbtc_pkg TEXT NOT NULL,

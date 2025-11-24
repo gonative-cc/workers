@@ -7,6 +7,7 @@ export interface UtxoRecord {
 	nbtc_pkg: string;
 	sui_network: string;
 	status: "available" | "locked" | "spent";
+	locked_until: number | null;
 }
 
 // Matches the new Move Event structure

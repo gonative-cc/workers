@@ -1,3 +1,4 @@
+import { logger } from "@gonative-cc/lib/logger";
 import type { UtxoRecord } from "./models";
 
 export class IndexerStorage {
@@ -24,11 +25,10 @@ export class IndexerStorage {
 	async insertUtxos(utxos: UtxoRecord[]): Promise<void> {
 		if (utxos.length === 0) return;
 
-		// Note: We set status='available' by default
 		const stmt = this.db.prepare(
 			`INSERT OR REPLACE INTO nbtc_utxos
-            (sui_id, txid, vout, address, amount_sats, script_pubkey, nbtc_pkg, sui_network)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            (sui_id, txid, vout, amount_sats, script_pubkey, nbtc_pkg, sui_network, status, locked_until)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
 
 		const batch = utxos.map((u) =>
@@ -36,18 +36,24 @@ export class IndexerStorage {
 				u.sui_id,
 				u.txid,
 				u.vout,
-				u.address,
 				u.amount_sats,
 				u.script_pubkey,
 				u.nbtc_pkg,
 				u.sui_network,
+				u.status,
+				u.locked_until,
 			),
 		);
 
 		try {
 			await this.db.batch(batch);
 		} catch (error) {
-			console.error("Failed to insert UTXOs batch:", error);
+			logger.error({
+				msg: "Failed to insert UTXOs batch",
+				method: "insertUtxos",
+				error: error,
+			});
 			throw error;
 		}
+	}
 }

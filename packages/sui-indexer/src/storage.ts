@@ -26,7 +26,7 @@ export class IndexerStorage {
 
 		// Note: We set status='available' by default
 		const stmt = this.db.prepare(
-			`INSERT OR IGNORE INTO nbtc_utxos
+			`INSERT OR REPLACE INTO nbtc_utxos
             (sui_id, txid, vout, address, amount_sats, script_pubkey, nbtc_pkg, sui_network)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
@@ -44,6 +44,10 @@ export class IndexerStorage {
 			),
 		);
 
-		await this.db.batch(batch);
-	}
+		try {
+			await this.db.batch(batch);
+		} catch (error) {
+			console.error("Failed to insert UTXOs batch:", error);
+			throw error;
+		}
 }

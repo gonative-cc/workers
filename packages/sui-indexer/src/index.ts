@@ -25,7 +25,7 @@ async function processNetwork(network: NetworkConfig, env: Env) {
 	const storage = new IndexerStorage(env.DB);
 
 	const packages = await env.DB.prepare(
-		"SELECT nbtc_pkg FROM nbtc_addresses WHERE sui_network = ? AND active = 1",
+		"SELECT nbtc_pkg FROM nbtc_addresses WHERE sui_network = ? AND is_active = 1",
 	)
 		.bind(network.name)
 		.all<{ nbtc_pkg: string }>();

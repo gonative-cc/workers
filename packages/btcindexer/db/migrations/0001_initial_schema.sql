@@ -94,7 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_utxos_selection ON nbtc_utxos(nbtc_pkg, sui_netwo
 CREATE INDEX IF NOT EXISTS idx_nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 
 CREATE TABLE IF NOT EXISTS indexer_state ( -- TODO: maybe we should just use key-value here?
-    key TEXT PRIMARY KEY, -- Format: "cursor:<PackageID>"
+    key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     updated_at INTEGER
 ) STRICT;

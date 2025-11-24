@@ -1,6 +1,6 @@
 import { SuiGraphQLClient } from "./graphql-client";
 import { handleMintEvents } from "./handler";
-import type { NetworkConfig } from "./models";
+import type { MintEventNode, NetworkConfig } from "./models";
 import { IndexerStorage } from "./storage";
 import { logger } from "@gonative-cc/lib/logger";
 
@@ -43,7 +43,7 @@ async function processNetwork(network: NetworkConfig, env: Env) {
 			const cursor = await storage.getCursor(pkgId);
 			const { events, nextCursor } = await client.fetchMintEvents(pkgId, cursor);
 			if (events.length > 0) {
-				await handleMintEvents(events, storage, pkgId, network.name);
+				await handleMintEvents(events as MintEventNode[], storage, pkgId, network.name);
 			}
 			if (nextCursor && nextCursor !== cursor) {
 				await storage.saveCursor(pkgId, nextCursor);

@@ -1,9 +1,9 @@
 import { IndexerStorage } from "./storage";
-import type { MintEventRaw, UtxoRecord } from "./models";
+import type { MintEventNode, UtxoRecord } from "./models";
 import { logger } from "@gonative-cc/lib/logger";
 
 export async function handleMintEvents(
-	events: { json: unknown }[],
+	events: MintEventNode[],
 	storage: IndexerStorage,
 	nbtcPkg: string,
 	suiNetwork: string,
@@ -11,7 +11,7 @@ export async function handleMintEvents(
 	const utxosToInsert: UtxoRecord[] = [];
 
 	for (const eventNode of events) {
-		const event = eventNode.json as MintEventRaw;
+		const event = eventNode.json;
 
 		const txIdBuffer = Buffer.from(event.btc_tx_id);
 		const txId = txIdBuffer.reverse().toString("hex"); // TODO: check if we need to reverse

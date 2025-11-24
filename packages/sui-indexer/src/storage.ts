@@ -4,22 +4,20 @@ export class IndexerStorage {
 	constructor(private db: D1Database) {}
 
 	async getCursor(packageId: string): Promise<string | null> {
-		const key = `cursor:${packageId}`;
 		const res = await this.db
 			.prepare("SELECT value FROM indexer_state WHERE key = ?")
-			.bind(key)
+			.bind(packageId)
 			.first<{ value: string }>();
 		return res?.value || null;
 	}
 
 	async saveCursor(packageId: string, cursor: string): Promise<void> {
-		const key = `cursor:${packageId}`;
 		await this.db
 			.prepare(
 				`INSERT INTO indexer_state (key, value, updated_at) VALUES (?, ?, ?)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 			)
-			.bind(key, cursor, Date.now())
+			.bind(packageId, cursor, Date.now())
 			.run();
 	}
 

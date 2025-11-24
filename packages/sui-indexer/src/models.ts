@@ -19,6 +19,12 @@ export interface MintEventRaw {
 	amount: string;
 }
 
+export interface MintEventNode {
+	json: MintEventRaw;
+	cursor?: string;
+	timestamp?: number;
+}
+
 export interface NetworkConfig {
 	name: string;
 	url: string;

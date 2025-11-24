@@ -1,5 +1,17 @@
 import { GraphQLClient, gql } from "graphql-request";
 
+interface MintEventsResponse {
+	events: {
+		pageInfo: {
+			hasNextPage: boolean;
+			endCursor: string | null;
+		};
+		nodes: {
+			json: unknown;
+		}[];
+	};
+}
+
 const MINT_EVENT_QUERY = gql`
 	query FetchMintEvents($packageId: String!, $cursor: String) {
 		events(
@@ -31,8 +43,7 @@ export class SuiGraphQLClient {
 	}
 
 	async fetchMintEvents(packageId: string, cursor: string | null) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const data = await this.client.request<any>(MINT_EVENT_QUERY, {
+		const data = await this.client.request<MintEventsResponse>(MINT_EVENT_QUERY, {
 			packageId,
 			cursor,
 		});

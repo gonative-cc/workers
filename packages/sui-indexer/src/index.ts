@@ -16,7 +16,16 @@ export default {
 			networks: networks.map((n) => n.name),
 		});
 		const networkJobs = networks.map((network) => processNetwork(network, env));
-		await Promise.allSettled(networkJobs);
+		const results = await Promise.allSettled(networkJobs);
+		results.forEach((result, idx) => {
+			if (result.status === "rejected") {
+				logger.error({
+					msg: "Failed to process network",
+					network: networks[idx]?.name,
+					error: result.reason,
+				});
+			}
+		});
 	},
 } satisfies ExportedHandler<Env>;
 

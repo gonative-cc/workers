@@ -23,7 +23,7 @@ func TestPutBlocks(t *testing.T) {
 	assert.Equal(t, len(*pbs), 1)
 	pb0 := (*pbs)[0]
 	assert.Equal(t, pb0.Height, int64(156))
-	assert.Equal(t, pb0.Network, "mainnet")
+	assert.Equal(t, pb0.Network, NetworkMainnet)
 
 	gotBlockHex := hex.EncodeToString(pb0.Block)
 	assert.Equal(t, blockHex, gotBlockHex)
@@ -43,7 +43,7 @@ func TestPutBlocksInt(t *testing.T) {
 	blockBz, err := hex.DecodeString(blockHex)
 	assert.NilError(t, err)
 
-	pb := PutBlock{Network: "regtest", Height: 156, Block: blockBz}
+	pb := PutBlock{Network: NetworkRegtest, Height: 156, Block: blockBz}
 
 	c := NewClient("http://localhost:8787")
 	resp, err := c.PutBlocks(PutBlocksReq{pb})

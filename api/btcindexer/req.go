@@ -2,6 +2,14 @@
 
 package btcindexer
 
+// Bitcoin Network constants
+const (
+	NetworkMainnet = "mainnet"
+	NetworkTestnet = "testnet"
+	NetworkRegtest = "regtest"
+	NetworkSignet  = "signet"
+)
+
 // PutBlock wraps serialized Bitcoin block (using Bitcoin core encoding) and the block height.
 type PutBlock struct {
 	Network string `msg:"network"`

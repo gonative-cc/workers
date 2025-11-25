@@ -20,7 +20,7 @@
     {
       "binding": "BtcIndexer",
       "service": "btcindexer",
-      "entrypoint": "BtcIndexerRpc"
-    }
-  ]
+      "entrypoint": "BtcIndexerRpc",
+    },
+  ],
 }

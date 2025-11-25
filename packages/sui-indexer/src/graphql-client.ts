@@ -15,14 +15,7 @@ interface MintEventsResponse {
 
 const MINT_EVENT_QUERY = gql`
 	query FetchMintEvents($eventType: String!, $cursor: String) {
-		events(
-			filter: {
-				emittingModule: { package: $packageId, module: "nbtc" }
-				eventType: $eventType
-			}
-			first: 50
-			after: $cursor
-		) {
+		events(filter: { eventType: $eventType }, first: 50, after: $cursor) {
 			pageInfo {
 				hasNextPage
 				endCursor

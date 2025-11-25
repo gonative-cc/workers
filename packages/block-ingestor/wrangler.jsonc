@@ -16,4 +16,11 @@
   "vars": {
     "ENVIRONMENT": "dev",
   },
+  "services": [
+    {
+      "binding": "BtcIndexer",
+      "service": "btcindexer",
+      "entrypoint": "BtcIndexerRpc"
+    }
+  ]
 }

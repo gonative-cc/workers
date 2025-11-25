@@ -39,7 +39,8 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	 * @param txHex - The transaction hex string
 	 * @param network - The Bitcoin network
 	 * @returns Transaction ID and number of registered deposits
-	 */ async putNbtcTx(txHex: string, network: BtcNet): Promise<PutNbtcTxResponse> {
+	 */
+	async putNbtcTx(txHex: string, network: BtcNet): Promise<PutNbtcTxResponse> {
 		const indexer = await this.getIndexer();
 		return indexer.registerBroadcastedNbtcTx(txHex, network);
 	}

@@ -1,3 +1,4 @@
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 export interface UtxoRecord {
 	sui_id: string;
 	txid: string;
@@ -5,10 +6,12 @@ export interface UtxoRecord {
 	amount_sats: number;
 	script_pubkey: Uint8Array;
 	nbtc_pkg: string;
-	sui_network: string;
-	status: "available" | "locked" | "spent";
+	sui_network: SuiNet;
+	status: UtxoStatus;
 	locked_until: number | null;
 }
+
+export type UtxoStatus = "available" | "locked" | "spent";
 
 // Matches the new Move Event structure
 export interface MintEventRaw {

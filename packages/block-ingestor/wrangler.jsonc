@@ -13,9 +13,8 @@
   "queues": {
     "producers": [{ "queue": "block-queue", "binding": "BlockQueue" }],
   },
-  "vars": {
-    "ENVIRONMENT": "dev",
-  },
+  // "vars": {
+  // },
   "services": [
     {
       "binding": "BtcIndexer",

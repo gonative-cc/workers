@@ -24,6 +24,7 @@
       "dependencies": {
         "@gonative-cc/lib": "workspace:*",
         "bitcoinjs-lib": "^6.1.3",
+        "itty-router": "^5.0.22",
         "msgpackr": "^1.10.0",
       },
     },

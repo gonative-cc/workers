@@ -1,14 +1,14 @@
 import { Router } from "itty-router";
 import { PutBlocksReq } from "./api/put-blocks";
 import { handleIngestBlocks } from "./ingest";
-import type { BtcIndexerRpcI } from "../../btcindexer/src/rpc-interface";
+import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
+import { logError } from "@gonative-cc/lib/logger";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
 interface Env {
 	BtcBlocks: KVNamespace;
 	BlockQueue: Queue;
 	BtcIndexer: Service<BtcIndexerRpcI & WorkerEntrypoint<Env>>;
-	ENVIRONMENT: string;
 }
 
 const router = Router();
@@ -19,7 +19,7 @@ router.put("/bitcoin/blocks", async (request, env: Env) => {
 		await handleIngestBlocks(blocks, env.BtcBlocks, env.BlockQueue);
 		return new Response("Blocks ingested successfully", { status: 200 });
 	} catch (e) {
-		console.error("Failed to ingest blocks", e);
+		logError({ msg: "Failed to ingest blocks", method: "PUT /bitcoin/blocks" }, e);
 		const message = e instanceof Error ? e.message : "Failed to process request";
 		return new Response(message, { status: 500 });
 	}
@@ -30,7 +30,7 @@ router.get("/bitcoin/latest-height", async (_request, env: Env) => {
 		const result = await env.BtcIndexer.latestHeight();
 		return Response.json(result);
 	} catch (e) {
-		console.error("Failed to get latest height via RPC", e);
+		logError({ msg: "Failed to get latest height", method: "GET /bitcoin/latest-height" }, e);
 		return new Response("Internal Error", { status: 500 });
 	}
 });

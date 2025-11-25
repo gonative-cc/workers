@@ -23,13 +23,14 @@ func TestPutBlocks(t *testing.T) {
 	assert.Equal(t, len(*pbs), 1)
 	pb0 := (*pbs)[0]
 	assert.Equal(t, pb0.Height, int64(156))
+	assert.Equal(t, pb0.Network, "mainnet")
 
 	gotBlockHex := hex.EncodeToString(pb0.Block)
 	assert.Equal(t, blockHex, gotBlockHex)
 }
 
 func readSampleBlock(t *testing.T) []byte {
-	data, err := os.ReadFile("../../packages/btcindexer/src/api/put_blocks_req_msgpack")
+	data, err := os.ReadFile("put_blocks_req_msgpack")
 	assert.NilError(t, err)
 	assert.Assert(t, len(data) > 10)
 	return data
@@ -42,7 +43,7 @@ func TestPutBlocksInt(t *testing.T) {
 	blockBz, err := hex.DecodeString(blockHex)
 	assert.NilError(t, err)
 
-	pb := PutBlock{Height: 156, Block: blockBz}
+	pb := PutBlock{Network: "regtest", Height: 156, Block: blockBz}
 
 	c := NewClient("http://localhost:8787")
 	resp, err := c.PutBlocks(PutBlocksReq{pb})

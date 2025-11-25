@@ -1,6 +1,16 @@
 import { Transaction } from "bitcoinjs-lib";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { NbtcPkg, SuiNet } from "@gonative-cc/lib/nsui";
+
+export interface NbtcDeposit {
+	amountSats: number;
+	suiRecipient: string;
+}
+
+export interface Block {
+	blockHash: string;
+	blockHeight: number;
+}
 
 export interface NbtcAddress {
 	btc_network: BtcNet;
@@ -10,12 +20,8 @@ export interface NbtcAddress {
 	is_active: boolean;
 }
 
-export interface Deposit {
+export interface Deposit extends NbtcPkg, NbtcDeposit {
 	vout: number;
-	amountSats: number;
-	suiRecipient: string;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 	depositAddress: string;
 }
 
@@ -101,13 +107,11 @@ export interface NbtcTxRow {
 	btc_network: BtcNet;
 }
 
-export interface MintBatchArg {
+export interface MintBatchArg extends NbtcPkg {
 	tx: Transaction;
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 }
 
 export interface PostNbtcTxRequest {
@@ -119,15 +123,9 @@ export type SuiTxDigest = string;
 
 export type { BlockQueueRecord };
 
-export interface NbtcTxInsertion {
+export interface NbtcTxInsertion extends NbtcPkg, NbtcDeposit, Block {
 	txId: string;
 	vout: number;
-	blockHash: string;
-	blockHeight: number;
-	suiRecipient: string;
-	amountSats: number;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
 	depositAddress: string;
 }
@@ -139,13 +137,9 @@ export interface NbtcTxUpdate {
 	suiTxDigest?: string;
 }
 
-export interface NbtcBroadcastedDeposit {
+export interface NbtcBroadcastedDeposit extends NbtcPkg, NbtcDeposit {
 	txId: string;
 	vout: number;
-	suiRecipient: string;
-	amountSats: number;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
 	depositAddress: string;
 }

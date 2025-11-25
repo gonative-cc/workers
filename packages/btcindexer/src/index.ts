@@ -95,5 +95,13 @@ export default {
 
 // Export RPC entrypoints for service bindings
 // Use BtcIndexerRpc for production, BtcIndexerRpcMock for local development/testing
+// export { BtcIndexerRpc } from "./rpc";
+
+// export default class
+// async latestHeight(): Promise<{ height: number | null }> {
+// 		const indexer = await this.getIndexer();
+// 		return indexer.getLatestHeight();
+// 	}
+
 export { BtcIndexerRpc } from "./rpc";
 export { BtcIndexerRpcMock } from "./rpc-mock";

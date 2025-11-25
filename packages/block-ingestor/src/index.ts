@@ -1,5 +1,14 @@
 import { PutBlocksReq } from "./api/put-blocks";
 import { handleIngestBlocks } from "./ingest";
+import type { BtcIndexerRpcI } from "../../btcindexer/src/rpc-interface";
+import { WorkerEntrypoint } from "cloudflare:workers";
+
+interface Env {
+	BtcBlocks: KVNamespace;
+	BlockQueue: Queue;
+	BtcIndexer: Service<BtcIndexerRpcI & WorkerEntrypoint<Env>>;
+	ENVIRONMENT: string;
+}
 
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {

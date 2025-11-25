@@ -14,10 +14,6 @@
     // every one minute
     "crons": ["* * * * *"],
   },
-  "vars": {
-    "SUI_GRAPHQL_URL_TESTNET": "https://sui-testnet.mystenlabs.com/graphql",
-    "SUI_GRAPHQL_URL_MAINNET": "https://sui-mainnet.mystenlabs.com/graphql",
-  },
   "d1_databases": [
     {
       "binding": "DB",

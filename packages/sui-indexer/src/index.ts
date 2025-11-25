@@ -51,11 +51,8 @@ export default {
 
 async function queryNewEvents(network: NetworkConfig, storage: IndexerStorage) {
 	const client = new SuiGraphQLClient(network.url);
-
 	const packages = await storage.getActivePackages(network.name);
-
 	if (packages.length === 0) return;
-
 	logger.info({
 		msg: `Processing network`,
 		network: network.name,

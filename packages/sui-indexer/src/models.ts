@@ -27,6 +27,6 @@ export interface MintEventNode {
 }
 
 export interface NetworkConfig {
-	name: string;
+	name: SuiNet;
 	url: string;
 }

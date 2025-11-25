@@ -1,3 +1,4 @@
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { SUI_NETWORK_URLS } from "./config";
 import { SuiGraphQLClient } from "./graphql-client";
 import { handleMintEvents } from "./handler";

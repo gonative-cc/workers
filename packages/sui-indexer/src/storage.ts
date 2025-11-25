@@ -1,5 +1,6 @@
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { UtxoRecord } from "./models";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class IndexerStorage {
 	constructor(private db: D1Database) {}
@@ -70,11 +71,11 @@ export class IndexerStorage {
 		return result.results.map((r) => r.nbtc_pkg);
 	}
 
-	async getActiveNetworks(): Promise<string[]> {
+	async getActiveNetworks(): Promise<SuiNet[]> {
 		const result = await this.db
 			.prepare("SELECT DISTINCT sui_network FROM nbtc_addresses WHERE active = 1")
 			.all<{ sui_network: string }>();
 
-		return result.results.map((r) => r.sui_network);
+		return result.results.map((r) => r.sui_network as SuiNet);
 	}
 }

@@ -1,12 +1,13 @@
 import { IndexerStorage } from "./storage";
 import type { MintEventNode, UtxoRecord } from "./models";
 import { logger } from "@gonative-cc/lib/logger";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export async function handleMintEvents(
 	events: MintEventNode[],
 	storage: IndexerStorage,
 	nbtcPkg: string,
-	suiNetwork: string,
+	suiNetwork: SuiNet,
 ) {
 	const utxosToInsert: UtxoRecord[] = [];
 

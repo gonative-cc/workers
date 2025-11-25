@@ -377,16 +377,25 @@ describe("Block Parsing", () => {
 	});
 });
 
-describe("Indexer.registerBroadcastedNbtcTx", () => {
-	it("should register a tx with a single deposit", async () => {
-		const blockData = REGTEST_DATA[329]!;
-		const block = Block.fromHex(blockData.rawBlockHex);
-		const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[1]!.id);
-		expect(targetTx).toBeDefined();
+function getTestTx(blockHeight: number, txIndex: number) {
+	const blockData = REGTEST_DATA[blockHeight];
+	if (!blockData) throw new Error(`Block ${blockHeight} not found in test data`);
 
-		//TODO: this test is failing, probalby the deposit address is inccorect
-		const txHex = targetTx!.toHex();
-		await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
+	const block = Block.fromHex(blockData.rawBlockHex);
+	const targetTx = block.transactions?.find((tx) => tx.getId() === blockData.txs[txIndex]!.id);
+	expect(targetTx).toBeDefined();
+
+	return { blockData, block, targetTx: targetTx! };
+}
+
+describe("Indexer.registerBroadcastedNbtcTx", () => {
+	it("should register a new tx with a single deposit", async () => {
+		const { blockData, targetTx } = getTestTx(329, 1);
+		const txHex = targetTx.toHex();
+
+		const result = await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
+		expect(result.tx_id).toEqual(blockData.txs[1]!.id);
+		expect(result.registered_deposits).toEqual(1);
 
 		const db = await mf.getD1Database("DB");
 		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
@@ -397,15 +406,47 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		expect(results[0]!.amount_sats).toEqual(blockData.txs[1]!.amountSats);
 	});
 
+	it("should return 0 registered_deposits when tx already exists", async () => {
+		const { blockData, targetTx } = getTestTx(329, 1);
+		const txHex = targetTx.toHex();
+
+		const firstResult = await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
+		expect(firstResult.registered_deposits).toEqual(1);
+
+		const secondResult = await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
+		expect(secondResult.tx_id).toEqual(blockData.txs[1]!.id);
+		expect(secondResult.registered_deposits).toEqual(0);
+
+		const db = await mf.getD1Database("DB");
+		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
+		expect(results.length).toEqual(1);
+	});
+
 	it("should throw an error for a transaction with no valid deposits", async () => {
 		const block = Block.fromHex(REGTEST_DATA[329]!.rawBlockHex);
 		expect(block.transactions).toBeDefined();
-		// The first tx in a block is coinbase
 		const coinbaseTx = block.transactions![0]!;
 
 		expect(
 			indexer.registerBroadcastedNbtcTx(coinbaseTx.toHex(), BtcNet.REGTEST),
 		).rejects.toThrow("Transaction does not contain any valid nBTC deposits.");
+	});
+});
+
+describe("Indexer.hasNbtcMintTx", () => {
+	it("should return false when transaction does not exist", async () => {
+		const result = await indexer.hasNbtcMintTx("nonexistent_tx_id");
+		expect(result).toBe(false);
+	});
+
+	it("should return true when transaction exists", async () => {
+		const { blockData, targetTx } = getTestTx(329, 1);
+		const txHex = targetTx.toHex();
+
+		await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
+
+		const result = await indexer.hasNbtcMintTx(blockData.txs[1]!.id);
+		expect(result).toBe(true);
 	});
 });
 

@@ -94,16 +94,9 @@ export class Indexer {
 		this.electrs = electrs;
 	}
 
-	// returns true if tx has not been processed yet, false if it was already inserted
-	async putNbtcTx(): Promise<boolean> {
-		// TODO
-		// 1. check if tx is nBTC segwit payment
-		// 2. check if not duplicated
-		// 3. insert in D1
-		// 4. insert in nbtcTxDB
-		//    this.saveNbtcTx(tx)
-
-		return true;
+	async hasNbtcMintTx(txId: string): Promise<boolean> {
+		const existingTx = await this.storage.getNbtcMintTx(txId);
+		return existingTx !== null;
 	}
 
 	// - extracts and processes nBTC deposit transactions in the block
@@ -674,6 +667,16 @@ export class Indexer {
 		if (deposits.length === 0) {
 			throw new Error("Transaction does not contain any valid nBTC deposits.");
 		}
+
+		if (await this.hasNbtcMintTx(txId)) {
+			logger.debug({
+				msg: "Transaction already exists, skipping registration",
+				method: "Indexer.registerBroadcastedNbtcTx",
+				txId,
+			});
+			return { tx_id: txId, registered_deposits: 0 };
+		}
+
 		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
 		logger.info({

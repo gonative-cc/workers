@@ -1,10 +1,11 @@
-import { logger } from "@gonative-cc/lib/logger";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import type { UtxoRecord } from "./models";
 
 export class IndexerStorage {
 	constructor(private db: D1Database) {}
 
-	async getCursor(packageId: string): Promise<string | null> {
+	// returns the latest cursor position for querying Sui events.
+	async getSuiGqlCursor(packageId: string): Promise<string | null> {
 		const res = await this.db
 			.prepare("SELECT value FROM indexer_state WHERE key = ?")
 			.bind(packageId)
@@ -12,7 +13,8 @@ export class IndexerStorage {
 		return res?.value || null;
 	}
 
-	async saveCursor(packageId: string, cursor: string): Promise<void> {
+	// Saves the cursor position for querying Sui events.
+	async saveSuiGqlCursor(packageId: string, cursor: string): Promise<void> {
 		await this.db
 			.prepare(
 				`INSERT INTO indexer_state (key, value, updated_at) VALUES (?, ?, ?)
@@ -48,12 +50,31 @@ export class IndexerStorage {
 		try {
 			await this.db.batch(batch);
 		} catch (error) {
-			logger.error({
-				msg: "Failed to insert UTXOs batch",
-				method: "insertUtxos",
-				error: error,
-			});
+			logError(
+				{
+					msg: "Failed to insert UTXOs batch",
+					method: "insertUtxos",
+				},
+				error,
+			);
 			throw error;
 		}
+	}
+
+	async getActivePackages(networkName: string): Promise<string[]> {
+		const result = await this.db
+			.prepare("SELECT nbtc_pkg FROM nbtc_addresses WHERE sui_network = ? AND active = 1")
+			.bind(networkName)
+			.all<{ nbtc_pkg: string }>();
+
+		return result.results.map((r) => r.nbtc_pkg);
+	}
+
+	async getActiveNetworks(): Promise<string[]> {
+		const result = await this.db
+			.prepare("SELECT DISTINCT sui_network FROM nbtc_addresses WHERE active = 1")
+			.all<{ sui_network: string }>();
+
+		return result.results.map((r) => r.sui_network);
 	}
 }

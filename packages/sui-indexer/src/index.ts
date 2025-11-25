@@ -1,27 +1,47 @@
+import { SUI_NETWORK_URLS } from "./config";
 import { SuiGraphQLClient } from "./graphql-client";
 import { handleMintEvents } from "./handler";
 import type { MintEventNode, NetworkConfig } from "./models";
 import { IndexerStorage } from "./storage";
-import { logger } from "@gonative-cc/lib/logger";
+import { logError, logger } from "@gonative-cc/lib/logger";
 
 export default {
 	async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-		const networks = getNetworksFromEnv(env);
-		if (networks.length === 0) {
-			logger.warn({ msg: "No networks configured in environment variables" });
+		const storage = new IndexerStorage(env.DB);
+		const dbNetworks = await storage.getActiveNetworks();
+
+		if (dbNetworks.length === 0) {
+			logger.info({ msg: "No active packages/networks found in database." });
 			return;
 		}
+
+		const networksToProcess: NetworkConfig[] = [];
+
+		for (const netName of dbNetworks) {
+			const url = SUI_NETWORK_URLS[netName];
+			if (url) {
+				networksToProcess.push({ name: netName, url });
+			} else {
+				logger.warn({
+					msg: "Skipping network: No GraphQL URL configured",
+					network: netName,
+				});
+			}
+		}
+
 		logger.info({
 			msg: "Starting Indexer Loop",
-			networks: networks.map((n) => n.name),
+			networks: networksToProcess.map((n) => n.name),
 		});
-		const networkJobs = networks.map((network) => processNetwork(network, env));
+
+		const networkJobs = networksToProcess.map((network) => queryNewEvents(network, storage));
 		const results = await Promise.allSettled(networkJobs);
 		results.forEach((result, idx) => {
 			if (result.status === "rejected") {
-				logger.error({
+				logError({
 					msg: "Failed to process network",
-					network: networks[idx]?.name,
+					method: "scheduled",
+					network: networksToProcess[idx]?.name,
 					error: result.reason,
 				});
 			}
@@ -29,55 +49,41 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-async function processNetwork(network: NetworkConfig, env: Env) {
+async function queryNewEvents(network: NetworkConfig, storage: IndexerStorage) {
 	const client = new SuiGraphQLClient(network.url);
-	const storage = new IndexerStorage(env.DB);
 
-	const packages = await env.DB.prepare(
-		"SELECT nbtc_pkg FROM nbtc_addresses WHERE sui_network = ? AND is_active = 1",
-	)
-		.bind(network.name)
-		.all<{ nbtc_pkg: string }>();
-	if (!packages.results || packages.results.length === 0) return;
+	const packages = await storage.getActivePackages(network.name);
+
+	if (packages.length === 0) return;
 
 	logger.info({
 		msg: `Processing network`,
 		network: network.name,
-		packageCount: packages.results.length,
+		packageCount: packages.length,
 	});
 
-	const packageJobs = packages.results.map(async (pkg) => {
-		const pkgId = pkg.nbtc_pkg;
+	const packageJobs = packages.map(async (pkgId) => {
 		try {
-			const cursor = await storage.getCursor(pkgId);
-			const { events, nextCursor } = await client.fetchMintEvents(pkgId, cursor);
+			const cursor = await storage.getSuiGqlCursor(pkgId);
+			const { events, nextCursor } = await client.fetchMintEvents(pkgId, cursor); // TODO: lets fetch events from all active packages at once
 			if (events.length > 0) {
 				await handleMintEvents(events as MintEventNode[], storage, pkgId, network.name);
 			}
 			if (nextCursor && nextCursor !== cursor) {
-				await storage.saveCursor(pkgId, nextCursor);
+				await storage.saveSuiGqlCursor(pkgId, nextCursor);
 			}
 		} catch (e) {
-			logger.error({
-				msg: "Failed to index package",
-				network: network.name,
-				pkgId,
-				error: e,
-			});
+			logError(
+				{
+					msg: "Failed to index package",
+					method: "queryNewEvents",
+					network: network.name,
+					pkgId,
+				},
+				e,
+			);
 		}
 	});
 
 	await Promise.allSettled(packageJobs);
-}
-
-function getNetworksFromEnv(env: Env): NetworkConfig[] {
-	const networks: NetworkConfig[] = [];
-	if (env.SUI_GRAPHQL_URL_TESTNET) {
-		networks.push({ name: "testnet", url: env.SUI_GRAPHQL_URL_TESTNET });
-	}
-	if (env.SUI_GRAPHQL_URL_MAINNET) {
-		networks.push({ name: "mainnet", url: env.SUI_GRAPHQL_URL_MAINNET });
-	}
-
-	return networks;
 }

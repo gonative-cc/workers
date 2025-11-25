@@ -14,13 +14,16 @@ export async function handleMintEvents(
 		const event = eventNode.json;
 
 		const txIdBuffer = Buffer.from(event.btc_tx_id);
-		const txId = txIdBuffer.reverse().toString("hex"); // TODO: check if we need to reverse
+		// NOTE: bitcoin library we use in the other worker uses tx.getId() which returns the reversed order, its just for consistency
+		// TODO: check if we actually need that
+		const txId = txIdBuffer.reverse().toString("hex");
+
 		const scriptPubkey = new Uint8Array(event.bitcoin_spend_key);
 
 		utxosToInsert.push({
 			sui_id: event.utxo_idx,
 			txid: txId,
-			vout: event.btc_vout, //TODO: add vout to event, we need to decide if we support multiple or just one
+			vout: event.btc_vout, // TODO: add vout to event in the smart contract, we support only one VOUT
 			amount_sats: Number(event.amount),
 			script_pubkey: scriptPubkey,
 			nbtc_pkg: nbtcPkg,

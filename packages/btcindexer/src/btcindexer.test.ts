@@ -581,12 +581,8 @@ describe("Indexer.detectMintedReorgs", () => {
 
 		await indexer.detectMintedReorgs(blockData.height);
 
-		const { results } = await db
-			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
-			.bind(txData.id)
-			.all();
-		expect(results.length).toEqual(1);
-		expect(results[0]!.status).toEqual("minted-reorg");
+		const status = await indexer.storage.getTxStatus(txData.id);
+		expect(status).toEqual(MintTxStatus.MintedReorg);
 	});
 
 	it("should not update status if minted transaction is still in block", async () => {
@@ -601,12 +597,8 @@ describe("Indexer.detectMintedReorgs", () => {
 
 		await indexer.detectMintedReorgs(blockData.height);
 
-		const { results } = await db
-			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
-			.bind(txData.id)
-			.all();
-		expect(results.length).toEqual(1);
-		expect(results[0]!.status).toEqual("minted");
+		const status = await indexer.storage.getTxStatus(txData.id);
+		expect(status).toEqual(MintTxStatus.Minted);
 	});
 });
 

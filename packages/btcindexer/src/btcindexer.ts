@@ -318,9 +318,11 @@ export class Indexer {
 						txId,
 					});
 					try {
+						// We are processing a finalized transaction for minting, but discovered it is not in its
+						// block anymore (reorg detected). We verify the status is still Finalized or MintFailed
+						// before marking it as FinalizedReorg.
 						const currentStatus = await this.storage.getTxStatus(txId);
 						if (
-							currentStatus !== MintTxStatus.Minted &&
 							currentStatus !== MintTxStatus.Finalized &&
 							currentStatus !== MintTxStatus.MintFailed
 						) {
@@ -333,23 +335,13 @@ export class Indexer {
 							continue;
 						}
 
-						// Determine the appropriate reorg status based on the current transaction state.
-						// The status can be Minted here due to a race condition: getNbtcMintCandidates() queries
-						// for Finalized/MintFailed transactions, but while we're processing this reorg, another
-						// concurrent execution of processFinalizedTransactions may have already minted the tx on Sui
-						// and updated its status to Minted. If that's the case, we mark it as MintedReorg (not
-						// FinalizedReorg) to indicate that the mint succeeded before we detected the Bitcoin reorg.
-						const reorgStatus =
-							currentStatus === MintTxStatus.Minted
-								? MintTxStatus.MintedReorg
-								: MintTxStatus.FinalizedReorg;
-						await this.storage.updateNbtcTxsStatus([txId], reorgStatus);
+						await this.storage.updateNbtcTxsStatus([txId], MintTxStatus.FinalizedReorg);
 						logger.warn({
 							msg: "Minting: Transaction reorged",
 							method: "processFinalizedTransactions",
 							txId,
 							previousStatus: currentStatus,
-							newStatus: reorgStatus,
+							newStatus: MintTxStatus.FinalizedReorg,
 						});
 					} catch (e) {
 						logError(

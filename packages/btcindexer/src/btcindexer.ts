@@ -125,6 +125,8 @@ export class Indexer {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
+		const existingHash = await this.storage.getBlockHash(blockInfo.height, blockInfo.network);
+
 		const isFresh = await this.storage.insertBlockInfo(blockInfo);
 		if (!isFresh) {
 			logger.debug({
@@ -136,8 +138,9 @@ export class Indexer {
 			return;
 		}
 
-		// Check for minted transaction reorgs when processing a block
-		await this.detectMintedReorgs(blockInfo.height);
+		if (existingHash !== null && existingHash !== blockInfo.hash) {
+			await this.detectMintedReorgs(blockInfo.height);
+		}
 
 		const nbtcTxs: NbtcTxInsertion[] = [];
 		let senders: NbtcDepositSender[] = [];

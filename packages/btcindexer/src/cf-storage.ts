@@ -219,7 +219,7 @@ export class CFStorage implements Storage {
 	async getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}' AND block_height >= ?`,
+				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network, btc_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}' AND block_height >= ?`,
 			)
 			.bind(blockHeight)
 			.all<FinalizedTxRow>();

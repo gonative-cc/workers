@@ -568,32 +568,19 @@ describe("Storage.getNbtcMintCandidates", () => {
 });
 
 describe("Indexer.detectMintedReorgs", () => {
-	it("should detect deep reorg on minted transaction and update status to MINTED_REORG", async () => {
+	it("should not update status if no reorg detected", async () => {
 		const blockData = REGTEST_DATA[329]!;
 		const txData = blockData.txs[1]!;
 		const db = await mf.getD1Database("DB");
 
 		await insertMintedTx(db, txData);
 
-		const kv = await mf.getKVNamespace("btc_blocks");
-		const differentBlock = REGTEST_DATA[327]!;
-		await kv.put(blockData.hash, Buffer.from(differentBlock.rawBlockHex, "hex").buffer);
-
-		await indexer.detectMintedReorgs(blockData.height);
-
-		const status = await indexer.storage.getTxStatus(txData.id);
-		expect(status).toEqual(MintTxStatus.MintedReorg);
-	});
-
-	it("should not update status if minted transaction is still in block", async () => {
-		const blockData = REGTEST_DATA[329]!;
-		const txData = blockData.txs[1]!;
-		const db = await mf.getD1Database("DB");
-
-		await insertMintedTx(db, txData);
-
-		const kv = await mf.getKVNamespace("btc_blocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		await db
+			.prepare(
+				"INSERT INTO btc_blocks (hash, height, network, inserted_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
+			)
+			.bind(blockData.hash, blockData.height, BtcNet.REGTEST, Date.now(), 1)
+			.run();
 
 		await indexer.detectMintedReorgs(blockData.height);
 
@@ -637,6 +624,37 @@ describe("Indexer.processBlock", () => {
 			.all();
 		expect(senderResults.length).toEqual(1);
 		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
+	});
+
+	it("should call detectMintedReorgs when processing a block that causes a reorg", async () => {
+		const blockData329 = REGTEST_DATA[329]!;
+		const blockData327 = REGTEST_DATA[327]!;
+		const txData = blockData329.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+		const kv = await mf.getKVNamespace("btc_blocks");
+
+		await insertMintedTx(db, txData);
+
+		await kv.put(blockData329.hash, Buffer.from(blockData329.rawBlockHex, "hex").buffer);
+
+		await db
+			.prepare(
+				"INSERT INTO btc_blocks (hash, height, network, inserted_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
+			)
+			.bind(blockData329.hash, blockData329.height, BtcNet.REGTEST, timestamp_ms, 1)
+			.run();
+
+		const reorgBlockInfo: BlockQueueRecord = {
+			hash: blockData327.hash,
+			height: blockData329.height,
+			network: BtcNet.REGTEST,
+			timestamp_ms: timestamp_ms + 1000,
+		};
+		await kv.put(blockData327.hash, Buffer.from(blockData327.rawBlockHex, "hex").buffer);
+		await indexer.processBlock(reorgBlockInfo);
+		const status = await indexer.storage.getTxStatus(txData.id);
+		expect(status).toEqual(MintTxStatus.MintedReorg);
 	});
 });
 

@@ -39,6 +39,7 @@ export interface FinalizedTxRow {
 	block_height: number;
 	nbtc_pkg: string;
 	sui_network: SuiNet;
+	btc_network: string;
 }
 
 export interface BlockInfo {

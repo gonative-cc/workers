@@ -139,6 +139,12 @@ export class Indexer {
 		}
 
 		if (existingHash !== null && existingHash !== blockInfo.hash) {
+			logger.info({
+				msg: "Reorg detected, calling detectMintedReorgs",
+				height: blockInfo.height,
+				existingHash,
+				newHash: blockInfo.hash,
+			});
 			await this.detectMintedReorgs(blockInfo.height);
 		}
 
@@ -504,27 +510,19 @@ export class Indexer {
 
 		for (const tx of mintedTxs) {
 			try {
-				const rawBlockBuffer = await this.storage.getBlock(tx.block_hash);
-				if (!rawBlockBuffer) {
-					logger.warn({
-						msg: "Block data not found for minted transaction",
-						method: "detectMintedReorgs",
-						txId: tx.tx_id,
-						blockHash: tx.block_hash,
-					});
-					continue;
-				}
+				const currentBlockHash = await this.storage.getBlockHash(
+					tx.block_height,
+					tx.btc_network,
+				);
 
-				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
-				const txIndex = block.transactions?.findIndex((t) => t.getId() === tx.tx_id);
-
-				if (txIndex === -1) {
+				if (currentBlockHash !== tx.block_hash) {
 					await this.storage.updateNbtcTxsStatus([tx.tx_id], MintTxStatus.MintedReorg);
 					logger.error({
 						msg: "CRITICAL: Deep reorg detected on minted transaction",
 						method: "detectMintedReorgs",
 						txId: tx.tx_id,
-						blockHash: tx.block_hash,
+						oldBlockHash: tx.block_hash,
+						newBlockHash: currentBlockHash,
 						blockHeight: tx.block_height,
 					});
 				}

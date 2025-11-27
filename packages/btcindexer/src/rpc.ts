@@ -1,7 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
 import { PutBlocks } from "./api/put-blocks";
-import { TxStatusResp } from "./models";
+import { NbtcTxResp, TxStatusResp } from "./models";
 
 /**
  * RPC entrypoint for btcindexer worker.
@@ -82,5 +82,15 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> {
 	async lockedBTCDeposit(): Promise<number> {
 		const indexer = await this.getIndexer();
 		return indexer.getLockedBTCDeposit();
+	}
+
+	/**
+	 * Get all nBTC transactions for a specific Sui address.
+	 * @param suiAddress - Sui recipient address
+	 * @returns Array of transaction statuses
+	 */
+	async nbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]> {
+		const indexer = await this.getIndexer();
+		return indexer.getNbtcMintTxsBySuiAddr(suiAddress);
 	}
 }

@@ -101,3 +101,9 @@ export interface PostNbtcTxRequest {
 }
 
 export type SuiTxDigest = string;
+
+export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {
+	btc_tx_id: string;
+	status: TxStatus;
+	confirmations: number;
+}

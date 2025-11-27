@@ -15,6 +15,7 @@ import {
 	GroupedFinalizedTx,
 	BlockInfo,
 	BlockStatus,
+	NbtcTxResp,
 } from "./models";
 import { toSerializableError } from "./errutils";
 
@@ -769,6 +770,11 @@ export class Indexer implements Storage {
 				amount_sats: tx.amount_sats,
 			};
 		});
+	}
+
+	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]> {
+		// mock mint nbtc txs list
+		return [];
 	}
 }
 

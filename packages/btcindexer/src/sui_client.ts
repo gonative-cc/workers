@@ -103,7 +103,7 @@ export class SuiClient {
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 
-	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest> {
+	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest]> {
 		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
 		// Assuming all mintArgs in a batch are for the same nbtcPkg and suiNetwork for now
@@ -140,7 +140,9 @@ export class SuiClient {
 			options: { showEffects: true },
 		});
 
-		if (result.effects?.status.status !== "success") {
+		const success = result.effects?.status.status === "success";
+
+		if (!success) {
 			logger.error({
 				msg: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
@@ -148,10 +150,11 @@ export class SuiClient {
 				digest: result.digest,
 			});
 		}
-		return result.digest;
+
+		return [success, result.digest];
 	}
 
-	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest] | null> {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
 			return await this.mintNbtcBatch(mintArgs);

@@ -235,14 +235,20 @@ export class CFStorage implements Storage {
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
 		const setFailedStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = ?, retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
+			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
 
 		const statements = updates.map((p) => {
 			if (p.status === MintTxStatus.Minted) {
 				return setMintedStmt.bind(MintTxStatus.Minted, p.suiTxDigest, now, p.txId, p.vout);
 			} else {
-				return setFailedStmt.bind(MintTxStatus.MintFailed, now, p.txId, p.vout);
+				return setFailedStmt.bind(
+					MintTxStatus.MintFailed,
+					p.suiTxDigest ?? null,
+					now,
+					p.txId,
+					p.vout,
+				);
 			}
 		});
 

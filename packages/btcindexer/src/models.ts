@@ -42,6 +42,13 @@ export interface FinalizedTxRow {
 	btc_network: string;
 }
 
+export interface ReorgedMintedTx {
+	tx_id: string;
+	old_block_hash: string;
+	new_block_hash: string;
+	block_height: number;
+}
+
 export interface BlockInfo {
 	height: number;
 	hash: string;

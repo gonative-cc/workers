@@ -3,6 +3,7 @@ import type {
 	PendingTx,
 	MintTxStatus,
 	FinalizedTxRow,
+	ReorgedMintedTx,
 	NbtcAddress,
 	NbtcTxInsertion,
 	NbtcTxUpdate,
@@ -28,14 +29,7 @@ export interface Storage {
 	getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]>;
 	getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]>;
 	getTxStatus(txId: string): Promise<MintTxStatus | null>;
-	getReorgedMintedTxs(blockHeight: number): Promise<
-		{
-			tx_id: string;
-			old_block_hash: string;
-			new_block_hash: string;
-			block_height: number;
-		}[]
-	>;
+	getReorgedMintedTxs(blockHeight: number): Promise<ReorgedMintedTx[]>;
 	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
 	batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;

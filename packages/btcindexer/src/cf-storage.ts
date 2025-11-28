@@ -2,6 +2,7 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import type {
 	BlockInfo,
 	FinalizedTxRow,
+	ReorgedMintedTx,
 	NbtcTxRow,
 	PendingTx,
 	NbtcTxInsertion,
@@ -228,14 +229,7 @@ export class CFStorage implements Storage {
 	}
 
 	//TODO: We need to query by network
-	async getReorgedMintedTxs(blockHeight: number): Promise<
-		{
-			tx_id: string;
-			old_block_hash: string;
-			new_block_hash: string;
-			block_height: number;
-		}[]
-	> {
+	async getReorgedMintedTxs(blockHeight: number): Promise<ReorgedMintedTx[]> {
 		const reorged = await this.d1
 			.prepare(
 				`SELECT
@@ -250,12 +244,7 @@ export class CFStorage implements Storage {
 					AND m.block_hash != b.hash`,
 			)
 			.bind(blockHeight)
-			.all<{
-				tx_id: string;
-				old_block_hash: string;
-				new_block_hash: string;
-				block_height: number;
-			}>();
+			.all<ReorgedMintedTx>();
 		return reorged.results ?? [];
 	}
 

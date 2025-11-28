@@ -511,16 +511,13 @@ export class Indexer {
 		const txIds = reorgedTxs.map((tx) => tx.tx_id);
 		await this.storage.updateNbtcTxsStatus(txIds, MintTxStatus.MintedReorg);
 
-		for (const tx of reorgedTxs) {
-			logger.error({
-				msg: "CRITICAL: Deep reorg detected on minted transaction",
-				method: "detectMintedReorgs",
-				txId: tx.tx_id,
-				oldBlockHash: tx.old_block_hash,
-				newBlockHash: tx.new_block_hash,
-				blockHeight: tx.block_height,
-			});
-		}
+		logger.error({
+			msg: "CRITICAL: Deep reorg detected on minted transactions",
+			method: "detectMintedReorgs",
+			count: reorgedTxs.length,
+			txIds,
+			blockHeight,
+		});
 	}
 
 	constructMerkleTree(block: Block): BitcoinMerkleTree | null {

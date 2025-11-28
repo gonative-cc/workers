@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS nbtc_addresses (
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos ( -- TODO: normalise the database (foreign key to the nbtc_addresses table)
     sui_id TEXT NOT NULL,
+		dwallet_id TEXT NOT NULL,
     txid TEXT NOT NULL, -- Bitcoin transaction ID
     vout INTEGER NOT NULL,
     amount_sats INTEGER NOT NULL,

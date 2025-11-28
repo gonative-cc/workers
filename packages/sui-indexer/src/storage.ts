@@ -1,5 +1,5 @@
 import { logError, logger } from "@gonative-cc/lib/logger";
-import type { UtxoRecord } from "./models";
+import type { RedeemRequestRecord, UtxoRecord } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class IndexerStorage {
@@ -25,41 +25,65 @@ export class IndexerStorage {
 			.run();
 	}
 
-	async insertUtxos(utxos: UtxoRecord[]): Promise<void> {
-		if (utxos.length === 0) return;
-
+	async insertUtxo(u: UtxoRecord): Promise<void> {
 		const stmt = this.db.prepare(
 			`INSERT OR REPLACE INTO nbtc_utxos
-            (sui_id, txid, vout, amount_sats, script_pubkey, nbtc_pkg, sui_network, status, locked_until)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (sui_id dwallet_id, txid, vout, amount_sats, script_pubkey, nbtc_pkg, sui_network, status, locked_until)
+            VALUES (?,? ?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
-
-		const batch = utxos.map((u) =>
-			stmt.bind(
-				u.sui_id,
-				u.txid,
-				u.vout,
-				u.amount_sats,
-				u.script_pubkey,
-				u.nbtc_pkg,
-				u.sui_network,
-				u.status,
-				u.locked_until,
-			),
-		);
-
 		try {
-			await this.db.batch(batch);
+			await stmt
+				.bind(
+					u.sui_id,
+					u.dwallet_id,
+					u.txid,
+					u.vout,
+					u.amount_sats,
+					u.script_pubkey,
+					u.nbtc_pkg,
+					u.sui_network,
+					u.status,
+					u.locked_until,
+				)
+				.run();
 		} catch (error) {
 			logError(
 				{
-					msg: "Failed to insert UTXOs batch",
-					method: "insertUtxos",
+					msg: "Failed to insert UTXO",
+					method: "insertUtxo",
 				},
 				error,
 			);
 			throw error;
 		}
+	}
+
+	async lockUtxos(utxoIds: string[]): Promise<void> {
+		if (utxoIds.length === 0) return;
+		const placeholders = utxoIds.map(() => "?").join(",");
+		await this.db
+			.prepare(`UPDATE nbtc_utxos SET status = 'locked' WHERE sui_id IN (${placeholders})`)
+			.bind(...utxoIds)
+			.run();
+	}
+
+	async insertRedeemRequest(r: RedeemRequestRecord): Promise<void> {
+		await this.db
+			.prepare(
+				`INSERT OR IGNORE INTO nbtc_redeem_requests
+            (redeem_id, redeemer, recipient_script, amount_sats, created_at, nbtc_pkg, sui_network)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			)
+			.bind(
+				r.redeem_id,
+				r.redeemer,
+				r.recipient_script,
+				r.amount_sats,
+				r.created_at,
+				r.nbtc_pkg,
+				r.sui_network,
+			)
+			.run();
 	}
 
 	async getActivePackages(networkName: string): Promise<string[]> {

@@ -531,7 +531,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
-		expect(candidates.length).toEqual(0);
+		expect(candidates).toHaveLength(0);
 	});
 
 	it("should NOT return minted txs", async () => {
@@ -540,7 +540,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
-		expect(candidates.length).toEqual(0);
+		expect(candidates).toHaveLength(0);
 	});
 
 	it("should NOT return reorg txs (finalized-reorg or minted-reorg)", async () => {
@@ -550,7 +550,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 
 		const candidates = await indexer.storage.getNbtcMintCandidates(3);
 
-		expect(candidates.length).toEqual(0);
+		expect(candidates).toHaveLength(0);
 	});
 
 	it("should return both finalized and mint-failed txs within retry limit together", async () => {

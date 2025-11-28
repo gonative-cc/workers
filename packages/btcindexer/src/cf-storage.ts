@@ -215,6 +215,7 @@ export class CFStorage implements Storage {
 		return finalizedTxs.results ?? [];
 	}
 
+	// Returns all Bitcoin deposit transactions in or after the given block, that successfully minted nBTC.
 	//TODO: We need to query by network
 	async getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
@@ -225,6 +226,41 @@ export class CFStorage implements Storage {
 			.all<FinalizedTxRow>();
 		return txs.results ?? [];
 	}
+
+	//TODO: We need to query by network
+	async getReorgedMintedTxs(
+		blockHeight: number,
+	): Promise<
+		{
+			tx_id: string;
+			old_block_hash: string;
+			new_block_hash: string;
+			block_height: number;
+		}[]
+	> {
+		const reorged = await this.d1
+			.prepare(
+				`SELECT
+					m.tx_id,
+					m.block_hash as old_block_hash,
+					b.hash as new_block_hash,
+					m.block_height
+				FROM nbtc_minting m
+				INNER JOIN btc_blocks b ON m.block_height = b.height AND m.btc_network = b.network
+				WHERE m.status = '${MintTxStatus.Minted}'
+					AND m.block_height >= ?
+					AND m.block_hash != b.hash`,
+			)
+			.bind(blockHeight)
+			.all<{
+				tx_id: string;
+				old_block_hash: string;
+				new_block_hash: string;
+				block_height: number;
+			}>();
+		return reorged.results ?? [];
+	}
+
 	//TODO: We need to query by network
 	async getTxStatus(txId: string): Promise<MintTxStatus | null> {
 		const result = await this.d1

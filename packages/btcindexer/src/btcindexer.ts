@@ -503,39 +503,23 @@ export class Indexer {
 			blockHeight,
 		});
 
-		const mintedTxs = await this.storage.getMintedTxs(blockHeight);
-		if (!mintedTxs || mintedTxs.length === 0) {
+		const reorgedTxs = await this.storage.getReorgedMintedTxs(blockHeight);
+		if (!reorgedTxs || reorgedTxs.length === 0) {
 			return;
 		}
 
-		for (const tx of mintedTxs) {
-			try {
-				const currentBlockHash = await this.storage.getBlockHash(
-					tx.block_height,
-					tx.btc_network,
-				);
+		const txIds = reorgedTxs.map((tx) => tx.tx_id);
+		await this.storage.updateNbtcTxsStatus(txIds, MintTxStatus.MintedReorg);
 
-				if (currentBlockHash !== tx.block_hash) {
-					await this.storage.updateNbtcTxsStatus([tx.tx_id], MintTxStatus.MintedReorg);
-					logger.error({
-						msg: "CRITICAL: Deep reorg detected on minted transaction",
-						method: "detectMintedReorgs",
-						txId: tx.tx_id,
-						oldBlockHash: tx.block_hash,
-						newBlockHash: currentBlockHash,
-						blockHeight: tx.block_height,
-					});
-				}
-			} catch (e) {
-				logError(
-					{
-						msg: "Error checking minted transaction for reorg",
-						method: "detectMintedReorgs",
-						txId: tx.tx_id,
-					},
-					e,
-				);
-			}
+		for (const tx of reorgedTxs) {
+			logger.error({
+				msg: "CRITICAL: Deep reorg detected on minted transaction",
+				method: "detectMintedReorgs",
+				txId: tx.tx_id,
+				oldBlockHash: tx.old_block_hash,
+				newBlockHash: tx.new_block_hash,
+				blockHeight: tx.block_height,
+			});
 		}
 	}
 

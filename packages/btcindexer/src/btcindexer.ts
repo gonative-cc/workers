@@ -118,6 +118,8 @@ export class Indexer {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
 		}
 
+		const existingHash = await this.storage.getBlockHash(blockInfo.height, blockInfo.network);
+
 		const isFresh = await this.storage.insertBlockInfo(blockInfo);
 		if (!isFresh) {
 			logger.debug({
@@ -127,6 +129,16 @@ export class Indexer {
 				hash: blockInfo.hash,
 			});
 			return;
+		}
+
+		if (existingHash !== null && existingHash !== blockInfo.hash) {
+			logger.info({
+				msg: "Reorg detected, calling detectMintedReorgs",
+				height: blockInfo.height,
+				existingHash,
+				newHash: blockInfo.hash,
+			});
+			await this.detectMintedReorgs(blockInfo.height);
 		}
 
 		const nbtcTxs: NbtcTxInsertion[] = [];
@@ -238,7 +250,7 @@ export class Indexer {
 	}
 
 	async processFinalizedTransactions(): Promise<void> {
-		const finalizedTxs = await this.storage.getNbtcFinalizedTxs(this.maxNbtcMintTxRetries);
+		const finalizedTxs = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
 
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;
@@ -303,17 +315,40 @@ export class Indexer {
 
 				if (txIndex === -1) {
 					logger.error({
-						msg: "Minting: Could not find TX within its block. Setting status to 'finalized-reorg'.",
+						msg: "Minting: Could not find TX within its block. Detecting reorg.",
 						method: "processFinalizedTransactions",
 						txId,
 					});
 					try {
-						// TODO: need to distniguish FINALIZED_REORG and MINTED_REORG
+						// We are processing a finalized transaction for minting, but discovered it is not in its
+						// block anymore (reorg detected). We verify the status is still Finalized or MintFailed
+						// before marking it as FinalizedReorg.
+						const currentStatus = await this.storage.getTxStatus(txId);
+						if (
+							currentStatus !== MintTxStatus.Finalized &&
+							currentStatus !== MintTxStatus.MintFailed
+						) {
+							logger.error({
+								msg: "Minting: Unexpected status during reorg detection, skipping",
+								method: "processFinalizedTransactions",
+								txId,
+								currentStatus,
+							});
+							continue;
+						}
+
 						await this.storage.updateNbtcTxsStatus([txId], MintTxStatus.FinalizedReorg);
+						logger.warn({
+							msg: "Minting: Transaction reorged",
+							method: "processFinalizedTransactions",
+							txId,
+							previousStatus: currentStatus,
+							newStatus: MintTxStatus.FinalizedReorg,
+						});
 					} catch (e) {
 						logError(
 							{
-								msg: "Failed to update status to 'finalized-reorg'",
+								msg: "Minting: Failed to update reorg status",
 								method: "processFinalizedTransactions",
 								txId,
 							},
@@ -351,6 +386,7 @@ export class Indexer {
 				if (!firstDeposit) {
 					logger.warn({
 						msg: "Minting: Skipping transaction group with no deposits",
+						method: "processFinalizedTransactions",
 						txId,
 					});
 					continue;
@@ -451,6 +487,30 @@ export class Indexer {
 				}
 			}
 		}
+	}
+
+	async detectMintedReorgs(blockHeight: number): Promise<void> {
+		logger.debug({
+			msg: "Checking for reorgs on minted transactions",
+			method: "detectMintedReorgs",
+			blockHeight,
+		});
+
+		const reorgedTxs = await this.storage.getReorgedMintedTxs(blockHeight);
+		if (!reorgedTxs || reorgedTxs.length === 0) {
+			return;
+		}
+
+		const txIds = reorgedTxs.map((tx) => tx.tx_id);
+		await this.storage.updateNbtcTxsStatus(txIds, MintTxStatus.MintedReorg);
+
+		logger.error({
+			msg: "CRITICAL: Deep reorg detected on minted transactions",
+			method: "detectMintedReorgs",
+			count: reorgedTxs.length,
+			txIds,
+			blockHeight,
+		});
 	}
 
 	constructMerkleTree(block: Block): BitcoinMerkleTree | null {

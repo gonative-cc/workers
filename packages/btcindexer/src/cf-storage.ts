@@ -228,9 +228,7 @@ export class CFStorage implements Storage {
 	}
 
 	//TODO: We need to query by network
-	async getReorgedMintedTxs(
-		blockHeight: number,
-	): Promise<
+	async getReorgedMintedTxs(blockHeight: number): Promise<
 		{
 			tx_id: string;
 			old_block_hash: string;

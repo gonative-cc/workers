@@ -28,9 +28,7 @@ export interface Storage {
 	getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]>;
 	getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]>;
 	getTxStatus(txId: string): Promise<MintTxStatus | null>;
-	getReorgedMintedTxs(
-		blockHeight: number,
-	): Promise<
+	getReorgedMintedTxs(blockHeight: number): Promise<
 		{
 			tx_id: string;
 			old_block_hash: string;

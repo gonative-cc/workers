@@ -244,6 +244,11 @@ export class Indexer {
 		return deposits;
 	}
 
+	// TODO: Function is too large and we should broke it down into smaller functions
+	// We should extract the:
+	// - Transaction grouping logic
+	// - Merkle proof generation
+	// - Batch processing logic
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.storage.getNbtcFinalizedTxs(this.maxNbtcMintTxRetries);
 
@@ -414,68 +419,77 @@ export class Indexer {
 			}
 		}
 
-		if (mintBatchArgsByPkg.size > 0) {
-			for (const [pkgKey, mintBatchArgs] of mintBatchArgsByPkg.entries()) {
-				const processedPrimaryKeys = processedKeysByPkg.get(pkgKey);
-				if (!processedPrimaryKeys || processedPrimaryKeys.length === 0) {
-					continue;
-				}
-
-				logger.info({
-					msg: "Minting: Sending batch of mints to Sui",
-					count: mintBatchArgs.length,
-					pkgKey: pkgKey,
-				});
-
-				const result = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
-				if (!result) {
-					logger.error({
-						msg: "Sui batch mint transaction failed (pre-submission error)",
-						method: "processFinalizedTransactions",
-						pkgKey,
-					});
-					await this.storage.batchUpdateNbtcTxs(
-						processedPrimaryKeys.map((p) => ({
-							txId: p.tx_id,
-							vout: p.vout,
-							status: MintTxStatus.MintFailed,
-						})),
-					);
-				} else {
-					const [success, suiTxDigest] = result;
-
-					if (success) {
-						logger.info({
-							msg: "Sui batch mint transaction successful",
-							suiTxDigest,
-							pkgKey,
-						});
-						await this.storage.batchUpdateNbtcTxs(
-							processedPrimaryKeys.map((p) => ({
-								txId: p.tx_id,
-								vout: p.vout,
-								status: MintTxStatus.Minted,
-								suiTxDigest,
-							})),
-						);
-					} else {
-						logger.error({
-							msg: "Sui batch mint transaction failed (on-chain execution error)",
-							method: "processFinalizedTransactions",
-							suiTxDigest,
-							pkgKey,
-						});
-						await this.storage.batchUpdateNbtcTxs(
-							processedPrimaryKeys.map((p) => ({
-								txId: p.tx_id,
-								vout: p.vout,
-								status: MintTxStatus.MintFailed,
-								suiTxDigest,
-							})),
-						);
-					}
-				}
+		// TODO: Consider changing vout column to a list type to simplify schema
+		for (const [pkgKey, mintBatchArgs] of mintBatchArgsByPkg.entries()) {
+			const processedPrimaryKeys = processedKeysByPkg.get(pkgKey);
+			if (!processedPrimaryKeys || processedPrimaryKeys.length === 0) {
+				continue;
 			}
+
+			logger.info({
+				msg: "Minting: Sending batch of mints to Sui",
+				count: mintBatchArgs.length,
+				pkgKey: pkgKey,
+			});
+
+			await this.executeMintBatch(mintBatchArgs, processedPrimaryKeys, pkgKey);
+		}
+	}
+
+	private async executeMintBatch(
+		mintBatchArgs: MintBatchArg[],
+		processedPrimaryKeys: { tx_id: string; vout: number }[],
+		pkgKey: string,
+	): Promise<void> {
+		const result = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
+
+		if (!result) {
+			logger.error({
+				msg: "Sui batch mint transaction failed (pre-submission error)",
+				method: "processFinalizedTransactions",
+				pkgKey,
+			});
+			await this.storage.batchUpdateNbtcTxs(
+				processedPrimaryKeys.map((p) => ({
+					txId: p.tx_id,
+					vout: p.vout,
+					status: MintTxStatus.MintFailed,
+				})),
+			);
+			return;
+		}
+
+		const [success, suiTxDigest] = result;
+
+		if (success) {
+			logger.info({
+				msg: "Sui batch mint transaction successful",
+				suiTxDigest,
+				pkgKey,
+			});
+			await this.storage.batchUpdateNbtcTxs(
+				processedPrimaryKeys.map((p) => ({
+					txId: p.tx_id,
+					vout: p.vout,
+					status: MintTxStatus.Minted,
+					suiTxDigest,
+				})),
+			);
+		} else {
+			logger.error({
+				msg: "Sui batch mint transaction failed (on-chain execution error)",
+				method: "processFinalizedTransactions",
+				suiTxDigest,
+				pkgKey,
+			});
+			await this.storage.batchUpdateNbtcTxs(
+				processedPrimaryKeys.map((p) => ({
+					txId: p.tx_id,
+					vout: p.vout,
+					status: MintTxStatus.MintFailed,
+					suiTxDigest,
+				})),
+			);
 		}
 	}
 

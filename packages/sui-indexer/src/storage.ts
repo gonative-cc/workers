@@ -61,10 +61,23 @@ export class IndexerStorage {
 	async lockUtxos(utxoIds: string[]): Promise<void> {
 		if (utxoIds.length === 0) return;
 		const placeholders = utxoIds.map(() => "?").join(",");
-		await this.db
-			.prepare(`UPDATE nbtc_utxos SET status = 'locked' WHERE sui_id IN (${placeholders})`)
-			.bind(...utxoIds)
-			.run();
+		try {
+			await this.db
+				.prepare(
+					`UPDATE nbtc_utxos SET status = 'locked' WHERE sui_id IN (${placeholders})`,
+				)
+				.bind(...utxoIds)
+				.run();
+		} catch (error) {
+			logError(
+				{
+					msg: "Failed to lock UTXOs",
+					method: "lockUtxos",
+				},
+				error,
+			);
+			throw error;
+		}
 	}
 
 	async insertRedeemRequest(r: RedeemRequestRecord): Promise<void> {

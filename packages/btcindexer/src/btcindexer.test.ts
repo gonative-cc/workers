@@ -549,7 +549,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx(db, txData, blockData);
+		await insertFinalizedTx(db, txData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);

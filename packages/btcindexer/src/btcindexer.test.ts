@@ -146,17 +146,12 @@ function checkTxProof(proofResult: ProofResult | null, block: Block) {
 	}
 }
 
-async function insertFinalizedTx({
-	db,
-	txData,
-	blockData,
+async function insertFinalizedTx(
+	db: D1Database,
+	txData: TxInfo,
+	blockData: TestBlock,
 	retry_count = 0,
-}: {
-	db: D1Database;
-	txData: TxInfo;
-	blockData: TestBlock;
-	retry_count?: number;
-}) {
+) {
 	await db
 		.prepare(
 			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -420,7 +415,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		const tx329 = block329.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx({ db, txData: tx329, blockData: block329 });
+		await insertFinalizedTx(db, tx329, block329);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(block329.hash, Buffer.from(block329.rawBlockHex, "hex").buffer);
@@ -448,7 +443,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx({ db, txData, blockData });
+		await insertFinalizedTx(db, txData, blockData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
@@ -474,7 +469,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx({ db, txData, blockData, retry_count: 1 });
+		await insertFinalizedTx(db, txData, blockData, 1);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
@@ -499,7 +494,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const txData = blockData.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx({ db, txData, blockData });
+		await insertFinalizedTx(db, txData, blockData);
 
 		const kv = await mf.getKVNamespace("btc_blocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);

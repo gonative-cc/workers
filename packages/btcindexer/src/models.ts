@@ -1,6 +1,16 @@
 import { Transaction } from "bitcoinjs-lib";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { NbtcPkg, SuiNet } from "@gonative-cc/lib/nsui";
+
+export interface NbtcDeposit {
+	amountSats: number;
+	suiRecipient: string;
+}
+
+export interface Block {
+	blockHash: string;
+	blockHeight: number;
+}
 
 export interface NbtcAddress {
 	btc_network: BtcNet;
@@ -10,12 +20,8 @@ export interface NbtcAddress {
 	is_active: boolean;
 }
 
-export interface Deposit {
+export interface Deposit extends NbtcPkg, NbtcDeposit {
 	vout: number;
-	amountSats: number;
-	suiRecipient: string;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 	depositAddress: string;
 }
 
@@ -39,6 +45,14 @@ export interface FinalizedTxRow {
 	block_height: number;
 	nbtc_pkg: string;
 	sui_network: SuiNet;
+	btc_network: string;
+}
+
+export interface ReorgedMintedTx {
+	tx_id: string;
+	old_block_hash: string;
+	new_block_hash: string;
+	block_height: number;
 }
 
 export interface BlockInfo {
@@ -61,6 +75,7 @@ export interface GroupedFinalizedTx {
  * - **mint-failed**: An attempt to mint a finalized tx failed. Mint should be retried.
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
+ * - **minted-reorg**: An edge-case where a tx was successfully minted on Sui, but the Bitcoin deposit was later reorged. Tracked for monitoring purposes for now.
  * - **finalized-non-active**: The deposit has been finalized, however the minting will not be attempted because the deposit address is a non-active one. There will be a redemption mechanism for these cases.
  */
 export const enum MintTxStatus {
@@ -70,6 +85,7 @@ export const enum MintTxStatus {
 	Finalized = "finalized",
 	FinalizedReorg = "finalized-reorg",
 	Minted = "minted",
+	MintedReorg = "minted-reorg",
 	MintFailed = "mint-failed",
 	FinalizedNonActive = "finalized-non-active",
 }
@@ -101,13 +117,11 @@ export interface NbtcTxRow {
 	btc_network: BtcNet;
 }
 
-export interface MintBatchArg {
+export interface MintBatchArg extends NbtcPkg {
 	tx: Transaction;
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 }
 
 export interface PostNbtcTxRequest {
@@ -119,15 +133,9 @@ export type SuiTxDigest = string;
 
 export type { BlockQueueRecord };
 
-export interface NbtcTxInsertion {
+export interface NbtcTxInsertion extends NbtcPkg, NbtcDeposit, Block {
 	txId: string;
 	vout: number;
-	blockHash: string;
-	blockHeight: number;
-	suiRecipient: string;
-	amountSats: number;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
 	depositAddress: string;
 }
@@ -139,13 +147,9 @@ export interface NbtcTxUpdate {
 	suiTxDigest?: string;
 }
 
-export interface NbtcBroadcastedDeposit {
+export interface NbtcBroadcastedDeposit extends NbtcPkg, NbtcDeposit {
 	txId: string;
 	vout: number;
-	suiRecipient: string;
-	amountSats: number;
-	nbtcPkg: string;
-	suiNetwork: SuiNet;
 	btcNetwork: BtcNet;
 	depositAddress: string;
 }

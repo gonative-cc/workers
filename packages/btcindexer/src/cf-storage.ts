@@ -2,6 +2,7 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import type {
 	BlockInfo,
 	FinalizedTxRow,
+	ReorgedMintedTx,
 	NbtcTxRow,
 	PendingTx,
 	NbtcTxInsertion,
@@ -205,14 +206,55 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getNbtcFinalizedTxs(maxRetries: number): Promise<FinalizedTxRow[]> {
+	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE (status = '${MintTxStatus.Finalized}' OR (status = '${MintTxStatus.MintFailed}' AND retry_count <= ?)) AND status != '${MintTxStatus.FinalizedReorg}'`,
+				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Finalized}' OR (status = '${MintTxStatus.MintFailed}' AND retry_count <= ?)`,
 			)
 			.bind(maxRetries)
 			.all<FinalizedTxRow>();
 		return finalizedTxs.results ?? [];
+	}
+
+	// Returns all Bitcoin deposit transactions in or after the given block, that successfully minted nBTC.
+	//TODO: We need to query by network
+	async getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]> {
+		const txs = await this.d1
+			.prepare(
+				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network, btc_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}' AND block_height >= ?`,
+			)
+			.bind(blockHeight)
+			.all<FinalizedTxRow>();
+		return txs.results ?? [];
+	}
+
+	//TODO: We need to query by network
+	async getReorgedMintedTxs(blockHeight: number): Promise<ReorgedMintedTx[]> {
+		const reorged = await this.d1
+			.prepare(
+				`SELECT
+					m.tx_id,
+					m.block_hash as old_block_hash,
+					b.hash as new_block_hash,
+					m.block_height
+				FROM nbtc_minting m
+				INNER JOIN btc_blocks b ON m.block_height = b.height AND m.btc_network = b.network
+				WHERE m.status = '${MintTxStatus.Minted}'
+					AND m.block_height >= ?
+					AND m.block_hash != b.hash`,
+			)
+			.bind(blockHeight)
+			.all<ReorgedMintedTx>();
+		return reorged.results ?? [];
+	}
+
+	//TODO: We need to query by network
+	async getTxStatus(txId: string): Promise<MintTxStatus | null> {
+		const result = await this.d1
+			.prepare(`SELECT status FROM nbtc_minting WHERE tx_id = ? LIMIT 1`)
+			.bind(txId)
+			.first<{ status: MintTxStatus }>();
+		return result?.status ?? null;
 	}
 
 	async updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void> {

@@ -60,52 +60,52 @@ CREATE INDEX IF NOT EXISTS nbtc_withdraw_sender ON nbtc_withdrawal (sender, reci
 
 -- This table links a Bitcoin transaction ID to its sender addresses.
 CREATE TABLE IF NOT EXISTS nbtc_sender_deposits (
-    tx_id TEXT NOT NULL,
-    sender TEXT NOT NULL,
-    PRIMARY KEY (sender, tx_id)
+	tx_id TEXT NOT NULL,
+	sender TEXT NOT NULL,
+	PRIMARY KEY (sender, tx_id)
 ) STRICT;
 
 -- This table holds the deposit addresses for nBTC.
 CREATE TABLE IF NOT EXISTS nbtc_addresses (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  btc_network TEXT NOT NULL,
-  sui_network TEXT NOT NULL,
-  nbtc_pkg TEXT NOT NULL,
-  btc_address TEXT NOT NULL,
-  is_active INTEGER NOT NULL DEFAULT TRUE,
-  UNIQUE(btc_address, btc_network)
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	btc_network TEXT NOT NULL,
+	sui_network TEXT NOT NULL,
+	nbtc_pkg TEXT NOT NULL,
+	btc_address TEXT NOT NULL,
+	is_active INTEGER NOT NULL DEFAULT TRUE,
+	UNIQUE(btc_address, btc_network)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos ( -- TODO: normalise the database (foreign key to the nbtc_addresses table)
-    sui_id TEXT NOT NULL,
-		dwallet_id TEXT NOT NULL,
-    txid TEXT NOT NULL, -- Bitcoin transaction ID
-    vout INTEGER NOT NULL,
-    amount_sats INTEGER NOT NULL,
-    script_pubkey BLOB NOT NULL,
-    nbtc_pkg TEXT NOT NULL,
-    sui_network TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent' TODO: lets remove the 'spent' utxos after some time?
-    locked_until INTEGER,
-    PRIMARY KEY (sui_id)
+	sui_id TEXT NOT NULL,
+	dwallet_id TEXT NOT NULL,
+	txid TEXT NOT NULL, -- Bitcoin transaction ID
+	vout INTEGER NOT NULL,
+	amount_sats INTEGER NOT NULL,
+	script_pubkey BLOB NOT NULL,
+	nbtc_pkg TEXT NOT NULL,
+	sui_network TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent' TODO: lets remove the 'spent' utxos after some time?
+	locked_until INTEGER,
+	PRIMARY KEY (sui_id)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_utxos_selection ON nbtc_utxos(nbtc_pkg, sui_network, status, amount_sats);
 CREATE INDEX IF NOT EXISTS idx_nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 
 CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
-    redeem_id TEXT NOT NULL PRIMARY KEY,
-    redeemer TEXT NOT NULL,
-    recipient_script BLOB NOT NULL,
-    amount_sats INTEGER NOT NULL,
-    created_at INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'signed', 'broadcasted'
-    nbtc_pkg TEXT NOT NULL,
-    sui_network TEXT NOT NULL
+	redeem_id TEXT NOT NULL PRIMARY KEY,
+	redeemer TEXT NOT NULL,
+	recipient_script BLOB NOT NULL, -- script pubkey
+	amount_sats INTEGER NOT NULL,
+	created_at INTEGER NOT NULL,
+	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'signed', 'broadcasted'
+	nbtc_pkg TEXT NOT NULL, -- TODO: nbtc_pkg and sui_network has to be in a separate table
+	sui_network TEXT NOT NULL
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS indexer_state ( -- TODO: maybe we should just use key-value here?
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    updated_at INTEGER
+	key TEXT PRIMARY KEY,
+	value TEXT NOT NULL,
+	updated_at INTEGER
 ) STRICT;

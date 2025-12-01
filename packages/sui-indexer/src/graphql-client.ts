@@ -15,6 +15,7 @@ interface ModuleEventsResponse {
 	};
 }
 
+// After modyfying this query, make sure to update the corresponding types in ModuleEventsResponse
 const MODULE_EVENTS_QUERY = gql`
 	query FetchModuleEvents($packageId: String!, $cursor: String) {
 		events(

@@ -28,8 +28,8 @@ export class IndexerStorage {
 	async insertUtxo(u: UtxoRecord): Promise<void> {
 		const stmt = this.db.prepare(
 			`INSERT OR REPLACE INTO nbtc_utxos
-            (sui_id dwallet_id, txid, vout, amount_sats, script_pubkey, nbtc_pkg, sui_network, status, locked_until)
-            VALUES (?,? ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (sui_id, dwallet_id, txid, vout, amount_sats, script_pubkey, nbtc_pkg, sui_network, status, locked_until)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
 		try {
 			await stmt
@@ -81,27 +81,38 @@ export class IndexerStorage {
 	}
 
 	async insertRedeemRequest(r: RedeemRequestRecord): Promise<void> {
-		await this.db
-			.prepare(
-				`INSERT OR IGNORE INTO nbtc_redeem_requests
+		try {
+			await this.db
+				.prepare(
+					`INSERT OR IGNORE INTO nbtc_redeem_requests
             (redeem_id, redeemer, recipient_script, amount_sats, created_at, nbtc_pkg, sui_network)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				r.redeem_id,
-				r.redeemer,
-				r.recipient_script,
-				r.amount_sats,
-				r.created_at,
-				r.nbtc_pkg,
-				r.sui_network,
-			)
-			.run();
+				)
+				.bind(
+					r.redeem_id,
+					r.redeemer,
+					r.recipient_script,
+					r.amount_sats,
+					r.created_at,
+					r.nbtc_pkg,
+					r.sui_network,
+				)
+				.run();
+		} catch (error) {
+			logError(
+				{
+					msg: "Failed to insert Redeem Request",
+					method: "insertRedeemRequest",
+				},
+				error,
+			);
+			throw error;
+		}
 	}
 
 	async getActivePackages(networkName: string): Promise<string[]> {
 		const result = await this.db
-			.prepare("SELECT nbtc_pkg FROM nbtc_addresses WHERE sui_network = ? AND active = 1")
+			.prepare("SELECT nbtc_pkg FROM nbtc_addresses WHERE sui_network = ? AND is_active = 1")
 			.bind(networkName)
 			.all<{ nbtc_pkg: string }>();
 
@@ -110,7 +121,7 @@ export class IndexerStorage {
 
 	async getActiveNetworks(): Promise<SuiNet[]> {
 		const result = await this.db
-			.prepare("SELECT DISTINCT sui_network FROM nbtc_addresses WHERE active = 1")
+			.prepare("SELECT DISTINCT sui_network FROM nbtc_addresses WHERE is_active = 1")
 			.all<{ sui_network: string }>();
 
 		return result.results.map((r) => r.sui_network as SuiNet);

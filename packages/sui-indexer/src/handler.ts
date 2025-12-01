@@ -25,7 +25,7 @@ export class SuiEventHandler {
 
 			if (event.type.includes("::nbtc::MintEvent")) {
 				await this.handleMint(json as MintEventRaw);
-			} else if (event.type.includes("::nbtc:RedeemRequestEvent")) {
+			} else if (event.type.includes("::nbtc::RedeemRequestEvent")) {
 				await this.handleRedeemRequest(json as RedeemRequestEventRaw);
 			} else if (event.type.includes("::nbtc::ProposeUtxoEvent")) {
 				await this.handleProposeUtxo(json as ProposeUtxoEventRaw);
@@ -36,7 +36,7 @@ export class SuiEventHandler {
 	private async handleMint(e: MintEventRaw) {
 		// NOTE: bitcoin library we use in the other worker uses tx.getId() which returns the reversed order, its just for consistency
 		// TODO: check if we actually need that
-		const txId = Buffer.from(e.btc_tx_id).reverse().toString("hex");
+		const txId = Buffer.from(e.btc_tx_id, "base64").reverse().toString("hex");
 
 		await this.storage.insertUtxo({
 			sui_id: e.utxo_id,
@@ -44,7 +44,7 @@ export class SuiEventHandler {
 			txid: txId,
 			vout: e.btc_vout,
 			amount_sats: Number(e.btc_amount),
-			script_pubkey: new Uint8Array(e.btc_script_publickey),
+			script_pubkey: Buffer.from(e.btc_script_publickey, "base64"),
 			nbtc_pkg: this.nbtcPkg,
 			sui_network: this.suiNetwork,
 			status: "available",
@@ -57,7 +57,7 @@ export class SuiEventHandler {
 		await this.storage.insertRedeemRequest({
 			redeem_id: e.redeem_id,
 			redeemer: e.redeemer,
-			recipient_script: new Uint8Array(e.recipient_script),
+			recipient_script: Buffer.from(e.recipient_script, "base64"),
 			amount_sats: Number(e.amount),
 			created_at: Number(e.created_at),
 			nbtc_pkg: this.nbtcPkg,

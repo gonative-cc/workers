@@ -29,17 +29,17 @@ export interface MintEventRaw {
 	recipient: string;
 	fee: string;
 	dwallet_id: string;
-	utxo_id: string; // TODO: check if we should store u64 as number or string
-	btc_script_publickey: number[];
-	btc_tx_id: number[]; // vector<u8>
+	utxo_id: string;
+	btc_script_publickey: string;
+	btc_tx_id: string;
 	btc_vout: number; // u32
-	btc_amount: string; // TODO: check if we should store u64 as number or string
+	btc_amount: string;
 }
 
 export interface RedeemRequestEventRaw {
 	redeem_id: string;
 	redeemer: string;
-	recipient_script: number[];
+	recipient_script: string;
 	amount: string;
 	created_at: string;
 }

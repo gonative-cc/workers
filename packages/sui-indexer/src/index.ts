@@ -1,8 +1,8 @@
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { SUI_NETWORK_URLS } from "./config";
 import { SuiGraphQLClient } from "./graphql-client";
-import { handleMintEvents } from "./handler";
-import type { MintEventNode, NetworkConfig } from "./models";
+import { SuiEventHandler } from "./handler";
+import type { SuiEventNode, NetworkConfig } from "./models";
 import { IndexerStorage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 
@@ -63,9 +63,10 @@ async function queryNewEvents(network: NetworkConfig, storage: IndexerStorage) {
 	const packageJobs = packages.map(async (pkgId) => {
 		try {
 			const cursor = await storage.getSuiGqlCursor(pkgId);
-			const { events, nextCursor } = await client.fetchMintEvents(pkgId, cursor); // TODO: lets fetch events from all active packages at once
+			const { events, nextCursor } = await client.fetchEvents(pkgId, cursor); // TODO: lets fetch events from all active packages at once
 			if (events.length > 0) {
-				await handleMintEvents(events as MintEventNode[], storage, pkgId, network.name);
+				const handler = new SuiEventHandler(storage, pkgId, network.name);
+				await handler.handleEvents(events);
 			}
 			if (nextCursor && nextCursor !== cursor) {
 				await storage.saveSuiGqlCursor(pkgId, nextCursor);

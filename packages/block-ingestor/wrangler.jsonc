@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "block-ingestor",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    {
+      "binding": "BtcBlocks",
+      "id": "f8bc94f1f427436ab0797535fbc30cb7",
+    },
+  ],
+  "queues": {
+    "producers": [{ "queue": "block-queue", "binding": "BlockQueue" }],
+  },
+  // "vars": {
+  // },
+  "services": [
+    {
+      "binding": "BtcIndexer",
+      "service": "btcindexer",
+      "entrypoint": "BtcIndexerRpc",
+    },
+  ],
+}

@@ -4,7 +4,7 @@ import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import type { MintBatchArg, SuiTxDigest } from "./models";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -47,7 +47,7 @@ export class SuiClient {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
-		console.debug({
+		logger.debug({
 			msg: "Sui Client Initialized",
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
 			network: config.network,
@@ -106,12 +106,12 @@ export class SuiClient {
 	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest> {
 		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
-		// Assuming all mintArgs in a batch are for the same nbtc_pkg and sui_network for now
+		// Assuming all mintArgs in a batch are for the same nbtcPkg and suiNetwork for now
 		const firstArg = mintArgs[0];
 		if (!firstArg) throw new Error("Mint arguments cannot be empty.");
 
 		const tx = new SuiTransaction();
-		const target = `${firstArg.nbtc_pkg}::${this.nbtcModule}::mint` as const; // Use nbtc_pkg from arg
+		const target = `${firstArg.nbtcPkg}::${this.nbtcModule}::mint` as const; // Use nbtcPkg from arg
 
 		for (const args of mintArgs) {
 			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));
@@ -141,7 +141,7 @@ export class SuiClient {
 		});
 
 		if (result.effects?.status.status !== "success") {
-			console.error({
+			logger.error({
 				msg: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
 				error: result.effects?.status.error,
@@ -173,11 +173,14 @@ export class SuiClient {
 		try {
 			return await this.mintNbtcBatch(mintArgs);
 		} catch (e) {
-			console.error({
-				msg: "Error during batch mint contract call",
-				error: toSerializableError(e),
-				btcTxIds: txIds,
-			});
+			logError(
+				{
+					msg: "Error during batch mint contract call",
+					method: "tryMintNbtcBatch",
+					btcTxIds: txIds,
+				},
+				e,
+			);
 			return null;
 		}
 	}

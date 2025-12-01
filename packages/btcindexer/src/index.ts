@@ -6,18 +6,22 @@
  * Bind resources to your Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
  * `Env` object can be regenerated with `bun run typegen`.
  */
-
 import { indexerFromEnv } from "./btcindexer";
-import { toSerializableError } from "./errutils";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
 import { fetchNbtcAddresses } from "./storage";
-import type { NbtcAddress } from "./models";
+import { type NbtcAddress } from "./models";
+import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { processBlockBatch } from "./queue-handler";
 
 const router = new HttpRouter(undefined);
 
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		try {
+			// TODO: Add support for active/inactive nBTC addresses.
+			// The current implementation fetches all addresses, but in the future,
+			// we might need to filter by an 'active' status in the 'nbtc_addresses' table.
 			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
 			const nbtcAddressesMap = new Map<string, NbtcAddress>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
@@ -25,28 +29,53 @@ export default {
 			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
-			console.error({
-				msg: "Unhandled exception in fetch handler",
-				error: toSerializableError(e),
-				url: req.url,
-				method: req.method,
-			});
+			logError(
+				{
+					msg: "Unhandled exception in fetch handler",
+					method: "fetch",
+					url: req.url,
+					httpMethod: req.method,
+				},
+				e,
+			);
 			return new Response("Internal Server Error", { status: 500 });
 		}
+	},
+
+	async queue(
+		batch: MessageBatch<BlockQueueRecord>,
+		env: Env,
+		_ctx: ExecutionContext,
+	): Promise<void> {
+		logger.info({
+			msg: "Processing batch",
+			count: batch.messages.length,
+			queue: batch.queue,
+		});
+		// TODO: Add support for active/inactive nBTC addresses.
+		// The current implementation fetches all addresses, but we need to distinguish it,
+		// probably a active (boolean) column in the table.
+		const nbtcAddresses = await fetchNbtcAddresses(env.DB);
+		const nbtcAddressesMap = new Map<string, NbtcAddress>(
+			nbtcAddresses.map((addr) => [addr.btc_address, addr]),
+		);
+		const indexer = await indexerFromEnv(env, nbtcAddressesMap);
+		return processBlockBatch(batch, indexer);
 	},
 
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
 	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
-		console.trace({ msg: "Cron job starting" });
+		logger.debug({ msg: "Cron job starting" });
 		try {
 			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
 			const nbtcAddressesMap = new Map<string, NbtcAddress>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
-			console.log(
-				`Loaded ${nbtcAddressesMap.size} nbtc addresses into memory for scheduled job.`,
-			);
+			logger.info({
+				msg: "Loaded nbtc addresses into memory for scheduled job",
+				count: nbtcAddressesMap.size,
+			});
 
 			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
 			const latestBlock = await env.DB.prepare(
@@ -56,17 +85,13 @@ export default {
 			if (latestBlock && latestBlock.latest_height) {
 				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
 			}
-			await indexer.scanNewBlocks();
 			await indexer.processFinalizedTransactions();
-			console.log({ msg: "Cron job finished successfully" });
+			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
-			console.error({
-				msg: "Cron job failed",
-				error: toSerializableError(e),
-			});
+			logError({ msg: "Cron job failed", method: "scheduled" }, e);
 		}
 	},
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env, BlockQueueRecord>;
 
 // Export RPC entrypoints for service bindings
 // Use BtcIndexerRpc for production, BtcIndexerRpcMock for local development/testing

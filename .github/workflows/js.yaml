@@ -8,6 +8,8 @@ on:
       - '**.jsx'
       - '**.ts'
       - '**.tsx'
+      - '**/package.json'
+      - '**/bun.lock'
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.workflow }}
@@ -18,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       # @v2
       - uses: oven-sh/setup-bun@635640504f6d7197d3bb29876a652f671028dc97

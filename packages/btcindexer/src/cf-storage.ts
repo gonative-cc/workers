@@ -10,7 +10,7 @@ import type {
 	NbtcBroadcastedDeposit,
 } from "./models";
 import { MintTxStatus } from "./models";
-import type { Storage, NbtcDepositSender } from "./storage";
+import type { Storage } from "./storage";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 export class CFStorage implements Storage {
@@ -27,10 +27,15 @@ export class CFStorage implements Storage {
 	async getDepositAddresses(btcNetwork: string): Promise<string[]> {
 		try {
 			const { results } = await this.d1
-				.prepare("SELECT btc_address FROM nbtc_addresses WHERE btc_network = ?")
+				.prepare(
+					`SELECT a.deposit_address 
+					 FROM nbtc_deposit_addresses a
+					 JOIN nbtc_packages p ON a.package_id = p.id
+					 WHERE p.btc_network = ? AND a.is_active = 1`,
+				)
 				.bind(btcNetwork)
-				.all<{ btc_address: string }>();
-			return results ? results.map((r) => r.btc_address) : [];
+				.all<{ deposit_address: string }>();
+			return results ? results.map((r) => r.deposit_address) : [];
 		} catch (e) {
 			logError(
 				{
@@ -164,21 +169,24 @@ export class CFStorage implements Storage {
 		}
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
-			`INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, btc_network, nbtc_pkg, sui_network, deposit_address)
-             VALUES (?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(tx_id, vout) DO UPDATE SET
+			`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, sui_tx_id, retry_count)
+             VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN nbtc_packages p ON a.package_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, NULL, 0)
+             ON CONFLICT(tx_id) DO UPDATE SET
                 block_hash = excluded.block_hash,
                 block_height = excluded.block_height,
                 status = '${MintTxStatus.Confirming}',
                 updated_at = excluded.updated_at,
-				btc_network = excluded.btc_network,
-				nbtc_pkg = excluded.nbtc_pkg,
-				sui_network = excluded.sui_network,
-				deposit_address = excluded.deposit_address`,
+				address_id = excluded.address_id,
+				sender = excluded.sender`,
 		);
 		const statements = txs.map((tx) =>
 			insertOrUpdateNbtcTxStmt.bind(
 				tx.txId,
+				tx.btcNetwork,
+				tx.suiNetwork,
+				tx.nbtcPkg,
+				tx.depositAddress,
+				tx.sender,
 				tx.vout,
 				tx.blockHash,
 				tx.blockHeight,
@@ -186,10 +194,6 @@ export class CFStorage implements Storage {
 				tx.amountSats,
 				now,
 				now,
-				tx.btcNetwork,
-				tx.nbtcPkg,
-				tx.suiNetwork,
-				tx.depositAddress,
 			),
 		);
 		try {
@@ -209,7 +213,11 @@ export class CFStorage implements Storage {
 	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Finalized}' OR (status = '${MintTxStatus.MintFailed}' AND retry_count <= ?)`,
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network 
+				 FROM nbtc_minting m
+				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				 JOIN nbtc_packages p ON a.package_id = p.id
+				 WHERE m.status = '${MintTxStatus.Finalized}' OR (m.status = '${MintTxStatus.MintFailed}' AND m.retry_count <= ?)`,
 			)
 			.bind(maxRetries)
 			.all<FinalizedTxRow>();
@@ -221,7 +229,11 @@ export class CFStorage implements Storage {
 	async getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, nbtc_pkg, sui_network, btc_network FROM nbtc_minting WHERE status = '${MintTxStatus.Minted}' AND block_height >= ?`,
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network 
+				 FROM nbtc_minting m
+				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				 JOIN nbtc_packages p ON a.package_id = p.id
+				 WHERE m.status = '${MintTxStatus.Minted}' AND m.block_height >= ?`,
 			)
 			.bind(blockHeight)
 			.all<FinalizedTxRow>();
@@ -238,7 +250,9 @@ export class CFStorage implements Storage {
 					b.hash as new_block_hash,
 					m.block_height
 				FROM nbtc_minting m
-				INNER JOIN btc_blocks b ON m.block_height = b.height AND m.btc_network = b.network
+				INNER JOIN btc_blocks b ON m.block_height = b.height
+				JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				JOIN nbtc_packages p ON a.package_id = p.id AND p.btc_network = b.network
 				WHERE m.status = '${MintTxStatus.Minted}'
 					AND m.block_height >= ?
 					AND m.block_hash != b.hash`,
@@ -323,7 +337,11 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, block_hash, block_height, btc_network, deposit_address FROM nbtc_minting WHERE status = '${MintTxStatus.Confirming}'`,
+				`SELECT m.tx_id, m.block_hash, m.block_height, p.btc_network, a.deposit_address 
+				 FROM nbtc_minting m
+				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				 JOIN nbtc_packages p ON a.package_id = p.id
+				 WHERE m.status = '${MintTxStatus.Confirming}'`,
 			)
 			.all<PendingTx>();
 		return pendingTxs.results ?? [];
@@ -343,14 +361,26 @@ export class CFStorage implements Storage {
 
 	async getNbtcMintTx(txId: string): Promise<NbtcTxRow | null> {
 		return this.d1
-			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.prepare(
+				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network 
+				 FROM nbtc_minting m
+				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				 JOIN nbtc_packages p ON a.package_id = p.id
+				 WHERE m.tx_id = ?`,
+			)
 			.bind(txId)
 			.first<NbtcTxRow>();
 	}
 
 	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]> {
 		const dbResult = await this.d1
-			.prepare("SELECT * FROM nbtc_minting WHERE sui_recipient = ? ORDER BY created_at DESC")
+			.prepare(
+				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network 
+				 FROM nbtc_minting m
+				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				 JOIN nbtc_packages p ON a.package_id = p.id
+				 WHERE m.sui_recipient = ? ORDER BY m.created_at DESC`,
+			)
 			.bind(suiAddress)
 			.all<NbtcTxRow>();
 		return dbResult.results ?? [];
@@ -359,22 +389,23 @@ export class CFStorage implements Storage {
 	async registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
-			`INSERT OR IGNORE INTO nbtc_minting (tx_id, vout, sui_recipient, amount_sats, status, created_at, updated_at, nbtc_pkg, sui_network, btc_network, deposit_address)
-         VALUES (?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, ?, ?, ?, ?)`,
+			`INSERT OR IGNORE INTO nbtc_minting (tx_id, address_id, sender, vout, sui_recipient, amount_sats, status, created_at, updated_at, sui_tx_id, retry_count)
+             VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN nbtc_packages p ON a.package_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, NULL, 0)`,
 		);
 
 		const statements = deposits.map((deposit) =>
 			insertStmt.bind(
 				deposit.txId,
+				deposit.btcNetwork,
+				deposit.suiNetwork,
+				deposit.nbtcPkg,
+				deposit.depositAddress,
+				deposit.sender,
 				deposit.vout,
 				deposit.suiRecipient,
 				deposit.amountSats,
 				now,
 				now,
-				deposit.nbtcPkg,
-				deposit.suiNetwork,
-				deposit.btcNetwork,
-				deposit.depositAddress,
 			),
 		);
 		try {
@@ -393,23 +424,14 @@ export class CFStorage implements Storage {
 
 	async getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]> {
 		const query = this.d1.prepare(`
-            SELECT m.* FROM nbtc_minting m
-            JOIN nbtc_sender_deposits s ON m.tx_id = s.tx_id
-            WHERE s.sender = ?
+            SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
+            FROM nbtc_minting m
+            JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+            JOIN nbtc_packages p ON a.package_id = p.id
+            WHERE m.sender = ?
             ORDER BY m.created_at DESC
         `);
 		const dbResult = await query.bind(btcAddress).all<NbtcTxRow>();
 		return dbResult.results ?? [];
-	}
-
-	async insertNbtcMintDeposit(senders: NbtcDepositSender[]): Promise<void> {
-		if (senders.length === 0) {
-			return;
-		}
-		const insertStmt = this.d1.prepare(
-			"INSERT OR IGNORE INTO nbtc_sender_deposits (tx_id, sender) VALUES (?, ?)",
-		);
-		const statements = senders.map((s) => insertStmt.bind(s.tx_id, s.sender));
-		await this.d1.batch(statements);
 	}
 }

@@ -1,6 +1,15 @@
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { RedeemRequestRecord, UtxoRecord } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import { address, networks } from "bitcoinjs-lib";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
+
+const btcNetworks: Record<string, networks.Network> = {
+	[BtcNet.MAINNET]: networks.bitcoin,
+	[BtcNet.TESTNET]: networks.testnet,
+	[BtcNet.REGTEST]: networks.regtest,
+	[BtcNet.SIGNET]: networks.testnet,
+};
 
 export class IndexerStorage {
 	constructor(private db: D1Database) {}
@@ -26,22 +35,58 @@ export class IndexerStorage {
 	}
 
 	async insertUtxo(u: UtxoRecord): Promise<void> {
+		const pkgRow = await this.db
+			.prepare(
+				"SELECT id, btc_network FROM nbtc_packages WHERE nbtc_pkg = ? AND sui_network = ?",
+			)
+			.bind(u.nbtc_pkg, u.sui_network)
+			.first<{ id: number; btc_network: string }>();
+
+		if (!pkgRow) {
+			throw new Error(
+				`Package not found for nbtc_pkg=${u.nbtc_pkg}, sui_network=${u.sui_network}`,
+			);
+		}
+
+		const network = btcNetworks[pkgRow.btc_network];
+		if (!network) {
+			throw new Error(`Unknown BTC network: ${pkgRow.btc_network}`);
+		}
+		let depositAddress: string;
+		try {
+			depositAddress = address.fromOutputScript(Buffer.from(u.script_pubkey), network);
+		} catch (e) {
+			throw new Error(`Failed to derive address from script_pubkey: ${e}`);
+		}
+
+		const addrRow = await this.db
+			.prepare(
+				"SELECT id FROM nbtc_deposit_addresses WHERE package_id = ? AND deposit_address = ?",
+			)
+			.bind(pkgRow.id, depositAddress)
+			.first<{ id: number }>();
+
+		if (!addrRow) {
+			throw new Error(
+				`Deposit address not found for package_id=${pkgRow.id}, address=${depositAddress}`,
+			);
+		}
+
 		const stmt = this.db.prepare(
 			`INSERT OR REPLACE INTO nbtc_utxos
-            (sui_id dwallet_id, txid, vout, amount_sats, script_pubkey, nbtc_pkg, sui_network, status, locked_until)
-            VALUES (?,? ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (sui_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
 		try {
 			await stmt
 				.bind(
 					u.sui_id,
+					addrRow.id,
 					u.dwallet_id,
 					u.txid,
 					u.vout,
 					u.amount_sats,
 					u.script_pubkey,
-					u.nbtc_pkg,
-					u.sui_network,
 					u.status,
 					u.locked_until,
 				)
@@ -81,27 +126,38 @@ export class IndexerStorage {
 	}
 
 	async insertRedeemRequest(r: RedeemRequestRecord): Promise<void> {
+		const pkgRow = await this.db
+			.prepare("SELECT id FROM nbtc_packages WHERE nbtc_pkg = ? AND sui_network = ?")
+			.bind(r.nbtc_pkg, r.sui_network)
+			.first<{ id: number }>();
+
+		if (!pkgRow) {
+			throw new Error(
+				`Package not found for nbtc_pkg=${r.nbtc_pkg}, sui_network=${r.sui_network}`,
+			);
+		}
+
 		await this.db
 			.prepare(
 				`INSERT OR IGNORE INTO nbtc_redeem_requests
-            (redeem_id, redeemer, recipient_script, amount_sats, created_at, nbtc_pkg, sui_network)
+            (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(
 				r.redeem_id,
+				pkgRow.id,
 				r.redeemer,
 				r.recipient_script,
 				r.amount_sats,
 				r.created_at,
-				r.nbtc_pkg,
-				r.sui_network,
+				"pending",
 			)
 			.run();
 	}
 
 	async getActivePackages(networkName: string): Promise<string[]> {
 		const result = await this.db
-			.prepare("SELECT nbtc_pkg FROM nbtc_addresses WHERE sui_network = ? AND active = 1")
+			.prepare("SELECT nbtc_pkg FROM nbtc_packages WHERE sui_network = ? AND is_active = 1")
 			.bind(networkName)
 			.all<{ nbtc_pkg: string }>();
 
@@ -110,7 +166,7 @@ export class IndexerStorage {
 
 	async getActiveNetworks(): Promise<SuiNet[]> {
 		const result = await this.db
-			.prepare("SELECT DISTINCT sui_network FROM nbtc_addresses WHERE active = 1")
+			.prepare("SELECT DISTINCT sui_network FROM nbtc_packages WHERE is_active = 1")
 			.all<{ sui_network: string }>();
 
 		return result.results.map((r) => r.sui_network as SuiNet);

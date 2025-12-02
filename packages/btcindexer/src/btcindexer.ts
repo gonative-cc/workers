@@ -19,7 +19,7 @@ import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
-import type { Storage, NbtcDepositSender } from "./storage";
+import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 
@@ -142,47 +142,51 @@ export class Indexer {
 		}
 
 		const nbtcTxs: NbtcTxInsertion[] = [];
-		let senders: NbtcDepositSender[] = [];
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
-				const newSenders = await this.getSenderAddresses(tx);
-				senders = senders.concat(newSenders.map((s) => ({ tx_id: tx.getId(), sender: s })));
-			}
+				const txSenders = await this.getSenderAddresses(tx);
+				const sender = txSenders[0] || ""; // Use first sender or empty string if none found
+				if (txSenders.length > 1) {
+					logger.warn({
+						msg: "Multiple senders found for tx, using first one",
+						txId: tx.getId(),
+						senders: txSenders,
+					});
+				}
 
-			for (const deposit of deposits) {
-				logger.info({
-					msg: "Found new nBTC deposit",
-					txId: tx.getId(),
-					vout: deposit.vout,
-					amountSats: deposit.amountSats,
-					suiRecipient: deposit.suiRecipient,
-					nbtcPkg: deposit.nbtcPkg,
-					suiNetwork: deposit.suiNetwork,
-					depositAddress: deposit.depositAddress,
-				});
+				for (const deposit of deposits) {
+					logger.info({
+						msg: "Found new nBTC deposit",
+						txId: tx.getId(),
+						vout: deposit.vout,
+						amountSats: deposit.amountSats,
+						suiRecipient: deposit.suiRecipient,
+						nbtcPkg: deposit.nbtcPkg,
+						suiNetwork: deposit.suiNetwork,
+						depositAddress: deposit.depositAddress,
+						sender,
+					});
 
-				nbtcTxs.push({
-					txId: tx.getId(),
-					vout: deposit.vout,
-					blockHash: blockInfo.hash,
-					blockHeight: blockInfo.height,
-					suiRecipient: deposit.suiRecipient,
-					amountSats: deposit.amountSats,
-					btcNetwork: blockInfo.network,
-					nbtcPkg: deposit.nbtcPkg,
-					suiNetwork: deposit.suiNetwork,
-					depositAddress: deposit.depositAddress,
-				});
+					nbtcTxs.push({
+						txId: tx.getId(),
+						vout: deposit.vout,
+						blockHash: blockInfo.hash,
+						blockHeight: blockInfo.height,
+						suiRecipient: deposit.suiRecipient,
+						amountSats: deposit.amountSats,
+						btcNetwork: blockInfo.network,
+						nbtcPkg: deposit.nbtcPkg,
+						suiNetwork: deposit.suiNetwork,
+						depositAddress: deposit.depositAddress,
+						sender,
+					});
+				}
 			}
 		}
 
 		if (nbtcTxs.length > 0) {
 			await this.storage.insertOrUpdateNbtcTxs(nbtcTxs);
-		}
-
-		if (senders.length > 0) {
-			await this.storage.insertNbtcMintDeposit(senders);
 		}
 
 		if (nbtcTxs.length === 0) {
@@ -737,7 +741,10 @@ export class Indexer {
 			return { tx_id: txId, registered_deposits: 0 };
 		}
 
-		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network }));
+		const txSenders = await this.getSenderAddresses(tx);
+		const sender = txSenders[0] || "";
+
+		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network, sender }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
 		logger.info({
 			msg: "New nBTC minting deposit TX registered",

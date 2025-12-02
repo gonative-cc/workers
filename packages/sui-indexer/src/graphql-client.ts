@@ -8,34 +8,37 @@ interface ModuleEventsResponse {
 			endCursor: string | null;
 		};
 		nodes: {
-			json: unknown;
-			type: string;
-			timestampMs: string;
+			timestamp: string; // ISO timestamp string
+			contents: {
+				type: {
+					repr: string; // full event type string
+				};
+				json: unknown; // event data
+			};
 		}[];
 	};
 }
 
 // After modyfying this query, make sure to update the corresponding types in ModuleEventsResponse
 const MODULE_EVENTS_QUERY = gql`
-	query FetchModuleEvents($packageId: String!, $cursor: String) {
-		events(
-			filter: { emittingModule: { package: $packageId, module: "nbtc" } }
-			first: 50
-			after: $cursor
-		) {
+	query FetchModuleEvents($filter: String!, $cursor: String) {
+		events(filter: { module: $filter }, first: 50, after: $cursor) {
 			pageInfo {
 				hasNextPage
 				endCursor
 			}
 			nodes {
-				json
-				type
-				timestampMs
+				timestamp
+				contents {
+					type {
+						repr
+					}
+					json
+				}
 			}
 		}
 	}
 `;
-
 export class SuiGraphQLClient {
 	private client: GraphQLClient;
 
@@ -44,21 +47,21 @@ export class SuiGraphQLClient {
 	}
 
 	async fetchEvents(packageId: string, cursor: string | null) {
+		const filter = `${packageId}::nbtc`;
 		const data = await this.client.request<ModuleEventsResponse>(MODULE_EVENTS_QUERY, {
-			packageId,
-			module: "nbtc",
+			filter,
 			cursor,
 		});
 
 		const events: SuiEventNode[] = data.events.nodes.map((node) => ({
-			type: node.type,
-			json: node.json,
-			timestamp: node.timestampMs,
+			type: node.contents.type.repr,
+			json: node.contents.json,
+			timestamp: node.timestamp,
 		}));
 
 		return {
 			events,
-			nextCursor: data.events.pageInfo.hasNextPage ? data.events.pageInfo.endCursor : null,
+			nextCursor: data.events.pageInfo.endCursor,
 		};
 	}
 }

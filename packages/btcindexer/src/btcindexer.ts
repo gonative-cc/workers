@@ -241,6 +241,10 @@ export class Indexer {
 						suiNetwork: matchingNbtcAddress.sui_network,
 						depositAddress: btcAddress,
 					});
+					// NOTE: "First Match Wins" policy.
+					// We stop scanning outputs after finding the first valid deposit.
+					// This ensures we strictly return 1 deposit per transaction.
+					return deposits;
 				}
 			} catch (e) {
 				// This is expected for coinbase transactions and other non-standard scripts.

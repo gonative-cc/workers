@@ -7,13 +7,7 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import type { MintBatchArg, SuiTxDigest } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
-
-const GRAPHQL_ENDPOINTS: Record<string, string> = {
-	mainnet: "https://sui-mainnet.mystenlabs.com/graphql",
-	testnet: "https://sui-testnet.mystenlabs.com/graphql",
-	devnet: "https://sui-devnet.mystenlabs.com/graphql",
-	localnet: "",
-};
+import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 
 const CHECK_DYNAMIC_FIELD_QUERY = graphql(`
 	query CheckDynamicField($parentId: SuiAddress!, $name: DynamicFieldName!) {
@@ -68,8 +62,7 @@ export class SuiClient {
 
 	constructor(config: SuiClientCfg) {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
-		const gqlUrl =
-			GRAPHQL_ENDPOINTS[config.network] || "https://sui-testnet.mystenlabs.com/graphql";
+		const gqlUrl = SUI_GRAPHQL_URLS[config.network];
 		this.gqlClient = new SuiGraphQLClient({ url: gqlUrl });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);

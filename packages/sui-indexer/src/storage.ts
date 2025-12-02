@@ -103,6 +103,9 @@ export class IndexerStorage {
 				{
 					msg: "Failed to insert Redeem Request",
 					method: "insertRedeemRequest",
+					redeem_id: r.redeem_id,
+					redeemer: r.redeemer,
+					sui_network: r.sui_network,
 				},
 				error,
 			);

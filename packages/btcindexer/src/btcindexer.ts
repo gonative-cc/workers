@@ -465,6 +465,10 @@ export class Indexer {
 		}
 	}
 
+	/**
+	 * Executes a batch mint transaction on Sui and updates the database status based on the result.
+	 * Handles three cases: pre-submission error (null), on-chain success, or on-chain failure.
+	 */
 	private async executeMintBatch(
 		mintBatchArgs: MintBatchArg[],
 		processedPrimaryKeys: { tx_id: string; vout: number }[],

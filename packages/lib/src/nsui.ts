@@ -1,10 +1,10 @@
 export type SuiNet = "testnet" | "mainnet" | "devnet" | "localnet";
 
 export const SUI_GRAPHQL_URLS: Record<SuiNet, string> = {
-	mainnet: "https://sui-mainnet.mystenlabs.com/graphql",
-	testnet: "https://sui-testnet.mystenlabs.com/graphql",
-	devnet: "https://sui-devnet.mystenlabs.com/graphql",
-	localnet: "http://localhost:9125/graphql",
+	mainnet: "https://graphql.mainnet.sui.io/graphql",
+	testnet: "https://graphql.testnet.sui.io/graphql",
+	devnet: "https://graphql.devnet.sui.io/graphql",
+	localnet: "TODO",
 };
 
 export interface NbtcPkg {

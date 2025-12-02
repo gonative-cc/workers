@@ -164,6 +164,12 @@ export class SuiClient {
 			});
 			return result.data !== null && result.data !== undefined;
 		} catch (e) {
+			logger.error({
+				msg: "Failed to check if BTC tx is minted",
+				method: "SuiClient.isBtcTxMinted",
+				btcTxId,
+				error: e,
+			});
 			return false;
 		}
 	}

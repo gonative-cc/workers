@@ -145,6 +145,7 @@ export interface NbtcTxUpdate {
 	vout: number;
 	status: MintTxStatus;
 	suiTxDigest?: string;
+	timestamp?: number;
 }
 
 export interface NbtcBroadcastedDeposit extends NbtcPkg, NbtcDeposit {

@@ -155,7 +155,7 @@ async function insertMintedTx(db: D1Database, txData: TxInfo) {
 	await insertTxWithStatus(db, txData.id, MintTxStatus.Minted, 0);
 }
 
-async function setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
+async function _setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
 	await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 }
 
@@ -550,7 +550,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		const db = await mf.getD1Database("DB");
 		await insertTxWithStatus(db, "finalized_tx", MintTxStatus.Finalized);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates.length).toEqual(1);
 		expect(candidates[0]!.tx_id).toEqual("finalized_tx");
@@ -560,7 +560,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		const db = await mf.getD1Database("DB");
 		await insertTxWithStatus(db, "failed_tx", MintTxStatus.MintFailed, 2);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates.length).toEqual(1);
 		expect(candidates[0]!.tx_id).toEqual("failed_tx");
@@ -570,7 +570,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		const db = await mf.getD1Database("DB");
 		await insertTxWithStatus(db, "failed_tx_exceeds", MintTxStatus.MintFailed, 5);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates).toHaveLength(0);
 	});
@@ -579,7 +579,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		const db = await mf.getD1Database("DB");
 		await insertTxWithStatus(db, "minted_tx", MintTxStatus.Minted);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates).toHaveLength(0);
 	});
@@ -589,7 +589,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		await insertTxWithStatus(db, "finalized_reorg_tx", MintTxStatus.FinalizedReorg);
 		await insertTxWithStatus(db, "minted_reorg_tx", MintTxStatus.MintedReorg);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates).toHaveLength(0);
 	});
@@ -600,7 +600,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		await insertTxWithStatus(db, "failed_tx_within_limit", MintTxStatus.MintFailed, 2);
 		await insertTxWithStatus(db, "failed_tx_exceeds_limit", MintTxStatus.MintFailed, 5);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates.length).toEqual(2);
 		const txIds = candidates.map((c) => c.tx_id).sort();

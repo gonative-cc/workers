@@ -10,7 +10,6 @@ import type {
 	NbtcTxResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
-	FinalizedTxRow,
 	NbtcAddress,
 	NbtcTxRow,
 	NbtcTxInsertion,
@@ -291,7 +290,11 @@ export class Indexer {
 	}
 
 	async processFinalizedTransactions(): Promise<void> {
-		const finalizedTxs = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
+		const suiNetwork = this.nbtcClient.network;
+		const finalizedTxs = await this.storage.getNbtcMintCandidates(
+			this.maxNbtcMintTxRetries,
+			suiNetwork,
+		);
 
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;

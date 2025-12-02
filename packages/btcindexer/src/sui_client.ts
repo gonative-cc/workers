@@ -1,10 +1,31 @@
 import { bcs } from "@mysten/bcs";
 import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
+import { SuiGraphQLClient } from "@mysten/sui/graphql";
+import { graphql } from "@mysten/sui/graphql/schemas/latest";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import type { MintBatchArg, SuiTxDigest } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
+
+const GRAPHQL_ENDPOINTS: Record<string, string> = {
+	mainnet: "https://sui-mainnet.mystenlabs.com/graphql",
+	testnet: "https://sui-testnet.mystenlabs.com/graphql",
+	devnet: "https://sui-devnet.mystenlabs.com/graphql",
+	localnet: "",
+};
+
+const CHECK_DYNAMIC_FIELD_QUERY = graphql(`
+	query CheckDynamicField($parentId: SuiAddress!, $name: DynamicFieldName!) {
+		object(address: $parentId) {
+			dynamicField(name: $name) {
+				name {
+					json
+				}
+			}
+		}
+	}
+`);
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -35,6 +56,7 @@ export async function suiClientFromEnv(env: Env): Promise<SuiClient> {
 
 export class SuiClient {
 	private client: Client;
+	private gqlClient: SuiGraphQLClient;
 	private signer: Signer;
 	private nbtcPkg: string;
 	private nbtcModule: string;
@@ -42,9 +64,13 @@ export class SuiClient {
 	private lightClientObjectId: string;
 	private lightClientPackageId: string;
 	private lightClientModule: string;
+	readonly network: string;
 
 	constructor(config: SuiClientCfg) {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
+		const gqlUrl =
+			GRAPHQL_ENDPOINTS[config.network] || "https://sui-testnet.mystenlabs.com/graphql";
+		this.gqlClient = new SuiGraphQLClient({ url: gqlUrl });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
 		logger.debug({
@@ -52,6 +78,7 @@ export class SuiClient {
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
 			network: config.network,
 		});
+		this.network = config.network;
 		this.nbtcPkg = config.nbtcPkg;
 		this.nbtcModule = config.nbtcModule;
 		this.nbtcContractId = config.nbtcContractId;
@@ -153,16 +180,17 @@ export class SuiClient {
 
 	async isBtcTxMinted(btcTxId: string): Promise<boolean> {
 		try {
-			const txIdBytes = Array.from(Buffer.from(btcTxId, "hex"));
-			// TODO: consider using GraphQL for more efficient queries
-			const result = await this.client.getDynamicFieldObject({
-				parentId: this.nbtcContractId,
-				name: {
-					type: "vector<u8>",
-					value: txIdBytes,
+			const result = await this.gqlClient.query({
+				query: CHECK_DYNAMIC_FIELD_QUERY,
+				variables: {
+					parentId: this.nbtcContractId,
+					name: {
+						type: "vector<u8>",
+						bcs: Buffer.from(btcTxId, "hex").toString("base64"),
+					},
 				},
 			});
-			return result.data !== null && result.data !== undefined;
+			return result.data?.object?.dynamicField !== null;
 		} catch (e) {
 			logger.error({
 				msg: "Failed to check if BTC tx is minted",

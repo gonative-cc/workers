@@ -206,12 +206,12 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
+	async getNbtcMintCandidates(maxRetries: number, suiNetwork: string): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE status = '${MintTxStatus.Finalized}' OR (status = '${MintTxStatus.MintFailed}' AND retry_count <= ?)`,
+				`SELECT tx_id, vout, block_hash, block_height, retry_count, nbtc_pkg, sui_network FROM nbtc_minting WHERE sui_network = ? AND (status = '${MintTxStatus.Finalized}' OR (status = '${MintTxStatus.MintFailed}' AND retry_count <= ?))`,
 			)
-			.bind(maxRetries)
+			.bind(suiNetwork, maxRetries)
 			.all<FinalizedTxRow>();
 		return finalizedTxs.results ?? [];
 	}

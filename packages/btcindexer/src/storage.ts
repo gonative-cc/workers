@@ -26,7 +26,7 @@ export interface Storage {
 	// nBTC Transaction operations
 	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;
 
-	getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]>;
+	getNbtcMintCandidates(maxRetries: number, suiNetwork: string): Promise<FinalizedTxRow[]>;
 	getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]>;
 	getTxStatus(txId: string): Promise<MintTxStatus | null>;
 	getReorgedMintedTxs(blockHeight: number): Promise<ReorgedMintedTx[]>;

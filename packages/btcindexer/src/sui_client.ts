@@ -11,9 +11,21 @@ import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 
 const CHECK_DYNAMIC_FIELD_QUERY = graphql(`
 	query CheckDynamicField($parentId: SuiAddress!, $name: DynamicFieldName!) {
-		object(address: $parentId) {
+		address(address: $parentId) {
 			dynamicField(name: $name) {
 				name {
+					json
+				}
+			}
+		}
+	}
+`);
+
+const GET_TX_IDS_TABLE_QUERY = graphql(`
+	query GetTxIdsTable($contractId: SuiAddress!) {
+		object(address: $contractId) {
+			asMoveObject {
+				contents {
 					json
 				}
 			}
@@ -171,19 +183,53 @@ export class SuiClient {
 		return result.digest;
 	}
 
+	private async getTxIdsTableId(): Promise<string> {
+		try {
+			const result = await this.gqlClient.query({
+				query: GET_TX_IDS_TABLE_QUERY,
+				variables: {
+					contractId: this.nbtcContractId,
+				},
+			});
+
+			const json = result.data?.object?.asMoveObject?.contents?.json;
+			if (json && typeof json === "object" && "tx_ids" in json) {
+				const txIds = json.tx_ids as { id: string };
+				return txIds.id;
+			}
+
+			throw new Error("Could not find tx_ids table in contract");
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to get tx_ids table ID from contract",
+					method: "SuiClient.getTxIdsTableId",
+					contractId: this.nbtcContractId,
+				},
+				e,
+			);
+			throw e;
+		}
+	}
+
 	async isBtcTxMinted(btcTxId: string): Promise<boolean> {
 		try {
+			const txIdsTableId = await this.getTxIdsTableId();
+			const txIdBytes = Buffer.from(btcTxId, "hex").reverse();
+			const bcsEncoded = bcs.vector(bcs.u8()).serialize(Array.from(txIdBytes)).toBytes();
+			const bcsBase64 = Buffer.from(bcsEncoded).toString("base64");
+
 			const result = await this.gqlClient.query({
 				query: CHECK_DYNAMIC_FIELD_QUERY,
 				variables: {
-					parentId: this.nbtcContractId,
+					parentId: txIdsTableId,
 					name: {
 						type: "vector<u8>",
-						bcs: Buffer.from(btcTxId, "hex").toString("base64"),
+						bcs: bcsBase64,
 					},
 				},
 			});
-			return result.data?.object?.dynamicField !== null;
+			return result.data?.address?.dynamicField != null;
 		} catch (e: unknown) {
 			const isNotFoundError =
 				e &&

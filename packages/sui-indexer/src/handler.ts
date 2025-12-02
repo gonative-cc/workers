@@ -7,6 +7,7 @@ import type {
 } from "./models";
 import { logger } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import { fromBase64 } from "@mysten/sui/utils";
 
 export class SuiEventHandler {
 	private storage: IndexerStorage;
@@ -36,7 +37,7 @@ export class SuiEventHandler {
 	private async handleMint(e: MintEventRaw) {
 		// NOTE: bitcoin library we use in the other worker uses tx.getId() which returns the reversed order, its just for consistency
 		// TODO: check if we actually need that
-		const txId = Buffer.from(e.btc_tx_id, "base64").reverse().toString("hex");
+		const txId = fromBase64(e.btc_tx_id).reverse().toHex();
 
 		await this.storage.insertUtxo({
 			sui_id: e.utxo_id,
@@ -44,7 +45,7 @@ export class SuiEventHandler {
 			txid: txId,
 			vout: e.btc_vout,
 			amount_sats: Number(e.btc_amount),
-			script_pubkey: Buffer.from(e.btc_script_publickey, "base64"),
+			script_pubkey: fromBase64(e.btc_script_publickey),
 			nbtc_pkg: this.nbtcPkg,
 			sui_network: this.suiNetwork,
 			status: "available",
@@ -57,7 +58,7 @@ export class SuiEventHandler {
 		await this.storage.insertRedeemRequest({
 			redeem_id: e.redeem_id,
 			redeemer: e.redeemer,
-			recipient_script: Buffer.from(e.recipient_script, "base64"),
+			recipient_script: fromBase64(e.recipient_script),
 			amount_sats: Number(e.amount),
 			created_at: Number(e.created_at),
 			nbtc_pkg: this.nbtcPkg,

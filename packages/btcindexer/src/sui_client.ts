@@ -184,13 +184,22 @@ export class SuiClient {
 				},
 			});
 			return result.data?.object?.dynamicField !== null;
-		} catch (e) {
-			logger.error({
-				msg: "Failed to check if BTC tx is minted",
-				method: "SuiClient.isBtcTxMinted",
-				btcTxId,
-				error: e,
-			});
+		} catch (e: unknown) {
+			const isNotFoundError =
+				e &&
+				typeof e === "object" &&
+				"message" in e &&
+				typeof e.message === "string" &&
+				e.message.toLowerCase().includes("not found");
+
+			if (!isNotFoundError) {
+				logger.error({
+					msg: "Failed to check if BTC tx is minted",
+					method: "SuiClient.isBtcTxMinted",
+					btcTxId,
+					error: e,
+				});
+			}
 			return false;
 		}
 	}

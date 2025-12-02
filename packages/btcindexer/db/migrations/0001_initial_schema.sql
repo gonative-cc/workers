@@ -16,7 +16,8 @@ CREATE INDEX IF NOT EXISTS btc_blocks_is_scanned_height ON btc_blocks (is_scanne
 -- This table tracks the nBTC deposit txs (minting)
 CREATE TABLE IF NOT EXISTS nbtc_minting (
 	tx_id TEXT NOT NULL PRIMARY KEY,
-	config_id INTEGER NOT NULL,
+	address_id INTEGER NOT NULL,
+	sender TEXT NOT NULL,
 	vout INTEGER NOT NULL,
 	block_hash TEXT,
 	block_height INTEGER,
@@ -27,11 +28,12 @@ CREATE TABLE IF NOT EXISTS nbtc_minting (
 	updated_at INTEGER NOT NULL, -- timestamp_ms
 	sui_tx_id TEXT,
 	retry_count INTEGER NOT NULL DEFAULT 0,
-	FOREIGN KEY (config_id) REFERENCES nbtc_configs(id)
+	FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(id)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS nbtc_minting_status ON nbtc_minting (config_id, status);
+CREATE INDEX IF NOT EXISTS nbtc_minting_status ON nbtc_minting (address_id, status);
 CREATE INDEX IF NOT EXISTS nbtc_minting_sui_recipient ON nbtc_minting (sui_recipient, created_at);
+CREATE INDEX IF NOT EXISTS nbtc_minting_sender ON nbtc_minting (sender);
 
 -- nbtc_withdrawal table tracks nBTC withdraw transactions from SUI
 CREATE TABLE IF NOT EXISTS nbtc_withdrawal (
@@ -55,28 +57,28 @@ CREATE INDEX IF NOT EXISTS nbtc_withdraw_sender ON nbtc_withdrawal (sender, reci
 -- 5 = broadcasted to bitcoin
 -- 6 = confirmations (here user technically already has the funds)
 
--- This table links a Bitcoin transaction ID to its sender addresses.
-CREATE TABLE IF NOT EXISTS nbtc_deposit_senders (
-	tx_id TEXT NOT NULL,
-	sender TEXT NOT NULL,
-	PRIMARY KEY (sender, tx_id),
-	FOREIGN KEY (tx_id) REFERENCES nbtc_minting(tx_id) ON DELETE CASCADE
-) STRICT;
-
--- This table holds the config for nBTC.
-CREATE TABLE IF NOT EXISTS nbtc_configs (
+-- This table holds the config for nBTC packages.
+CREATE TABLE IF NOT EXISTS nbtc_packages (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	btc_network TEXT NOT NULL,
 	sui_network TEXT NOT NULL,
 	nbtc_pkg TEXT NOT NULL,
-	deposit_address TEXT NOT NULL,
 	is_active INTEGER NOT NULL DEFAULT TRUE,
-	UNIQUE(sui_network, btc_network, nbtc_pkg, deposit_address)
+	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS nbtc_utxos ( -- TODO: normalise the database (foreign key to the nbtc_addresses table)
-	sui_id TEXT NOT NULL PRIMARY KEY,
-	config_id INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    package_id INTEGER NOT NULL,
+    deposit_address TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (package_id) REFERENCES nbtc_packages(id) ON DELETE CASCADE,
+    UNIQUE(package_id, deposit_address)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS nbtc_utxos (
+	sui_id TEXT NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
+	address_id INTEGER NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	txid TEXT NOT NULL, -- Bitcoin transaction ID
 	vout INTEGER NOT NULL,
@@ -84,21 +86,21 @@ CREATE TABLE IF NOT EXISTS nbtc_utxos ( -- TODO: normalise the database (foreign
 	script_pubkey BLOB NOT NULL,
 	status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent' TODO: lets remove the 'spent' utxos after some time?
 	locked_until INTEGER,
-	FOREIGN KEY (config_id) REFERENCES nbtc_configs(id)
+	FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(id)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS idx_utxos_selection ON nbtc_utxos(config_id, status, amount_sats);
-CREATE INDEX IF NOT EXISTS idx_nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
+CREATE INDEX IF NOT EXISTS nbtc_utxos_selection ON nbtc_utxos(address_id, status, amount_sats);
+CREATE INDEX IF NOT EXISTS _nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 
 CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	redeem_id TEXT NOT NULL PRIMARY KEY,
-	config_id INTEGER NOT NULL,
+	package_id INTEGER NOT NULL,
 	redeemer TEXT NOT NULL,
 	recipient_script BLOB NOT NULL, -- script pubkey
 	amount_sats INTEGER NOT NULL,
 	created_at INTEGER NOT NULL,
 	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'signed', 'broadcasted'
-	FOREIGN KEY (config_id) REFERENCES nbtc_configs(id)
+	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS indexer_state ( -- TODO: maybe we should just use key-value here?

@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --test-scheduled",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",

@@ -136,23 +136,36 @@ export class IndexerStorage {
 				`Package not found for nbtc_pkg=${r.nbtc_pkg}, sui_network=${r.sui_network}`,
 			);
 		}
-
-		await this.db
-			.prepare(
-				`INSERT OR IGNORE INTO nbtc_redeem_requests
+		try {
+			await this.db
+				.prepare(
+					`INSERT OR IGNORE INTO nbtc_redeem_requests
             (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				r.redeem_id,
-				pkgRow.id,
-				r.redeemer,
-				r.recipient_script,
-				r.amount_sats,
-				r.created_at,
-				"pending",
-			)
-			.run();
+				)
+				.bind(
+					r.redeem_id,
+					pkgRow.id,
+					r.redeemer,
+					r.recipient_script,
+					r.amount_sats,
+					r.created_at,
+					"pending",
+				)
+				.run();
+		} catch (error) {
+			logError(
+				{
+					msg: "Failed to insert Redeem Request",
+					method: "insertRedeemRequest",
+					redeem_id: r.redeem_id,
+					redeemer: r.redeemer,
+					sui_network: r.sui_network,
+				},
+				error,
+			);
+			throw error;
+		}
 	}
 
 	async getActivePackages(networkName: string): Promise<string[]> {

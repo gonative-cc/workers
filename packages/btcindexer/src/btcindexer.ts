@@ -278,7 +278,7 @@ export class Indexer {
 				frontRunKeys.map((p) => ({
 					txId: p.tx_id,
 					vout: p.vout,
-					status: MintTxStatus.Minted,
+					status: MintTxStatus.ExternallyMinted,
 				})),
 			);
 		}

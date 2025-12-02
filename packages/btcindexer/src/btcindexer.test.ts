@@ -999,7 +999,7 @@ describe("Front-run detection in processFinalizedTransactions", () => {
 			.bind(txData.id)
 			.all();
 		expect(results.length).toEqual(1);
-		expect(results[0]!.status).toEqual("minted");
+		expect(results[0]!.status).toEqual("externally-minted");
 		expect(results[0]!.sui_tx_id).toBeNull();
 	});
 

@@ -88,6 +88,7 @@ export const enum MintTxStatus {
 	MintedReorg = "minted-reorg",
 	MintFailed = "mint-failed",
 	FinalizedNonActive = "finalized-non-active",
+	ExternallyMinted = "externally-minted",
 }
 
 export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {

@@ -163,3 +163,15 @@ export interface ElectrsTxVout {
 export interface ElectrsTxResponse {
 	vout: ElectrsTxVout[];
 }
+
+export interface NbtcPackageConfig {
+	id: number;
+	btc_network: BtcNet;
+	sui_network: SuiNet;
+	nbtc_pkg: string;
+	nbtc_contract_id: string;
+	lc_pkg: string;
+	lc_contract_id: string;
+	sui_fallback_address: string;
+	is_active: number;
+}

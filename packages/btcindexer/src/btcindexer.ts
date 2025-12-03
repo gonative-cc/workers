@@ -8,7 +8,7 @@ import {
 
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
-import SuiClient, { suiClientFromEnv } from "./sui_client";
+import { SuiClient } from "./sui_client";
 import type {
 	Deposit,
 	PendingTx,
@@ -19,6 +19,7 @@ import type {
 	NbtcTxRow,
 	NbtcTxInsertion,
 	ElectrsTxResponse,
+	NbtcPackageConfig,
 } from "./models";
 import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -38,9 +39,9 @@ const btcNetworkCfg: Record<BtcNet, Network> = {
 export async function indexerFromEnv(
 	env: Env,
 	nbtcAddressesMap: Map<string, NbtcAddress>,
+	packageConfigs: NbtcPackageConfig[],
 ): Promise<Indexer> {
 	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
-	const sc = await suiClientFromEnv(env);
 
 	const confirmationDepth = parseInt(env.CONFIRMATION_DEPTH || "8", 10);
 	if (isNaN(confirmationDepth) || confirmationDepth < 1) {
@@ -52,13 +53,16 @@ export async function indexerFromEnv(
 		throw new Error("Invalid MAX_NBTC_MINT_TX_RETRIES in config. Must be a number >= 0.");
 	}
 
+	const mnemonic = await env.NBTC_MINTING_SIGNER_MNEMONIC.get();
+
 	return new Indexer(
 		storage,
-		sc,
+		packageConfigs,
+		mnemonic,
 		nbtcAddressesMap,
-		env.SUI_FALLBACK_ADDRESS,
 		confirmationDepth,
 		maxNbtcMintTxRetries,
+		// TODO: we need to support multiple networks
 		new ElectrsService(requireElectrsUrl(btcNetFromString(env.BITCOIN_NETWORK))),
 	);
 }
@@ -66,25 +70,29 @@ export async function indexerFromEnv(
 export class Indexer {
 	storage: Storage;
 	electrs: Electrs;
-	suiFallbackAddr: string;
-	nbtcClient: SuiClient;
+	packageConfigs: Map<string, NbtcPackageConfig>; // Key by nbtc_pkg
+	signerMnemonic: string;
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
 	nbtcAddressesMap: Map<string, NbtcAddress>;
 
 	constructor(
 		storage: Storage,
-		suiClient: SuiClient,
+		packageConfigs: NbtcPackageConfig[],
+		signerMnemonic: string,
 		nbtcAddressesMap: Map<string, NbtcAddress>,
-		fallbackAddr: string,
 		confirmationDepth: number,
 		maxRetries: number,
 		electrs: Electrs,
 	) {
 		this.storage = storage;
-		this.nbtcClient = suiClient;
-		this.suiFallbackAddr = fallbackAddr;
 		this.nbtcAddressesMap = nbtcAddressesMap;
+		this.signerMnemonic = signerMnemonic;
+		this.packageConfigs = new Map(packageConfigs.map((c) => [c.nbtc_pkg, c]));
+
+		if (this.packageConfigs.size === 0) {
+			throw new Error("No active nBTC packages configured.");
+		}
 
 		if (nbtcAddressesMap.size === 0) {
 			const err = new Error("No nBTC deposit addresses configured.");
@@ -219,8 +227,6 @@ export class Indexer {
 			}
 		}
 
-		if (!suiRecipient) suiRecipient = this.suiFallbackAddr;
-
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
 			if (!vout) {
@@ -238,10 +244,24 @@ export class Indexer {
 						txId: tx.getId(),
 						vout: i,
 					});
+					let finalRecipient = suiRecipient;
+					if (!finalRecipient) {
+						const config = this.packageConfigs.get(matchingNbtcAddress.nbtc_pkg);
+						if (config) {
+							finalRecipient = config.sui_fallback_address;
+						} else {
+							logger.warn({
+								msg: "Missing config for package during fallback lookup",
+								pkg: matchingNbtcAddress.nbtc_pkg,
+							});
+							continue; // Skip if no configuration/fallback
+						}
+					}
+
 					deposits.push({
 						vout: i,
 						amountSats: Number(vout.value),
-						suiRecipient,
+						suiRecipient: finalRecipient,
 						nbtcPkg: matchingNbtcAddress.nbtc_pkg,
 						suiNetwork: matchingNbtcAddress.sui_network,
 						depositAddress: btcAddress,
@@ -406,7 +426,7 @@ export class Indexer {
 				}
 				const nbtcPkg = firstDeposit.nbtc_pkg;
 				const suiNetwork = firstDeposit.sui_network;
-				const pkgKey = `${nbtcPkg}-${suiNetwork}`;
+				const pkgKey = nbtcPkg;
 
 				if (!nbtcPkg || !suiNetwork) {
 					logger.warn({
@@ -463,13 +483,30 @@ export class Indexer {
 					continue;
 				}
 
+				const firstBatchArg = mintBatchArgs[0];
+				if (!firstBatchArg) {
+					continue;
+				}
+				const nbtcPkgId = firstBatchArg.nbtcPkg;
+				const config = this.packageConfigs.get(nbtcPkgId);
+
+				if (!config) {
+					logger.error({
+						msg: "Missing config for package, skipping batch",
+						pkg: nbtcPkgId,
+					});
+					continue;
+				}
+
+				const client = new SuiClient(config, this.signerMnemonic);
+
 				logger.info({
 					msg: "Minting: Sending batch of mints to Sui",
 					count: mintBatchArgs.length,
 					pkgKey: pkgKey,
 				});
 
-				const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
+				const suiTxDigest = await client.tryMintNbtcBatch(mintBatchArgs);
 				if (suiTxDigest) {
 					logger.info({
 						msg: "Sui batch mint transaction successful",
@@ -559,37 +596,55 @@ export class Indexer {
 			return;
 		}
 
-		const blockHashes = blocksToVerify.map((r) => r.block_hash);
+		const distinctNetworks = [...new Set(blocksToVerify.map((b) => b.network))];
+		for (const network of distinctNetworks) {
+			const config = Array.from(this.packageConfigs.values()).find(
+				(c) => c.btc_network === network && c.is_active,
+			);
+			if (!config) {
+				logger.warn({
+					msg: "No active config for network verification, skipping",
+					network,
+				});
+				continue;
+			}
 
-		try {
-			const verificationResults = await this.nbtcClient.verifyBlocks(blockHashes);
-			const invalidHashes: string[] = [];
-			for (let i = 0; i < blockHashes.length; i++) {
-				if (verificationResults[i] === false) {
-					const blockHash = blockHashes[i];
-					if (blockHash) {
-						invalidHashes.push(blockHash);
+			const client = new SuiClient(config, this.signerMnemonic);
+			const blockHashes = blocksToVerify
+				.filter((r) => r.network === network)
+				.map((r) => r.block_hash);
+
+			try {
+				const verificationResults = await client.verifyBlocks(blockHashes);
+				const invalidHashes: string[] = [];
+				for (let i = 0; i < blockHashes.length; i++) {
+					if (verificationResults[i] === false) {
+						const blockHash = blockHashes[i];
+						if (blockHash) {
+							invalidHashes.push(blockHash);
+						}
 					}
 				}
-			}
 
-			if (invalidHashes.length > 0) {
-				logger.warn({
-					msg: "SPV Check: Detected reorged blocks. Updating transaction statuses.",
-					reorgedBlockHashes: invalidHashes,
-				});
-				await this.storage.updateConfirmingTxsToReorg(invalidHashes);
-			} else {
-				logger.debug({ msg: "SPV Check: All confirming blocks are valid." });
+				if (invalidHashes.length > 0) {
+					logger.warn({
+						msg: "SPV Check: Detected reorged blocks. Updating transaction statuses.",
+						reorgedBlockHashes: invalidHashes,
+					});
+					await this.storage.updateConfirmingTxsToReorg(invalidHashes);
+				} else {
+					logger.debug({ msg: "SPV Check: All confirming blocks are valid." });
+				}
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to verify blocks with on-chain light client",
+						method: "verifyConfirmingBlocks",
+						network: network,
+					},
+					e,
+				);
 			}
-		} catch (e) {
-			logError(
-				{
-					msg: "Failed to verify blocks with on-chain light client",
-					method: "verifyConfirmingBlocks",
-				},
-				e,
-			);
 		}
 	}
 

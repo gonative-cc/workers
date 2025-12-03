@@ -63,6 +63,10 @@ CREATE TABLE IF NOT EXISTS nbtc_packages (
 	btc_network TEXT NOT NULL,
 	sui_network TEXT NOT NULL,
 	nbtc_pkg TEXT NOT NULL,
+	nbtc_contract_id TEXT NOT NULL,
+	lc_pkg TEXT NOT NULL,
+	lc_contract_id TEXT NOT NULL,
+	sui_fallback_address TEXT NOT NULL,
 	is_active INTEGER NOT NULL DEFAULT TRUE,
 	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;

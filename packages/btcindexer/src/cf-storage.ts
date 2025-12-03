@@ -28,7 +28,7 @@ export class CFStorage implements Storage {
 		try {
 			const { results } = await this.d1
 				.prepare(
-					`SELECT a.deposit_address 
+					`SELECT a.deposit_address
 					 FROM nbtc_deposit_addresses a
 					 JOIN nbtc_packages p ON a.package_id = p.id
 					 WHERE p.btc_network = ? AND a.is_active = 1`,
@@ -213,7 +213,7 @@ export class CFStorage implements Storage {
 	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network 
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
@@ -229,7 +229,7 @@ export class CFStorage implements Storage {
 	async getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network 
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
@@ -310,16 +310,20 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getConfirmingBlocks(): Promise<{ block_hash: string }[]> {
+	async getConfirmingBlocks(): Promise<{ block_hash: string; network: string }[]> {
 		//NOTE: The `block_hash IS NOT NULL` check is a safety measure. While the `CONFIRMING`
 		// status should guarantee a non-null block hash, transactions can be inserted
 		// initially with a null hash (e.g., when broadcast but not yet mined).
 		// This ensures we only try to verify blocks we know about.
 		const blocksToVerify = await this.d1
 			.prepare(
-				`SELECT DISTINCT block_hash FROM nbtc_minting WHERE status = '${MintTxStatus.Confirming}' AND block_hash IS NOT NULL`,
+				`SELECT DISTINCT m.block_hash, p.btc_network as network
+                 FROM nbtc_minting m
+                 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+                 JOIN nbtc_packages p ON a.package_id = p.id
+                 WHERE m.status = '${MintTxStatus.Confirming}' AND m.block_hash IS NOT NULL`,
 			)
-			.all<{ block_hash: string }>();
+			.all<{ block_hash: string; network: string }>();
 		return blocksToVerify.results ?? [];
 	}
 
@@ -337,7 +341,7 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.block_hash, m.block_height, p.btc_network, a.deposit_address 
+				`SELECT m.tx_id, m.block_hash, m.block_height, p.btc_network, a.deposit_address
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
@@ -362,7 +366,7 @@ export class CFStorage implements Storage {
 	async getNbtcMintTx(txId: string): Promise<NbtcTxRow | null> {
 		return this.d1
 			.prepare(
-				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network 
+				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
@@ -375,7 +379,7 @@ export class CFStorage implements Storage {
 	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]> {
 		const dbResult = await this.d1
 			.prepare(
-				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network 
+				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id

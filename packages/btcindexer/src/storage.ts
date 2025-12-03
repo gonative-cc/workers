@@ -8,6 +8,7 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
+	NbtcPackageConfig,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
@@ -21,7 +22,7 @@ export interface Storage {
 	setChainTip(height: number): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
 	getBlockHash(height: number, network: string): Promise<string | null>;
-	getConfirmingBlocks(): Promise<{ block_hash: string }[]>;
+	getConfirmingBlocks(): Promise<{ block_hash: string; network: string }[]>;
 
 	// nBTC Transaction operations
 	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;
@@ -57,5 +58,12 @@ export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcAddress[]>
 			 JOIN nbtc_packages p ON a.package_id = p.id`,
 		)
 		.all<NbtcAddress>();
+	return results || [];
+}
+
+export async function fetchPackageConfigs(db: D1Database): Promise<NbtcPackageConfig[]> {
+	const { results } = await db
+		.prepare("SELECT * FROM nbtc_packages WHERE is_active = 1")
+		.all<NbtcPackageConfig>();
 	return results || [];
 }

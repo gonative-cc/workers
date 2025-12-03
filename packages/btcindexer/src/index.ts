@@ -9,7 +9,7 @@
 import { indexerFromEnv } from "./btcindexer";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
-import { fetchNbtcAddresses } from "./storage";
+import { fetchNbtcAddresses, fetchPackageConfigs } from "./storage";
 import { type NbtcAddress } from "./models";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { processBlockBatch } from "./queue-handler";
@@ -23,10 +23,11 @@ export default {
 			// The current implementation fetches all addresses, but in the future,
 			// we might need to filter by an 'active' status in the 'nbtc_addresses' table.
 			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
+			const packageConfigs = await fetchPackageConfigs(env.DB);
 			const nbtcAddressesMap = new Map<string, NbtcAddress>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
-			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
+			const indexer = await indexerFromEnv(env, nbtcAddressesMap, packageConfigs);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {
 			logError(
@@ -59,7 +60,8 @@ export default {
 		const nbtcAddressesMap = new Map<string, NbtcAddress>(
 			nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 		);
-		const indexer = await indexerFromEnv(env, nbtcAddressesMap);
+		const packageConfigs = await fetchPackageConfigs(env.DB);
+		const indexer = await indexerFromEnv(env, nbtcAddressesMap, packageConfigs);
 		return processBlockBatch(batch, indexer);
 	},
 
@@ -72,12 +74,13 @@ export default {
 			const nbtcAddressesMap = new Map<string, NbtcAddress>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
+			const packageConfigs = await fetchPackageConfigs(env.DB);
 			logger.info({
 				msg: "Loaded nbtc addresses into memory for scheduled job",
 				count: nbtcAddressesMap.size,
 			});
 
-			const indexer = await indexerFromEnv(env, nbtcAddressesMap);
+			const indexer = await indexerFromEnv(env, nbtcAddressesMap, packageConfigs);
 			const latestBlock = await env.DB.prepare(
 				"SELECT MAX(height) as latest_height FROM btc_blocks",
 			).first<{ latest_height: number }>();

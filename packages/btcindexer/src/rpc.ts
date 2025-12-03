@@ -2,7 +2,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
 import { BtcNet } from "@gonative-cc/lib/nbtc";
 import type { NbtcAddress, NbtcTxResp } from "./models";
-import { fetchNbtcAddresses } from "./storage";
+import { fetchNbtcAddresses, fetchPackageConfigs } from "./storage";
 import type { BtcIndexerRpcI, PutNbtcTxResponse } from "./rpc-interface";
 
 /**
@@ -20,7 +20,8 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 			const nbtcAddressesMap = new Map<string, NbtcAddress>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
-			this.#indexer = await indexerFromEnv(this.env, nbtcAddressesMap);
+			const packageConfigs = await fetchPackageConfigs(this.env.DB);
+			this.#indexer = await indexerFromEnv(this.env, nbtcAddressesMap, packageConfigs);
 		}
 		return this.#indexer;
 	}

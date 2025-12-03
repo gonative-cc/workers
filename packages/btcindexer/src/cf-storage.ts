@@ -210,16 +210,16 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
+	async getNbtcMintCandidates(maxRetries: number, suiNetwork: string): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
 				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network 
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
-				 WHERE m.status = '${MintTxStatus.Finalized}' OR (m.status = '${MintTxStatus.MintFailed}' AND m.retry_count <= ?)`,
+				 WHERE p.sui_network = ? AND (m.status = '${MintTxStatus.Finalized}' OR (m.status = '${MintTxStatus.MintFailed}' AND m.retry_count <= ?))`,
 			)
-			.bind(maxRetries)
+			.bind(suiNetwork, maxRetries)
 			.all<FinalizedTxRow>();
 		return finalizedTxs.results ?? [];
 	}
@@ -286,7 +286,6 @@ export class CFStorage implements Storage {
 	}
 
 	async batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void> {
-		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
@@ -294,11 +293,20 @@ export class CFStorage implements Storage {
 			`UPDATE nbtc_minting SET status = ?, retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
 
-		const statements = updates.map((p) => {
-			if (p.status === MintTxStatus.Minted) {
-				return setMintedStmt.bind(MintTxStatus.Minted, p.suiTxDigest, now, p.txId, p.vout);
+		const batchTimestamp = Date.now();
+		const statements = updates.map((u) => {
+			const timestamp = u.timestamp ?? batchTimestamp;
+			if (u.status === MintTxStatus.Minted) {
+				// Note: sui_tx_id will be NULL if the transaction was minted by someone else (front-run)
+				return setMintedStmt.bind(
+					MintTxStatus.Minted,
+					u.suiTxDigest || null,
+					timestamp,
+					u.txId,
+					u.vout,
+				);
 			} else {
-				return setFailedStmt.bind(MintTxStatus.MintFailed, now, p.txId, p.vout);
+				return setFailedStmt.bind(MintTxStatus.MintFailed, timestamp, u.txId, u.vout);
 			}
 		});
 

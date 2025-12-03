@@ -177,7 +177,7 @@ async function insertMintedTx(db: D1Database, txData: TxInfo) {
 	await insertTxWithStatus(db, txData.id, MintTxStatus.Minted, 0);
 }
 
-async function setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
+async function _setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
 	await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 }
 
@@ -566,7 +566,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		const db = await mf.getD1Database("DB");
 		await insertTxWithStatus(db, "finalized_tx", MintTxStatus.Finalized);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates.length).toEqual(1);
 		expect(candidates[0]!.tx_id).toEqual("finalized_tx");
@@ -576,7 +576,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		const db = await mf.getD1Database("DB");
 		await insertTxWithStatus(db, "failed_tx", MintTxStatus.MintFailed, 2);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates.length).toEqual(1);
 		expect(candidates[0]!.tx_id).toEqual("failed_tx");
@@ -586,7 +586,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		const db = await mf.getD1Database("DB");
 		await insertTxWithStatus(db, "failed_tx_exceeds", MintTxStatus.MintFailed, 5);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates).toHaveLength(0);
 	});
@@ -595,7 +595,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		const db = await mf.getD1Database("DB");
 		await insertTxWithStatus(db, "minted_tx", MintTxStatus.Minted);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates).toHaveLength(0);
 	});
@@ -605,7 +605,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		await insertTxWithStatus(db, "finalized_reorg_tx", MintTxStatus.FinalizedReorg);
 		await insertTxWithStatus(db, "minted_reorg_tx", MintTxStatus.MintedReorg);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates).toHaveLength(0);
 	});
@@ -616,7 +616,7 @@ describe("Storage.getNbtcMintCandidates", () => {
 		await insertTxWithStatus(db, "failed_tx_within_limit", MintTxStatus.MintFailed, 2);
 		await insertTxWithStatus(db, "failed_tx_exceeds_limit", MintTxStatus.MintFailed, 5);
 
-		const candidates = await indexer.storage.getNbtcMintCandidates(3);
+		const candidates = await indexer.storage.getNbtcMintCandidates(3, "testnet");
 
 		expect(candidates.length).toEqual(2);
 		const txIds = candidates.map((c) => c.tx_id).sort();
@@ -980,5 +980,59 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 
 		// Should still have the nBTC deposits but no sender deposits due to invalid response
 		await verifyNbtcTxAndSenderCount(1, 0);
+	});
+});
+
+describe("Front-run detection in processFinalizedTransactions", () => {
+	it("should detect and skip minting when transaction is already minted", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+		await insertFinalizedTx(db, txData);
+
+		const kv = await mf.getKVNamespace("BtcBlocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		vi.spyOn(indexer.nbtcClient, "isBtcTxMinted").mockResolvedValue(true);
+		const mintSpy = vi.spyOn(indexer.nbtcClient, "tryMintNbtcBatch");
+
+		await indexer.processFinalizedTransactions();
+
+		expect(mintSpy).not.toHaveBeenCalled();
+
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("minted");
+		// sui_tx_id is NULL because transaction was minted externally (front-run)
+		expect(results[0]!.sui_tx_id).toBeNull();
+	});
+
+	it("should mint transaction when not front-run", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+		await insertFinalizedTx(db, txData);
+
+		const kv = await mf.getKVNamespace("BtcBlocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+
+		vi.spyOn(indexer.nbtcClient, "isBtcTxMinted").mockResolvedValue(false);
+		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
+		vi.spyOn(indexer.nbtcClient, "tryMintNbtcBatch").mockResolvedValue(fakeSuiTxDigest);
+
+		await indexer.processFinalizedTransactions();
+
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("minted");
+		expect(results[0]!.sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 });

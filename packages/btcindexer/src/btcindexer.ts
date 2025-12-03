@@ -262,8 +262,69 @@ export class Indexer {
 		return deposits;
 	}
 
+	private async checkAndFilterFrontRunTransactions(
+		mintBatchArgs: MintBatchArg[],
+		processedPrimaryKeys: { tx_id: string; vout: number }[],
+	): Promise<{
+		argsToMint: MintBatchArg[];
+		keysToMint: { tx_id: string; vout: number }[];
+	}> {
+		const txIdsToCheck = Array.from(new Set(mintBatchArgs.map((arg) => arg.tx.getId())));
+		const alreadyMintedTxIds = new Set<string>();
+
+		try {
+			const mintedResults = await Promise.all(
+				txIdsToCheck.map((txId) => this.nbtcClient.isBtcTxMinted(txId)),
+			);
+
+			for (let i = 0; i < txIdsToCheck.length; i++) {
+				const txId = txIdsToCheck[i];
+				if (mintedResults[i] && txId) {
+					alreadyMintedTxIds.add(txId);
+					logger.info({
+						msg: "Front-run detected: tx already minted on-chain",
+						btcTxId: txId,
+					});
+				}
+			}
+		} catch (e) {
+			logError(
+				{
+					msg: "Front-run check failed, proceeding with minting",
+					method: "checkAndFilterFrontRunTransactions",
+					txCount: txIdsToCheck.length,
+				},
+				e,
+			);
+		}
+
+		if (alreadyMintedTxIds.size > 0) {
+			const frontRunKeys = processedPrimaryKeys.filter((p) =>
+				alreadyMintedTxIds.has(p.tx_id),
+			);
+			// Mark as Minted with null sui_tx_id (indicates front-run case)
+			await this.storage.batchUpdateNbtcTxs(
+				frontRunKeys.map((p) => ({
+					txId: p.tx_id,
+					vout: p.vout,
+					status: MintTxStatus.Minted,
+					// NULL digest indicates the transaction was front-run by someone else
+				})),
+			);
+		}
+
+		const argsToMint = mintBatchArgs.filter((arg) => !alreadyMintedTxIds.has(arg.tx.getId()));
+		const keysToMint = processedPrimaryKeys.filter((p) => !alreadyMintedTxIds.has(p.tx_id));
+
+		return { argsToMint, keysToMint };
+	}
+
 	async processFinalizedTransactions(): Promise<void> {
-		const finalizedTxs = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
+		const suiNetwork = this.nbtcClient.network;
+		const finalizedTxs = await this.storage.getNbtcMintCandidates(
+			this.maxNbtcMintTxRetries,
+			suiNetwork,
+		);
 
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;
@@ -463,13 +524,26 @@ export class Indexer {
 					continue;
 				}
 
+				const { argsToMint, keysToMint } = await this.checkAndFilterFrontRunTransactions(
+					mintBatchArgs,
+					processedPrimaryKeys,
+				);
+
+				if (argsToMint.length === 0) {
+					logger.info({
+						msg: "All transactions already minted, skipping batch",
+						pkgKey,
+					});
+					continue;
+				}
+
 				logger.info({
 					msg: "Minting: Sending batch of mints to Sui",
-					count: mintBatchArgs.length,
+					count: argsToMint.length,
 					pkgKey: pkgKey,
 				});
 
-				const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
+				const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(argsToMint);
 				if (suiTxDigest) {
 					logger.info({
 						msg: "Sui batch mint transaction successful",
@@ -477,7 +551,7 @@ export class Indexer {
 						pkgKey,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						processedPrimaryKeys.map((p) => ({
+						keysToMint.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.Minted,
@@ -491,7 +565,7 @@ export class Indexer {
 						pkgKey,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						processedPrimaryKeys.map((p) => ({
+						keysToMint.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.MintFailed,

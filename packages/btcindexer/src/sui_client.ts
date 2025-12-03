@@ -1,10 +1,37 @@
 import { bcs } from "@mysten/bcs";
 import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
+import { SuiGraphQLClient } from "@mysten/sui/graphql";
+import { graphql } from "@mysten/sui/graphql/schemas/latest";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import type { MintBatchArg, SuiTxDigest } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
+
+const CHECK_DYNAMIC_FIELD_QUERY = graphql(`
+	query CheckDynamicField($parentId: SuiAddress!, $name: DynamicFieldName!) {
+		address(address: $parentId) {
+			dynamicField(name: $name) {
+				name {
+					json
+				}
+			}
+		}
+	}
+`);
+
+const GET_TX_IDS_TABLE_QUERY = graphql(`
+	query GetTxIdsTable($contractId: SuiAddress!) {
+		object(address: $contractId) {
+			asMoveObject {
+				contents {
+					json
+				}
+			}
+		}
+	}
+`);
 
 export interface SuiClientCfg {
 	network: "testnet" | "mainnet" | "devnet" | "localnet";
@@ -35,6 +62,7 @@ export async function suiClientFromEnv(env: Env): Promise<SuiClient> {
 
 export class SuiClient {
 	private client: Client;
+	private gqlClient: SuiGraphQLClient;
 	private signer: Signer;
 	private nbtcPkg: string;
 	private nbtcModule: string;
@@ -42,9 +70,13 @@ export class SuiClient {
 	private lightClientObjectId: string;
 	private lightClientPackageId: string;
 	private lightClientModule: string;
+	readonly network: string;
+	private txIdsTableIdCache: string | null = null;
 
 	constructor(config: SuiClientCfg) {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
+		const gqlUrl = SUI_GRAPHQL_URLS[config.network];
+		this.gqlClient = new SuiGraphQLClient({ url: gqlUrl });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
 		logger.debug({
@@ -52,6 +84,7 @@ export class SuiClient {
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
 			network: config.network,
 		});
+		this.network = config.network;
 		this.nbtcPkg = config.nbtcPkg;
 		this.nbtcModule = config.nbtcModule;
 		this.nbtcContractId = config.nbtcContractId;
@@ -149,6 +182,81 @@ export class SuiClient {
 			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
 		}
 		return result.digest;
+	}
+
+	private async getTxIdsTableId(): Promise<string> {
+		if (this.txIdsTableIdCache) {
+			return this.txIdsTableIdCache;
+		}
+
+		try {
+			const result = await this.gqlClient.query({
+				query: GET_TX_IDS_TABLE_QUERY,
+				variables: {
+					contractId: this.nbtcContractId,
+				},
+			});
+
+			const json = result.data?.object?.asMoveObject?.contents?.json;
+			if (json && typeof json === "object" && "tx_ids" in json) {
+				const txIds = json.tx_ids as { id: string };
+				this.txIdsTableIdCache = txIds.id;
+				return txIds.id;
+			}
+
+			throw new Error("Could not find tx_ids table in contract");
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to get tx_ids table ID from contract",
+					method: "SuiClient.getTxIdsTableId",
+					contractId: this.nbtcContractId,
+				},
+				e,
+			);
+			throw e;
+		}
+	}
+
+	async isBtcTxMinted(btcTxId: string): Promise<boolean> {
+		try {
+			const txIdsTableId = await this.getTxIdsTableId();
+			const txIdBytes = Buffer.from(btcTxId, "hex").reverse();
+			const bcsEncoded = bcs.vector(bcs.u8()).serialize(Array.from(txIdBytes)).toBytes();
+			const bcsBase64 = Buffer.from(bcsEncoded).toString("base64");
+
+			const result = await this.gqlClient.query({
+				query: CHECK_DYNAMIC_FIELD_QUERY,
+				variables: {
+					parentId: txIdsTableId,
+					name: {
+						type: "vector<u8>",
+						bcs: bcsBase64,
+					},
+				},
+			});
+			return result.data?.address?.dynamicField != null;
+		} catch (e: unknown) {
+			const isNotFoundError =
+				e &&
+				typeof e === "object" &&
+				"message" in e &&
+				typeof e.message === "string" &&
+				e.message.toLowerCase().includes("not found");
+
+			if (isNotFoundError) {
+				return false;
+			}
+			logError(
+				{
+					msg: "Failed to check if BTC tx is minted",
+					method: "SuiClient.isBtcTxMinted",
+					btcTxId,
+				},
+				e,
+			);
+			throw e;
+		}
 	}
 
 	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {

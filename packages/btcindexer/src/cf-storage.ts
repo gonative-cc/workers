@@ -296,8 +296,9 @@ export class CFStorage implements Storage {
 			`UPDATE nbtc_minting SET status = ?, retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
 
+		const batchTimestamp = Date.now();
 		const statements = updates.map((u) => {
-			const timestamp = u.timestamp || Date.now();
+			const timestamp = u.timestamp ?? batchTimestamp;
 			if (u.status === MintTxStatus.Minted) {
 				return setMintedStmt.bind(
 					MintTxStatus.Minted,

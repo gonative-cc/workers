@@ -71,6 +71,7 @@ export class SuiClient {
 	private lightClientPackageId: string;
 	private lightClientModule: string;
 	readonly network: string;
+	private txIdsTableIdCache: string | null = null;
 
 	constructor(config: SuiClientCfg) {
 		this.client = new Client({ url: getFullnodeUrl(config.network) });
@@ -184,6 +185,10 @@ export class SuiClient {
 	}
 
 	private async getTxIdsTableId(): Promise<string> {
+		if (this.txIdsTableIdCache) {
+			return this.txIdsTableIdCache;
+		}
+
 		try {
 			const result = await this.gqlClient.query({
 				query: GET_TX_IDS_TABLE_QUERY,
@@ -195,6 +200,7 @@ export class SuiClient {
 			const json = result.data?.object?.asMoveObject?.contents?.json;
 			if (json && typeof json === "object" && "tx_ids" in json) {
 				const txIds = json.tx_ids as { id: string };
+				this.txIdsTableIdCache = txIds.id;
 				return txIds.id;
 			}
 
@@ -238,15 +244,18 @@ export class SuiClient {
 				typeof e.message === "string" &&
 				e.message.toLowerCase().includes("not found");
 
-			if (!isNotFoundError) {
-				logger.error({
+			if (isNotFoundError) {
+				return false;
+			}
+			logError(
+				{
 					msg: "Failed to check if BTC tx is minted",
 					method: "SuiClient.isBtcTxMinted",
 					btcTxId,
-					error: e,
-				});
-			}
-			return false;
+				},
+				e,
+			);
+			throw e;
 		}
 	}
 

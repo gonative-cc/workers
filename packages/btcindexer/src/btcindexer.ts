@@ -269,18 +269,33 @@ export class Indexer {
 		argsToMint: MintBatchArg[];
 		keysToMint: { tx_id: string; vout: number }[];
 	}> {
-		const txIdsToCheck = new Set(mintBatchArgs.map((arg) => arg.tx.getId()));
+		const txIdsToCheck = Array.from(new Set(mintBatchArgs.map((arg) => arg.tx.getId())));
 		const alreadyMintedTxIds = new Set<string>();
 
-		for (const txId of txIdsToCheck) {
-			const isMinted = await this.nbtcClient.isBtcTxMinted(txId);
-			if (isMinted) {
-				alreadyMintedTxIds.add(txId);
-				logger.info({
-					msg: "Front-run detected: tx already minted on-chain",
-					btcTxId: txId,
-				});
+		try {
+			const mintedResults = await Promise.all(
+				txIdsToCheck.map((txId) => this.nbtcClient.isBtcTxMinted(txId)),
+			);
+
+			for (let i = 0; i < txIdsToCheck.length; i++) {
+				const txId = txIdsToCheck[i];
+				if (mintedResults[i] && txId) {
+					alreadyMintedTxIds.add(txId);
+					logger.info({
+						msg: "Front-run detected: tx already minted on-chain",
+						btcTxId: txId,
+					});
+				}
 			}
+		} catch (e) {
+			logError(
+				{
+					msg: "Front-run check failed, proceeding with minting",
+					method: "checkAndFilterFrontRunTransactions",
+					txCount: txIdsToCheck.length,
+				},
+				e,
+			);
 		}
 
 		if (alreadyMintedTxIds.size > 0) {

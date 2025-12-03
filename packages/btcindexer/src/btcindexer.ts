@@ -1,5 +1,10 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import {
+	BtcNet,
+	btcNetFromString,
+	requireElectrsUrl,
+	type BlockQueueRecord,
+} from "@gonative-cc/lib/nbtc";
 
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
@@ -19,7 +24,7 @@ import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
-import type { Storage, NbtcDepositSender } from "./storage";
+import type { Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 
@@ -54,7 +59,7 @@ export async function indexerFromEnv(
 		env.SUI_FALLBACK_ADDRESS,
 		confirmationDepth,
 		maxNbtcMintTxRetries,
-		new ElectrsService(env.ELECTRS_API_URL),
+		new ElectrsService(requireElectrsUrl(btcNetFromString(env.BITCOIN_NETWORK))),
 	);
 }
 
@@ -142,47 +147,51 @@ export class Indexer {
 		}
 
 		const nbtcTxs: NbtcTxInsertion[] = [];
-		let senders: NbtcDepositSender[] = [];
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
-				const newSenders = await this.getSenderAddresses(tx);
-				senders = senders.concat(newSenders.map((s) => ({ tx_id: tx.getId(), sender: s })));
-			}
+				const txSenders = await this.getSenderAddresses(tx);
+				const sender = txSenders[0] || ""; // Use first sender or empty string if none found
+				if (txSenders.length > 1) {
+					logger.warn({
+						msg: "Multiple senders found for tx, using first one",
+						txId: tx.getId(),
+						senders: txSenders,
+					});
+				}
 
-			for (const deposit of deposits) {
-				logger.info({
-					msg: "Found new nBTC deposit",
-					txId: tx.getId(),
-					vout: deposit.vout,
-					amountSats: deposit.amountSats,
-					suiRecipient: deposit.suiRecipient,
-					nbtcPkg: deposit.nbtcPkg,
-					suiNetwork: deposit.suiNetwork,
-					depositAddress: deposit.depositAddress,
-				});
+				for (const deposit of deposits) {
+					logger.info({
+						msg: "Found new nBTC deposit",
+						txId: tx.getId(),
+						vout: deposit.vout,
+						amountSats: deposit.amountSats,
+						suiRecipient: deposit.suiRecipient,
+						nbtcPkg: deposit.nbtcPkg,
+						suiNetwork: deposit.suiNetwork,
+						depositAddress: deposit.depositAddress,
+						sender,
+					});
 
-				nbtcTxs.push({
-					txId: tx.getId(),
-					vout: deposit.vout,
-					blockHash: blockInfo.hash,
-					blockHeight: blockInfo.height,
-					suiRecipient: deposit.suiRecipient,
-					amountSats: deposit.amountSats,
-					btcNetwork: blockInfo.network,
-					nbtcPkg: deposit.nbtcPkg,
-					suiNetwork: deposit.suiNetwork,
-					depositAddress: deposit.depositAddress,
-				});
+					nbtcTxs.push({
+						txId: tx.getId(),
+						vout: deposit.vout,
+						blockHash: blockInfo.hash,
+						blockHeight: blockInfo.height,
+						suiRecipient: deposit.suiRecipient,
+						amountSats: deposit.amountSats,
+						btcNetwork: blockInfo.network,
+						nbtcPkg: deposit.nbtcPkg,
+						suiNetwork: deposit.suiNetwork,
+						depositAddress: deposit.depositAddress,
+						sender,
+					});
+				}
 			}
 		}
 
 		if (nbtcTxs.length > 0) {
 			await this.storage.insertOrUpdateNbtcTxs(nbtcTxs);
-		}
-
-		if (senders.length > 0) {
-			await this.storage.insertNbtcMintDeposit(senders);
 		}
 
 		if (nbtcTxs.length === 0) {
@@ -237,6 +246,10 @@ export class Indexer {
 						suiNetwork: matchingNbtcAddress.sui_network,
 						depositAddress: btcAddress,
 					});
+					// NOTE: "First Match Wins" policy.
+					// We stop scanning outputs after finding the first valid deposit.
+					// This ensures we strictly return 1 deposit per transaction.
+					return deposits;
 				}
 			} catch (e) {
 				// This is expected for coinbase transactions and other non-standard scripts.
@@ -794,7 +807,10 @@ export class Indexer {
 			return { tx_id: txId, registered_deposits: 0 };
 		}
 
-		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network }));
+		const txSenders = await this.getSenderAddresses(tx);
+		const sender = txSenders[0] || "";
+
+		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network, sender }));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
 		logger.info({
 			msg: "New nBTC minting deposit TX registered",

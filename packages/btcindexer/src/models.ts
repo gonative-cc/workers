@@ -139,6 +139,7 @@ export interface NbtcTxInsertion extends NbtcPkg, NbtcDeposit, Block {
 	vout: number;
 	btcNetwork: BtcNet;
 	depositAddress: string;
+	sender: string;
 }
 
 export interface NbtcTxUpdate {
@@ -154,6 +155,7 @@ export interface NbtcBroadcastedDeposit extends NbtcPkg, NbtcDeposit {
 	vout: number;
 	btcNetwork: BtcNet;
 	depositAddress: string;
+	sender: string;
 }
 
 export interface ElectrsTxVout {

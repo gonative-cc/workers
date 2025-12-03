@@ -64,6 +64,12 @@ async function queryNewEvents(network: NetworkConfig, storage: IndexerStorage) {
 		try {
 			const cursor = await storage.getSuiGqlCursor(pkgId);
 			const { events, nextCursor } = await client.fetchEvents(pkgId, cursor); // TODO: lets fetch events from all active packages at once
+			logger.debug({
+				msg: `Fetched events`,
+				network: network.name,
+				packageId: pkgId,
+				eventsLength: events.length,
+			});
 			if (events.length > 0) {
 				const handler = new SuiEventHandler(storage, pkgId, network.name);
 				await handler.handleEvents(events);

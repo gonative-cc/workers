@@ -8,7 +8,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc",
-		"test": "echo NO TESTS"
+		"test": "bun test"
 	},
 	"dependencies": {
 		"@mysten/sui": "^1.38.0"

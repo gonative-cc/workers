@@ -39,7 +39,6 @@ export interface Storage {
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
 	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
-	insertNbtcMintDeposit(senders: NbtcDepositSender[]): Promise<void>;
 }
 
 // TODO: Add support for active/inactive nBTC addresses.
@@ -51,11 +50,12 @@ export interface Storage {
  * @returns A promise that resolves to an array of NbtcAddress objects.
  */
 export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcAddress[]> {
-	const { results } = await db.prepare("SELECT * FROM nbtc_addresses").all<NbtcAddress>();
+	const { results } = await db
+		.prepare(
+			`SELECT a.deposit_address as btc_address, p.btc_network, p.sui_network, p.nbtc_pkg, a.is_active
+			 FROM nbtc_deposit_addresses a
+			 JOIN nbtc_packages p ON a.package_id = p.id`,
+		)
+		.all<NbtcAddress>();
 	return results || [];
-}
-
-export interface NbtcDepositSender {
-	tx_id: string;
-	sender: string;
 }

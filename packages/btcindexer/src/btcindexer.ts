@@ -1,5 +1,10 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import {
+	BtcNet,
+	btcNetFromString,
+	requireElectrsUrl,
+	type BlockQueueRecord,
+} from "@gonative-cc/lib/nbtc";
 
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
@@ -54,7 +59,7 @@ export async function indexerFromEnv(
 		env.SUI_FALLBACK_ADDRESS,
 		confirmationDepth,
 		maxNbtcMintTxRetries,
-		new ElectrsService(env.ELECTRS_API_URL),
+		new ElectrsService(requireElectrsUrl(btcNetFromString(env.BITCOIN_NETWORK))),
 	);
 }
 

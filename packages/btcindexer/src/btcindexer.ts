@@ -302,11 +302,13 @@ export class Indexer {
 			const frontRunKeys = processedPrimaryKeys.filter((p) =>
 				alreadyMintedTxIds.has(p.tx_id),
 			);
+			// Mark as Minted with null sui_tx_id (indicates front-run case)
 			await this.storage.batchUpdateNbtcTxs(
 				frontRunKeys.map((p) => ({
 					txId: p.tx_id,
 					vout: p.vout,
-					status: MintTxStatus.ExternallyMinted,
+					status: MintTxStatus.Minted,
+					// NULL digest indicates the transaction was front-run by someone else
 				})),
 			);
 		}

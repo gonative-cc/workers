@@ -289,9 +289,6 @@ export class CFStorage implements Storage {
 		const setMintedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
-		const setExternallyMintedStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
-		);
 		const setFailedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = ?, retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
@@ -300,16 +297,10 @@ export class CFStorage implements Storage {
 		const statements = updates.map((u) => {
 			const timestamp = u.timestamp ?? batchTimestamp;
 			if (u.status === MintTxStatus.Minted) {
+				// Note: sui_tx_id will be NULL if the transaction was minted by someone else (front-run)
 				return setMintedStmt.bind(
 					MintTxStatus.Minted,
-					u.suiTxDigest,
-					timestamp,
-					u.txId,
-					u.vout,
-				);
-			} else if (u.status === MintTxStatus.ExternallyMinted) {
-				return setExternallyMintedStmt.bind(
-					MintTxStatus.ExternallyMinted,
+					u.suiTxDigest || null,
 					timestamp,
 					u.txId,
 					u.vout,

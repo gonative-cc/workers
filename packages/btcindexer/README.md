@@ -138,3 +138,9 @@ A cron job runs on a fixed schedule (e.g., every 1 minute)
 ### 3. nBTC Tx (Push)
 
 To quickly handle UI nBTC transaction observability, BYield UI will push nBTC transaction, in order to let the indexer start monitoring it. This way UI will have the quick status about the TX, before the tx is added to the blockchain.
+
+### 4. nBTC minting mapping
+
+We index nBTC minting transactions by the Sui recipient and the BTC deposit sender.
+While technically possible its very unlikely the bitcion mint transaction will have more than one bitcion sender, thats why we are simplyfying it here and we just assume the first input utxo is the sender of the whole transaction.
+This might lead to a problem where user logged with one of their wallet will see the entire transaction on the minting page, and when swtiching to another wallet the user will not see it.

@@ -123,11 +123,33 @@ beforeEach(async () => {
 		2,
 		mkElectrsServiceMock(), // Pass the service binding
 	);
+
+	// Seed DB with package and address
+	await db
+		.prepare(
+			`INSERT INTO nbtc_packages (btc_network, sui_network, nbtc_pkg, is_active) VALUES (?, ?, ?, ?)`,
+		)
+		.bind(BtcNet.REGTEST, "testnet", "0xPACKAGE", 1)
+		.run();
+
+	await db
+		.prepare(
+			`INSERT INTO nbtc_deposit_addresses (package_id, deposit_address, is_active) 
+             VALUES ((SELECT id FROM nbtc_packages WHERE nbtc_pkg = ?), ?, 1)`,
+		)
+		.bind("0xPACKAGE", REGTEST_DATA[329]!.depositAddr)
+		.run();
 });
 
 afterEach(async () => {
 	const db = await mf.getD1Database("DB");
-	const tables = ["btc_blocks", "nbtc_minting", "nbtc_withdrawal", "nbtc_sender_deposits"];
+	const tables = [
+		"btc_blocks",
+		"nbtc_minting",
+		"nbtc_withdrawal",
+		"nbtc_packages",
+		"nbtc_deposit_addresses",
+	];
 	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
 	await db.exec(dropStms);
 });
@@ -168,10 +190,13 @@ async function insertTxWithStatus(
 	const blockData = REGTEST_DATA[329]!;
 	await db
 		.prepare(
-			"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, nbtc_pkg, sui_network, btc_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count)
+             VALUES (?, (SELECT id FROM nbtc_deposit_addresses WHERE deposit_address = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		.bind(
 			txId,
+			blockData.depositAddr,
+			"sender_address", // Dummy sender
 			0,
 			blockData.hash,
 			blockData.height,
@@ -181,10 +206,6 @@ async function insertTxWithStatus(
 			Date.now(),
 			Date.now(),
 			retryCount,
-			"0xPACKAGE",
-			"testnet",
-			BtcNet.REGTEST,
-			blockData.depositAddr,
 		)
 		.run();
 }
@@ -255,12 +276,7 @@ describe("Indexer.processBlock", () => {
 		const db = await mf.getD1Database("DB");
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
 		expect(mintingResults.length).toEqual(1);
-
-		const { results: senderResults } = await db
-			.prepare("SELECT * FROM nbtc_sender_deposits")
-			.all();
-		expect(senderResults.length).toEqual(1);
-		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
+		expect(mintingResults[0]!.sender).toEqual(fakeSenderAddress);
 	});
 });
 
@@ -659,12 +675,7 @@ describe("Indexer.processBlock", () => {
 		const db = await mf.getD1Database("DB");
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
 		expect(mintingResults.length).toEqual(1);
-
-		const { results: senderResults } = await db
-			.prepare("SELECT * FROM nbtc_sender_deposits")
-			.all();
-		expect(senderResults.length).toEqual(1);
-		expect(senderResults[0]!.sender).toEqual(fakeSenderAddress);
+		expect(mintingResults[0]!.sender).toEqual(fakeSenderAddress);
 	});
 
 	it("should call detectMintedReorgs when processing a block that causes a reorg", async () => {
@@ -810,10 +821,13 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		const db = await mf.getD1Database("DB");
 		await db
 			.prepare(
-				"INSERT INTO nbtc_minting (tx_id, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count, btc_network, nbtc_pkg, sui_network, deposit_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count)
+                 VALUES (?, (SELECT id FROM nbtc_deposit_addresses WHERE deposit_address = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(
 				tx329.id,
+				block329.depositAddr,
+				"sender",
 				0,
 				block329.hash,
 				block329.height,
@@ -823,10 +837,6 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 				Date.now(),
 				Date.now(),
 				0,
-				BtcNet.REGTEST,
-				"0xPACKAGE",
-				"testnet",
-				block329.depositAddr,
 			)
 			.run();
 
@@ -922,13 +932,10 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 		const { results: mintingResults } = await db.prepare("SELECT * FROM nbtc_minting").all();
 		expect(mintingResults.length).toEqual(expectedTxCount);
 
-		const { results: senderResults } = await db
-			.prepare("SELECT * FROM nbtc_sender_deposits")
-			.all();
-		expect(senderResults.length).toEqual(expectedSenderCount);
-
-		if (expectedSenderAddress && expectedSenderCount > 0) {
-			expect(senderResults[0]!.sender).toEqual(expectedSenderAddress);
+		if (expectedSenderAddress) {
+			expect(mintingResults[0]!.sender).toEqual(expectedSenderAddress);
+		} else if (expectedTxCount > 0 && expectedSenderCount === 0) {
+			expect(mintingResults[0]!.sender).toEqual("");
 		}
 	};
 

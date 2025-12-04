@@ -62,10 +62,11 @@ export class CFStorage implements Storage {
 	 * - AND The incoming `timestamp_ms` is greater than the stored `inserted_at`.
 	 *
 	 * @param b - The block record from the queue.
-	 * @returns `true` if the block was inserted or updated (fresh data).
-	 * `false` if the block was stale or an exact duplicate (processing should stop).
+	 * @returns `true` if the block was inserted or updated, `false` otherwise.
 	 */
 	async insertBlockInfo(b: BlockQueueRecord): Promise<boolean> {
+		// TODO: we should return here InsertResult {ignored, inserted, updated}
+		// we need to use batching
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
@@ -76,17 +77,7 @@ export class CFStorage implements Storage {
 		);
 		try {
 			const result = await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
-			const isFresh = result.meta.changes > 0;
-			if (!isFresh) {
-				logger.debug({
-					msg: "Ignored stale or duplicate block ingestion",
-					method: "CFStorage.insertBlockInfo",
-					height: b.height,
-					incomingHash: b.hash,
-					incomingTs: b.timestamp_ms,
-				});
-			}
-			return isFresh;
+			return result.meta.changes > 0;
 		} catch (e) {
 			logError(
 				{

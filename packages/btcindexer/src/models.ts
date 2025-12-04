@@ -12,23 +12,6 @@ export interface Block {
 	blockHeight: number;
 }
 
-export interface NbtcDepositAddrsCfg {
-	btc_network: BtcNet;
-	sui_network: SuiNet;
-	nbtc_pkg: string;
-	btc_address: string;
-	is_active: boolean;
-}
-
-// TODO
-export interface NbtcDepositAddr {
-	btc_address: string;
-	is_active: boolean;
-}
-
-// Maps NbtcPkgCfg ID to NbtcDepositAddr
-export type NbtcDepositAddrsMap = Map<number, NbtcDepositAddr>;
-
 export interface Deposit extends NbtcPkg, NbtcDeposit {
 	vout: number;
 	depositAddress: string;
@@ -186,3 +169,11 @@ export interface NbtcPkgCfg {
 	// TODO: this is not needed. We should filter through DB and return only active pkgs.
 	is_active: number;
 }
+
+export interface NbtcDepositAddrVal {
+	package_id: number; // NbtcPkgCfg ID
+	is_active: boolean; // flag if the associated bitcoin address is active
+}
+
+// Maps Bitcoin deposit address to NbtcDepositAddrMapping
+export type NbtcDepositAddrsMap = Map<string, NbtcDepositAddrVal>;

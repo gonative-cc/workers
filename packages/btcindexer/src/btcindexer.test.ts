@@ -740,7 +740,7 @@ describe("Indexer.processBlock", () => {
 
 describe("Indexer.findFinalizedTxs (Inactive)", () => {
 	it("should return inactiveId if address is not active", () => {
-		const addr = indexer.nbtcCfgMap.get(REGTEST_DATA[329]!.depositAddr);
+		const addr = indexer.nbtcDepositAddrMap.get(REGTEST_DATA[329]!.depositAddr);
 		if (addr) addr.is_active = false;
 
 		const pendingTx = {

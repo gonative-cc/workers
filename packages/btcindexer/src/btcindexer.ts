@@ -15,17 +15,17 @@ import type {
 	NbtcTxResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
-	NbtcDepositAddrsCfg,
 	NbtcTxRow,
 	NbtcTxInsertion,
 	ElectrsTxResponse,
 	NbtcPkgCfg,
+	NbtcDepositAddrsMap,
 } from "./models";
 import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
-import type { Storage } from "./storage";
+import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
@@ -37,12 +37,11 @@ const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.SIGNET]: networks.testnet,
 };
 
-export async function indexerFromEnv(
-	env: Env,
-	nbtcAddressesMap: Map<string, NbtcDepositAddrsCfg>,
-	packageConfigs: NbtcPkgCfg[],
-): Promise<Indexer> {
+export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
+
+	const nbtcDepositAddrMap = await fetchNbtcAddresses(env.DB);
+	const packageConfigs = await fetchPackageConfigs(env.DB);
 
 	const confirmationDepth = parseInt(env.CONFIRMATION_DEPTH || "8", 10);
 	if (isNaN(confirmationDepth) || confirmationDepth < 1) {
@@ -66,7 +65,7 @@ export async function indexerFromEnv(
 			storage,
 			packageConfigs,
 			suiClients,
-			nbtcAddressesMap,
+			nbtcDepositAddrMap,
 			confirmationDepth,
 			maxNbtcMintTxRetries,
 			// TODO: we need to support multiple networks
@@ -81,18 +80,17 @@ export async function indexerFromEnv(
 export class Indexer {
 	storage: Storage;
 	electrs: Electrs;
-	packageConfigs: Map<string, NbtcPkgCfg>; // Key by nbtc_pkg
+	packageConfigs: Map<string, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
-	// maps nbtc Bitcoin deposit address to the config
-	nbtcCfgMap: Map<string, NbtcDepositAddrsCfg>;
+	nbtcDepositAddrMap: NbtcDepositAddrsMap;
 	suiClients: Map<SuiNet, SuiClientI>;
 
 	constructor(
 		storage: Storage,
 		packageConfigs: NbtcPkgCfg[],
 		suiClients: Map<SuiNet, SuiClientI>,
-		nbtcCfgMap: Map<string, NbtcDepositAddrsCfg>,
+		nbtcDepositAddrMap: NbtcDepositAddrsMap,
 		confirmationDepth: number,
 		maxRetries: number,
 		electrs: Electrs,
@@ -100,7 +98,7 @@ export class Indexer {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
 		}
-		if (nbtcCfgMap.size === 0) {
+		if (nbtcDepositAddrMap.size === 0) {
 			throw new Error("No nBTC deposit addresses configured.");
 		}
 		for (const p of packageConfigs) {
@@ -109,7 +107,7 @@ export class Indexer {
 		}
 
 		this.storage = storage;
-		this.nbtcCfgMap = nbtcCfgMap;
+		this.nbtcDepositAddrMap = nbtcDepositAddrMap;
 		this.packageConfigs = new Map(packageConfigs.map((c) => [c.nbtc_pkg, c]));
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
@@ -122,7 +120,7 @@ export class Indexer {
 		return existingTx !== null;
 	}
 
-	#getSuiClient(suiNet: string): SuiClientI {
+	#getSuiClient(suiNet: SuiNet): SuiClientI {
 		const c = this.suiClients.get(suiNet);
 		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);
 		return c;
@@ -131,6 +129,10 @@ export class Indexer {
 	// - extracts and processes nBTC deposit transactions in the block
 	// - handles reorgs
 	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
+		const network = btcNetworkCfg[blockInfo.network];
+		if (!network) {
+			throw new Error(`Unknown network: ${blockInfo.network}`);
+		}
 		logger.info({
 			msg: "Processing block from queue",
 			height: blockInfo.height,
@@ -142,17 +144,12 @@ export class Indexer {
 			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
 		}
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
-		const network = btcNetworkCfg[blockInfo.network];
-		if (!network) {
-			throw new Error(`Unknown network: ${blockInfo.network}`);
-		}
-
 		const existingHash = await this.storage.getBlockHash(blockInfo.height, blockInfo.network);
 
-		const isFresh = await this.storage.insertBlockInfo(blockInfo);
-		if (!isFresh) {
+		const isNewOrMinted = await this.storage.insertBlockInfo(blockInfo);
+		if (!isNewOrMinted) {
 			logger.debug({
-				msg: "Skipping processing of stale block",
+				msg: "Skipping processing already processed block",
 				method: "Indexer.processBlock",
 				height: blockInfo.height,
 				hash: blockInfo.hash,
@@ -174,6 +171,7 @@ export class Indexer {
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
+				// TODO: getSenderAddresses must take network
 				const txSenders = await this.getSenderAddresses(tx);
 				const sender = txSenders[0] || ""; // Use first sender or empty string if none found
 				if (txSenders.length > 1) {
@@ -253,7 +251,7 @@ export class Indexer {
 			}
 			try {
 				const btcAddress = address.fromOutputScript(vout.script, network);
-				const matchingNbtcAddress = this.nbtcCfgMap.get(btcAddress);
+				const matchingNbtcAddress = this.nbtcDepositAddrMap.get(btcAddress);
 				if (matchingNbtcAddress) {
 					logger.debug({
 						msg: "Found matching nBTC deposit output",
@@ -743,11 +741,10 @@ export class Indexer {
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= this.confirmationDepth) {
-				const addressInfo = tx.deposit_address
-					? this.nbtcCfgMap.get(tx.deposit_address)
-					: undefined;
-
-				const isActive = addressInfo && addressInfo.is_active;
+				// check if the bitcoin deposit address is defined and active
+				const isActive =
+					tx.deposit_address ??
+					this.nbtcDepositAddrMap.get(tx.deposit_address)?.is_active;
 				if (isActive) {
 					logger.info({
 						msg: "Transaction finalized (Active Key)",

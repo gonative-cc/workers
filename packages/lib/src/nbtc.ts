@@ -34,11 +34,12 @@ export function requireElectrsUrl(name: BtcNet): string {
 	return net;
 }
 
+const validNets = Object.values(BtcNet) as string[];
+
 // converts net to BtcNet by trimming and lowercasing.
 // Throws exception if the network is invalid.
 export function btcNetFromString(net: string): BtcNet {
 	net = net.toLowerCase().trim();
-	const validNets = Object.values(BtcNet) as string[];
 	if (!validNets.includes(net)) throw new Error("Invalid BtcNet: " + net);
 
 	return net as BtcNet;

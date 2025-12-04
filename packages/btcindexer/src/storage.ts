@@ -4,14 +4,15 @@ import type {
 	MintTxStatus,
 	FinalizedTxRow,
 	ReorgedMintedTx,
-	NbtcDepositAddrsCfg,
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
 	NbtcPkgCfg,
+	NbtcDepositAddrsMap,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { toSuiNet } from "@gonative-cc/lib/nsui";
 
 export interface Storage {
 	// Block operations
@@ -42,7 +43,7 @@ export interface Storage {
 	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
 }
 
-// TODO: Add support for active/inactive nBTC addresses.
+// TODO: Add tests
 // The current implementation fetches all addresses, but in the future,
 // we might need to filter by an 'active' status in the 'nbtc_addresses' table.
 /**
@@ -50,20 +51,29 @@ export interface Storage {
  * @param db The D1 database binding.
  * @returns A promise that resolves to an array of NbtcAddress objects.
  */
-export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcDepositAddrsCfg[]> {
+export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcDepositAddrsMap> {
 	const { results } = await db
 		.prepare(
-			`SELECT a.deposit_address as btc_address, p.btc_network, p.sui_network, p.nbtc_pkg, a.is_active
+			`SELECT a.package_id, a.deposit_address as btc_address,  a.is_active
 			 FROM nbtc_deposit_addresses a
-			 JOIN nbtc_packages p ON a.package_id = p.id`,
+			 JOIN nbtc_packages p ON a.package_id = p.id
+			 WHERE p.is_active = TRUE`,
 		)
-		.all<NbtcDepositAddrsCfg>();
-	return results || [];
+		.all<{ package_id: number; btc_address: string; is_active: boolean }>();
+	const addrMap: NbtcDepositAddrsMap = new Map();
+	for (const p of results || []) {
+		addrMap.set(p.btc_address, { package_id: p.package_id, is_active: p.is_active });
+	}
+	return addrMap;
 }
 
 export async function fetchPackageConfigs(db: D1Database): Promise<NbtcPkgCfg[]> {
-	const { results } = await db
+	let { results } = await db
 		.prepare("SELECT * FROM nbtc_packages WHERE is_active = 1")
 		.all<NbtcPkgCfg>();
-	return results || [];
+	results = results || [];
+	// verify DB
+	for (const p of results) p.sui_network = toSuiNet(p.sui_network);
+
+	return results;
 }

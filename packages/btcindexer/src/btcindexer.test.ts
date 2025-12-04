@@ -87,7 +87,7 @@ beforeAll(async () => {
 		script: "",
 		modules: true,
 		d1Databases: ["DB"],
-		kvNamespaces: ["btc_blocks", "nbtc_txs"],
+		kvNamespaces: ["BtcBlocks", "nbtc_txs"],
 		d1Persist: false,
 		kvPersist: false,
 		cachePersist: false,
@@ -103,7 +103,7 @@ beforeEach(async () => {
 	await initDb(db);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const env = (await mf.getBindings()) as any;
-	const storage = new CFStorage(env.DB, env.btc_blocks, env.nbtc_txs);
+	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
 	const nbtcAddressesMap = new Map<string, NbtcAddress>();
 	const testNbtcAddress: NbtcAddress = {
 		btc_address: REGTEST_DATA[329]!.depositAddr,
@@ -233,7 +233,7 @@ describe("Indexer.processBlock", () => {
 			timestamp_ms,
 		};
 
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
@@ -468,7 +468,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, tx329);
 
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(block329.hash, Buffer.from(block329.rawBlockHex, "hex").buffer);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
@@ -496,7 +496,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData);
 
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
@@ -522,7 +522,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData, 1);
 
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const suiClientSpy = vi
@@ -547,7 +547,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData);
 
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const failedSuiTxDigest = "0xfailed123abc456def789onchain_execution_error";
@@ -575,7 +575,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData);
 
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const suiClientSpy = vi
@@ -692,7 +692,7 @@ describe("Indexer.processBlock", () => {
 			timestamp_ms,
 		};
 
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
@@ -724,7 +724,7 @@ describe("Indexer.processBlock", () => {
 		const txData = blockData329.txs[1]!;
 
 		const db = await mf.getD1Database("DB");
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 
 		await insertMintedTx(db, txData);
 
@@ -953,7 +953,7 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 			timestamp_ms,
 		};
 
-		const kv = await mf.getKVNamespace("btc_blocks");
+		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		if (mockElectrsResponse) {

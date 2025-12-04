@@ -204,7 +204,7 @@ export class CFStorage implements Storage {
 	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network, p.id as package_id
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id

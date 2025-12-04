@@ -32,9 +32,9 @@ describe.skip("SuiClient: verifyBlocks Integration Test", () => {
 			sui_network: "localnet",
 			btc_network: BtcNet.REGTEST,
 			lc_pkg: LC_PACKAGE_ID,
-			lc_contract_id: LC_OBJECT_ID,
+			lc_contract: LC_OBJECT_ID,
 			nbtc_pkg: "0x1",
-			nbtc_contract_id: "0x2",
+			nbtc_contract: "0x2",
 			sui_fallback_address: SUI_FALLBACK_ADDRESS,
 			is_active: 1,
 		};

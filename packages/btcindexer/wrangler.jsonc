@@ -8,11 +8,11 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-06-20",
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "triggers": {
     // every one minute
-    "crons": ["* * * * *"]
+    "crons": ["* * * * *"],
   },
   "compatibility_flags": ["nodejs_compat"],
   /**
@@ -34,14 +34,14 @@
     "BITCOIN_NETWORK": "regtest", // TODO: remove
     "CONFIRMATION_DEPTH": "4",
     "MAX_NBTC_MINT_TX_RETRIES": "1",
-    "BTC_BLOCK_PROCESSING_BATCH_SIZE": "100"
+    "BTC_BLOCK_PROCESSING_BATCH_SIZE": "100",
   },
   "secrets_store_secrets": [
     {
       "binding": "NBTC_MINTING_SIGNER_MNEMONIC",
       "store_id": "75adbc6657de4f4cb739f63eb4d0cd7a",
-      "secret_name": "NBTC_MINTING_SIGNER_MNEMONIC"
-    }
+      "secret_name": "NBTC_MINTING_SIGNER_MNEMONIC",
+    },
   ],
   /**
    * Note: Use secrets to store sensitive data.
@@ -64,18 +64,18 @@
       "database_name": "btcindexer-dev",
       "database_id": "3a43879e-0799-442c-aed5-a3298df1c3bb",
       "migrations_table": "migrations",
-      "migrations_dir": "./db/migrations/"
-    }
+      "migrations_dir": "./db/migrations/",
+    },
   ],
   "kv_namespaces": [
     {
       "binding": "BtcBlocks",
-      "id": "f8bc94f1f427436ab0797535fbc30cb7"
+      "id": "f8bc94f1f427436ab0797535fbc30cb7",
     },
     {
       "binding": "nbtc_txs",
-      "id": "93968151e21e4cfa8f23041c0a5baf08"
-    }
+      "id": "93968151e21e4cfa8f23041c0a5baf08",
+    },
   ],
   "queues": {
     "consumers": [
@@ -83,8 +83,8 @@
         "queue": "block-queue",
         "max_batch_size": 1,
         "max_batch_timeout": 5,
-        "max_retries": 3
-      }
-    ]
-  }
+        "max_retries": 3,
+      },
+    ],
+  },
 }

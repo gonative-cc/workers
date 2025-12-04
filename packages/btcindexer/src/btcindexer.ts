@@ -83,8 +83,7 @@ export class Indexer {
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
 	nbtcDepositAddrMap: NbtcDepositAddrsMap;
-	// TODO: change to DB pkg id (number)
-	#packageConfigs: Map<string, NbtcPkgCfg>; // Sui nbtc module Pkg -> pkg config
+	#packageConfigs: Map<number, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	#suiClients: Map<SuiNet, SuiClientI>;
 
 	constructor(
@@ -106,8 +105,8 @@ export class Indexer {
 			if (!suiClients.has(p.sui_network))
 				throw new Error("No nBTC deposit addresses configured.");
 		}
-		// TODO: const pkgCfgMap = new Map(packageConfigs.map((c) => [c.id, c]));
-		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.nbtc_pkg, c]));
+		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.id, c]));
+
 		for (const n of nbtcDepositAddrMap) {
 			if (!pkgCfgMap.has(n[1].package_id))
 				throw new Error("No nBTC config found for bitcoin addresses " + n[0]);
@@ -470,6 +469,7 @@ export class Indexer {
 						proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
 						nbtcPkg: nbtcPkg,
 						suiNetwork: suiNetwork,
+						packageId: firstDeposit.package_id,
 					});
 				}
 
@@ -508,7 +508,7 @@ export class Indexer {
 					continue;
 				}
 				// TODO: use nbtc db row id
-				const config = this.getPackageConfig(firstBatchArg.nbtcPkg);
+				const config = this.getPackageConfig(firstBatchArg.packageId);
 				const client = this.getSuiClient(config.sui_network);
 
 				logger.info({
@@ -739,11 +739,16 @@ export class Indexer {
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= this.confirmationDepth) {
-				// check if the bitcoin deposit address is defined and active
-				const isActive =
-					tx.deposit_address ??
-					this.nbtcDepositAddrMap.get(tx.deposit_address)?.is_active;
-				if (isActive) {
+				const depositInfo = this.nbtcDepositAddrMap.get(tx.deposit_address);
+				let isPkgActive = false;
+				if (depositInfo) {
+					const pkgConfig = this.getPackageConfig(depositInfo.package_id);
+					if (pkgConfig && pkgConfig.is_active) {
+						isPkgActive = true;
+					}
+				}
+
+				if (isPkgActive) {
 					logger.info({
 						msg: "Transaction finalized (Active Key)",
 						txId: tx.tx_id,

@@ -17,7 +17,13 @@ import { Block, networks } from "bitcoinjs-lib";
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import SuiClient from "./sui_client";
-import type { Deposit, ProofResult, NbtcDepositAddrsCfg, NbtcPkgCfg } from "./models";
+import type {
+	Deposit,
+	ProofResult,
+	NbtcPkgCfg,
+	NbtcDepositAddrVal,
+	NbtcDepositAddrsMap,
+} from "./models";
 import { MintTxStatus } from "./models";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { initDb } from "./db.test";
@@ -82,8 +88,8 @@ const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
 	btc_network: BtcNet.REGTEST,
 	sui_network: "testnet",
 	nbtc_pkg: "0xPACKAGE",
-	nbtc_contract_id: "0xNBTC",
-	lc_contract_id: "0xLIGHTCLIENT",
+	nbtc_contract: "0xNBTC",
+	lc_contract: "0xLIGHTCLIENT",
 	lc_pkg: "0xLC_PKG",
 	sui_fallback_address: SUI_FALLBACK_ADDRESS,
 	is_active: 1,
@@ -117,20 +123,22 @@ beforeEach(async () => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const env = (await mf.getBindings()) as any;
 	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
-	const nbtcAddressesMap = new Map<string, NbtcDepositAddrsCfg>();
-	const testNbtcAddress: NbtcDepositAddrsCfg = {
-		btc_address: REGTEST_DATA[329]!.depositAddr,
-		btc_network: BtcNet.REGTEST,
-		sui_network: "testnet",
-		nbtc_pkg: "0xPACKAGE",
+	const nbtcAddressesMap: NbtcDepositAddrsMap = new Map();
+	const testNbtcAddress: NbtcDepositAddrVal = {
+		package_id: 1,
 		is_active: true,
 	};
-	nbtcAddressesMap.set(testNbtcAddress.btc_address, testNbtcAddress);
+	nbtcAddressesMap.set(REGTEST_DATA[329]!.depositAddr, testNbtcAddress);
+
+	const suiClients = new Map();
+	const suiClient = new SuiClient(TEST_PACKAGE_CONFIG, TEST_MNEMONIC);
+	vi.spyOn(suiClient, "verifyBlocks").mockResolvedValue([]);
+	suiClients.set("testnet", suiClient);
 
 	indexer = new Indexer(
 		storage,
 		[TEST_PACKAGE_CONFIG],
-		TEST_MNEMONIC,
+		suiClients,
 		nbtcAddressesMap,
 		8,
 		2,
@@ -141,12 +149,13 @@ beforeEach(async () => {
 	await db
 		.prepare(
 			`INSERT INTO nbtc_packages (
-                btc_network, sui_network, nbtc_pkg, nbtc_contract_id,
-                lc_pkg, lc_contract_id,
+                id, btc_network, sui_network, nbtc_pkg, nbtc_contract,
+                lc_pkg, lc_contract,
                 sui_fallback_address, is_active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		.bind(
+			TEST_PACKAGE_CONFIG.id,
 			BtcNet.REGTEST,
 			"testnet",
 			"0xPACKAGE",
@@ -158,12 +167,17 @@ beforeEach(async () => {
 		)
 		.run();
 
+	const pkg = await db
+		.prepare("SELECT id FROM nbtc_packages WHERE nbtc_pkg = ?")
+		.bind("0xPACKAGE")
+		.first();
+
 	await db
 		.prepare(
 			`INSERT INTO nbtc_deposit_addresses (package_id, deposit_address, is_active)
-             VALUES ((SELECT id FROM nbtc_packages WHERE nbtc_pkg = ?), ?, 1)`,
+             VALUES (?, ?, 1)`,
 		)
-		.bind("0xPACKAGE", REGTEST_DATA[329]!.depositAddr)
+		.bind(pkg?.id, REGTEST_DATA[329]!.depositAddr)
 		.run();
 });
 
@@ -740,8 +754,8 @@ describe("Indexer.processBlock", () => {
 
 describe("Indexer.findFinalizedTxs (Inactive)", () => {
 	it("should return inactiveId if address is not active", () => {
-		const addr = indexer.nbtcDepositAddrMap.get(REGTEST_DATA[329]!.depositAddr);
-		if (addr) addr.is_active = false;
+		const pkg = indexer.getPackageConfig(1);
+		if (pkg) pkg.is_active = 0;
 
 		const pendingTx = {
 			tx_id: "tx1",
@@ -757,7 +771,7 @@ describe("Indexer.findFinalizedTxs (Inactive)", () => {
 		expect(result.inactiveTxIds.length).toEqual(1);
 
 		// Restore active state for other tests
-		if (addr) addr.is_active = true;
+		if (pkg) pkg.is_active = 1;
 	});
 });
 
@@ -868,7 +882,8 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			)
 			.run();
 
-		const suiClientSpy = vi.spyOn(SuiClient.prototype, "verifyBlocks");
+		const suiClient = indexer.getSuiClient("testnet");
+		const suiClientSpy = vi.spyOn(suiClient, "verifyBlocks");
 		return { suiClientSpy, db };
 	};
 

@@ -38,6 +38,7 @@ export interface FinalizedTxRow {
 	nbtc_pkg: string;
 	sui_network: SuiNet;
 	btc_network: string;
+	package_id: number;
 }
 
 export interface ReorgedMintedTx {
@@ -114,6 +115,7 @@ export interface MintBatchArg extends NbtcPkg {
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
+	packageId: number;
 }
 
 export interface PostNbtcTxRequest {
@@ -162,9 +164,9 @@ export interface NbtcPkgCfg {
 	btc_network: BtcNet;
 	sui_network: SuiNet;
 	nbtc_pkg: string;
-	nbtc_contract_id: string;
+	nbtc_contract: string;
 	lc_pkg: string;
-	lc_contract_id: string;
+	lc_contract: string;
 	sui_fallback_address: string;
 	// TODO: this is not needed. We should filter through DB and return only active pkgs.
 	is_active: number;

@@ -44,7 +44,7 @@ export class SuiClient implements SuiClientI {
 		tx.moveCall({
 			target: target,
 			arguments: [
-				tx.object(this.config.lc_contract_id),
+				tx.object(this.config.lc_contract),
 				tx.pure.vector(
 					"vector<u8>",
 					blockHashes.map((h) =>
@@ -97,8 +97,8 @@ export class SuiClient implements SuiClientI {
 			tx.moveCall({
 				target: target,
 				arguments: [
-					tx.object(this.config.nbtc_contract_id),
-					tx.object(this.config.lc_contract_id),
+					tx.object(this.config.nbtc_contract),
+					tx.object(this.config.lc_contract),
 					tx.pure.vector("u8", txBytes),
 					tx.pure.vector("vector<u8>", proofLittleEndian),
 					tx.pure.u64(args.blockHeight),

@@ -103,6 +103,13 @@ export class SuiClient {
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 
+	/**
+	 * Executes a batch mint transaction on Sui.
+	 * Returns [success, digest] tuple:
+	 * - [true, digest]: Transaction executed successfully on-chain
+	 * - [false, digest]: Transaction executed but failed on-chain
+	 * Throws on pre-submission errors
+	 */
 	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest]> {
 		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
@@ -154,6 +161,13 @@ export class SuiClient {
 		return [success, result.digest];
 	}
 
+	/**
+	 * Wrapper for mintNbtcBatch that catches pre-submission errors.
+	 * Returns:
+	 * - [true, digest]: Success
+	 * - [false, digest]: On-chain failure
+	 * - null: Pre-submission error
+	 */
 	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest] | null> {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {

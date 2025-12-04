@@ -249,7 +249,7 @@ export class Indexer {
 		return deposits;
 	}
 
-	// TODO: Function is too large and we should broke it down into smaller functions
+	// TODO: Function is too large and we should break it down into smaller functions
 	// We should extract the:
 	// - Transaction grouping logic
 	// - Merkle proof generation

@@ -83,7 +83,8 @@ export class Indexer {
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
 	nbtcDepositAddrMap: NbtcDepositAddrsMap;
-	#packageConfigs: Map<string, NbtcPkgCfg>; // nbtc pkg id -> pkg config
+	// TODO: change to DB pkg id (number)
+	#packageConfigs: Map<string, NbtcPkgCfg>; // Sui nbtc module Pkg -> pkg config
 	#suiClients: Map<SuiNet, SuiClientI>;
 
 	constructor(
@@ -105,6 +106,7 @@ export class Indexer {
 			if (!suiClients.has(p.sui_network))
 				throw new Error("No nBTC deposit addresses configured.");
 		}
+		// TODO: const pkgCfgMap = new Map(packageConfigs.map((c) => [c.id, c]));
 		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.nbtc_pkg, c]));
 		for (const n of nbtcDepositAddrMap) {
 			if (!pkgCfgMap.has(n[1].package_id))
@@ -131,6 +133,7 @@ export class Indexer {
 		return c;
 	}
 
+	// Query NbtcPkgCfg by db table row ID.
 	getPackageConfig(nbtcPkgId: number): NbtcPkgCfg {
 		const c = this.#packageConfigs.get(nbtcPkgId);
 		if (c === undefined) throw new Error("No Nbtc pkg for pkg_id = " + nbtcPkgId);
@@ -504,6 +507,7 @@ export class Indexer {
 				if (!firstBatchArg) {
 					continue;
 				}
+				// TODO: use nbtc db row id
 				const config = this.getPackageConfig(firstBatchArg.nbtcPkg);
 				const client = this.getSuiClient(config.sui_network);
 

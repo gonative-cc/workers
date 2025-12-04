@@ -320,6 +320,10 @@ export class CFStorage implements Storage {
 	}
 
 	async updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void> {
+		logger.warn({
+			msg: "SPV Check: Detected reorged blocks. Updating transaction statuses.",
+			reorgedBlockHashes: blockHashes,
+		});
 		const now = Date.now();
 		const placeholders = blockHashes.map(() => "?").join(",");
 		const updateStmt = this.d1

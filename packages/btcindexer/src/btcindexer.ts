@@ -638,10 +638,6 @@ export class Indexer {
 				}
 
 				if (invalidHashes.length > 0) {
-					logger.warn({
-						msg: "SPV Check: Detected reorged blocks. Updating transaction statuses.",
-						reorgedBlockHashes: invalidHashes,
-					});
 					await this.storage.updateConfirmingTxsToReorg(invalidHashes);
 				} else {
 					logger.debug({ msg: "SPV Check: All confirming blocks are valid." });

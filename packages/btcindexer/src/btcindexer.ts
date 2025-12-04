@@ -80,11 +80,11 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 export class Indexer {
 	storage: Storage;
 	electrs: Electrs;
-	packageConfigs: Map<string, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
 	nbtcDepositAddrMap: NbtcDepositAddrsMap;
-	suiClients: Map<SuiNet, SuiClientI>;
+	#packageConfigs: Map<string, NbtcPkgCfg>; // nbtc pkg id -> pkg config
+	#suiClients: Map<SuiNet, SuiClientI>;
 
 	constructor(
 		storage: Storage,
@@ -105,14 +105,19 @@ export class Indexer {
 			if (!suiClients.has(p.sui_network))
 				throw new Error("No nBTC deposit addresses configured.");
 		}
+		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.nbtc_pkg, c]));
+		for (const n of nbtcDepositAddrMap) {
+			if (!pkgCfgMap.has(n[1].package_id))
+				throw new Error("No nBTC config found for bitcoin addresses " + n[0]);
+		}
 
 		this.storage = storage;
 		this.nbtcDepositAddrMap = nbtcDepositAddrMap;
-		this.packageConfigs = new Map(packageConfigs.map((c) => [c.nbtc_pkg, c]));
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
 		this.electrs = electrs;
-		this.suiClients = suiClients;
+		this.#packageConfigs = pkgCfgMap;
+		this.#suiClients = suiClients;
 	}
 
 	async hasNbtcMintTx(txId: string): Promise<boolean> {
@@ -120,9 +125,15 @@ export class Indexer {
 		return existingTx !== null;
 	}
 
-	#getSuiClient(suiNet: SuiNet): SuiClientI {
-		const c = this.suiClients.get(suiNet);
+	getSuiClient(suiNet: SuiNet): SuiClientI {
+		const c = this.#suiClients.get(suiNet);
 		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);
+		return c;
+	}
+
+	getPackageConfig(nbtcPkgId: number): NbtcPkgCfg {
+		const c = this.#packageConfigs.get(nbtcPkgId);
+		if (c === undefined) throw new Error("No Nbtc pkg for pkg_id = " + nbtcPkgId);
 		return c;
 	}
 
@@ -251,40 +262,32 @@ export class Indexer {
 			}
 			try {
 				const btcAddress = address.fromOutputScript(vout.script, network);
-				const matchingNbtcAddress = this.nbtcDepositAddrMap.get(btcAddress);
-				if (matchingNbtcAddress) {
-					logger.debug({
-						msg: "Found matching nBTC deposit output",
-						txId: tx.getId(),
-						vout: i,
-					});
-					let finalRecipient = suiRecipient;
-					if (!finalRecipient) {
-						const config = this.packageConfigs.get(matchingNbtcAddress.nbtc_pkg);
-						if (config) {
-							finalRecipient = config.sui_fallback_address;
-						} else {
-							logger.warn({
-								msg: "Missing config for package during fallback lookup",
-								pkg: matchingNbtcAddress.nbtc_pkg,
-							});
-							continue; // Skip if no configuration/fallback
-						}
-					}
+				const pkgId = this.nbtcDepositAddrMap.get(btcAddress)?.package_id;
+				if (pkgId === undefined) continue;
+				const config = this.getPackageConfig(pkgId);
 
-					deposits.push({
-						vout: i,
-						amountSats: Number(vout.value),
-						suiRecipient: finalRecipient,
-						nbtcPkg: matchingNbtcAddress.nbtc_pkg,
-						suiNetwork: matchingNbtcAddress.sui_network,
-						depositAddress: btcAddress,
-					});
-					// NOTE: "First Match Wins" policy.
-					// We stop scanning outputs after finding the first valid deposit.
-					// This ensures we strictly return 1 deposit per transaction.
-					return deposits;
+				logger.debug({
+					msg: "Found matching nBTC deposit output",
+					txId: tx.getId(),
+					vout: i,
+				});
+				let finalRecipient = suiRecipient;
+				if (!finalRecipient) {
+					finalRecipient = config.sui_fallback_address;
 				}
+
+				deposits.push({
+					vout: i,
+					amountSats: Number(vout.value),
+					suiRecipient: finalRecipient,
+					nbtcPkg: config.nbtc_pkg,
+					suiNetwork: config.sui_network,
+					depositAddress: btcAddress,
+				});
+				// NOTE: "First Match Wins" policy.
+				// We stop scanning outputs after finding the first valid deposit.
+				// This ensures we strictly return 1 deposit per transaction.
+				return deposits;
 			} catch (e) {
 				// This is expected for coinbase transactions and other non-standard scripts.
 				logger.debug({
@@ -501,17 +504,8 @@ export class Indexer {
 				if (!firstBatchArg) {
 					continue;
 				}
-				const nbtcPkgId = firstBatchArg.nbtcPkg;
-				const config = this.packageConfigs.get(nbtcPkgId);
-				if (!config) {
-					logger.error({
-						msg: "Missing config for package, skipping batch",
-						pkg: nbtcPkgId,
-					});
-					continue;
-				}
-
-				const client = this.#getSuiClient(config.sui_network);
+				const config = this.getPackageConfig(firstBatchArg.nbtcPkg);
+				const client = this.getSuiClient(config.sui_network);
 
 				logger.info({
 					msg: "Minting: Sending batch of mints to Sui",
@@ -611,7 +605,7 @@ export class Indexer {
 
 		const distinctNetworks = [...new Set(blocksToVerify.map((b) => b.network))];
 		for (const network of distinctNetworks) {
-			const config = Array.from(this.packageConfigs.values()).find(
+			const config = Array.from(this.#packageConfigs.values()).find(
 				(c) => c.btc_network === network && c.is_active,
 			);
 			if (!config) {
@@ -622,7 +616,7 @@ export class Indexer {
 				continue;
 			}
 
-			const client = this.#getSuiClient(config.sui_network);
+			const client = this.getSuiClient(config.sui_network);
 			const blockHashes = blocksToVerify
 				.filter((r) => r.network === network)
 				.map((r) => r.block_hash);

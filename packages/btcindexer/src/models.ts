@@ -53,6 +53,11 @@ export interface BlockInfo {
 	hash: string;
 }
 
+export interface ConfirmingBlockInfo {
+	block_hash: string;
+	network: string;
+}
+
 export interface GroupedFinalizedTx {
 	blockHash: string;
 	blockHeight: number;

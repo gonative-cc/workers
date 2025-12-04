@@ -8,6 +8,7 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
+	ConfirmingBlockInfo,
 } from "./models";
 import { MintTxStatus } from "./models";
 import type { Storage } from "./storage";
@@ -301,7 +302,7 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getConfirmingBlocks(): Promise<{ block_hash: string; network: string }[]> {
+	async getConfirmingBlocks(): Promise<ConfirmingBlockInfo[]> {
 		//NOTE: The `block_hash IS NOT NULL` check is a safety measure. While the `CONFIRMING`
 		// status should guarantee a non-null block hash, transactions can be inserted
 		// initially with a null hash (e.g., when broadcast but not yet mined).
@@ -314,7 +315,7 @@ export class CFStorage implements Storage {
                  JOIN nbtc_packages p ON a.package_id = p.id
                  WHERE m.status = '${MintTxStatus.Confirming}' AND m.block_hash IS NOT NULL`,
 			)
-			.all<{ block_hash: string; network: string }>();
+			.all<ConfirmingBlockInfo>();
 		return blocksToVerify.results ?? [];
 	}
 

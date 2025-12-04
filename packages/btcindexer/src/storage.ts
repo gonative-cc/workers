@@ -9,6 +9,7 @@ import type {
 	NbtcBroadcastedDeposit,
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
+	ConfirmingBlockInfo,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
@@ -23,7 +24,7 @@ export interface Storage {
 	setChainTip(height: number): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
 	getBlockHash(height: number, network: string): Promise<string | null>;
-	getConfirmingBlocks(): Promise<{ block_hash: string; network: string }[]>;
+	getConfirmingBlocks(): Promise<ConfirmingBlockInfo[]>;
 
 	// nBTC Transaction operations
 	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;

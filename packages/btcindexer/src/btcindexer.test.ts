@@ -539,9 +539,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		expect(results.length).toEqual(1);
 		expect(results[0]!.retry_count).toEqual(2);
 	});
-});
 
-describe("Indexer.processFinalizedTransactions Failed Tx Digest Storage", () => {
 	it("should store digest for on-chain execution failure", async () => {
 		const blockData = REGTEST_DATA[329]!;
 		const txData = blockData.txs[1]!;

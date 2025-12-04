@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import SuiClient from "./sui_client";
-import type { NbtcPackageConfig } from "./models";
+import type { NbtcPkgCfg } from "./models";
 import { BtcNet } from "@gonative-cc/lib/nbtc";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -27,7 +27,7 @@ describe.skip("SuiClient: verifyBlocks Integration Test", () => {
 		const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 		const TEST_MNEMONIC =
 			"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic";
-		const pkgConfig: NbtcPackageConfig = {
+		const pkgConfig: NbtcPkgCfg = {
 			id: 1,
 			sui_network: "localnet",
 			btc_network: BtcNet.REGTEST,

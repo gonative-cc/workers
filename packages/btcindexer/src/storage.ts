@@ -4,11 +4,11 @@ import type {
 	MintTxStatus,
 	FinalizedTxRow,
 	ReorgedMintedTx,
-	NbtcAddress,
+	NbtcDepositAddrsCfg,
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
-	NbtcPackageConfig,
+	NbtcPkgCfg,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
@@ -50,20 +50,20 @@ export interface Storage {
  * @param db The D1 database binding.
  * @returns A promise that resolves to an array of NbtcAddress objects.
  */
-export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcAddress[]> {
+export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcDepositAddrsCfg[]> {
 	const { results } = await db
 		.prepare(
 			`SELECT a.deposit_address as btc_address, p.btc_network, p.sui_network, p.nbtc_pkg, a.is_active
 			 FROM nbtc_deposit_addresses a
 			 JOIN nbtc_packages p ON a.package_id = p.id`,
 		)
-		.all<NbtcAddress>();
+		.all<NbtcDepositAddrsCfg>();
 	return results || [];
 }
 
-export async function fetchPackageConfigs(db: D1Database): Promise<NbtcPackageConfig[]> {
+export async function fetchPackageConfigs(db: D1Database): Promise<NbtcPkgCfg[]> {
 	const { results } = await db
 		.prepare("SELECT * FROM nbtc_packages WHERE is_active = 1")
-		.all<NbtcPackageConfig>();
+		.all<NbtcPkgCfg>();
 	return results || [];
 }

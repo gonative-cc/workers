@@ -3,18 +3,30 @@ import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
-import type { MintBatchArg, NbtcPackageConfig, SuiTxDigest } from "./models";
+import type { MintBatchArg, NbtcPkgCfg, SuiTxDigest } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 
 const NBTC_MODULE = "nbtc";
 const LC_MODULE = "light_client";
 
-export class SuiClient {
+export interface SuiClientI {
+	verifyBlocks: (blockHashes: string[]) => Promise<boolean[]>;
+	mintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<SuiTxDigest>;
+	tryMintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<SuiTxDigest | null>;
+}
+
+export type SuiClientConstructor = (config: NbtcPkgCfg) => SuiClientI;
+
+export function NewSuiClient(mnemonic: string): SuiClientConstructor {
+	return (config: NbtcPkgCfg) => new SuiClient(config, mnemonic);
+}
+
+export class SuiClient implements SuiClientI {
 	private client: Client;
 	private signer: Signer;
-	private config: NbtcPackageConfig;
+	private config: NbtcPkgCfg;
 
-	constructor(config: NbtcPackageConfig, mnemonic: string) {
+	constructor(config: NbtcPkgCfg, mnemonic: string) {
 		this.config = config;
 		this.client = new Client({ url: getFullnodeUrl(config.sui_network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config

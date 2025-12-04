@@ -17,7 +17,7 @@ import { Block, networks } from "bitcoinjs-lib";
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import SuiClient from "./sui_client";
-import type { Deposit, ProofResult, NbtcAddress, NbtcPackageConfig } from "./models";
+import type { Deposit, ProofResult, NbtcDepositAddrsCfg, NbtcPkgCfg } from "./models";
 import { MintTxStatus } from "./models";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { initDb } from "./db.test";
@@ -77,7 +77,7 @@ const REGTEST_DATA: TestBlocks = {
 
 const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
-const TEST_PACKAGE_CONFIG: NbtcPackageConfig = {
+const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
 	id: 1,
 	btc_network: BtcNet.REGTEST,
 	sui_network: "testnet",
@@ -117,8 +117,8 @@ beforeEach(async () => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const env = (await mf.getBindings()) as any;
 	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
-	const nbtcAddressesMap = new Map<string, NbtcAddress>();
-	const testNbtcAddress: NbtcAddress = {
+	const nbtcAddressesMap = new Map<string, NbtcDepositAddrsCfg>();
+	const testNbtcAddress: NbtcDepositAddrsCfg = {
 		btc_address: REGTEST_DATA[329]!.depositAddr,
 		btc_network: BtcNet.REGTEST,
 		sui_network: "testnet",
@@ -740,7 +740,7 @@ describe("Indexer.processBlock", () => {
 
 describe("Indexer.findFinalizedTxs (Inactive)", () => {
 	it("should return inactiveId if address is not active", () => {
-		const addr = indexer.nbtcAddressesMap.get(REGTEST_DATA[329]!.depositAddr);
+		const addr = indexer.nbtcCfgMap.get(REGTEST_DATA[329]!.depositAddr);
 		if (addr) addr.is_active = false;
 
 		const pendingTx = {

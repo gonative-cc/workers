@@ -59,7 +59,7 @@ CREATE INDEX IF NOT EXISTS nbtc_withdraw_sender ON nbtc_withdrawal (sender, reci
 
 -- This table holds the config for nBTC packages.
 CREATE TABLE IF NOT EXISTS nbtc_packages (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	id INTEGER PRIMARY KEY,
 	btc_network TEXT NOT NULL,
 	sui_network TEXT NOT NULL,
 	nbtc_pkg TEXT NOT NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS nbtc_packages (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     package_id INTEGER NOT NULL,
     deposit_address TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,

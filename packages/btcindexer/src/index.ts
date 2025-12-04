@@ -10,7 +10,7 @@ import { indexerFromEnv } from "./btcindexer";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
 import { fetchNbtcAddresses, fetchPackageConfigs } from "./storage";
-import { type NbtcAddress } from "./models";
+import { type NbtcDepositAddrsCfg } from "./models";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { processBlockBatch } from "./queue-handler";
 
@@ -24,7 +24,7 @@ export default {
 			// we might need to filter by an 'active' status in the 'nbtc_addresses' table.
 			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
 			const packageConfigs = await fetchPackageConfigs(env.DB);
-			const nbtcAddressesMap = new Map<string, NbtcAddress>(
+			const nbtcAddressesMap = new Map<string, NbtcDepositAddrsCfg>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
 			const indexer = await indexerFromEnv(env, nbtcAddressesMap, packageConfigs);
@@ -57,7 +57,7 @@ export default {
 		// The current implementation fetches all addresses, but we need to distinguish it,
 		// probably a active (boolean) column in the table.
 		const nbtcAddresses = await fetchNbtcAddresses(env.DB);
-		const nbtcAddressesMap = new Map<string, NbtcAddress>(
+		const nbtcAddressesMap = new Map<string, NbtcDepositAddrsCfg>(
 			nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 		);
 		const packageConfigs = await fetchPackageConfigs(env.DB);
@@ -71,7 +71,7 @@ export default {
 		logger.debug({ msg: "Cron job starting" });
 		try {
 			const nbtcAddresses = await fetchNbtcAddresses(env.DB);
-			const nbtcAddressesMap = new Map<string, NbtcAddress>(
+			const nbtcAddressesMap = new Map<string, NbtcDepositAddrsCfg>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
 			const packageConfigs = await fetchPackageConfigs(env.DB);

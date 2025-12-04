@@ -1,7 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { indexerFromEnv, Indexer } from "./btcindexer";
 import { BtcNet } from "@gonative-cc/lib/nbtc";
-import type { NbtcAddress, NbtcTxResp } from "./models";
+import type { NbtcDepositAddrsCfg, NbtcTxResp } from "./models";
 import { fetchNbtcAddresses, fetchPackageConfigs } from "./storage";
 import type { BtcIndexerRpcI, PutNbtcTxResponse } from "./rpc-interface";
 
@@ -17,7 +17,7 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	private async getIndexer(): Promise<Indexer> {
 		if (!this.#indexer) {
 			const nbtcAddresses = await fetchNbtcAddresses(this.env.DB);
-			const nbtcAddressesMap = new Map<string, NbtcAddress>(
+			const nbtcAddressesMap = new Map<string, NbtcDepositAddrsCfg>(
 				nbtcAddresses.map((addr) => [addr.btc_address, addr]),
 			);
 			const packageConfigs = await fetchPackageConfigs(this.env.DB);

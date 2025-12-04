@@ -155,10 +155,6 @@ async function insertMintedTx(db: D1Database, txData: TxInfo) {
 	await insertTxWithStatus(db, txData.id, MintTxStatus.Minted, 0);
 }
 
-async function setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
-	await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
-}
-
 async function insertTxWithStatus(
 	db: D1Database,
 	txId: string,
@@ -551,9 +547,8 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData);
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const env = (await mf.getBindings()) as any;
-		await env.btc_blocks.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const failedSuiTxDigest = "0xfailed123abc456def789onchain_execution_error";
 		const suiClientSpy = vi
@@ -580,9 +575,8 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const db = await mf.getD1Database("DB");
 		await insertFinalizedTx(db, txData);
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const env = (await mf.getBindings()) as any;
-		await env.btc_blocks.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		const kv = await mf.getKVNamespace("btc_blocks");
+		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const suiClientSpy = vi
 			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")

@@ -507,7 +507,7 @@ export class Indexer {
 				if (!firstBatchArg) {
 					continue;
 				}
-				// TODO: use nbtc db row id
+
 				const config = this.getPackageConfig(firstBatchArg.packageId);
 				const client = this.getSuiClient(config.sui_network);
 

@@ -1,13 +1,12 @@
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { SUI_NETWORK_URLS } from "./config";
 import { SuiGraphQLClient } from "./graphql-client";
-import { handleMintEvents } from "./handler";
-import type { MintEventNode, NetworkConfig } from "./models";
+import { SuiEventHandler } from "./handler";
+import type { NetworkConfig } from "./models";
 import { IndexerStorage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 
 export default {
-	async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new IndexerStorage(env.DB);
 		const dbNetworks = await storage.getActiveNetworks();
 
@@ -63,9 +62,16 @@ async function queryNewEvents(network: NetworkConfig, storage: IndexerStorage) {
 	const packageJobs = packages.map(async (pkgId) => {
 		try {
 			const cursor = await storage.getSuiGqlCursor(pkgId);
-			const { events, nextCursor } = await client.fetchMintEvents(pkgId, cursor); // TODO: lets fetch events from all active packages at once
+			const { events, nextCursor } = await client.fetchEvents(pkgId, cursor); // TODO: lets fetch events from all active packages at once
+			logger.debug({
+				msg: `Fetched events`,
+				network: network.name,
+				packageId: pkgId,
+				eventsLength: events.length,
+			});
 			if (events.length > 0) {
-				await handleMintEvents(events as MintEventNode[], storage, pkgId, network.name);
+				const handler = new SuiEventHandler(storage, pkgId, network.name);
+				await handler.handleEvents(events);
 			}
 			if (nextCursor && nextCursor !== cursor) {
 				await storage.saveSuiGqlCursor(pkgId, nextCursor);

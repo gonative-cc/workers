@@ -1,32 +1,44 @@
 import { GraphQLClient, gql } from "graphql-request";
-import type { MintEventNode } from "./models";
+import type { SuiEventNode } from "./models";
 
-interface MintEventsResponse {
+interface ModuleEventsResponse {
 	events: {
 		pageInfo: {
 			hasNextPage: boolean;
 			endCursor: string | null;
 		};
 		nodes: {
-			json: unknown;
+			timestamp: string; // ISO timestamp string
+			contents: {
+				type: {
+					repr: string; // full event type string
+				};
+				json: unknown; // event data
+			};
 		}[];
 	};
 }
 
-const MINT_EVENT_QUERY = gql`
-	query FetchMintEvents($eventType: String!, $cursor: String) {
-		events(filter: { eventType: $eventType }, first: 50, after: $cursor) {
+// After modyfying this query, make sure to update the corresponding types in ModuleEventsResponse
+const MODULE_EVENTS_QUERY = gql`
+	query FetchModuleEvents($filter: String!, $cursor: String) {
+		events(filter: { module: $filter }, first: 50, after: $cursor) {
 			pageInfo {
 				hasNextPage
 				endCursor
 			}
 			nodes {
-				json
+				timestamp
+				contents {
+					type {
+						repr
+					}
+					json
+				}
 			}
 		}
 	}
 `;
-
 export class SuiGraphQLClient {
 	private client: GraphQLClient;
 
@@ -34,19 +46,22 @@ export class SuiGraphQLClient {
 		this.client = new GraphQLClient(endpoint);
 	}
 
-	async fetchMintEvents(
-		packageId: string,
-		cursor: string | null,
-	): Promise<{ events: MintEventNode[]; nextCursor: string | null }> {
-		const eventType = `${packageId}::nbtc::MintEvent`;
-		const data = await this.client.request<MintEventsResponse>(MINT_EVENT_QUERY, {
-			eventType,
+	async fetchEvents(packageId: string, cursor: string | null) {
+		const filter = `${packageId}::nbtc`;
+		const data = await this.client.request<ModuleEventsResponse>(MODULE_EVENTS_QUERY, {
+			filter,
 			cursor,
 		});
 
+		const events: SuiEventNode[] = data.events.nodes.map((node) => ({
+			type: node.contents.type.repr,
+			json: node.contents.json,
+			timestamp: node.timestamp,
+		}));
+
 		return {
-			events: data.events.nodes as MintEventNode[],
-			nextCursor: data.events.pageInfo.hasNextPage ? data.events.pageInfo.endCursor : null,
+			events,
+			nextCursor: data.events.pageInfo.endCursor,
 		};
 	}
 }

@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
 	is_active INTEGER NOT NULL DEFAULT 1,
 	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id) ON DELETE CASCADE,
 	-- make sure we don't share bitcoin deposit address between packages
-	UNIQUE(package_id, deposit_address)
+	UNIQUE(deposit_address)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (

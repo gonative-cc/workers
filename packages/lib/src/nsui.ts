@@ -23,6 +23,6 @@ export function toSuiNet(value: string): SuiNet {
 		case "localnet":
 			return value;
 		default:
-			throw new Error("Invalid SuiNet value: " + value);
+			throw new Error("Invalid SuiNet");
 	}
 }

@@ -72,7 +72,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 			new ElectrsService(requireElectrsUrl(btcNetFromString(env.BITCOIN_NETWORK))),
 		);
 	} catch (err) {
-		logError({ msg: "Can't create initialize btcindexer", method: "Indexer.constructor" }, err);
+		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
 		throw err;
 	}
 }
@@ -103,13 +103,13 @@ export class Indexer {
 		}
 		for (const p of packageConfigs) {
 			if (!suiClients.has(p.sui_network))
-				throw new Error("No nBTC deposit addresses configured.");
+				throw new Error("No SuiClient configured for network " + p.sui_network);
 		}
 		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.id, c]));
 
 		for (const n of nbtcDepositAddrMap) {
 			if (!pkgCfgMap.has(n[1].package_id))
-				throw new Error("No nBTC config found for bitcoin addresses " + n[0]);
+				throw new Error("No nBTC package config found for bitcoin address " + n[0]);
 		}
 
 		this.storage = storage;
@@ -609,7 +609,7 @@ export class Indexer {
 
 		const distinctNetworks = [...new Set(blocksToVerify.map((b) => b.network))];
 		for (const network of distinctNetworks) {
-			const config = Array.from(this.#packageConfigs.values()).find(
+			const config = this.#packageConfigs.values().find(
 				(c) => c.btc_network === network && c.is_active,
 			);
 			if (!config) {

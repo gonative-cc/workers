@@ -310,10 +310,10 @@ export class CFStorage implements Storage {
 		const blocksToVerify = await this.d1
 			.prepare(
 				`SELECT DISTINCT m.block_hash, p.btc_network as network
-                 FROM nbtc_minting m
-                 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-                 JOIN nbtc_packages p ON a.package_id = p.id
-                 WHERE m.status = '${MintTxStatus.Confirming}' AND m.block_hash IS NOT NULL`,
+				FROM nbtc_minting m
+				JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				JOIN nbtc_packages p ON a.package_id = p.id
+				WHERE m.status = '${MintTxStatus.Confirming}' AND m.block_hash IS NOT NULL`,
 			)
 			.all<ConfirmingBlockInfo>();
 		return blocksToVerify.results ?? [];

@@ -20,6 +20,7 @@ import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { MockSuiClient } from "./sui_client-mock";
+import type { Electrs } from "./electrs";
 interface TxInfo {
 	id: string;
 	suiAddr: string;
@@ -89,6 +90,7 @@ const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
 let mf: Miniflare;
 let indexer: Indexer;
 let mockSuiClient: MockSuiClient;
+let mockElectrs: Electrs;
 
 beforeAll(async () => {
 	mf = new Miniflare({
@@ -123,6 +125,10 @@ beforeEach(async () => {
 	mockSuiClient = new MockSuiClient();
 	suiClients.set(toSuiNet("testnet"), mockSuiClient);
 
+	const electrsClients = new Map<BtcNet, Electrs>();
+	mockElectrs = mkElectrsServiceMock();
+	electrsClients.set(BtcNet.REGTEST, mockElectrs);
+
 	indexer = new Indexer(
 		storage,
 		[TEST_PACKAGE_CONFIG],
@@ -130,7 +136,7 @@ beforeEach(async () => {
 		nbtcAddressesMap,
 		8,
 		2,
-		mkElectrsServiceMock(), // Pass the service binding
+		electrsClients,
 	);
 
 	// Seed DB with package and address
@@ -293,7 +299,7 @@ describe("Indexer.processBlock", () => {
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(indexer.electrs.getTx as any).mockResolvedValue(
+		(mockElectrs.getTx as any).mockResolvedValue(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: fakeSenderAddress }],
@@ -686,7 +692,7 @@ describe("Indexer.processBlock", () => {
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(indexer.electrs.getTx as any).mockResolvedValue(
+		(mockElectrs.getTx as any).mockResolvedValue(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: fakeSenderAddress }],
@@ -936,7 +942,7 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 
 		if (mockElectrsResponse) {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(indexer.electrs.getTx as any).mockResolvedValue(mockElectrsResponse);
+			(mockElectrs.getTx as any).mockResolvedValue(mockElectrsResponse);
 		}
 
 		return { blockInfo };
@@ -962,7 +968,7 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 		const { blockInfo } = await helperSetupBlockForSender();
 
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(indexer.electrs.getTx as any).mockRejectedValue(new Error("Electrs API failed"));
+		(mockElectrs.getTx as any).mockRejectedValue(new Error("Electrs API failed"));
 
 		await indexer.processBlock(blockInfo);
 

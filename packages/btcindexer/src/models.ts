@@ -12,14 +12,6 @@ export interface Block {
 	blockHeight: number;
 }
 
-export interface NbtcAddress {
-	btc_network: BtcNet;
-	sui_network: SuiNet;
-	nbtc_pkg: string;
-	btc_address: string;
-	is_active: boolean;
-}
-
 export interface Deposit extends NbtcPkg, NbtcDeposit {
 	vout: number;
 	depositAddress: string;
@@ -46,6 +38,7 @@ export interface FinalizedTxRow {
 	nbtc_pkg: string;
 	sui_network: SuiNet;
 	btc_network: string;
+	package_id: number;
 }
 
 export interface ReorgedMintedTx {
@@ -58,6 +51,11 @@ export interface ReorgedMintedTx {
 export interface BlockInfo {
 	height: number;
 	hash: string;
+}
+
+export interface ConfirmingBlockInfo {
+	block_hash: string;
+	network: string;
 }
 
 export interface GroupedFinalizedTx {
@@ -122,6 +120,7 @@ export interface MintBatchArg extends NbtcPkg {
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
+	packageId: number;
 }
 
 export interface PostNbtcTxRequest {
@@ -163,3 +162,25 @@ export interface ElectrsTxVout {
 export interface ElectrsTxResponse {
 	vout: ElectrsTxVout[];
 }
+
+export interface NbtcPkgCfg {
+	// DB record ID
+	id: number;
+	btc_network: BtcNet;
+	sui_network: SuiNet;
+	nbtc_pkg: string;
+	nbtc_contract: string;
+	lc_pkg: string;
+	lc_contract: string;
+	sui_fallback_address: string;
+	// TODO: this is not needed. We should filter through DB and return only active pkgs.
+	is_active: number;
+}
+
+export interface NbtcDepositAddrVal {
+	package_id: number; // NbtcPkgCfg ID
+	is_active: boolean; // flag if the associated bitcoin address is active
+}
+
+// Maps Bitcoin deposit address to NbtcDepositAddrMapping
+export type NbtcDepositAddrsMap = Map<string, NbtcDepositAddrVal>;

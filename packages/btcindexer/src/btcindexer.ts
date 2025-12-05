@@ -8,25 +8,27 @@ import {
 
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
-import SuiClient, { suiClientFromEnv } from "./sui_client";
+import { SuiClient, type SuiClientI } from "./sui_client";
 import type {
 	Deposit,
 	PendingTx,
 	NbtcTxResp,
 	MintBatchArg,
 	GroupedFinalizedTx,
-	NbtcAddress,
 	NbtcTxRow,
 	NbtcTxInsertion,
 	ElectrsTxResponse,
+	NbtcPkgCfg,
+	NbtcDepositAddrsMap,
 } from "./models";
 import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService } from "./electrs";
-import type { Storage } from "./storage";
+import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
@@ -35,12 +37,11 @@ const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.SIGNET]: networks.testnet,
 };
 
-export async function indexerFromEnv(
-	env: Env,
-	nbtcAddressesMap: Map<string, NbtcAddress>,
-): Promise<Indexer> {
+export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
-	const sc = await suiClientFromEnv(env);
+
+	const nbtcDepositAddrMap = await fetchNbtcAddresses(env.DB);
+	const packageConfigs = await fetchPackageConfigs(env.DB);
 
 	const confirmationDepth = parseInt(env.CONFIRMATION_DEPTH || "8", 10);
 	if (isNaN(confirmationDepth) || confirmationDepth < 1) {
@@ -52,51 +53,72 @@ export async function indexerFromEnv(
 		throw new Error("Invalid MAX_NBTC_MINT_TX_RETRIES in config. Must be a number >= 0.");
 	}
 
-	return new Indexer(
-		storage,
-		sc,
-		nbtcAddressesMap,
-		env.SUI_FALLBACK_ADDRESS,
-		confirmationDepth,
-		maxNbtcMintTxRetries,
-		new ElectrsService(requireElectrsUrl(btcNetFromString(env.BITCOIN_NETWORK))),
-	);
+	const mnemonic = await env.NBTC_MINTING_SIGNER_MNEMONIC.get();
+	const suiClients = new Map();
+	for (const p of packageConfigs) {
+		if (!suiClients.has(p.sui_network))
+			suiClients.set(p.sui_network, new SuiClient(p, mnemonic));
+	}
+
+	try {
+		return new Indexer(
+			storage,
+			packageConfigs,
+			suiClients,
+			nbtcDepositAddrMap,
+			confirmationDepth,
+			maxNbtcMintTxRetries,
+			// TODO: we need to support multiple networks
+			new ElectrsService(requireElectrsUrl(btcNetFromString(env.BITCOIN_NETWORK))),
+		);
+	} catch (err) {
+		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
+		throw err;
+	}
 }
 
 export class Indexer {
 	storage: Storage;
 	electrs: Electrs;
-	suiFallbackAddr: string;
-	nbtcClient: SuiClient;
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
-	nbtcAddressesMap: Map<string, NbtcAddress>;
+	nbtcDepositAddrMap: NbtcDepositAddrsMap;
+	#packageConfigs: Map<number, NbtcPkgCfg>; // nbtc pkg id -> pkg config
+	#suiClients: Map<SuiNet, SuiClientI>;
 
 	constructor(
 		storage: Storage,
-		suiClient: SuiClient,
-		nbtcAddressesMap: Map<string, NbtcAddress>,
-		fallbackAddr: string,
+		packageConfigs: NbtcPkgCfg[],
+		suiClients: Map<SuiNet, SuiClientI>,
+		nbtcDepositAddrMap: NbtcDepositAddrsMap,
 		confirmationDepth: number,
 		maxRetries: number,
 		electrs: Electrs,
 	) {
-		this.storage = storage;
-		this.nbtcClient = suiClient;
-		this.suiFallbackAddr = fallbackAddr;
-		this.nbtcAddressesMap = nbtcAddressesMap;
-
-		if (nbtcAddressesMap.size === 0) {
-			const err = new Error("No nBTC deposit addresses configured.");
-			logError(
-				{ msg: "No nBTC deposit addresses configured.", method: "Indexer.constructor" },
-				err,
-			);
-			throw err;
+		if (packageConfigs.length === 0) {
+			throw new Error("No active nBTC packages configured.");
 		}
+		if (nbtcDepositAddrMap.size === 0) {
+			throw new Error("No nBTC deposit addresses configured.");
+		}
+		for (const p of packageConfigs) {
+			if (!suiClients.has(p.sui_network))
+				throw new Error("No SuiClient configured for network " + p.sui_network);
+		}
+		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.id, c]));
+
+		for (const n of nbtcDepositAddrMap) {
+			if (!pkgCfgMap.has(n[1].package_id))
+				throw new Error("No nBTC package config found for bitcoin address " + n[0]);
+		}
+
+		this.storage = storage;
+		this.nbtcDepositAddrMap = nbtcDepositAddrMap;
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
 		this.electrs = electrs;
+		this.#packageConfigs = pkgCfgMap;
+		this.#suiClients = suiClients;
 	}
 
 	async hasNbtcMintTx(txId: string): Promise<boolean> {
@@ -104,9 +126,26 @@ export class Indexer {
 		return existingTx !== null;
 	}
 
+	getSuiClient(suiNet: SuiNet): SuiClientI {
+		const c = this.#suiClients.get(suiNet);
+		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);
+		return c;
+	}
+
+	// Query NbtcPkgCfg by db table row ID.
+	getPackageConfig(nbtcPkgId: number): NbtcPkgCfg {
+		const c = this.#packageConfigs.get(nbtcPkgId);
+		if (c === undefined) throw new Error("No Nbtc pkg for pkg_id = " + nbtcPkgId);
+		return c;
+	}
+
 	// - extracts and processes nBTC deposit transactions in the block
 	// - handles reorgs
 	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
+		const network = btcNetworkCfg[blockInfo.network];
+		if (!network) {
+			throw new Error(`Unknown network: ${blockInfo.network}`);
+		}
 		logger.info({
 			msg: "Processing block from queue",
 			height: blockInfo.height,
@@ -118,17 +157,12 @@ export class Indexer {
 			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
 		}
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
-		const network = btcNetworkCfg[blockInfo.network];
-		if (!network) {
-			throw new Error(`Unknown network: ${blockInfo.network}`);
-		}
-
 		const existingHash = await this.storage.getBlockHash(blockInfo.height, blockInfo.network);
 
-		const isFresh = await this.storage.insertBlockInfo(blockInfo);
-		if (!isFresh) {
+		const isNewOrMinted = await this.storage.insertBlockInfo(blockInfo);
+		if (!isNewOrMinted) {
 			logger.debug({
-				msg: "Skipping processing of stale block",
+				msg: "Skipping processing already processed block",
 				method: "Indexer.processBlock",
 				height: blockInfo.height,
 				hash: blockInfo.hash,
@@ -150,6 +184,7 @@ export class Indexer {
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
+				// TODO: getSenderAddresses must take network
 				const txSenders = await this.getSenderAddresses(tx);
 				const sender = txSenders[0] || ""; // Use first sender or empty string if none found
 				if (txSenders.length > 1) {
@@ -219,8 +254,6 @@ export class Indexer {
 			}
 		}
 
-		if (!suiRecipient) suiRecipient = this.suiFallbackAddr;
-
 		for (let i = 0; i < tx.outs.length; i++) {
 			const vout = tx.outs[i];
 			if (!vout) {
@@ -231,26 +264,32 @@ export class Indexer {
 			}
 			try {
 				const btcAddress = address.fromOutputScript(vout.script, network);
-				const matchingNbtcAddress = this.nbtcAddressesMap.get(btcAddress);
-				if (matchingNbtcAddress) {
-					logger.debug({
-						msg: "Found matching nBTC deposit output",
-						txId: tx.getId(),
-						vout: i,
-					});
-					deposits.push({
-						vout: i,
-						amountSats: Number(vout.value),
-						suiRecipient,
-						nbtcPkg: matchingNbtcAddress.nbtc_pkg,
-						suiNetwork: matchingNbtcAddress.sui_network,
-						depositAddress: btcAddress,
-					});
-					// NOTE: "First Match Wins" policy.
-					// We stop scanning outputs after finding the first valid deposit.
-					// This ensures we strictly return 1 deposit per transaction.
-					return deposits;
+				const pkgId = this.nbtcDepositAddrMap.get(btcAddress)?.package_id;
+				if (pkgId === undefined) continue;
+				const config = this.getPackageConfig(pkgId);
+
+				logger.debug({
+					msg: "Found matching nBTC deposit output",
+					txId: tx.getId(),
+					vout: i,
+				});
+				let finalRecipient = suiRecipient;
+				if (!finalRecipient) {
+					finalRecipient = config.sui_fallback_address;
 				}
+
+				deposits.push({
+					vout: i,
+					amountSats: Number(vout.value),
+					suiRecipient: finalRecipient,
+					nbtcPkg: config.nbtc_pkg,
+					suiNetwork: config.sui_network,
+					depositAddress: btcAddress,
+				});
+				// NOTE: "First Match Wins" policy.
+				// We stop scanning outputs after finding the first valid deposit.
+				// This ensures we strictly return 1 deposit per transaction.
+				return deposits;
 			} catch (e) {
 				// This is expected for coinbase transactions and other non-standard scripts.
 				logger.debug({
@@ -406,7 +445,7 @@ export class Indexer {
 				}
 				const nbtcPkg = firstDeposit.nbtc_pkg;
 				const suiNetwork = firstDeposit.sui_network;
-				const pkgKey = `${nbtcPkg}-${suiNetwork}`;
+				const pkgKey = nbtcPkg;
 
 				if (!nbtcPkg || !suiNetwork) {
 					logger.warn({
@@ -430,6 +469,7 @@ export class Indexer {
 						proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
 						nbtcPkg: nbtcPkg,
 						suiNetwork: suiNetwork,
+						packageId: firstDeposit.package_id,
 					});
 				}
 
@@ -463,13 +503,21 @@ export class Indexer {
 					continue;
 				}
 
+				const firstBatchArg = mintBatchArgs[0];
+				if (!firstBatchArg) {
+					continue;
+				}
+
+				const config = this.getPackageConfig(firstBatchArg.packageId);
+				const client = this.getSuiClient(config.sui_network);
+
 				logger.info({
 					msg: "Minting: Sending batch of mints to Sui",
 					count: mintBatchArgs.length,
 					pkgKey: pkgKey,
 				});
 
-				const suiTxDigest = await this.nbtcClient.tryMintNbtcBatch(mintBatchArgs);
+				const suiTxDigest = await client.tryMintNbtcBatch(mintBatchArgs);
 				if (suiTxDigest) {
 					logger.info({
 						msg: "Sui batch mint transaction successful",
@@ -559,37 +607,51 @@ export class Indexer {
 			return;
 		}
 
-		const blockHashes = blocksToVerify.map((r) => r.block_hash);
+		const distinctNetworks = [...new Set(blocksToVerify.map((b) => b.network))];
+		for (const network of distinctNetworks) {
+			const config = this.#packageConfigs
+				.values()
+				.find((c) => c.btc_network === network && c.is_active);
+			if (!config) {
+				logger.warn({
+					msg: "Received Bitcoin block from not configured network, skipping",
+					network,
+				});
+				continue;
+			}
 
-		try {
-			const verificationResults = await this.nbtcClient.verifyBlocks(blockHashes);
-			const invalidHashes: string[] = [];
-			for (let i = 0; i < blockHashes.length; i++) {
-				if (verificationResults[i] === false) {
-					const blockHash = blockHashes[i];
-					if (blockHash) {
-						invalidHashes.push(blockHash);
+			const client = this.getSuiClient(config.sui_network);
+			const blockHashes = blocksToVerify
+				.filter((r) => r.network === network)
+				.map((r) => r.block_hash);
+
+			try {
+				const verificationResults = await client.verifyBlocks(blockHashes);
+				const invalidHashes: string[] = [];
+				for (let i = 0; i < blockHashes.length; i++) {
+					if (verificationResults[i] === false) {
+						const blockHash = blockHashes[i];
+						if (blockHash) {
+							invalidHashes.push(blockHash);
+						}
 					}
 				}
-			}
 
-			if (invalidHashes.length > 0) {
-				logger.warn({
-					msg: "SPV Check: Detected reorged blocks. Updating transaction statuses.",
-					reorgedBlockHashes: invalidHashes,
-				});
-				await this.storage.updateConfirmingTxsToReorg(invalidHashes);
-			} else {
-				logger.debug({ msg: "SPV Check: All confirming blocks are valid." });
+				if (invalidHashes.length > 0) {
+					await this.storage.updateConfirmingTxsToReorg(invalidHashes);
+				} else {
+					logger.debug({ msg: "SPV Check: All confirming blocks are valid." });
+				}
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to verify blocks with on-chain light client",
+						method: "verifyConfirmingBlocks",
+						network: network,
+					},
+					e,
+				);
 			}
-		} catch (e) {
-			logError(
-				{
-					msg: "Failed to verify blocks with on-chain light client",
-					method: "verifyConfirmingBlocks",
-				},
-				e,
-			);
 		}
 	}
 
@@ -673,12 +735,16 @@ export class Indexer {
 		for (const tx of pendingTxs) {
 			const confirmations = latestHeight - tx.block_height + 1;
 			if (confirmations >= this.confirmationDepth) {
-				const addressInfo = tx.deposit_address
-					? this.nbtcAddressesMap.get(tx.deposit_address)
-					: undefined;
+				const depositInfo = this.nbtcDepositAddrMap.get(tx.deposit_address);
+				let isPkgActive = false;
+				if (depositInfo) {
+					const pkgConfig = this.getPackageConfig(depositInfo.package_id);
+					if (pkgConfig && pkgConfig.is_active) {
+						isPkgActive = true;
+					}
+				}
 
-				const isActive = addressInfo && addressInfo.is_active;
-				if (isActive) {
+				if (isPkgActive) {
 					logger.info({
 						msg: "Transaction finalized (Active Key)",
 						txId: tx.tx_id,

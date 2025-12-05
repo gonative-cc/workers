@@ -59,21 +59,26 @@ CREATE INDEX IF NOT EXISTS nbtc_withdraw_sender ON nbtc_withdrawal (sender, reci
 
 -- This table holds the config for nBTC packages.
 CREATE TABLE IF NOT EXISTS nbtc_packages (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	id INTEGER PRIMARY KEY,
 	btc_network TEXT NOT NULL,
 	sui_network TEXT NOT NULL,
 	nbtc_pkg TEXT NOT NULL,
+	nbtc_contract TEXT NOT NULL,
+	lc_pkg TEXT NOT NULL,
+	lc_contract TEXT NOT NULL,
+	sui_fallback_address TEXT NOT NULL,
 	is_active INTEGER NOT NULL DEFAULT TRUE,
 	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    package_id INTEGER NOT NULL,
-    deposit_address TEXT NOT NULL,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (package_id) REFERENCES nbtc_packages(id) ON DELETE CASCADE,
-    UNIQUE(package_id, deposit_address)
+	id INTEGER PRIMARY KEY,
+	package_id INTEGER NOT NULL,
+	deposit_address TEXT NOT NULL,
+	is_active INTEGER NOT NULL DEFAULT 1,
+	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id) ON DELETE CASCADE,
+	-- make sure we don't share bitcoin deposit address between packages
+	UNIQUE(deposit_address)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (

@@ -1,13 +1,12 @@
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { SUI_NETWORK_URLS } from "./config";
 import { SuiGraphQLClient } from "./graphql-client";
 import { SuiEventHandler } from "./handler";
-import type { SuiEventNode, NetworkConfig } from "./models";
+import type { NetworkConfig } from "./models";
 import { IndexerStorage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 
 export default {
-	async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new IndexerStorage(env.DB);
 		const dbNetworks = await storage.getActiveNetworks();
 

@@ -207,7 +207,10 @@ async function insertMintedTx(db: D1Database, txData: TxInfo) {
 	await insertTxWithStatus(db, txData.id, MintTxStatus.Minted, 0);
 }
 
-async function setupBlockInKV(kv: KVNamespace, blockData: TestBlock) {
+// type alias for exact type Miniflare returns
+type MiniflareKV = Awaited<ReturnType<Miniflare["getKVNamespace"]>>;
+
+async function putBlockInKv(kv: MiniflareKV, blockData: TestBlock) {
 	await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 }
 
@@ -289,7 +292,7 @@ describe("Indexer.processBlock", () => {
 		};
 
 		const kv = await mf.getKVNamespace("BtcBlocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, blockData);
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -519,7 +522,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		await insertFinalizedTx(db, tx329);
 
 		const kv = await mf.getKVNamespace("BtcBlocks");
-		await kv.put(block329.hash, Buffer.from(block329.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, block329);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(fakeSuiTxDigest);
@@ -545,7 +548,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await insertFinalizedTx(db, txData);
 
 		const kv = await mf.getKVNamespace("BtcBlocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, blockData);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(fakeSuiTxDigest);
@@ -569,7 +572,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await insertFinalizedTx(db, txData, 1);
 
 		const kv = await mf.getKVNamespace("BtcBlocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, blockData);
 
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(null);
 
@@ -682,7 +685,7 @@ describe("Indexer.processBlock", () => {
 		};
 
 		const kv = await mf.getKVNamespace("BtcBlocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, blockData);
 
 		const fakeSenderAddress = "bc1qtestsenderaddress";
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -711,8 +714,7 @@ describe("Indexer.processBlock", () => {
 		const kv = await mf.getKVNamespace("BtcBlocks");
 
 		await insertMintedTx(db, txData);
-
-		await kv.put(blockData329.hash, Buffer.from(blockData329.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, blockData329);
 
 		await db
 			.prepare(
@@ -727,7 +729,7 @@ describe("Indexer.processBlock", () => {
 			network: BtcNet.REGTEST,
 			timestamp_ms: timestamp_ms + 1000,
 		};
-		await kv.put(blockData327.hash, Buffer.from(blockData327.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, blockData327);
 		await indexer.processBlock(reorgBlockInfo);
 		const status = await indexer.storage.getTxStatus(txData.id);
 		expect(status).toEqual(MintTxStatus.MintedReorg);
@@ -932,7 +934,7 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 		};
 
 		const kv = await mf.getKVNamespace("BtcBlocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, blockData);
 
 		if (mockElectrsResponse) {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any

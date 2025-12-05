@@ -62,9 +62,8 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 
 	const electrsClients = new Map<BtcNet, ElectrsService>();
 	for (const net in ELECTRS_URLS_BY_NETWORK) {
-		const url = ELECTRS_URLS_BY_NETWORK[net];
-		if (url)
-			electrsClients.set(net, new ElectrsService(url));
+		const url = ELECTRS_URLS_BY_NETWORK[net as BtcNet];
+		if (url) electrsClients.set(net as BtcNet, new ElectrsService(url));
 	}
 
 	try {
@@ -110,6 +109,11 @@ export class Indexer {
 		for (const p of packageConfigs) {
 			if (!suiClients.has(p.sui_network))
 				throw new Error("No SuiClient configured for network " + p.sui_network);
+		}
+		for (const p of packageConfigs) {
+			if (!electrsClients.has(p.btc_network as BtcNet)) {
+				throw new Error("No Electrs client configured for network " + p.btc_network);
+			}
 		}
 		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.id, c]));
 

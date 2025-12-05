@@ -24,7 +24,7 @@ import type {
 import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
-import { ElectrsService } from "./electrs";
+import { ElectrsService, ELECTRS_URLS_BY_NETWORK } from "./electrs";
 import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
@@ -54,10 +54,16 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	}
 
 	const mnemonic = await env.NBTC_MINTING_SIGNER_MNEMONIC.get();
-	const suiClients = new Map();
+	const suiClients = new Map<SuiNet, SuiClient>();
 	for (const p of packageConfigs) {
 		if (!suiClients.has(p.sui_network))
 			suiClients.set(p.sui_network, new SuiClient(p, mnemonic));
+	}
+
+	const electrsClients = new Map<BtcNet, ElectrsService>();
+	for (const net in ELECTRS_URLS_BY_NETWORK) {
+		const url = ELECTRS_URLS_BY_NETWORK[net as BtcNet];
+		if (url) electrsClients.set(net as BtcNet, new ElectrsService(url));
 	}
 
 	try {
@@ -68,8 +74,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 			nbtcDepositAddrMap,
 			confirmationDepth,
 			maxNbtcMintTxRetries,
-			// TODO: we need to support multiple networks
-			new ElectrsService(requireElectrsUrl(btcNetFromString(env.BITCOIN_NETWORK))),
+			electrsClients,
 		);
 	} catch (err) {
 		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
@@ -79,12 +84,12 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 
 export class Indexer {
 	storage: Storage;
-	electrs: Electrs;
 	confirmationDepth: number;
 	maxNbtcMintTxRetries: number;
 	nbtcDepositAddrMap: NbtcDepositAddrsMap;
 	#packageConfigs: Map<number, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	#suiClients: Map<SuiNet, SuiClientI>;
+	#electrsClients: Map<BtcNet, Electrs>;
 
 	constructor(
 		storage: Storage,
@@ -93,7 +98,7 @@ export class Indexer {
 		nbtcDepositAddrMap: NbtcDepositAddrsMap,
 		confirmationDepth: number,
 		maxRetries: number,
-		electrs: Electrs,
+		electrsClients: Map<BtcNet, Electrs>,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
@@ -104,6 +109,11 @@ export class Indexer {
 		for (const p of packageConfigs) {
 			if (!suiClients.has(p.sui_network))
 				throw new Error("No SuiClient configured for network " + p.sui_network);
+		}
+		for (const p of packageConfigs) {
+			if (!electrsClients.has(p.btc_network as BtcNet)) {
+				throw new Error("No Electrs client configured for network " + p.btc_network);
+			}
 		}
 		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.id, c]));
 
@@ -116,7 +126,7 @@ export class Indexer {
 		this.nbtcDepositAddrMap = nbtcDepositAddrMap;
 		this.confirmationDepth = confirmationDepth;
 		this.maxNbtcMintTxRetries = maxRetries;
-		this.electrs = electrs;
+		this.#electrsClients = electrsClients;
 		this.#packageConfigs = pkgCfgMap;
 		this.#suiClients = suiClients;
 	}
@@ -130,6 +140,14 @@ export class Indexer {
 		const c = this.#suiClients.get(suiNet);
 		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);
 		return c;
+	}
+
+	getElectrsClient(btcNet: BtcNet): Electrs {
+		const client = this.#electrsClients.get(btcNet);
+		if (!client) {
+			throw new Error(`No Electrs client configured for network ${btcNet}`);
+		}
+		return client;
 	}
 
 	// Query NbtcPkgCfg by db table row ID.
@@ -184,8 +202,7 @@ export class Indexer {
 		for (const tx of block.transactions ?? []) {
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
-				// TODO: getSenderAddresses must take network
-				const txSenders = await this.getSenderAddresses(tx);
+				const txSenders = await this.getSenderAddresses(tx, blockInfo.network);
 				const sender = txSenders[0] || ""; // Use first sender or empty string if none found
 				if (txSenders.length > 1) {
 					logger.warn({
@@ -816,7 +833,7 @@ export class Indexer {
 			return { tx_id: txId, registered_deposits: 0 };
 		}
 
-		const txSenders = await this.getSenderAddresses(tx);
+		const txSenders = await this.getSenderAddresses(tx, network);
 		const sender = txSenders[0] || "";
 
 		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network, sender }));
@@ -841,13 +858,14 @@ export class Indexer {
 		return nbtcMintRows.map((r) => nbtcRowToResp(r, latestHeight));
 	}
 
-	private async getSenderAddresses(tx: Transaction): Promise<string[]> {
+	private async getSenderAddresses(tx: Transaction, network: BtcNet): Promise<string[]> {
 		const senderAddresses = new Set<string>();
+		const electrs = this.getElectrsClient(network);
 		const prevTxFetches = tx.ins.map(async (input) => {
 			const prevTxId = Buffer.from(input.hash).reverse().toString("hex");
 			const prevTxVout = input.index;
 			try {
-				const response = await this.electrs.getTx(prevTxId);
+				const response = await electrs.getTx(prevTxId);
 				if (!response.ok) return;
 				const prevTx = (await response.json()) as ElectrsTxResponse;
 				const prevOutput = prevTx.vout[prevTxVout];

@@ -531,7 +531,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		await putBlockInKv(kv, block329);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
-		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(fakeSuiTxDigest);
+		mockSuiClient.tryMintNbtcBatch.mockResolvedValue([true, fakeSuiTxDigest]);
 
 		await indexer.processFinalizedTransactions();
 		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
@@ -557,7 +557,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await putBlockInKv(kv, blockData);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
-		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(fakeSuiTxDigest);
+		mockSuiClient.tryMintNbtcBatch.mockResolvedValue([true, fakeSuiTxDigest]);
 
 		await indexer.processFinalizedTransactions();
 
@@ -591,6 +591,57 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 			.all();
 		expect(results.length).toEqual(1);
 		expect(results[0]!.retry_count).toEqual(2);
+	});
+
+	it("should store digest for on-chain execution failure", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+		await insertFinalizedTx(db, txData);
+
+		const kv = await mf.getKVNamespace("BtcBlocks");
+		await putBlockInKv(kv, blockData);
+
+		const failedSuiTxDigest = "0xfailed123abc456def789onchain_execution_error";
+		mockSuiClient.tryMintNbtcBatch.mockResolvedValue([false, failedSuiTxDigest]);
+
+		await indexer.processFinalizedTransactions();
+
+		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("mint-failed");
+		expect(results[0]!.sui_tx_id).toEqual(failedSuiTxDigest);
+		expect(results[0]!.retry_count).toEqual(1);
+	});
+
+	it("should handle pre-submission failure without digest", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+		await insertFinalizedTx(db, txData);
+
+		const kv = await mf.getKVNamespace("BtcBlocks");
+		await putBlockInKv(kv, blockData);
+
+		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(null);
+
+		await indexer.processFinalizedTransactions();
+
+		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("mint-failed");
+		expect(results[0]!.sui_tx_id).toBeNull();
+		expect(results[0]!.retry_count).toEqual(1);
 	});
 });
 

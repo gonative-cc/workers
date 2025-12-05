@@ -11,8 +11,8 @@ const LC_MODULE = "light_client";
 
 export interface SuiClientI {
 	verifyBlocks: (blockHashes: string[]) => Promise<boolean[]>;
-	mintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<SuiTxDigest>;
-	tryMintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<SuiTxDigest | null>;
+	mintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest]>;
+	tryMintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest] | null>;
 }
 
 export type SuiClientConstructor = (config: NbtcPkgCfg) => SuiClientI;
@@ -80,7 +80,14 @@ export class SuiClient implements SuiClientI {
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 
-	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest> {
+	/**
+	 * Executes a batch mint transaction on Sui.
+	 * Returns [success, digest] tuple:
+	 * - [true, digest]: Transaction executed successfully on-chain
+	 * - [false, digest]: Transaction executed but failed on-chain
+	 * Throws on pre-submission errors
+	 */
+	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest]> {
 		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
 		// Assuming all mintArgs in a batch are for the same nbtcPkg and suiNetwork for now
@@ -117,18 +124,28 @@ export class SuiClient implements SuiClientI {
 			options: { showEffects: true },
 		});
 
-		if (result.effects?.status.status !== "success") {
+		const success = result.effects?.status.status === "success";
+
+		if (!success) {
 			logger.error({
 				msg: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
 				error: result.effects?.status.error,
+				digest: result.digest,
 			});
-			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
 		}
-		return result.digest;
+
+		return [success, result.digest];
 	}
 
-	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
+	/**
+	 * Wrapper for mintNbtcBatch that catches pre-submission errors.
+	 * Returns:
+	 * - [true, digest]: Success
+	 * - [false, digest]: On-chain failure
+	 * - null: Pre-submission error
+	 */
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest] | null> {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
 			return await this.mintNbtcBatch(mintArgs);

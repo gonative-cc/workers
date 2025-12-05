@@ -609,9 +609,9 @@ export class Indexer {
 
 		const distinctNetworks = [...new Set(blocksToVerify.map((b) => b.network))];
 		for (const network of distinctNetworks) {
-			const config = this.#packageConfigs.values().find(
-				(c) => c.btc_network === network && c.is_active,
-			);
+			const config = this.#packageConfigs
+				.values()
+				.find((c) => c.btc_network === network && c.is_active);
 			if (!config) {
 				logger.warn({
 					msg: "Received Bitcoin block from not configured network, skipping",

@@ -1,14 +1,4 @@
-import {
-	describe,
-	it,
-	vi,
-	expect,
-	beforeAll,
-	afterAll,
-	beforeEach,
-	afterEach,
-	jest,
-} from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from "bun:test";
 import { Miniflare } from "miniflare";
 
 import { join } from "path";
@@ -16,7 +6,7 @@ import { Block, networks } from "bitcoinjs-lib";
 
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
-import SuiClient from "./sui_client";
+import type { SuiClientI } from "./sui_client";
 import type {
 	Deposit,
 	ProofResult,
@@ -28,7 +18,8 @@ import { MintTxStatus } from "./models";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
-
+import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
+import { MockSuiClient } from "./sui_client-mock";
 interface TxInfo {
 	id: string;
 	suiAddr: string;
@@ -95,11 +86,9 @@ const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
 	is_active: 1,
 };
 
-const TEST_MNEMONIC =
-	"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic";
-
 let mf: Miniflare;
 let indexer: Indexer;
+let mockSuiClient: MockSuiClient;
 
 beforeAll(async () => {
 	mf = new Miniflare({
@@ -130,10 +119,9 @@ beforeEach(async () => {
 	};
 	nbtcAddressesMap.set(REGTEST_DATA[329]!.depositAddr, testNbtcAddress);
 
-	const suiClients = new Map();
-	const suiClient = new SuiClient(TEST_PACKAGE_CONFIG, TEST_MNEMONIC);
-	vi.spyOn(suiClient, "verifyBlocks").mockResolvedValue([]);
-	suiClients.set("testnet", suiClient);
+	const suiClients = new Map<SuiNet, SuiClientI>();
+	mockSuiClient = new MockSuiClient();
+	suiClients.set(toSuiNet("testnet"), mockSuiClient);
 
 	indexer = new Indexer(
 		storage,
@@ -425,11 +413,11 @@ describe("Indexer.findFinalizedTxs", () => {
 	});
 });
 
-// describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
-// 	it("should be tested later", () => {
-// 		// TODO: add a test for the scanNewBlocks using the same data
-// 	});
-// });
+describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
+	it("should be tested later", () => {
+		// TODO: add a test for the scanNewBlocks using the same data
+	});
+});
 
 describe("Block Parsing", () => {
 	it("should correctly parse block 94160 from testnet", async () => {
@@ -534,12 +522,10 @@ describe("Indexer.processFinalizedTransactions", () => {
 		await kv.put(block329.hash, Buffer.from(block329.rawBlockHex, "hex").buffer);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
-		const suiClientSpy = vi
-			.spyOn(SuiClient.prototype, "tryMintNbtcBatch")
-			.mockResolvedValue(fakeSuiTxDigest);
+		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(fakeSuiTxDigest);
 
 		await indexer.processFinalizedTransactions();
-		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 
 		const { results } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
@@ -562,13 +548,11 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
-		const suiClientSpy = vi
-			.spyOn(SuiClient.prototype, "tryMintNbtcBatch")
-			.mockResolvedValue(fakeSuiTxDigest);
+		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(fakeSuiTxDigest);
 
 		await indexer.processFinalizedTransactions();
 
-		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 		const { results } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
 			.bind(txData.id)
@@ -587,13 +571,11 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const kv = await mf.getKVNamespace("BtcBlocks");
 		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 
-		const suiClientSpy = vi
-			.spyOn(SuiClient.prototype, "tryMintNbtcBatch")
-			.mockResolvedValue(null);
+		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(null);
 
 		await indexer.processFinalizedTransactions();
 
-		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 		const { results } = await db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
 			.bind(txData.id)
@@ -881,10 +863,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 				0,
 			)
 			.run();
-
-		const suiClient = indexer.getSuiClient("testnet");
-		const suiClientSpy = vi.spyOn(suiClient, "verifyBlocks");
-		return { suiClientSpy, db };
+		return { db };
 	};
 
 	const verifyMintingStatus = async (expected: string, db: D1Database, txId: string) => {
@@ -897,26 +876,26 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 	};
 
 	it("should verify confirming blocks with on-chain light client and update reorged transactions", async () => {
-		const { suiClientSpy, db } = await helperSetupDB();
+		const { db } = await helperSetupDB();
 
-		suiClientSpy.mockResolvedValue([false]); // Block is not valid anymore
+		mockSuiClient.verifyBlocks.mockResolvedValue([false]); // Block is not valid anymore
 
 		await indexer.verifyConfirmingBlocks();
 		expect(
-			suiClientSpy,
+			mockSuiClient.verifyBlocks,
 			"Verify that verifyBlocks was called with the correct block hash",
 		).toHaveBeenCalledWith([block329.hash]);
 		await verifyMintingStatus("reorg", db, tx329.id);
 	});
 
 	it("should verify confirming blocks and not update status if blocks are still valid", async () => {
-		const { suiClientSpy, db } = await helperSetupDB();
+		const { db } = await helperSetupDB();
 
-		suiClientSpy.mockResolvedValue([true]); // Block is valid
+		mockSuiClient.verifyBlocks.mockResolvedValue([true]); // Block is valid
 
 		await indexer.verifyConfirmingBlocks();
 		expect(
-			suiClientSpy,
+			mockSuiClient.verifyBlocks,
 			"Verify that verifyBlocks was called with the correct block hash",
 		).toHaveBeenCalledWith([block329.hash]);
 
@@ -925,20 +904,17 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 	});
 
 	it("should handle empty confirming blocks list", async () => {
-		// Ensure no confirming blocks exist
-		const suiClientSpy = vi.spyOn(SuiClient.prototype, "verifyBlocks").mockResolvedValue([]);
-
 		await indexer.verifyConfirmingBlocks();
-		expect(suiClientSpy).not.toHaveBeenCalled();
+		expect(mockSuiClient.verifyBlocks).not.toHaveBeenCalled();
 	});
 
 	it("should handle SPV verification failure gracefully without updating the status", async () => {
-		const { suiClientSpy, db } = await helperSetupDB();
+		const { db } = await helperSetupDB();
 
-		suiClientSpy.mockRejectedValue(new Error("SPV verification failed"));
+		mockSuiClient.verifyBlocks.mockRejectedValue(new Error("SPV verification failed"));
 		await indexer.verifyConfirmingBlocks();
 
-		expect(suiClientSpy).toHaveBeenCalledWith([block329.hash]);
+		expect(mockSuiClient.verifyBlocks).toHaveBeenCalledWith([block329.hash]);
 		await verifyMintingStatus("confirming", db, tx329.id);
 	});
 });

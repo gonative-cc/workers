@@ -90,7 +90,7 @@ const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
 let mf: Miniflare;
 let indexer: Indexer;
 let mockSuiClient: MockSuiClient;
-let mockElectrs: Electrs;
+let electrs: Electrs;
 
 beforeAll(async () => {
 	mf = new Miniflare({

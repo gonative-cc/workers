@@ -61,11 +61,10 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	}
 
 	const electrsClients = new Map<BtcNet, ElectrsService>();
-	for (const net of Object.keys(ELECTRS_URLS_BY_NETWORK) as BtcNet[]) {
+	for (const net in ELECTRS_URLS_BY_NETWORK) {
 		const url = ELECTRS_URLS_BY_NETWORK[net];
-		if (url) {
+		if (url)
 			electrsClients.set(net, new ElectrsService(url));
-		}
 	}
 
 	try {

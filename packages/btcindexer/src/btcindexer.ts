@@ -534,8 +534,28 @@ export class Indexer {
 					pkgKey: pkgKey,
 				});
 
-				const suiTxDigest = await client.tryMintNbtcBatch(mintBatchArgs);
-				if (suiTxDigest) {
+				const result = await client.tryMintNbtcBatch(mintBatchArgs);
+
+				if (!result) {
+					// Pre-submission error (network failure, validation error, etc.)
+					logger.error({
+						msg: "Sui batch mint transaction failed (pre-submission error)",
+						method: "processFinalizedTransactions",
+						pkgKey,
+					});
+					await this.storage.batchUpdateNbtcTxs(
+						processedPrimaryKeys.map((p) => ({
+							txId: p.tx_id,
+							vout: p.vout,
+							status: MintTxStatus.MintFailed,
+						})),
+					);
+					continue;
+				}
+
+				const [success, suiTxDigest] = result;
+
+				if (success) {
 					logger.info({
 						msg: "Sui batch mint transaction successful",
 						suiTxDigest,
@@ -550,16 +570,19 @@ export class Indexer {
 						})),
 					);
 				} else {
+					// Transaction executed but failed on-chain
 					logger.error({
-						msg: "Sui batch mint transaction failed",
+						msg: "Sui batch mint transaction failed (on-chain failure)",
 						method: "processFinalizedTransactions",
 						pkgKey,
+						suiTxDigest,
 					});
 					await this.storage.batchUpdateNbtcTxs(
 						processedPrimaryKeys.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.MintFailed,
+							suiTxDigest,
 						})),
 					);
 				}

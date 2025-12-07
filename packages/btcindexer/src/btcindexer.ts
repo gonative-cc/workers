@@ -539,7 +539,6 @@ export class Indexer {
 				const [success, suiTxDigest] = result;
 
 				if (success) {
-					// Transaction executed successfully on-chain
 					logger.info({
 						msg: "Sui batch mint transaction successful",
 						suiTxDigest,

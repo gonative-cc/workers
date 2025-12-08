@@ -8,6 +8,7 @@ import type {
 	NbtcTxInsertion,
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
+	ConfirmingBlockInfo,
 } from "./models";
 import { MintTxStatus } from "./models";
 import type { Storage } from "./storage";
@@ -28,7 +29,7 @@ export class CFStorage implements Storage {
 		try {
 			const { results } = await this.d1
 				.prepare(
-					`SELECT a.deposit_address 
+					`SELECT a.deposit_address
 					 FROM nbtc_deposit_addresses a
 					 JOIN nbtc_packages p ON a.package_id = p.id
 					 WHERE p.btc_network = ? AND a.is_active = 1`,
@@ -62,10 +63,11 @@ export class CFStorage implements Storage {
 	 * - AND The incoming `timestamp_ms` is greater than the stored `inserted_at`.
 	 *
 	 * @param b - The block record from the queue.
-	 * @returns `true` if the block was inserted or updated (fresh data).
-	 * `false` if the block was stale or an exact duplicate (processing should stop).
+	 * @returns `true` if the block was inserted or updated, `false` otherwise.
 	 */
 	async insertBlockInfo(b: BlockQueueRecord): Promise<boolean> {
+		// TODO: we should return here InsertResult {ignored, inserted, updated}
+		// we need to use batching
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
@@ -76,17 +78,7 @@ export class CFStorage implements Storage {
 		);
 		try {
 			const result = await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
-			const isFresh = result.meta.changes > 0;
-			if (!isFresh) {
-				logger.debug({
-					msg: "Ignored stale or duplicate block ingestion",
-					method: "CFStorage.insertBlockInfo",
-					height: b.height,
-					incomingHash: b.hash,
-					incomingTs: b.timestamp_ms,
-				});
-			}
-			return isFresh;
+			return result.meta.changes > 0;
 		} catch (e) {
 			logError(
 				{
@@ -210,16 +202,16 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getNbtcMintCandidates(maxRetries: number, suiNetwork: string): Promise<FinalizedTxRow[]> {
+	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network 
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network, p.id as package_id
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
-				 WHERE p.sui_network = ? AND (m.status = '${MintTxStatus.Finalized}' OR (m.status = '${MintTxStatus.MintFailed}' AND m.retry_count <= ?))`,
+				 WHERE m.status = '${MintTxStatus.Finalized}' OR (m.status = '${MintTxStatus.MintFailed}' AND m.retry_count <= ?)`,
 			)
-			.bind(suiNetwork, maxRetries)
+			.bind(maxRetries)
 			.all<FinalizedTxRow>();
 		return finalizedTxs.results ?? [];
 	}
@@ -229,7 +221,7 @@ export class CFStorage implements Storage {
 	async getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network 
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
@@ -290,7 +282,7 @@ export class CFStorage implements Storage {
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
 		const setFailedStmt = this.d1.prepare(
-			`UPDATE nbtc_minting SET status = ?, retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
+			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
 
 		const batchTimestamp = Date.now();
@@ -306,7 +298,13 @@ export class CFStorage implements Storage {
 					u.vout,
 				);
 			} else {
-				return setFailedStmt.bind(MintTxStatus.MintFailed, timestamp, u.txId, u.vout);
+				return setFailedStmt.bind(
+					MintTxStatus.MintFailed,
+					u.suiTxDigest ?? null,
+					timestamp,
+					u.txId,
+					u.vout,
+				);
 			}
 		});
 
@@ -318,20 +316,28 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getConfirmingBlocks(): Promise<{ block_hash: string }[]> {
+	async getConfirmingBlocks(): Promise<ConfirmingBlockInfo[]> {
 		//NOTE: The `block_hash IS NOT NULL` check is a safety measure. While the `CONFIRMING`
 		// status should guarantee a non-null block hash, transactions can be inserted
 		// initially with a null hash (e.g., when broadcast but not yet mined).
 		// This ensures we only try to verify blocks we know about.
 		const blocksToVerify = await this.d1
 			.prepare(
-				`SELECT DISTINCT block_hash FROM nbtc_minting WHERE status = '${MintTxStatus.Confirming}' AND block_hash IS NOT NULL`,
+				`SELECT DISTINCT m.block_hash, p.btc_network as network
+				FROM nbtc_minting m
+				JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				JOIN nbtc_packages p ON a.package_id = p.id
+				WHERE m.status = '${MintTxStatus.Confirming}' AND m.block_hash IS NOT NULL`,
 			)
-			.all<{ block_hash: string }>();
+			.all<ConfirmingBlockInfo>();
 		return blocksToVerify.results ?? [];
 	}
 
 	async updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void> {
+		logger.warn({
+			msg: "SPV Check: Detected reorged blocks. Updating transaction statuses.",
+			reorgedBlockHashes: blockHashes,
+		});
 		const now = Date.now();
 		const placeholders = blockHashes.map(() => "?").join(",");
 		const updateStmt = this.d1
@@ -345,7 +351,7 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.block_hash, m.block_height, p.btc_network, a.deposit_address 
+				`SELECT m.tx_id, m.block_hash, m.block_height, p.btc_network, a.deposit_address
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
@@ -370,7 +376,7 @@ export class CFStorage implements Storage {
 	async getNbtcMintTx(txId: string): Promise<NbtcTxRow | null> {
 		return this.d1
 			.prepare(
-				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network 
+				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id
@@ -383,7 +389,7 @@ export class CFStorage implements Storage {
 	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]> {
 		const dbResult = await this.d1
 			.prepare(
-				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network 
+				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN nbtc_packages p ON a.package_id = p.id

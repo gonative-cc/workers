@@ -5,7 +5,7 @@ import { graphql } from "@mysten/sui/graphql/schemas/latest";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
-import type { MintBatchArg, SuiTxDigest } from "./models";
+import type { MintBatchArg, NbtcPkgCfg, SuiTxDigest } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 
@@ -33,74 +33,50 @@ const GET_TX_IDS_TABLE_QUERY = graphql(`
 	}
 `);
 
-export interface SuiClientCfg {
-	network: "testnet" | "mainnet" | "devnet" | "localnet";
-	nbtcPkg: string;
-	nbtcModule: string;
-	nbtcContractId: string;
-	lightClientObjectId: string;
-	lightClientPackageId: string;
-	lightClientModule: string;
-	signerMnemonic: string;
-}
-
 const NBTC_MODULE = "nbtc";
 const LC_MODULE = "light_client";
 
-export async function suiClientFromEnv(env: Env): Promise<SuiClient> {
-	return new SuiClient({
-		network: env.SUI_NETWORK,
-		nbtcPkg: env.NBTC_PACKAGE_ID,
-		nbtcModule: NBTC_MODULE,
-		nbtcContractId: env.NBTC_CONTRACT_ID,
-		lightClientObjectId: env.LIGHT_CLIENT_OBJECT_ID,
-		lightClientPackageId: env.LIGHT_CLIENT_PACKAGE_ID,
-		lightClientModule: LC_MODULE,
-		signerMnemonic: await env.NBTC_MINTING_SIGNER_MNEMONIC.get(),
-	});
+export interface SuiClientI {
+	verifyBlocks: (blockHashes: string[]) => Promise<boolean[]>;
+	mintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest]>;
+	tryMintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest] | null>;
+	isBtcTxMinted: (btcTxId: string) => Promise<boolean>;
 }
 
-export class SuiClient {
+export type SuiClientConstructor = (config: NbtcPkgCfg) => SuiClientI;
+
+export function NewSuiClient(mnemonic: string): SuiClientConstructor {
+	return (config: NbtcPkgCfg) => new SuiClient(config, mnemonic);
+}
+
+export class SuiClient implements SuiClientI {
 	private client: Client;
 	private gqlClient: SuiGraphQLClient;
 	private signer: Signer;
-	private nbtcPkg: string;
-	private nbtcModule: string;
-	private nbtcContractId: string;
-	private lightClientObjectId: string;
-	private lightClientPackageId: string;
-	private lightClientModule: string;
-	readonly network: string;
+	private config: NbtcPkgCfg;
 	private txIdsTableIdCache: string | null = null;
 
-	constructor(config: SuiClientCfg) {
-		this.client = new Client({ url: getFullnodeUrl(config.network) });
-		const gqlUrl = SUI_GRAPHQL_URLS[config.network];
+	constructor(config: NbtcPkgCfg, mnemonic: string) {
+		this.config = config;
+		this.client = new Client({ url: getFullnodeUrl(config.sui_network) });
+		const gqlUrl = SUI_GRAPHQL_URLS[config.sui_network];
 		this.gqlClient = new SuiGraphQLClient({ url: gqlUrl });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
-		this.signer = Ed25519Keypair.deriveKeypair(config.signerMnemonic);
+		this.signer = Ed25519Keypair.deriveKeypair(mnemonic);
 		logger.debug({
 			msg: "Sui Client Initialized",
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
-			network: config.network,
+			network: config.sui_network,
 		});
-		this.network = config.network;
-		this.nbtcPkg = config.nbtcPkg;
-		this.nbtcModule = config.nbtcModule;
-		this.nbtcContractId = config.nbtcContractId;
-		this.lightClientObjectId = config.lightClientObjectId;
-		this.lightClientPackageId = config.lightClientPackageId;
-		this.lightClientModule = config.lightClientModule;
 	}
 
 	async verifyBlocks(blockHashes: string[]): Promise<boolean[]> {
 		const tx = new SuiTransaction();
-		const target =
-			`${this.lightClientPackageId}::${this.lightClientModule}::verify_blocks` as const;
+		const target = `${this.config.lc_pkg}::${LC_MODULE}::verify_blocks` as const;
 		tx.moveCall({
 			target: target,
 			arguments: [
-				tx.object(this.lightClientObjectId),
+				tx.object(this.config.lc_contract),
 				tx.pure.vector(
 					"vector<u8>",
 					blockHashes.map((h) =>
@@ -136,7 +112,14 @@ export class SuiClient {
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 
-	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest> {
+	/**
+	 * Executes a batch mint transaction on Sui.
+	 * Returns [success, digest] tuple:
+	 * - [true, digest]: Transaction executed successfully on-chain
+	 * - [false, digest]: Transaction executed but failed on-chain
+	 * Throws on pre-submission errors
+	 */
+	async mintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest]> {
 		if (mintArgs.length === 0) throw new Error("Mint arguments cannot be empty.");
 
 		// Assuming all mintArgs in a batch are for the same nbtcPkg and suiNetwork for now
@@ -144,7 +127,7 @@ export class SuiClient {
 		if (!firstArg) throw new Error("Mint arguments cannot be empty.");
 
 		const tx = new SuiTransaction();
-		const target = `${firstArg.nbtcPkg}::${this.nbtcModule}::mint` as const; // Use nbtcPkg from arg
+		const target = `${this.config.nbtc_pkg}::${NBTC_MODULE}::mint` as const;
 
 		for (const args of mintArgs) {
 			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));
@@ -153,8 +136,8 @@ export class SuiClient {
 			tx.moveCall({
 				target: target,
 				arguments: [
-					tx.object(this.nbtcContractId),
-					tx.object(this.lightClientObjectId),
+					tx.object(this.config.nbtc_contract),
+					tx.object(this.config.lc_contract),
 					tx.pure.vector("u8", txBytes),
 					tx.pure.vector("vector<u8>", proofLittleEndian),
 					tx.pure.u64(args.blockHeight),
@@ -173,17 +156,24 @@ export class SuiClient {
 			options: { showEffects: true },
 		});
 
-		if (result.effects?.status.status !== "success") {
+		const success = result.effects?.status.status === "success";
+
+		if (!success) {
 			logger.error({
 				msg: "Sui batch mint transaction effects indicated failure",
 				status: result.effects?.status.status,
 				error: result.effects?.status.error,
+				digest: result.digest,
 			});
-			throw new Error(`Batch mint transaction failed: ${result.effects?.status.error}`);
 		}
-		return result.digest;
+
+		return [success, result.digest];
 	}
 
+	/**
+	 * Gets the table ID for storing minted BTC transaction IDs from the nBTC contract.
+	 * Caches the result to avoid repeated queries.
+	 */
 	private async getTxIdsTableId(): Promise<string> {
 		if (this.txIdsTableIdCache) {
 			return this.txIdsTableIdCache;
@@ -193,7 +183,7 @@ export class SuiClient {
 			const result = await this.gqlClient.query({
 				query: GET_TX_IDS_TABLE_QUERY,
 				variables: {
-					contractId: this.nbtcContractId,
+					contractId: this.config.nbtc_contract,
 				},
 			});
 
@@ -210,7 +200,7 @@ export class SuiClient {
 				{
 					msg: "Failed to get tx_ids table ID from contract",
 					method: "SuiClient.getTxIdsTableId",
-					contractId: this.nbtcContractId,
+					contractId: this.config.nbtc_contract,
 				},
 				e,
 			);
@@ -259,7 +249,14 @@ export class SuiClient {
 		}
 	}
 
-	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<SuiTxDigest | null> {
+	/**
+	 * Wrapper for mintNbtcBatch that catches pre-submission errors.
+	 * Returns:
+	 * - [true, digest]: Success
+	 * - [false, digest]: On-chain failure
+	 * - null: Pre-submission error
+	 */
+	async tryMintNbtcBatch(mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest] | null> {
 		const txIds = mintArgs.map((arg) => arg.tx.getId());
 		try {
 			return await this.mintNbtcBatch(mintArgs);

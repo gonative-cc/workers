@@ -1,5 +1,7 @@
 import { describe, it, expect } from "bun:test";
-import SuiClient, { type SuiClientCfg } from "./sui_client";
+import SuiClient from "./sui_client";
+import type { NbtcPkgCfg } from "./models";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const REGTEST_DATA_MINT = {
@@ -9,25 +11,11 @@ const REGTEST_DATA_MINT = {
 	BLOCK_HEIGHT: 303,
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const SUI_CLIENT_CONFIG_MINT: SuiClientCfg = {
-	network: "devnet",
-	nbtcPkg: "0x7a03af034ade1d5b4072ba4fdb9650bd5ce0cd4dcab40f0563540be0ebbe824b",
-	nbtcModule: "indexer_test",
-	nbtcContractId: "0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
-	lightClientObjectId: "0xd93cc7f6d91100990f9fa8ca11d533a69254e2f716ab69a22c6cc4e9a49a9374",
-	lightClientPackageId: "0x1",
-	lightClientModule: "0x2",
-	signerMnemonic:
-		"your mnemonic your mnemonic your mnemonic your mnemonic your mnemonic your mnemonic",
-};
-
 // NOTE: skip to prevent this test from running in CI
 describe.skip("SuiClient: verifyBlocks Integration Test", () => {
 	it("should return true for valid block hashes and false for invalid ones", async () => {
 		const LC_PACKAGE_ID = "0xe2583071745598f610bd38560ea244742738d51e0d684a967ee6ea4e19b7dc2f";
 		const LC_OBJECT_ID = "0x00ae9947bb1099980f0663dc1eaa74fa5a400265b204928a823aebddeb84b6d7";
-		const LC_MODULE_NAME = "light_client";
 
 		// VALID_BLOCK_HASH does exists in the LC
 		// INVALID_BLOCK_HASH does NOT exsist in the LC
@@ -35,19 +23,22 @@ describe.skip("SuiClient: verifyBlocks Integration Test", () => {
 		const INVALID_BLOCK_HASH =
 			"06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f";
 
-		const clientConfigVerify: SuiClientCfg = {
-			network: "localnet",
-			lightClientPackageId: LC_PACKAGE_ID,
-			lightClientObjectId: LC_OBJECT_ID,
-			lightClientModule: LC_MODULE_NAME,
-			nbtcPkg: "0x1",
-			nbtcModule: "nbtc",
-			nbtcContractId: "0x2",
-			signerMnemonic:
-				"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic",
+		const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
+		const TEST_MNEMONIC =
+			"test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic test mnemonic";
+		const pkgConfig: NbtcPkgCfg = {
+			id: 1,
+			sui_network: "localnet",
+			btc_network: BtcNet.REGTEST,
+			lc_pkg: LC_PACKAGE_ID,
+			lc_contract: LC_OBJECT_ID,
+			nbtc_pkg: "0x1",
+			nbtc_contract: "0x2",
+			sui_fallback_address: SUI_FALLBACK_ADDRESS,
+			is_active: 1,
 		};
 
-		const suiClient = new SuiClient(clientConfigVerify);
+		const suiClient = new SuiClient(pkgConfig, TEST_MNEMONIC);
 		const results = await suiClient.verifyBlocks([VALID_BLOCK_HASH, INVALID_BLOCK_HASH]);
 		expect(results).toEqual([true, false]);
 	});

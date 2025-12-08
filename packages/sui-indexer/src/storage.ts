@@ -1,4 +1,4 @@
-import { logError, logger } from "@gonative-cc/lib/logger";
+import { logError } from "@gonative-cc/lib/logger";
 import type { RedeemRequestRecord, UtxoRecord } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";

@@ -40,7 +40,7 @@ export interface SuiClientI {
 	verifyBlocks: (blockHashes: string[]) => Promise<boolean[]>;
 	mintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest]>;
 	tryMintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest] | null>;
-	isBtcTxMinted: (btcTxId: string) => Promise<boolean>;
+	isNbtcMinted: (btcTxId: string) => Promise<boolean>;
 }
 
 export type SuiClientConstructor = (config: NbtcPkgCfg) => SuiClientI;
@@ -60,6 +60,9 @@ export class SuiClient implements SuiClientI {
 		this.config = config;
 		this.client = new Client({ url: getFullnodeUrl(config.sui_network) });
 		const gqlUrl = SUI_GRAPHQL_URLS[config.sui_network];
+		if (!gqlUrl) {
+			throw new Error(`GraphQL URL not configured for network: ${config.sui_network}`);
+		}
 		this.gqlClient = new SuiGraphQLClient({ url: gqlUrl });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(mnemonic);
@@ -171,8 +174,16 @@ export class SuiClient implements SuiClientI {
 	}
 
 	/**
-	 * Gets the table ID for storing minted BTC transaction IDs from the nBTC contract.
-	 * Caches the result to avoid repeated queries.
+	 * Retrieves the Sui object ID of the table that tracks minted Bitcoin transactions.
+	 *
+	 * The nBTC contract maintains a table that maps:
+	 * - Key: Bitcoin transaction ID (the BTC deposit tx)
+	 * - Value: Minting record on Sui (the Sui tx digest where the minting occurred)
+	 *
+	 * This function fetches the Sui object ID of that table, which is needed to query
+	 * whether a specific Bitcoin transaction has already been minted on Sui.
+	 *
+	 * The result is cached to avoid repeated GraphQL queries.
 	 */
 	private async getTxIdsTableId(): Promise<string> {
 		if (this.txIdsTableIdCache) {
@@ -208,7 +219,11 @@ export class SuiClient implements SuiClientI {
 		}
 	}
 
-	async isBtcTxMinted(btcTxId: string): Promise<boolean> {
+	/**
+	 * Checks if nBTC has already been minted for a given Bitcoin transaction.
+	 * Used for front-run detection.
+	 */
+	async isNbtcMinted(btcTxId: string): Promise<boolean> {
 		try {
 			const txIdsTableId = await this.getTxIdsTableId();
 			const txIdBytes = Buffer.from(btcTxId, "hex").reverse();
@@ -234,18 +249,17 @@ export class SuiClient implements SuiClientI {
 				typeof e.message === "string" &&
 				e.message.toLowerCase().includes("not found");
 
-			if (isNotFoundError) {
-				return false;
+			if (!isNotFoundError) {
+				logError(
+					{
+						msg: "Failed to check if nBTC is minted",
+						method: "SuiClient.isNbtcMinted",
+						btcTxId,
+					},
+					e,
+				);
 			}
-			logError(
-				{
-					msg: "Failed to check if BTC tx is minted",
-					method: "SuiClient.isBtcTxMinted",
-					btcTxId,
-				},
-				e,
-			);
-			throw e;
+			return false;
 		}
 	}
 

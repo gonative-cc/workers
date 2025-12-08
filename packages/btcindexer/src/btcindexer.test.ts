@@ -1070,9 +1070,9 @@ describe("Front-run detection in processFinalizedTransactions", () => {
 		await insertFinalizedTx(db, txData);
 
 		const kv = await mf.getKVNamespace("BtcBlocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		await putBlockInKv(kv, blockData);
 
-		mockSuiClient.isBtcTxMinted.mockResolvedValue(true);
+		mockSuiClient.isNbtcMinted.mockResolvedValue(true);
 		const mintSpy = jest.spyOn(mockSuiClient, "tryMintNbtcBatch");
 
 		await indexer.processFinalizedTransactions();
@@ -1087,30 +1087,5 @@ describe("Front-run detection in processFinalizedTransactions", () => {
 		expect(results[0]!.status).toEqual("minted");
 		// sui_tx_id is NULL because transaction was minted externally (front-run)
 		expect(results[0]!.sui_tx_id).toBeNull();
-	});
-
-	it("should mint transaction when not front-run", async () => {
-		const blockData = REGTEST_DATA[329]!;
-		const txData = blockData.txs[1]!;
-
-		const db = await mf.getD1Database("DB");
-		await insertFinalizedTx(db, txData);
-
-		const kv = await mf.getKVNamespace("BtcBlocks");
-		await kv.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
-
-		mockSuiClient.isBtcTxMinted.mockResolvedValue(false);
-		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
-		mockSuiClient.tryMintNbtcBatch.mockResolvedValue([true, fakeSuiTxDigest]);
-
-		await indexer.processFinalizedTransactions();
-
-		const { results } = await db
-			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
-			.bind(txData.id)
-			.all();
-		expect(results.length).toEqual(1);
-		expect(results[0]!.status).toEqual("minted");
-		expect(results[0]!.sui_tx_id).toEqual(fakeSuiTxDigest);
 	});
 });

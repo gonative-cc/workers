@@ -37,6 +37,11 @@ const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.SIGNET]: networks.testnet,
 };
 
+interface FilteredMintBatch {
+	mintArgs: MintBatchArg[];
+	dbKeysToUpdate: { tx_id: string; vout: number }[];
+}
+
 export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
 
@@ -318,24 +323,28 @@ export class Indexer {
 		return deposits;
 	}
 
-	private async checkAndFilterFrontRunTransactions(
+	/**
+	 * Filters out Bitcoin transactions that have already been minted on Sui to prevent duplicate minting.
+	 *
+	 * This function queries the Sui blockchain to check which transactions are already minted,
+	 * filters them out, and marks them as "Minted" with a NULL sui_tx_id (meaning external minting).
+	 *
+	 */
+	private async filterAlreadyMintedTransactions(
 		mintBatchArgs: MintBatchArg[],
 		processedPrimaryKeys: { tx_id: string; vout: number }[],
 		client: SuiClientI,
-	): Promise<{
-		argsToMint: MintBatchArg[];
-		keysToMint: { tx_id: string; vout: number }[];
-	}> {
-		const txIdsToCheck = Array.from(new Set(mintBatchArgs.map((arg) => arg.tx.getId())));
+	): Promise<FilteredMintBatch> {
+		const btcTxIdsToCheck = Array.from(new Set(mintBatchArgs.map((arg) => arg.tx.getId())));
 		const alreadyMintedTxIds = new Set<string>();
 
 		try {
 			const mintedResults = await Promise.all(
-				txIdsToCheck.map((txId) => client.isBtcTxMinted(txId)),
+				btcTxIdsToCheck.map((txId) => client.isNbtcMinted(txId)),
 			);
 
-			for (let i = 0; i < txIdsToCheck.length; i++) {
-				const txId = txIdsToCheck[i];
+			for (let i = 0; i < btcTxIdsToCheck.length; i++) {
+				const txId = btcTxIdsToCheck[i];
 				if (mintedResults[i] && txId) {
 					alreadyMintedTxIds.add(txId);
 					logger.info({
@@ -348,8 +357,8 @@ export class Indexer {
 			logError(
 				{
 					msg: "Front-run check failed, proceeding with minting",
-					method: "checkAndFilterFrontRunTransactions",
-					txCount: txIdsToCheck.length,
+					method: "filterAlreadyMintedTransactions",
+					txCount: btcTxIdsToCheck.length,
 				},
 				e,
 			);
@@ -370,10 +379,10 @@ export class Indexer {
 			);
 		}
 
-		const argsToMint = mintBatchArgs.filter((arg) => !alreadyMintedTxIds.has(arg.tx.getId()));
-		const keysToMint = processedPrimaryKeys.filter((p) => !alreadyMintedTxIds.has(p.tx_id));
+		const mintArgs = mintBatchArgs.filter((arg) => !alreadyMintedTxIds.has(arg.tx.getId()));
+		const dbKeysToUpdate = processedPrimaryKeys.filter((p) => !alreadyMintedTxIds.has(p.tx_id));
 
-		return { argsToMint, keysToMint };
+		return { mintArgs, dbKeysToUpdate };
 	}
 
 	async processFinalizedTransactions(): Promise<void> {
@@ -586,14 +595,16 @@ export class Indexer {
 				const config = this.getPackageConfig(firstBatchArg.packageId);
 				const client = this.getSuiClient(config.sui_network);
 
-				// Check for front-run transactions before minting
-				const { argsToMint, keysToMint } = await this.checkAndFilterFrontRunTransactions(
+				// Filter out already-minted transactions (front-run detection)
+				// mintArgs: Full transaction data for Sui smart contract call
+				// dbKeysToUpdate: Database keys for updating status after minting
+				const { mintArgs, dbKeysToUpdate } = await this.filterAlreadyMintedTransactions(
 					mintBatchArgs,
 					processedPrimaryKeys,
 					client,
 				);
 
-				if (argsToMint.length === 0) {
+				if (mintArgs.length === 0) {
 					logger.info({
 						msg: "All transactions already minted, skipping batch",
 						pkgKey,
@@ -603,11 +614,11 @@ export class Indexer {
 
 				logger.info({
 					msg: "Minting: Sending batch of mints to Sui",
-					count: argsToMint.length,
+					count: mintArgs.length,
 					pkgKey: pkgKey,
 				});
 
-				const result = await client.tryMintNbtcBatch(argsToMint);
+				const result = await client.tryMintNbtcBatch(mintArgs);
 
 				if (!result) {
 					// Pre-submission error (network failure, validation error, etc.)
@@ -617,7 +628,7 @@ export class Indexer {
 						pkgKey,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						keysToMint.map((p) => ({
+						dbKeysToUpdate.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.MintFailed,
@@ -635,7 +646,7 @@ export class Indexer {
 						pkgKey,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						keysToMint.map((p) => ({
+						dbKeysToUpdate.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.Minted,
@@ -651,7 +662,7 @@ export class Indexer {
 						suiTxDigest,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						keysToMint.map((p) => ({
+						dbKeysToUpdate.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.MintFailed,

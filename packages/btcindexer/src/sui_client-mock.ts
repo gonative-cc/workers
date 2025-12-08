@@ -21,7 +21,7 @@ export class MockSuiClient implements SuiClientI {
 		},
 	);
 
-	isBtcTxMinted = jest.fn(async (btcTxId: string): Promise<boolean> => {
+	isNbtcMinted = jest.fn(async (btcTxId: string): Promise<boolean> => {
 		return false;
 	});
 }

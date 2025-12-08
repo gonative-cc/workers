@@ -716,7 +716,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			depositAddress: block329.depositAddr,
 		});
 
-		helper.mockSuiClient.verifyBlocks.mockResolvedValue([false]); // Block is not valid anymore
+		helper.mockSuiClient.verifyBlocks.mockResolvedValue([false]);
 
 		await indexer.verifyConfirmingBlocks();
 		expect(
@@ -737,7 +737,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			depositAddress: block329.depositAddr,
 		});
 
-		helper.mockSuiClient.verifyBlocks.mockResolvedValue([true]); // Block is valid
+		helper.mockSuiClient.verifyBlocks.mockResolvedValue([true]);
 
 		await indexer.verifyConfirmingBlocks();
 		expect(

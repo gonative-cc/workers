@@ -21,7 +21,7 @@
 	"dependencies": {
 		"@gonative-cc/lib": "workspace:*",
 		"@mysten/bcs": "^1.9.2",
-		"@mysten/sui": "^1.45.0",
+		"@mysten/sui": "^1.45.2",
 		"bitcoinjs-lib": "^6.1.7",
 		"crypto-js": "^4.2.0",
 		"itty-router": "^5.0.22",

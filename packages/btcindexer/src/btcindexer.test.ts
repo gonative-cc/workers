@@ -1,15 +1,14 @@
-import { describe, it, vi, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from "bun:test";
 import { Miniflare } from "miniflare";
 
 import { join } from "path";
 import { Block, networks } from "bitcoinjs-lib";
 
 import { Indexer } from "./btcindexer";
-import type { Deposit, ProofResult, NbtcAddress } from "./models";
+import type { Deposit, ProofResult } from "./models";
 import { MintTxStatus } from "./models";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { setupTestIndexer, type TestIndexerHelper } from "./btcindexer.test.helpers";
-
 interface TxInfo {
 	id: string;
 	suiAddr: string;
@@ -71,7 +70,7 @@ beforeAll(async () => {
 		script: "",
 		modules: true,
 		d1Databases: ["DB"],
-		kvNamespaces: ["btc_blocks", "nbtc_txs"],
+		kvNamespaces: ["BtcBlocks", "nbtc_txs"],
 		d1Persist: false,
 		kvPersist: false,
 		cachePersist: false,
@@ -83,16 +82,8 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-	const testNbtcAddress: NbtcAddress = {
-		btc_address: REGTEST_DATA[329]!.depositAddr,
-		btc_network: BtcNet.REGTEST,
-		sui_network: "testnet",
-		nbtc_pkg: "0xPACKAGE",
-		is_active: true,
-	};
-
 	helper = await setupTestIndexer(mf, {
-		depositAddresses: [testNbtcAddress],
+		depositAddresses: [REGTEST_DATA[329]!.depositAddr],
 		confirmationDepth: 8,
 		maxRetries: 2,
 		testData: REGTEST_DATA,
@@ -102,9 +93,17 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-	const tables = ["btc_blocks", "nbtc_minting", "nbtc_withdrawal", "nbtc_sender_deposits"];
+	const tables = [
+		"btc_blocks",
+		"nbtc_minting",
+		"nbtc_withdrawal",
+		"nbtc_packages",
+		"nbtc_deposit_addresses",
+	];
 	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
 	await helper.db.exec(dropStms);
+	// restores all spies after each test
+	jest.restoreAllMocks();
 });
 
 function checkTxProof(proofResult: ProofResult | null, block: Block) {
@@ -367,13 +366,10 @@ describe("Indexer.processFinalizedTransactions", () => {
 		await helper.setupBlock(329);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
-		const suiClientSpy = vi
-			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue(fakeSuiTxDigest);
+		helper.mockSuiClient.tryMintNbtcBatch.mockResolvedValue([true, fakeSuiTxDigest]);
 
 		await indexer.processFinalizedTransactions();
-
-		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+		expect(helper.mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 
 		const { results } = await helper.db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
@@ -392,13 +388,11 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await helper.setupBlock(329);
 
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
-		const suiClientSpy = vi
-			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue(fakeSuiTxDigest);
+		helper.mockSuiClient.tryMintNbtcBatch.mockResolvedValue([true, fakeSuiTxDigest]);
 
 		await indexer.processFinalizedTransactions();
 
-		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+		expect(helper.mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 		const { results } = await helper.db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
 			.bind(txData.id)
@@ -413,19 +407,62 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		await helper.insertTx({ txId: txData.id, status: MintTxStatus.Finalized, retryCount: 1 });
 		await helper.setupBlock(329);
 
-		const suiClientSpy = vi
-			.spyOn(indexer.nbtcClient, "tryMintNbtcBatch")
-			.mockResolvedValue(null);
+		helper.mockSuiClient.tryMintNbtcBatch.mockResolvedValue(null);
 
 		await indexer.processFinalizedTransactions();
 
-		expect(suiClientSpy).toHaveBeenCalledTimes(1);
+		expect(helper.mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 		const { results } = await helper.db
 			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
 			.bind(txData.id)
 			.all();
 		expect(results.length).toEqual(1);
 		expect(results[0]!.retry_count).toEqual(2);
+	});
+
+	it("should store digest for on-chain execution failure", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		await helper.insertTx({ txId: txData.id, status: MintTxStatus.Finalized });
+		await helper.setupBlock(329);
+
+		const failedSuiTxDigest = "0xfailed123abc456def789onchain_execution_error";
+		helper.mockSuiClient.tryMintNbtcBatch.mockResolvedValue([false, failedSuiTxDigest]);
+
+		await indexer.processFinalizedTransactions();
+
+		expect(helper.mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
+		const { results } = await helper.db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("mint-failed");
+		expect(results[0]!.sui_tx_id).toEqual(failedSuiTxDigest);
+		expect(results[0]!.retry_count).toEqual(1);
+	});
+
+	it("should handle pre-submission failure without digest", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		await helper.insertTx({ txId: txData.id, status: MintTxStatus.Finalized });
+		await helper.setupBlock(329);
+
+		helper.mockSuiClient.tryMintNbtcBatch.mockResolvedValue(null);
+
+		await indexer.processFinalizedTransactions();
+
+		expect(helper.mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
+		const { results } = await helper.db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("mint-failed");
+		expect(results[0]!.sui_tx_id).toBeNull();
+		expect(results[0]!.retry_count).toEqual(1);
 	});
 });
 
@@ -566,8 +603,8 @@ describe("Indexer.processBlock", () => {
 
 describe("Indexer.findFinalizedTxs (Inactive)", () => {
 	it("should return inactiveId if address is not active", () => {
-		const addr = indexer.nbtcAddressesMap.get(REGTEST_DATA[329]!.depositAddr);
-		if (addr) addr.is_active = false;
+		const pkg = indexer.getPackageConfig(1);
+		if (pkg) pkg.is_active = 0;
 
 		const pendingTx = {
 			tx_id: "tx1",
@@ -583,7 +620,7 @@ describe("Indexer.findFinalizedTxs (Inactive)", () => {
 		expect(result.inactiveTxIds.length).toEqual(1);
 
 		// Restore active state for other tests
-		if (addr) addr.is_active = true;
+		if (pkg) pkg.is_active = 1;
 	});
 });
 
@@ -679,12 +716,11 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			depositAddress: block329.depositAddr,
 		});
 
-		const suiClientSpy = vi.spyOn(indexer.nbtcClient, "verifyBlocks");
-		suiClientSpy.mockResolvedValue([false]); // Block is not valid anymore
+		helper.mockSuiClient.verifyBlocks.mockResolvedValue([false]); // Block is not valid anymore
 
 		await indexer.verifyConfirmingBlocks();
 		expect(
-			suiClientSpy,
+			helper.mockSuiClient.verifyBlocks,
 			"Verify that verifyBlocks was called with the correct block hash",
 		).toHaveBeenCalledWith([block329.hash]);
 		await helper.expectTxStatus(tx329.id, "reorg");
@@ -701,12 +737,11 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			depositAddress: block329.depositAddr,
 		});
 
-		const suiClientSpy = vi.spyOn(indexer.nbtcClient, "verifyBlocks");
-		suiClientSpy.mockResolvedValue([true]); // Block is valid
+		helper.mockSuiClient.verifyBlocks.mockResolvedValue([true]); // Block is valid
 
 		await indexer.verifyConfirmingBlocks();
 		expect(
-			suiClientSpy,
+			helper.mockSuiClient.verifyBlocks,
 			"Verify that verifyBlocks was called with the correct block hash",
 		).toHaveBeenCalledWith([block329.hash]);
 
@@ -715,11 +750,8 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 	});
 
 	it("should handle empty confirming blocks list", async () => {
-		// Ensure no confirming blocks exist
-		const suiClientSpy = vi.spyOn(indexer.nbtcClient, "verifyBlocks").mockResolvedValue([]);
-
 		await indexer.verifyConfirmingBlocks();
-		expect(suiClientSpy).not.toHaveBeenCalled();
+		expect(helper.mockSuiClient.verifyBlocks).not.toHaveBeenCalled();
 	});
 
 	it("should handle SPV verification failure gracefully without updating the status", async () => {
@@ -733,11 +765,10 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			depositAddress: block329.depositAddr,
 		});
 
-		const suiClientSpy = vi.spyOn(indexer.nbtcClient, "verifyBlocks");
-		suiClientSpy.mockRejectedValue(new Error("SPV verification failed"));
+		helper.mockSuiClient.verifyBlocks.mockRejectedValue(new Error("SPV verification failed"));
 		await indexer.verifyConfirmingBlocks();
 
-		expect(suiClientSpy).toHaveBeenCalledWith([block329.hash]);
+		expect(helper.mockSuiClient.verifyBlocks).toHaveBeenCalledWith([block329.hash]);
 		await helper.expectTxStatus(tx329.id, "confirming");
 	});
 });
@@ -777,7 +808,7 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 
 		await helper.setupBlock(329);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(indexer.electrs.getTx as any).mockResolvedValue(
+		(helper.mockElectrs.getTx as any).mockResolvedValue(
 			new Response(JSON.stringify({}), { status: 404 }),
 		);
 

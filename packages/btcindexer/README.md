@@ -112,9 +112,9 @@ The `btcindexer` worker handles Bitcoin reorgs to ensure that only transactions 
 
 The worker employs two primary mechanisms to detect reorgs:
 
-1.  SPV Light Client:Before attempting to finalize any transactions, the worker performs an SPV check by calling the `verify_blocks` endpoint on the Sui light client. It sends the block hashes of all transactions currently in the `confirming` state. If the light client reports that any of these block hashes are not part of the canonical chain, the worker updates the status of all transactions within those blocks to `reorg`.
+1.  SPV Light Client. Before attempting to finalize any transactions, the worker performs an SPV check by calling the `verify_blocks` endpoint on the Sui light client. It sends the block hashes of all transactions currently in the `confirming` state. If the light client reports that any of these block hashes are not part of the canonical chain, the worker updates the status of all transactions within those blocks to `reorg`.
 
-2.  Internal Consistency Check: The worker continuously checks for internal consistency. When processing pending transactions, it compares the block hash stored with the transaction against the block hash stored for that same block height in its own database. If the hashes do not match, it indicates that the relayer has provided a new block for that height, and a reorg has occurred. The affected transaction is then marked with the `reorg` status.
+2.  Internal Consistency Check. The worker continuously checks for internal consistency. When processing pending transactions, it compares the block hash stored with the transaction against the block hash stored for that same block height in its own database. If the hashes do not match, it indicates that the relayer has provided a new block for that height, and a reorg has occurred. The affected transaction is then marked with the `reorg` status.
 
 ## 6. Workflow
 
@@ -138,3 +138,9 @@ A cron job runs on a fixed schedule (e.g., every 1 minute)
 ### 3. nBTC Tx (Push)
 
 To quickly handle UI nBTC transaction observability, BYield UI will push nBTC transaction, in order to let the indexer start monitoring it. This way UI will have the quick status about the TX, before the tx is added to the blockchain.
+
+### 4. nBTC minting mapping
+
+We index nBTC minting transactions by the Sui recipient and the BTC deposit sender.
+While technically possible its very unlikely the bitcion mint transaction will have more than one bitcion sender, thats why we are simplyfying it here and we just assume the first input utxo is the sender of the whole transaction.
+This might lead to a problem where user logged with one of their wallet will see the entire transaction on the minting page, and when swtiching to another wallet the user will not see it.

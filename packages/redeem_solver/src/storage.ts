@@ -29,7 +29,6 @@ interface UtxoRow {
 export interface Storage {
 	getPendingRedeems(): Promise<RedeemRequest[]>;
 	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
-	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
 	markRedeemResolving(redeemId: string, utxoIds: string[]): Promise<void>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 }

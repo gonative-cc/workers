@@ -51,7 +51,7 @@ export class D1Storage implements Storage {
 
 		return results.map((r) => ({
 			...r,
-			amount_sats: BigInt(r.amount_sats),
+			amount_sats: r.amount_sats,
 			recipient_script: new Uint8Array(r.recipient_script),
 			sui_network: toSuiNet(r.sui_network),
 		}));
@@ -70,7 +70,7 @@ export class D1Storage implements Storage {
 
 		return results.map((u) => ({
 			...u,
-			amount_sats: BigInt(u.amount_sats),
+			amount_sats: u.amount_sats,
 			script_pubkey: new Uint8Array(u.script_pubkey),
 		}));
 	}

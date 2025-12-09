@@ -80,8 +80,8 @@ export class RedeemService {
 		}
 	}
 	// V1 version
-	private selectUtxos(available: Utxo[], targetAmount: bigint): Utxo[] | null {
-		let sum = 0n;
+	private selectUtxos(available: Utxo[], targetAmount: number): Utxo[] | null {
+		let sum = 0;
 		const selected: Utxo[] = [];
 
 		for (const utxo of available) {

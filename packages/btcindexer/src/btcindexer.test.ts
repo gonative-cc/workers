@@ -24,7 +24,7 @@ import type { Electrs } from "./electrs";
 interface TxInfo {
 	id: string;
 	suiAddr: string;
-	amountSats: bigint;
+	amountSats: number;
 }
 interface TestBlock {
 	depositAddr: string;
@@ -48,7 +48,7 @@ const REGTEST_DATA: TestBlocks = {
 			1: {
 				id: "8af4f7ceb96f41d16a932936f763b75ba778f28c37a2409371267cc2b22a3ec3",
 				suiAddr: "0xbbad40ecca892cf0d54ba0b9c986454be0695ce29642223a02c37e3b87a4499c",
-				amountSats: 50000n,
+				amountSats: 50000,
 			},
 		},
 	},
@@ -62,12 +62,12 @@ const REGTEST_DATA: TestBlocks = {
 			1: {
 				id: "22c0c042fd2b8bc083079987d9690ecebe9a74d427b0148888637065097e3f49",
 				suiAddr: "0x11223344556677889900aabbccddeeff0011223344556677889900aabbccdd",
-				amountSats: 70000n,
+				amountSats: 70000,
 			},
 			2: {
 				id: "9752c64f7c40ffbfce444ceead859cec41f4ab8e51829bb0d7383f26c9a86e7c",
 				suiAddr: "0xaabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
-				amountSats: 60000n,
+				amountSats: 60000,
 			},
 		},
 	},
@@ -240,7 +240,7 @@ async function insertTxWithStatus(
 			blockData.hash,
 			blockData.height,
 			"0xtest_recipient",
-			10000n,
+			10000,
 			status,
 			Date.now(),
 			Date.now(),

@@ -85,7 +85,7 @@ export class IndexerStorage {
 					u.dwallet_id,
 					u.txid,
 					u.vout,
-					u.amount_sats.toString(),
+					u.amount_sats,
 					u.script_pubkey,
 					u.status,
 					u.locked_until,
@@ -148,7 +148,7 @@ export class IndexerStorage {
 					pkgRow.id,
 					r.redeemer,
 					r.recipient_script,
-					r.amount_sats.toString(),
+					r.amount_sats,
 					r.created_at,
 					"pending",
 				)

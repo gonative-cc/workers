@@ -292,7 +292,7 @@ export class Indexer {
 
 				deposits.push({
 					vout: i,
-					amountSats: BigInt(vout.value),
+					amountSats: Number(vout.value),
 					suiRecipient: finalRecipient,
 					nbtcPkg: config.nbtc_pkg,
 					suiNetwork: config.sui_network,

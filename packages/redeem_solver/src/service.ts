@@ -8,7 +8,6 @@ export class RedeemService {
 	constructor(
 		private storage: Storage,
 		private clients: Map<SuiNet, SuiClient>,
-		// private client: SuiClient, // Removed
 	) {}
 
 	async processPendingRedeems() {

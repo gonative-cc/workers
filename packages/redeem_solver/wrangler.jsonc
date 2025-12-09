@@ -51,7 +51,7 @@
     },
   ],
 
-    "secrets_store_secrets": [
+  "secrets_store_secrets": [
     {
       "binding": "NBTC_MINTING_SIGNER_MNEMONIC",
       "store_id": "75adbc6657de4f4cb739f63eb4d0cd7a",

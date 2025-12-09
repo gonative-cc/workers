@@ -1,6 +1,7 @@
 import type { Utxo, RedeemRequest } from "@gonative-cc/lib/types";
 import type { Storage } from "./storage";
 import { SuiClientImp } from "./sui_client";
+import { logger, logError } from "@gonative-cc/lib/logger";
 
 export class RedeemService {
 	constructor(
@@ -11,7 +12,7 @@ export class RedeemService {
 	async processPendingRedeems() {
 		const pendingRequests = await this.storage.getPendingRedeems();
 		if (pendingRequests.length === 0) {
-			console.log("No pending redeem requests.");
+			logger.info({ msg: "No pending redeem requests" });
 			return;
 		}
 
@@ -21,14 +22,20 @@ export class RedeemService {
 	}
 
 	private async processRequest(req: RedeemRequest) {
-		console.log(`Processing redeem request: ${req.redeem_id} for ${req.amount_sats} sats`);
+		logger.info({
+			msg: "Processing redeem request",
+			redeemId: req.redeem_id,
+			amountSats: req.amount_sats.toString(), // Convert BigInt to string for logging
+		});
 		const availableUtxos = await this.storage.getAvailableUtxos(req.package_id);
 		const selectedUtxos = this.selectUtxos(availableUtxos, req.amount_sats);
 
 		if (!selectedUtxos) {
-			console.warn(
-				`Insufficient UTXOs for request ${req.redeem_id}. Needed: ${req.amount_sats}`,
-			);
+			logger.warn({
+				msg: "Insufficient UTXOs for request",
+				redeemId: req.redeem_id,
+				neededAmountSats: req.amount_sats.toString(),
+			});
 			return;
 		}
 
@@ -46,13 +53,24 @@ export class RedeemService {
 				nbtcContract: req.nbtc_contract,
 			});
 
-			console.log(`Proposed UTXOs for ${req.redeem_id}. Digest: ${txDigest}`);
+			logger.info({
+				msg: "Proposed UTXOs for redeem request",
+				redeemId: req.redeem_id,
+				txDigest: txDigest,
+			});
 			await this.storage.markRedeemResolving(
 				req.redeem_id,
 				selectedUtxos.map((u) => u.sui_id),
 			);
-		} catch (e) {
-			console.error(`Failed to propose UTXOs for ${req.redeem_id}:`, e);
+		} catch (e: unknown) {
+			logError(
+				{
+					msg: "Failed to propose UTXOs for redeem request",
+					method: "processRequest",
+					redeemId: req.redeem_id,
+				},
+				e,
+			);
 		}
 	}
 

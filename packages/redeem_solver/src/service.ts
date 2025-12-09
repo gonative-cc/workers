@@ -79,7 +79,7 @@ export class RedeemService {
 			);
 		}
 	}
-// V1 version
+	// V1 version
 	private selectUtxos(available: Utxo[], targetAmount: bigint): Utxo[] | null {
 		let sum = 0n;
 		const selected: Utxo[] = [];

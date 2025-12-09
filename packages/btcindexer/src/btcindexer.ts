@@ -20,6 +20,7 @@ import type {
 	ElectrsTxResponse,
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
+	FilteredMintBatch,
 } from "./models";
 import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -36,11 +37,6 @@ const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.REGTEST]: networks.regtest,
 	[BtcNet.SIGNET]: networks.testnet,
 };
-
-interface FilteredMintBatch {
-	mintArgs: MintBatchArg[];
-	dbKeysToUpdate: { tx_id: string; vout: number }[];
-}
 
 export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
@@ -325,10 +321,8 @@ export class Indexer {
 
 	/**
 	 * Filters out Bitcoin transactions that have already been minted on Sui to prevent duplicate minting.
-	 *
-	 * This function queries the Sui blockchain to check which transactions are already minted,
-	 * filters them out, and marks them as "Minted" with a NULL sui_tx_id (meaning external minting).
-	 *
+	 * Queries the Sui blockchain to check which transactions are already minted, filters them out,
+	 * and marks them as "Minted" with a NULL sui_tx_id  in the db (meaning they were minted externally/front-run by someone else).
 	 */
 	private async filterAlreadyMintedTransactions(
 		mintBatchArgs: MintBatchArg[],
@@ -595,9 +589,15 @@ export class Indexer {
 				const config = this.getPackageConfig(firstBatchArg.packageId);
 				const client = this.getSuiClient(config.sui_network);
 
+				// TODO: Refactor front-run detection to run BEFORE Merkle tree generation.
+				// We should check for front-runsfirst (maybe in like a separate detectAndMarkFrontRuns()
+				// method called by the scheduler),
+				// then only generate Merkle proofs for transactions that actually need minting.
+				// This would also simplify processFinalizedTransactions.
+
 				// Filter out already-minted transactions (front-run detection)
-				// mintArgs: Full transaction data for Sui smart contract call
-				// dbKeysToUpdate: Database keys for updating status after minting
+				// mintArgs: mintBatchArgsByPkg filtered for transactions that were not minted externally
+				// dbKeysToUpdate: processedPrimaryKeys to only update the status of the transactions that were not minted externally
 				const { mintArgs, dbKeysToUpdate } = await this.filterAlreadyMintedTransactions(
 					mintBatchArgs,
 					processedPrimaryKeys,

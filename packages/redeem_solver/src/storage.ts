@@ -46,7 +46,7 @@ export class D1Storage implements Storage {
             JOIN nbtc_packages p ON r.package_id = p.id
             WHERE r.status = 'pending'
             ORDER BY r.created_at ASC
-            LIMIT 5;
+            LIMIT 50;
         `;
 		const { results } = await this.db.prepare(query).all<RedeemRequestRow>();
 

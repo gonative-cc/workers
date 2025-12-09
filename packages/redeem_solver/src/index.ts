@@ -17,7 +17,7 @@ export default {
 		console.log("Running scheduled redeem solver task...");
 		const mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
 		if (!mnemonic) {
-			console.error("Missing NBTC_MNEMONIC");
+			console.error("Missing NBTC_MINTING_SIGNER_MNEMONIC");
 			return;
 		}
 		const storage = new D1Storage(env.DB);

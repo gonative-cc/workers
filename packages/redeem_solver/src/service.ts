@@ -27,7 +27,7 @@ export class RedeemService {
 		logger.info({
 			msg: "Processing redeem request",
 			redeemId: req.redeem_id,
-			amountSats: req.amount_sats.toString(), // Convert BigInt to string for logging
+			amountSats: req.amount_sats.toString(),
 		});
 		const availableUtxos = await this.storage.getAvailableUtxos(req.package_id);
 		const selectedUtxos = this.selectUtxos(availableUtxos, req.amount_sats);
@@ -80,7 +80,7 @@ export class RedeemService {
 			);
 		}
 	}
-
+// V1 version
 	private selectUtxos(available: Utxo[], targetAmount: bigint): Utxo[] | null {
 		let sum = 0n;
 		const selected: Utxo[] = [];

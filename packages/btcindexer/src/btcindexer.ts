@@ -1,10 +1,5 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
-import {
-	BtcNet,
-	btcNetFromString,
-	requireElectrsUrl,
-	type BlockQueueRecord,
-} from "@gonative-cc/lib/nbtc";
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";

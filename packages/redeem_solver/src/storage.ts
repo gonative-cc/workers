@@ -1,5 +1,5 @@
 import type { RedeemRequest, Utxo, UtxoStatus } from "@gonative-cc/lib/types";
-import { toSuiNet } from "@gonative-cc/lib/nsui";
+import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 
 interface RedeemRequestRow {
 	redeem_id: string;
@@ -29,7 +29,9 @@ interface UtxoRow {
 export interface Storage {
 	getPendingRedeems(): Promise<RedeemRequest[]>;
 	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
+	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
 	markRedeemResolving(redeemId: string, utxoIds: string[]): Promise<void>;
+	getActiveNetworks(): Promise<SuiNet[]>;
 }
 
 export class D1Storage implements Storage {
@@ -92,5 +94,13 @@ export class D1Storage implements Storage {
 			);
 		}
 		await this.db.batch(batch);
+	}
+
+	async getActiveNetworks(): Promise<SuiNet[]> {
+		const result = await this.db
+			.prepare("SELECT DISTINCT sui_network FROM nbtc_packages WHERE is_active = 1")
+			.all<{ sui_network: string }>();
+
+		return result.results.map((r) => toSuiNet(r.sui_network));
 	}
 }

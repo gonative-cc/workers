@@ -2,14 +2,14 @@ import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import type { ProposeRedeemArgs } from "@gonative-cc/lib/types";
-import { toSuiNet } from "@gonative-cc/lib/nsui";
+import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface SuiClientCfg {
-	network: string;
+	network: SuiNet;
 	signerMnemonic: string;
 }
 
-export default interface SuiClient {
+export interface SuiClient {
 	proposeRedeemUtxos(args: ProposeRedeemArgs): Promise<string>;
 }
 
@@ -18,7 +18,7 @@ export class SuiClientImp implements SuiClient {
 	private signer: Ed25519Keypair;
 
 	constructor(cfg: SuiClientCfg) {
-		const url = getFullnodeUrl(toSuiNet(cfg.network));
+		const url = getFullnodeUrl(cfg.network);
 		this.client = new Client({ url });
 		this.signer = Ed25519Keypair.deriveKeypair(cfg.signerMnemonic);
 	}
@@ -37,7 +37,7 @@ export class SuiClientImp implements SuiClient {
 			],
 		});
 
-		tx.setGasBudget(100000000);
+		tx.setGasBudget(100000000); // TODO: Move to config
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,

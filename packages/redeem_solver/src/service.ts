@@ -1,12 +1,14 @@
 import type { Utxo, RedeemRequest } from "@gonative-cc/lib/types";
 import type { Storage } from "./storage";
-import { SuiClientImp } from "./sui_client";
+import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class RedeemService {
 	constructor(
 		private storage: Storage,
-		private signerMnemonic: string,
+		private clients: Map<SuiNet, SuiClient>,
+		// private client: SuiClient, // Removed
 	) {}
 
 	async processPendingRedeems() {
@@ -39,12 +41,17 @@ export class RedeemService {
 			return;
 		}
 
-		try {
-			const client = new SuiClientImp({
+		const client = this.clients.get(req.sui_network);
+		if (!client) {
+			logger.error({
+				msg: "No SuiClient configured for network",
 				network: req.sui_network,
-				signerMnemonic: this.signerMnemonic,
+				redeemId: req.redeem_id,
 			});
+			return;
+		}
 
+		try {
 			const txDigest = await client.proposeRedeemUtxos({
 				redeemId: req.redeem_id,
 				utxoIds: selectedUtxos.map((u) => u.sui_id),

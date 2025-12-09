@@ -1,5 +1,5 @@
 import { logError } from "@gonative-cc/lib/logger";
-import type { RedeemRequest, RedeemRequestIngestData, UtxoIngestData } from "./models";
+import type { RedeemRequestIngestData, UtxoIngestData } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet } from "@gonative-cc/lib/nbtc";

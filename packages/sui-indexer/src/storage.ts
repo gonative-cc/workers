@@ -1,5 +1,5 @@
 import { logError } from "@gonative-cc/lib/logger";
-import type { RedeemRequestRecord, UtxoRecord } from "./models";
+import type { RedeemRequest, RedeemRequestIngestData, UtxoIngestData } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet } from "@gonative-cc/lib/nbtc";
@@ -34,7 +34,7 @@ export class IndexerStorage {
 			.run();
 	}
 
-	async insertUtxo(u: UtxoRecord): Promise<void> {
+	async insertUtxo(u: UtxoIngestData): Promise<void> {
 		const pkgRow = await this.db
 			.prepare(
 				"SELECT id, btc_network FROM nbtc_packages WHERE nbtc_pkg = ? AND sui_network = ?",
@@ -85,7 +85,7 @@ export class IndexerStorage {
 					u.dwallet_id,
 					u.txid,
 					u.vout,
-					u.amount_sats,
+					u.amount_sats.toString(),
 					u.script_pubkey,
 					u.status,
 					u.locked_until,
@@ -125,7 +125,7 @@ export class IndexerStorage {
 		}
 	}
 
-	async insertRedeemRequest(r: RedeemRequestRecord): Promise<void> {
+	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<void> {
 		const pkgRow = await this.db
 			.prepare("SELECT id FROM nbtc_packages WHERE nbtc_pkg = ? AND sui_network = ?")
 			.bind(r.nbtc_pkg, r.sui_network)
@@ -148,7 +148,7 @@ export class IndexerStorage {
 					pkgRow.id,
 					r.redeemer,
 					r.recipient_script,
-					r.amount_sats,
+					r.amount_sats.toString(),
 					r.created_at,
 					"pending",
 				)

@@ -1,8 +1,5 @@
-export interface RedeemProposalReq {
-	amount: bigint;
-}
+export type { RedeemRequest, Utxo, ProposeRedeemArgs } from "@gonative-cc/lib/types";
 
 export interface RedeemProposalResp {
-	// TODO: need to finalize the API and the structure
 	utxos: number[];
 }

@@ -1,28 +1,11 @@
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-export interface UtxoRecord {
-	sui_id: string;
-	dwallet_id: string;
-	txid: string;
-	vout: number;
-	amount_sats: number;
-	script_pubkey: Uint8Array;
-	nbtc_pkg: string;
-	sui_network: SuiNet;
-	status: UtxoStatus;
-	locked_until: number | null;
-}
-
-export type UtxoStatus = "available" | "locked" | "spent";
-
-export interface RedeemRequestRecord {
-	redeem_id: string;
-	redeemer: string;
-	recipient_script: Uint8Array;
-	amount_sats: number;
-	created_at: number;
-	nbtc_pkg: string;
-	sui_network: string;
-}
+export type {
+	Utxo,
+	RedeemRequest,
+	UtxoIngestData,
+	RedeemRequestIngestData,
+	UtxoStatus,
+} from "@gonative-cc/lib/types";
 
 // Raw Event Interfaces (Matches Move Events)
 export interface MintEventRaw {

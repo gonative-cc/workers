@@ -183,7 +183,7 @@ export class CFStorage implements Storage {
 				tx.blockHash,
 				tx.blockHeight,
 				tx.suiRecipient,
-				tx.amountSats,
+				tx.amountSats.toString(),
 				now,
 				now,
 			),
@@ -366,7 +366,7 @@ export class CFStorage implements Storage {
 	}
 
 	async getNbtcMintTx(txId: string): Promise<NbtcTxRow | null> {
-		return this.d1
+		const result = await this.d1
 			.prepare(
 				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
@@ -376,6 +376,11 @@ export class CFStorage implements Storage {
 			)
 			.bind(txId)
 			.first<NbtcTxRow>();
+		if (!result) return null;
+		return {
+			...result,
+			amount_sats: BigInt(result.amount_sats),
+		};
 	}
 
 	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]> {
@@ -389,7 +394,11 @@ export class CFStorage implements Storage {
 			)
 			.bind(suiAddress)
 			.all<NbtcTxRow>();
-		return dbResult.results ?? [];
+		if (!dbResult.results) return [];
+		return dbResult.results.map((r) => ({
+			...r,
+			amount_sats: BigInt(r.amount_sats),
+		}));
 	}
 
 	async registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void> {
@@ -409,7 +418,7 @@ export class CFStorage implements Storage {
 				deposit.sender,
 				deposit.vout,
 				deposit.suiRecipient,
-				deposit.amountSats,
+				deposit.amountSats.toString(),
 				now,
 				now,
 			),
@@ -438,6 +447,10 @@ export class CFStorage implements Storage {
             ORDER BY m.created_at DESC
         `);
 		const dbResult = await query.bind(btcAddress).all<NbtcTxRow>();
-		return dbResult.results ?? [];
+		if (!dbResult.results) return [];
+		return dbResult.results.map((r) => ({
+			...r,
+			amount_sats: BigInt(r.amount_sats),
+		}));
 	}
 }

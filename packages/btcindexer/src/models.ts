@@ -3,7 +3,7 @@ import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { NbtcPkg, SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface NbtcDeposit {
-	amountSats: number;
+	amountSats: bigint;
 	suiRecipient: string;
 }
 
@@ -102,7 +102,7 @@ export interface NbtcTxRow {
 	// null if tx was detected in mempool
 	block_height: number | null;
 	sui_recipient: string;
-	amount_sats: number;
+	amount_sats: bigint;
 	status: MintTxStatus;
 	// epoch time in ms
 	created_at: number;

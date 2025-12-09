@@ -3,7 +3,7 @@ import type { SuiNet } from "./nsui";
 export type UtxoStatus = "available" | "locked" | "spent";
 
 export interface Utxo {
-	sui_id: string;
+	sui_id: string; // utxo_id (u64 index) from MintEvent
 	dwallet_id: string;
 	txid: string;
 	vout: number;

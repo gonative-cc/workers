@@ -366,7 +366,7 @@ export class CFStorage implements Storage {
 	}
 
 	async getNbtcMintTx(txId: string): Promise<NbtcTxRow | null> {
-		return await this.d1
+		return this.d1
 			.prepare(
 				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m

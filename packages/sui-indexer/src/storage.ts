@@ -114,9 +114,9 @@ export class IndexerStorage {
 		try {
 			await this.db
 				.prepare(
-					`UPDATE nbtc_utxos SET status = '${UtxoStatus.Locked}' WHERE nbtc_utxo_id IN (${placeholders})`,
+					`UPDATE nbtc_utxos SET status = ? WHERE nbtc_utxo_id IN (${placeholders})`,
 				)
-				.bind(...utxoIds)
+				.bind(UtxoStatus.Locked, ...utxoIds)
 				.run();
 		} catch (error) {
 			logError(

@@ -34,7 +34,7 @@
    * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
    */
   "vars": {
-     "UTXO_LOCK_TIME": 3600000 // 1 Hour,
+    "UTXO_LOCK_TIME": 3600000, // 1 Hour,
   },
   // https://developers.cloudflare.com/workers/configuration/secrets/
   // "secrets_store_secrets": [],

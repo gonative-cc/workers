@@ -15,7 +15,13 @@ import { logger } from "@gonative-cc/lib/logger";
 export default {
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		logger.info({ msg: "Running scheduled redeem solver task..." });
-		const mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
+		let mnemonic: string;
+		try {
+			mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
+		} catch (error) {
+			logger.error({ msg: "Failed to retrieve NBTC_MINTING_SIGNER_MNEMONIC", error });
+			return;
+		}
 		if (!mnemonic) {
 			logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
 			return;

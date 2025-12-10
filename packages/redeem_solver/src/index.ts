@@ -29,7 +29,12 @@ export default {
 		const storage = new D1Storage(env.DB);
 		const activeNetworks = await storage.getActiveNetworks();
 		const clients = createSuiClients(activeNetworks, mnemonic);
-		const service = new RedeemService(storage, clients, env.UTXO_LOCK_TIME);
+		const service = new RedeemService(
+			storage,
+			clients,
+			env.UTXO_LOCK_TIME,
+			env.REDEEM_DURATION_MS,
+		);
 
 		await service.processPendingRedeems();
 	},

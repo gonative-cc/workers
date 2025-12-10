@@ -9,6 +9,7 @@ export class RedeemService {
 		private storage: Storage,
 		private clients: Map<SuiNet, SuiClient>,
 		private utxoLockTimeMs: number,
+		private redeemDurationMs: number,
 	) {
 		if (clients.size === 0) {
 			throw new Error("No SuiClients configured");
@@ -24,6 +25,17 @@ export class RedeemService {
 
 		for (const req of pendingRequests) {
 			await this.processRequest(req);
+		}
+	}
+
+	async processResolvingRedeems() {
+		const proposedRequests = await this.storage.getProposedRedeems();
+		if (proposedRequests.length === 0) {
+			return;
+		}
+
+		for (const req of proposedRequests) {
+			await this.finalizeRequest(req);
 		}
 	}
 
@@ -77,6 +89,47 @@ export class RedeemService {
 				{
 					msg: "Failed to propose UTXOs for redeem request",
 					method: "processRequest",
+					redeemId: req.redeem_id,
+				},
+				e,
+			);
+		}
+	}
+
+	private async finalizeRequest(req: RedeemRequest) {
+		const now = Date.now();
+		const deadline = req.created_at + this.redeemDurationMs;
+
+		if (now <= deadline) {
+			// Not yet ready to finalize
+			return;
+		}
+
+		logger.info({
+			msg: "Finalizing redeem request",
+			redeemId: req.redeem_id,
+		});
+
+		try {
+			const client = this.getSuiClient(req.sui_network);
+			const txDigest = await client.finalizeRedeemRequest({
+				redeemId: req.redeem_id,
+				nbtcPkg: req.nbtc_pkg,
+				nbtcContract: req.nbtc_contract,
+			});
+
+			logger.info({
+				msg: "Finalized redeem request",
+				redeemId: req.redeem_id,
+				txDigest: txDigest,
+			});
+
+			await this.storage.markRedeemFinalized(req.redeem_id);
+		} catch (e: unknown) {
+			logError(
+				{
+					msg: "Failed to finalize redeem request",
+					method: "finalizeRequest",
 					redeemId: req.redeem_id,
 				},
 				e,

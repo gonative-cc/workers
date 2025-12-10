@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	recipient_script BLOB NOT NULL, -- script pubkey
 	amount_sats INTEGER NOT NULL,
 	created_at INTEGER NOT NULL,
-	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'signed', 'broadcasted'
+	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'finalized, 'signed', 'broadcasted'
 	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
 ) STRICT;
 

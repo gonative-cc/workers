@@ -1,5 +1,10 @@
 import { logError } from "@gonative-cc/lib/logger";
-import type { RedeemRequestRecord, UtxoRecord } from "./models";
+import {
+	RedeemRequestStatus,
+	UtxoStatus,
+	type RedeemRequestIngestData,
+	type UtxoIngestData,
+} from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet } from "@gonative-cc/lib/nbtc";
@@ -34,7 +39,7 @@ export class IndexerStorage {
 			.run();
 	}
 
-	async insertUtxo(u: UtxoRecord): Promise<void> {
+	async insertUtxo(u: UtxoIngestData): Promise<void> {
 		const pkgRow = await this.db
 			.prepare(
 				"SELECT id, btc_network FROM nbtc_packages WHERE nbtc_pkg = ? AND sui_network = ?",
@@ -74,13 +79,13 @@ export class IndexerStorage {
 
 		const stmt = this.db.prepare(
 			`INSERT OR REPLACE INTO nbtc_utxos
-            (sui_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
+            (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
 		try {
 			await stmt
 				.bind(
-					u.sui_id,
+					u.nbtc_utxo_id,
 					addrRow.id,
 					u.dwallet_id,
 					u.txid,
@@ -108,10 +113,8 @@ export class IndexerStorage {
 		const placeholders = utxoIds.map(() => "?").join(",");
 		try {
 			await this.db
-				.prepare(
-					`UPDATE nbtc_utxos SET status = 'locked' WHERE sui_id IN (${placeholders})`,
-				)
-				.bind(...utxoIds)
+				.prepare(`UPDATE nbtc_utxos SET status = ? WHERE nbtc_utxo_id IN (${placeholders})`)
+				.bind(UtxoStatus.Locked, ...utxoIds)
 				.run();
 		} catch (error) {
 			logError(
@@ -125,7 +128,7 @@ export class IndexerStorage {
 		}
 	}
 
-	async insertRedeemRequest(r: RedeemRequestRecord): Promise<void> {
+	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<void> {
 		const pkgRow = await this.db
 			.prepare("SELECT id FROM nbtc_packages WHERE nbtc_pkg = ? AND sui_network = ?")
 			.bind(r.nbtc_pkg, r.sui_network)
@@ -150,7 +153,7 @@ export class IndexerStorage {
 					r.recipient_script,
 					r.amount_sats,
 					r.created_at,
-					"pending",
+					RedeemRequestStatus.Pending,
 				)
 				.run();
 		} catch (error) {

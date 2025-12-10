@@ -54,3 +54,20 @@ export class SuiClientImp implements SuiClient {
 		return result.digest;
 	}
 }
+
+export function createSuiClients(
+	activeNetworks: SuiNet[],
+	mnemonic: string,
+): Map<SuiNet, SuiClient> {
+	const clients = new Map<SuiNet, SuiClient>();
+	for (const net of activeNetworks) {
+		clients.set(
+			net,
+			new SuiClientImp({
+				network: net,
+				signerMnemonic: mnemonic,
+			}),
+		);
+	}
+	return clients;
+}

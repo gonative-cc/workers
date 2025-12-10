@@ -366,7 +366,7 @@ export class CFStorage implements Storage {
 	}
 
 	async getNbtcMintTx(txId: string): Promise<NbtcTxRow | null> {
-		const result = await this.d1
+		return await this.d1
 			.prepare(
 				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
@@ -376,7 +376,6 @@ export class CFStorage implements Storage {
 			)
 			.bind(txId)
 			.first<NbtcTxRow>();
-		return result;
 	}
 
 	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]> {

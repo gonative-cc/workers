@@ -74,13 +74,13 @@ export class IndexerStorage {
 
 		const stmt = this.db.prepare(
 			`INSERT OR REPLACE INTO nbtc_utxos
-            (sui_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
+            (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
 		try {
 			await stmt
 				.bind(
-					u.sui_id,
+					u.nbtc_utxo_id,
 					addrRow.id,
 					u.dwallet_id,
 					u.txid,
@@ -109,7 +109,7 @@ export class IndexerStorage {
 		try {
 			await this.db
 				.prepare(
-					`UPDATE nbtc_utxos SET status = 'locked' WHERE sui_id IN (${placeholders})`,
+					`UPDATE nbtc_utxos SET status = 'locked' WHERE nbtc_utxo_id IN (${placeholders})`,
 				)
 				.bind(...utxoIds)
 				.run();

@@ -1,9 +1,13 @@
 import type { SuiNet } from "./nsui";
 
-export type UtxoStatus = "available" | "locked" | "spent";
+export enum UtxoStatus {
+	Available = "available",
+	Locked = "locked",
+	Spent = "spent",
+}
 
 export interface Utxo {
-	sui_id: string; // utxo_id (u64 index) from MintEvent
+	nbtc_utxo_id: string; // utxo_id (u64 index) from MintEvent
 	dwallet_id: string;
 	txid: string;
 	vout: number;
@@ -14,13 +18,20 @@ export interface Utxo {
 	locked_until: number | null;
 }
 
+export enum RedeemRequestStatus {
+	Pending = "pending",
+	Proposed = "proposed",
+	Signed = "signed",
+	Broadcasted = "broadcasted",
+}
+
 export interface RedeemRequest {
 	redeem_id: string; // u64
 	package_id: number;
 	redeemer: string;
 	recipient_script: Uint8Array;
 	amount_sats: number;
-	status: string;
+	status: RedeemRequestStatus;
 	created_at: number;
 	nbtc_pkg: string;
 	nbtc_contract: string;
@@ -28,7 +39,7 @@ export interface RedeemRequest {
 }
 
 export interface UtxoIngestData {
-	sui_id: string;
+	nbtc_utxo_id: string;
 	dwallet_id: string;
 	txid: string;
 	vout: number;

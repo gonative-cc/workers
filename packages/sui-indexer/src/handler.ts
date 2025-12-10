@@ -8,6 +8,7 @@ import type {
 import { logger } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { fromBase64 } from "@mysten/sui/utils";
+import { UtxoStatus } from "@gonative-cc/lib/types";
 
 export class SuiEventHandler {
 	private storage: IndexerStorage;
@@ -40,7 +41,7 @@ export class SuiEventHandler {
 		const txId = fromBase64(e.btc_tx_id).reverse().toHex();
 
 		await this.storage.insertUtxo({
-			sui_id: e.utxo_id,
+			nbtc_utxo_id: e.utxo_id,
 			dwallet_id: e.dwallet_id,
 			txid: txId,
 			vout: e.btc_vout,
@@ -48,7 +49,7 @@ export class SuiEventHandler {
 			script_pubkey: fromBase64(e.btc_script_publickey),
 			nbtc_pkg: this.nbtcPkg,
 			sui_network: this.suiNetwork,
-			status: "available",
+			status: UtxoStatus.Available,
 			locked_until: null,
 		});
 		logger.info({ msg: "Indexed Mint", utxo: e.utxo_id });

@@ -8,7 +8,12 @@ export class RedeemService {
 	constructor(
 		private storage: Storage,
 		private clients: Map<SuiNet, SuiClient>,
-	) {}
+		private utxoLockTimeMs: number,
+	) {
+		if (clients.size === 0) {
+			throw new Error("No SuiClients configured");
+		}
+	}
 
 	async processPendingRedeems() {
 		const pendingRequests = await this.storage.getPendingRedeems();
@@ -20,6 +25,12 @@ export class RedeemService {
 		for (const req of pendingRequests) {
 			await this.processRequest(req);
 		}
+	}
+
+	private getSuiClient(suiNet: SuiNet): SuiClient {
+		const c = this.clients.get(suiNet);
+		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);
+		return c;
 	}
 
 	private async processRequest(req: RedeemRequest) {
@@ -40,20 +51,11 @@ export class RedeemService {
 			return;
 		}
 
-		const client = this.clients.get(req.sui_network);
-		if (!client) {
-			logger.error({
-				msg: "No SuiClient configured for network",
-				network: req.sui_network,
-				redeemId: req.redeem_id,
-			});
-			return;
-		}
-
 		try {
+			const client = this.getSuiClient(req.sui_network);
 			const txDigest = await client.proposeRedeemUtxos({
 				redeemId: req.redeem_id,
-				utxoIds: selectedUtxos.map((u) => u.sui_id),
+				utxoIds: selectedUtxos.map((u) => u.nbtc_utxo_id),
 				dwalletIds: selectedUtxos.map((u) => u.dwallet_id),
 				nbtcPkg: req.nbtc_pkg,
 				nbtcContract: req.nbtc_contract,
@@ -64,9 +66,10 @@ export class RedeemService {
 				redeemId: req.redeem_id,
 				txDigest: txDigest,
 			});
-			await this.storage.markRedeemResolving(
+			await this.storage.markRedeemProposed(
 				req.redeem_id,
-				selectedUtxos.map((u) => u.sui_id),
+				selectedUtxos.map((u) => u.nbtc_utxo_id),
+				this.utxoLockTimeMs,
 			);
 		} catch (e: unknown) {
 			logError(

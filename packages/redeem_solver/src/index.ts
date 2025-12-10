@@ -9,8 +9,7 @@
 import { RPC } from "./rpc";
 import { D1Storage } from "./storage";
 import { RedeemService } from "./service";
-import { SuiClientImp, type SuiClient } from "./sui_client";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
+import { createSuiClients } from "./sui_client";
 
 export default {
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
@@ -21,21 +20,9 @@ export default {
 			return;
 		}
 		const storage = new D1Storage(env.DB);
-
 		const activeNetworks = await storage.getActiveNetworks();
-		const clients = new Map<SuiNet, SuiClient>();
-
-		for (const net of activeNetworks) {
-			clients.set(
-				net,
-				new SuiClientImp({
-					network: net,
-					signerMnemonic: mnemonic,
-				}),
-			);
-		}
-
-		const service = new RedeemService(storage, clients);
+		const clients = createSuiClients(activeNetworks, mnemonic);
+		const service = new RedeemService(storage, clients, env.UTXO_LOCK_TIME);
 
 		await service.processPendingRedeems();
 	},

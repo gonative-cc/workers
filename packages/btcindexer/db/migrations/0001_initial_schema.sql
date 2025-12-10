@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (
-	sui_id TEXT NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
+	nbtc_utxo_id TEXT NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
 	address_id INTEGER NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	txid TEXT NOT NULL, -- Bitcoin transaction ID

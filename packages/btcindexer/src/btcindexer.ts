@@ -779,7 +779,7 @@ export class Indexer {
 				let isPkgActive = false;
 				if (depositInfo) {
 					const pkgConfig = this.getPackageConfig(depositInfo.package_id);
-					if (pkgConfig && pkgConfig.is_active) {
+					if (pkgConfig && pkgConfig.is_active && depositInfo.is_active) {
 						isPkgActive = true;
 					}
 				}

@@ -28,7 +28,7 @@ export class RedeemService {
 		}
 	}
 
-	async processResolvingRedeems() {
+	async processFinalizingRedeems() {
 		const proposedRequests = await this.storage.getProposedRedeems();
 		if (proposedRequests.length === 0) {
 			return;

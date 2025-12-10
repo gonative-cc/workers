@@ -37,6 +37,7 @@ export default {
 		);
 
 		await service.processPendingRedeems();
+		await service.processFinalizingRedeems();
 	},
 } satisfies ExportedHandler<Env>;
 

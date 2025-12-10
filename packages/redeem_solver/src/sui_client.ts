@@ -2,7 +2,7 @@ import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import type { ProposeRedeemCall } from "./models";
-import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface SuiClientCfg {
 	network: SuiNet;

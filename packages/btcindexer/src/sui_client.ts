@@ -54,6 +54,7 @@ export class SuiClient implements SuiClientI {
 	private gqlClient: SuiGraphQLClient;
 	private signer: Signer;
 	private config: NbtcPkgCfg;
+	// TODO: Consider storing tx_ids_table_id in config instead of caching
 	private txIdsTableIdCache: string | null = null;
 
 	constructor(config: NbtcPkgCfg, mnemonic: string) {

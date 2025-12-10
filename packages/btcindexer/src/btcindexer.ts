@@ -20,7 +20,6 @@ import type {
 	ElectrsTxResponse,
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
-	FilteredMintBatch,
 } from "./models";
 import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -320,25 +319,20 @@ export class Indexer {
 	}
 
 	/**
-	 * Filters out Bitcoin transactions that have already been minted on Sui to prevent duplicate minting.
-	 * Queries the Sui blockchain to check which transactions are already minted, filters them out,
-	 * and marks them as "Minted" with a NULL sui_tx_id  in the db (meaning they were minted externally/front-run by someone else).
+	 * Checks which Bitcoin transaction IDs have already been minted on Sui.
+	 * Returns a Set of tx IDs that are already minted (front-run case).
 	 */
-	private async filterAlreadyMintedTransactions(
-		mintBatchArgs: MintBatchArg[],
-		processedPrimaryKeys: { tx_id: string; vout: number }[],
+	private async checkWhichTxsAreMinted(
+		txIds: string[],
 		client: SuiClientI,
-	): Promise<FilteredMintBatch> {
-		const btcTxIdsToCheck = Array.from(new Set(mintBatchArgs.map((arg) => arg.tx.getId())));
+	): Promise<Set<string>> {
 		const alreadyMintedTxIds = new Set<string>();
 
 		try {
-			const mintedResults = await Promise.all(
-				btcTxIdsToCheck.map((txId) => client.isNbtcMinted(txId)),
-			);
+			const mintedResults = await Promise.all(txIds.map((txId) => client.isNbtcMinted(txId)));
 
-			for (let i = 0; i < btcTxIdsToCheck.length; i++) {
-				const txId = btcTxIdsToCheck[i];
+			for (let i = 0; i < txIds.length; i++) {
+				const txId = txIds[i];
 				if (mintedResults[i] && txId) {
 					alreadyMintedTxIds.add(txId);
 					logger.info({
@@ -350,35 +344,77 @@ export class Indexer {
 		} catch (e) {
 			logError(
 				{
-					msg: "Front-run check failed, proceeding with minting",
-					method: "filterAlreadyMintedTransactions",
-					txCount: btcTxIdsToCheck.length,
+					msg: "Front-run check failed, continuing",
+					method: "checkWhichTxsAreMinted",
+					txCount: txIds.length,
 				},
 				e,
 			);
 		}
 
-		if (alreadyMintedTxIds.size > 0) {
-			const frontRunKeys = processedPrimaryKeys.filter((p) =>
-				alreadyMintedTxIds.has(p.tx_id),
-			);
-			// Mark as Minted with null sui_tx_id (indicates front-run case)
-			await this.storage.batchUpdateNbtcTxs(
-				frontRunKeys.map((p) => ({
-					txId: p.tx_id,
-					vout: p.vout,
-					status: MintTxStatus.Minted,
-					// NULL digest indicates the transaction was front-run by someone else
-				})),
-			);
-		}
-
-		const mintArgs = mintBatchArgs.filter((arg) => !alreadyMintedTxIds.has(arg.tx.getId()));
-		const dbKeysToUpdate = processedPrimaryKeys.filter((p) => !alreadyMintedTxIds.has(p.tx_id));
-
-		return { mintArgs, dbKeysToUpdate };
+		return alreadyMintedTxIds;
 	}
 
+	/**
+	 * Use checkWhichTxsAreMinted and filters out transactions that have already been minted.
+	 * Marks them in the database, and removes them from groupedTxs to avoid using them in the Merkle proof.
+	 */
+	private async detectAndFilterFrontRuns(
+		groupedTxs: Map<string, GroupedFinalizedTx>,
+	): Promise<void> {
+		const txsByPackage = new Map<number, Map<string, GroupedFinalizedTx>>();
+		for (const [txId, txGroup] of groupedTxs.entries()) {
+			const firstDeposit = txGroup.deposits[0];
+			if (!firstDeposit?.package_id) continue;
+
+			if (!txsByPackage.has(firstDeposit.package_id)) {
+				txsByPackage.set(firstDeposit.package_id, new Map());
+			}
+			const pkgMap = txsByPackage.get(firstDeposit.package_id);
+			if (pkgMap) {
+				pkgMap.set(txId, txGroup);
+			}
+		}
+
+		for (const [packageId, pkgTxs] of txsByPackage.entries()) {
+			const firstTx = pkgTxs.values().next().value;
+			if (!firstTx?.deposits[0]) continue;
+
+			const config = this.getPackageConfig(packageId);
+			const client = this.getSuiClient(config.sui_network);
+
+			const txIds = Array.from(pkgTxs.keys());
+			const alreadyMintedTxIds = await this.checkWhichTxsAreMinted(txIds, client);
+
+			if (alreadyMintedTxIds.size > 0) {
+				const updates = [];
+				for (const txId of alreadyMintedTxIds) {
+					const txGroup = pkgTxs.get(txId);
+					if (txGroup) {
+						for (const deposit of txGroup.deposits) {
+							updates.push({
+								txId: deposit.tx_id,
+								vout: deposit.vout,
+								status: MintTxStatus.Minted,
+								// NULL sui_tx_id --> front-run
+							});
+						}
+						groupedTxs.delete(txId);
+					}
+				}
+
+				await this.storage.batchUpdateNbtcTxs(updates);
+
+				logger.info({
+					msg: "Front-runs detected and marked, skipping Merkle tree generation",
+					count: alreadyMintedTxIds.size,
+					packageId,
+				});
+			}
+		}
+	}
+
+	// TODO: Refactor processFinalizedTransactions into smaller methods..
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
 
@@ -418,6 +454,8 @@ export class Indexer {
 				});
 			}
 		}
+
+		await this.detectAndFilterFrontRuns(groupedTxs);
 
 		const mintBatchArgsByPkg = new Map<string, MintBatchArg[]>();
 		const processedKeysByPkg = new Map<string, { tx_id: string; vout: number }[]>();
@@ -589,36 +627,13 @@ export class Indexer {
 				const config = this.getPackageConfig(firstBatchArg.packageId);
 				const client = this.getSuiClient(config.sui_network);
 
-				// TODO: Refactor front-run detection to run BEFORE Merkle tree generation.
-				// We should check for front-runsfirst (maybe in like a separate detectAndMarkFrontRuns()
-				// method called by the scheduler),
-				// then only generate Merkle proofs for transactions that actually need minting.
-				// This would also simplify processFinalizedTransactions.
-
-				// Filter out already-minted transactions (front-run detection)
-				// mintArgs: mintBatchArgsByPkg filtered for transactions that were not minted externally
-				// dbKeysToUpdate: processedPrimaryKeys to only update the status of the transactions that were not minted externally
-				const { mintArgs, dbKeysToUpdate } = await this.filterAlreadyMintedTransactions(
-					mintBatchArgs,
-					processedPrimaryKeys,
-					client,
-				);
-
-				if (mintArgs.length === 0) {
-					logger.info({
-						msg: "All transactions already minted, skipping batch",
-						pkgKey,
-					});
-					continue;
-				}
-
 				logger.info({
 					msg: "Minting: Sending batch of mints to Sui",
-					count: mintArgs.length,
+					count: mintBatchArgs.length,
 					pkgKey: pkgKey,
 				});
 
-				const result = await client.tryMintNbtcBatch(mintArgs);
+				const result = await client.tryMintNbtcBatch(mintBatchArgs);
 
 				if (!result) {
 					// Pre-submission error (network failure, validation error, etc.)
@@ -628,7 +643,7 @@ export class Indexer {
 						pkgKey,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						dbKeysToUpdate.map((p) => ({
+						processedPrimaryKeys.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.MintFailed,
@@ -646,7 +661,7 @@ export class Indexer {
 						pkgKey,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						dbKeysToUpdate.map((p) => ({
+						processedPrimaryKeys.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.Minted,
@@ -662,7 +677,7 @@ export class Indexer {
 						suiTxDigest,
 					});
 					await this.storage.batchUpdateNbtcTxs(
-						dbKeysToUpdate.map((p) => ({
+						processedPrimaryKeys.map((p) => ({
 							txId: p.tx_id,
 							vout: p.vout,
 							status: MintTxStatus.MintFailed,

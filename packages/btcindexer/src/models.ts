@@ -185,8 +185,3 @@ export interface NbtcDepositAddrVal {
 
 // Maps Bitcoin deposit address to NbtcDepositAddrMapping
 export type NbtcDepositAddrsMap = Map<string, NbtcDepositAddrVal>;
-
-export interface FilteredMintBatch {
-	mintArgs: MintBatchArg[];
-	dbKeysToUpdate: { tx_id: string; vout: number }[];
-}

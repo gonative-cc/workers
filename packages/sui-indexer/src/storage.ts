@@ -113,9 +113,7 @@ export class IndexerStorage {
 		const placeholders = utxoIds.map(() => "?").join(",");
 		try {
 			await this.db
-				.prepare(
-					`UPDATE nbtc_utxos SET status = ? WHERE nbtc_utxo_id IN (${placeholders})`,
-				)
+				.prepare(`UPDATE nbtc_utxos SET status = ? WHERE nbtc_utxo_id IN (${placeholders})`)
 				.bind(UtxoStatus.Locked, ...utxoIds)
 				.run();
 		} catch (error) {

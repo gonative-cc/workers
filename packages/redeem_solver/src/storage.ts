@@ -1,10 +1,10 @@
+import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import {
-	RedeemRequestStatus,
 	UtxoStatus,
 	type RedeemRequest,
+	RedeemRequestStatus,
 	type Utxo,
-} from "@gonative-cc/lib/types";
-import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
+} from "@gonative-cc/sui-indexer/models";
 
 interface RedeemRequestRow {
 	redeem_id: string;
@@ -48,11 +48,14 @@ export class D1Storage implements Storage {
                 p.nbtc_pkg, p.nbtc_contract, p.sui_network
             FROM nbtc_redeem_requests r
             JOIN nbtc_packages p ON r.package_id = p.id
-            WHERE r.status = ${RedeemRequestStatus.Pending}
+            WHERE r.status = ?
             ORDER BY r.created_at ASC
             LIMIT 50;
         `;
-		const { results } = await this.db.prepare(query).all<RedeemRequestRow>();
+		const { results } = await this.db
+			.prepare(query)
+			.bind(RedeemRequestStatus.Pending)
+			.all<RedeemRequestRow>();
 
 		return results.map((r) => ({
 			...r,
@@ -68,10 +71,13 @@ export class D1Storage implements Storage {
 			FROM nbtc_utxos u
 			JOIN nbtc_deposit_addresses a ON u.address_id = a.id
 			WHERE a.package_id = ?
-			AND u.status = ${UtxoStatus.Available}
+			AND u.status = ?
 			ORDER BY u.amount_sats DESC;
 		`;
-		const { results } = await this.db.prepare(query).bind(packageId).all<UtxoRow>();
+		const { results } = await this.db
+			.prepare(query)
+			.bind(packageId, UtxoStatus.Available)
+			.all<UtxoRow>();
 
 		return results.map((u) => ({
 			...u,
@@ -79,6 +85,7 @@ export class D1Storage implements Storage {
 		}));
 	}
 
+	// Mark the redeem request as proposed and lock the selected UTXOs
 	async markRedeemProposed(
 		redeemId: string,
 		utxoIds: string[],
@@ -87,19 +94,19 @@ export class D1Storage implements Storage {
 		const batch = [];
 		batch.push(
 			this.db
-				.prepare(
-					`UPDATE nbtc_redeem_requests SET status = ${RedeemRequestStatus.Proposed} WHERE redeem_id = ?`,
-				)
-				.bind(redeemId),
+				.prepare(`UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?`)
+				.bind(RedeemRequestStatus.Proposed, redeemId),
 		);
 		const lockUntil = Date.now() + utxoLockTimeMs;
-		for (const id of utxoIds) {
+
+		if (utxoIds.length > 0) {
+			const placeholders = utxoIds.map(() => "?").join(", ");
 			batch.push(
 				this.db
 					.prepare(
-						`UPDATE nbtc_utxos SET status = '${UtxoStatus.Locked}', locked_until = ? WHERE nbtc_utxo_id = ?`,
+						`UPDATE nbtc_utxos SET status = ?, locked_until = ? WHERE nbtc_utxo_id IN (${placeholders})`,
 					)
-					.bind(lockUntil, id),
+					.bind(UtxoStatus.Locked, lockUntil, ...utxoIds),
 			);
 		}
 		await this.db.batch(batch);

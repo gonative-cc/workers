@@ -1,5 +1,10 @@
 import { logError } from "@gonative-cc/lib/logger";
-import type { RedeemRequestIngestData, UtxoIngestData } from "./models";
+import {
+	RedeemRequestStatus,
+	UtxoStatus,
+	type RedeemRequestIngestData,
+	type UtxoIngestData,
+} from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet } from "@gonative-cc/lib/nbtc";
@@ -109,7 +114,7 @@ export class IndexerStorage {
 		try {
 			await this.db
 				.prepare(
-					`UPDATE nbtc_utxos SET status = 'locked' WHERE nbtc_utxo_id IN (${placeholders})`,
+					`UPDATE nbtc_utxos SET status = '${UtxoStatus.Locked}' WHERE nbtc_utxo_id IN (${placeholders})`,
 				)
 				.bind(...utxoIds)
 				.run();
@@ -150,7 +155,7 @@ export class IndexerStorage {
 					r.recipient_script,
 					r.amount_sats,
 					r.created_at,
-					"pending",
+					RedeemRequestStatus.Pending,
 				)
 				.run();
 		} catch (error) {

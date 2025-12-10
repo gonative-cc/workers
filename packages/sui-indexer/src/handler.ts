@@ -1,14 +1,14 @@
 import { IndexerStorage } from "./storage";
-import type {
-	MintEventRaw,
-	ProposeUtxoEventRaw,
-	RedeemRequestEventRaw,
-	SuiEventNode,
+import {
+	type MintEventRaw,
+	type ProposeUtxoEventRaw,
+	type RedeemRequestEventRaw,
+	type SuiEventNode,
+	UtxoStatus,
 } from "./models";
 import { logger } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { fromBase64 } from "@mysten/sui/utils";
-import { UtxoStatus } from "@gonative-cc/lib/types";
 
 export class SuiEventHandler {
 	private storage: IndexerStorage;

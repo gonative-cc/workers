@@ -10,13 +10,14 @@ import { RPC } from "./rpc";
 import { D1Storage } from "./storage";
 import { RedeemService } from "./service";
 import { createSuiClients } from "./sui_client";
+import { logger } from "@gonative-cc/lib/logger";
 
 export default {
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-		console.log("Running scheduled redeem solver task...");
+		logger.info({ msg: "Running scheduled redeem solver task..." });
 		const mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
 		if (!mnemonic) {
-			console.error("Missing NBTC_MINTING_SIGNER_MNEMONIC");
+			logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
 			return;
 		}
 		const storage = new D1Storage(env.DB);

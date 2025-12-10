@@ -1,6 +1,9 @@
 {
   "name": "@gonative-cc/sui-indexer",
   "version": "0.0.1",
+  "exports": {
+		"./*": "./src/*.ts"
+	},
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --test-scheduled",

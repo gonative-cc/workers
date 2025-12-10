@@ -1,7 +1,7 @@
 import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
-import type { ProposeRedeemArgs } from "@gonative-cc/lib/types";
+import type { ProposeRedeemCall } from "./models";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface SuiClientCfg {
@@ -10,7 +10,7 @@ export interface SuiClientCfg {
 }
 
 export interface SuiClient {
-	proposeRedeemUtxos(args: ProposeRedeemArgs): Promise<string>;
+	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
 }
 
 export class SuiClientImp implements SuiClient {
@@ -23,7 +23,7 @@ export class SuiClientImp implements SuiClient {
 		this.signer = Ed25519Keypair.deriveKeypair(cfg.signerMnemonic);
 	}
 
-	async proposeRedeemUtxos(args: ProposeRedeemArgs): Promise<string> {
+	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {
 		const tx = new Transaction();
 		const target = `${args.nbtcPkg}::nbtc::propose_utxos`;
 		tx.moveCall({

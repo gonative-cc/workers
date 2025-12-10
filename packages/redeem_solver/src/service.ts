@@ -1,4 +1,4 @@
-import type { Utxo, RedeemRequest } from "@gonative-cc/lib/types";
+import type { Utxo, RedeemRequest } from "@gonative-cc/sui-indexer/models";
 import type { Storage } from "./storage";
 import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
@@ -39,8 +39,9 @@ export class RedeemService {
 			redeemId: req.redeem_id,
 			amountSats: req.amount_sats.toString(),
 		});
+		// TODO: we should only fetch it ones for all requests. So we fetch it in processPendingRedeems and the pass it to this method
 		const availableUtxos = await this.storage.getAvailableUtxos(req.package_id);
-		const selectedUtxos = this.selectUtxos(availableUtxos, req.amount_sats);
+		const selectedUtxos = selectUtxos(availableUtxos, req.amount_sats);
 
 		if (!selectedUtxos) {
 			logger.warn({
@@ -82,19 +83,20 @@ export class RedeemService {
 			);
 		}
 	}
-	// V1 version
-	private selectUtxos(available: Utxo[], targetAmount: number): Utxo[] | null {
-		let sum = 0;
-		const selected: Utxo[] = [];
+}
 
-		for (const utxo of available) {
-			sum += utxo.amount_sats;
-			selected.push(utxo);
-			if (sum >= targetAmount) {
-				return selected;
-			}
+// V1 version
+function selectUtxos(available: Utxo[], targetAmount: number): Utxo[] | null {
+	let sum = 0;
+	const selected: Utxo[] = [];
+
+	for (const utxo of available) {
+		sum += utxo.amount_sats;
+		selected.push(utxo);
+		if (sum >= targetAmount) {
+			return selected;
 		}
-
-		return null;
 	}
+
+	return null;
 }

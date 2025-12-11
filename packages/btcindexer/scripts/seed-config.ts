@@ -1,7 +1,5 @@
 import { $ } from "bun"; // this for running the shell commands
-import { NBTC_PACKAGES } from "./config";
-
-const DB_NAME = "btcindexer-dev"; // TODO: make sure to use the right name
+import { NBTC_PACKAGES, type EnvName } from "./config";
 
 main().catch((err) => {
 	console.error("Error seeding addresses:", err);
@@ -9,46 +7,59 @@ main().catch((err) => {
 });
 
 async function main() {
-	const local = process.argv.includes("--local");
+	const args = process.argv.slice(2);
+	const local = args.includes("--local");
 
-	if (!NBTC_PACKAGES || NBTC_PACKAGES.length === 0) {
+	let env: EnvName | undefined;
+	if (args.includes("prod")) env = "prod";
+	else if (args.includes("backstage")) env = "backstage";
+	else if (args.includes("dev")) env = "dev";
+
+	if (!env) {
+		console.error(
+			"No environment specified, Usage: bun scripts/seed-config.ts [dev|backstage|prod] [--local]",
+		);
 		return;
 	}
 
-	for (const entry of NBTC_PACKAGES) {
-		const {
-			btc_network,
-			sui_network,
-			nbtc_pkg,
-			nbtc_contract,
-			lc_pkg,
-			lc_contract,
-			sui_fallback_address,
-			btc_address,
-		} = entry;
+	const config = NBTC_PACKAGES[env];
+	if (!config) {
+		console.error(`No configuration found for environment: ${env}`);
+		return;
+	}
+
+	const DB_NAME = config.db_name;
+	console.log(`Using environment: ${env}, DB: ${DB_NAME}`);
+
+	if (!config.nbtcCfgs || config.nbtcCfgs.length === 0) {
+		console.log("No packages to seed.");
+		return;
+	}
+
+	for (const entry of config.nbtcCfgs) {
 		if (
-			!btc_network ||
-			!sui_network ||
-			!nbtc_pkg ||
-			!nbtc_contract ||
-			!lc_pkg ||
-			!lc_contract ||
-			!sui_fallback_address ||
-			!btc_address
+			!entry.btc_network ||
+			!entry.sui_network ||
+			!entry.nbtc_pkg ||
+			!entry.nbtc_contract ||
+			!entry.lc_pkg ||
+			!entry.lc_contract ||
+			!entry.sui_fallback_address ||
+			!entry.btc_address
 		) {
 			console.error("Invalid entry (missing fields)");
 			continue;
 		}
 
-		const checkPkgQuery = `SELECT id FROM nbtc_packages WHERE btc_network = '${btc_network}' AND sui_network = '${sui_network}' AND nbtc_pkg = '${nbtc_pkg}'`;
-		let packageId = await executeQuery<number>(checkPkgQuery, local, "id");
+		const checkPkgQuery = `SELECT id FROM nbtc_packages WHERE btc_network = '${entry.btc_network}' AND sui_network = '${entry.sui_network}' AND nbtc_pkg = '${entry.nbtc_pkg}'`;
+		let packageId = await executeQuery<number>(checkPkgQuery, DB_NAME, local, "id");
 		if (!packageId) {
 			const insertPkgQuery = `
-				INSERT INTO nbtc_packages (btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address) 
-				VALUES ('${btc_network}', '${sui_network}', '${nbtc_pkg}', '${nbtc_contract}', '${lc_pkg}', '${lc_contract}', '${sui_fallback_address}') 
+				INSERT INTO nbtc_packages (btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address)
+				VALUES ('${entry.btc_network}', '${entry.sui_network}', '${entry.nbtc_pkg}', '${entry.nbtc_contract}', '${entry.lc_pkg}', '${entry.lc_contract}', '${entry.sui_fallback_address}')
 				RETURNING id
 			`;
-			packageId = await executeQuery<number>(insertPkgQuery, local, "id");
+			packageId = await executeQuery<number>(insertPkgQuery, DB_NAME, local, "id");
 		}
 
 		if (!packageId) {
@@ -56,20 +67,25 @@ async function main() {
 			continue;
 		}
 
-		const checkAddrQuery = `SELECT id FROM nbtc_deposit_addresses WHERE package_id = ${packageId} AND deposit_address = '${btc_address}'`;
-		const existingAddrId = await executeQuery<number>(checkAddrQuery, local, "id");
+		const checkAddrQuery = `SELECT id FROM nbtc_deposit_addresses WHERE package_id = ${packageId} AND deposit_address = '${entry.btc_address}'`;
+		const existingAddrId = await executeQuery<number>(checkAddrQuery, DB_NAME, local, "id");
 
 		if (existingAddrId) {
 			continue;
 		}
 
-		const insertAddrQuery = `INSERT INTO nbtc_deposit_addresses (package_id, deposit_address) VALUES (${packageId}, '${btc_address}')`;
-		await executeQuery(insertAddrQuery, local);
+		const insertAddrQuery = `INSERT INTO nbtc_deposit_addresses (package_id, deposit_address) VALUES (${packageId}, '${entry.btc_address}')`;
+		await executeQuery(insertAddrQuery, DB_NAME, local);
 	}
 }
 
-async function executeQuery<T>(query: string, local: boolean, field?: string): Promise<T | null> {
-	const cmd = ["bun", "wrangler", "d1", "execute", DB_NAME, `--command="${query}"`, "--json"];
+async function executeQuery<T>(
+	query: string,
+	dbName: string,
+	local: boolean,
+	field?: string,
+): Promise<T | null> {
+	const cmd = ["bun", "wrangler", "d1", "execute", dbName, `--command="${query}"`, "--json"];
 	if (local) {
 		cmd.push("--local");
 	}

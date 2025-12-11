@@ -174,7 +174,7 @@ export interface NbtcPkgCfg {
 	lc_contract: string;
 	sui_fallback_address: string;
 	// TODO: this is not needed. We should filter through DB and return only active pkgs.
-	is_active: number;
+	is_active: boolean;
 }
 
 export interface NbtcDepositAddrVal {

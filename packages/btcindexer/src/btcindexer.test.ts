@@ -84,7 +84,7 @@ const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
 	lc_contract: "0xLIGHTCLIENT",
 	lc_pkg: "0xLC_PKG",
 	sui_fallback_address: SUI_FALLBACK_ADDRESS,
-	is_active: 1,
+	is_active: true,
 };
 
 let mf: Miniflare;
@@ -796,7 +796,7 @@ describe("Indexer.processBlock", () => {
 describe("Indexer.findFinalizedTxs (Inactive)", () => {
 	it("should return inactiveId if address is not active", () => {
 		const pkg = indexer.getPackageConfig(1);
-		if (pkg) pkg.is_active = 0;
+		if (pkg) pkg.is_active = false;
 
 		const pendingTx = {
 			tx_id: "tx1",
@@ -812,7 +812,36 @@ describe("Indexer.findFinalizedTxs (Inactive)", () => {
 		expect(result.inactiveTxIds.length).toEqual(1);
 
 		// Restore active state for other tests
-		if (pkg) pkg.is_active = 1;
+		if (pkg) pkg.is_active = true;
+	});
+
+	it("should return inactiveId if address is inactive but package is active", () => {
+		const pendingTx = {
+			tx_id: "tx1",
+			block_hash: null,
+			block_height: 100,
+			btc_network: BtcNet.REGTEST,
+			deposit_address: "inactive_address",
+		};
+
+		const originalMap = indexer.nbtcDepositAddrMap;
+		indexer.nbtcDepositAddrMap = new Map([
+			[
+				"inactive_address",
+				{
+					package_id: 1,
+					is_active: false,
+				},
+			],
+		]);
+
+		const latestHeight = 107;
+		const result = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
+
+		expect(result.activeTxIds.length).toEqual(0);
+		expect(result.inactiveTxIds.length).toEqual(1);
+
+		indexer.nbtcDepositAddrMap = originalMap;
 	});
 });
 

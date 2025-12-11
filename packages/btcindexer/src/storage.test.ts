@@ -84,9 +84,9 @@ describe("Storage Helper Functions", () => {
 		const addrMap = await fetchNbtcAddresses(db);
 		expect(addrMap.size).toBe(2); // we track deposits for both active and inactive addresses
 		expect(addrMap.has("bcrt1qAddress1")).toBe(true);
-		expect(addrMap.get("bcrt1qAddress1")!.is_active).toBeTruthy();
+		expect(addrMap.get("bcrt1qAddress1")!.is_active).toBe(true);
 		expect(addrMap.has("bcrt1qAddress2")).toBe(true);
-		expect(addrMap.get("bcrt1qAddress2")?.is_active).toBeFalsy();
+		expect(addrMap.get("bcrt1qAddress2")?.is_active).toBe(false);
 	});
 });
 

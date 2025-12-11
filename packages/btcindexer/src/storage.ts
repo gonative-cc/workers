@@ -63,7 +63,7 @@ export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcDepositAdd
 		.all<{ package_id: number; btc_address: string; is_active: boolean }>();
 	const addrMap: NbtcDepositAddrsMap = new Map();
 	for (const p of results || []) {
-		addrMap.set(p.btc_address, { package_id: p.package_id, is_active: p.is_active });
+		addrMap.set(p.btc_address, { package_id: p.package_id, is_active: !!p.is_active });
 	}
 	return addrMap;
 }
@@ -76,5 +76,5 @@ export async function fetchPackageConfigs(db: D1Database): Promise<NbtcPkgCfg[]>
 	// verify DB
 	for (const p of results) p.sui_network = toSuiNet(p.sui_network);
 
-	return results;
+	return results.map((p) => ({ ...p, is_active: !!p.is_active }));
 }

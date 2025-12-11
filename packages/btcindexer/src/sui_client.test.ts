@@ -35,7 +35,7 @@ describe.skip("SuiClient: verifyBlocks Integration Test", () => {
 			nbtc_pkg: "0x1",
 			nbtc_contract: "0x2",
 			sui_fallback_address: SUI_FALLBACK_ADDRESS,
-			is_active: 1,
+			is_active: true,
 		};
 
 		const suiClient = new SuiClient(pkgConfig, TEST_MNEMONIC);

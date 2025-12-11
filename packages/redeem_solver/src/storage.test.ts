@@ -303,10 +303,19 @@ describe("D1Storage", () => {
 	});
 
 	it("getActiveNetworks should return distinct active networks", async () => {
+		// Add active package with different network
 		await db
 			.prepare(
 				`INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
                  VALUES (2, 'mainnet', 'mainnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 1)`,
+			)
+			.run();
+
+		// Add inactive package (should NOT be included)
+		await db
+			.prepare(
+				`INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+                 VALUES (3, 'testnet', 'testnet', '0xPkg3', '0xContract3', '0xLC3', '0xLCC3', '0xFallback3', 0)`,
 			)
 			.run();
 
@@ -315,5 +324,6 @@ describe("D1Storage", () => {
 		expect(networks.length).toBe(2);
 		expect(networks).toContain(toSuiNet("devnet"));
 		expect(networks).toContain(toSuiNet("mainnet"));
+		expect(networks).not.toContain(toSuiNet("testnet")); // Inactive package excluded
 	});
 });

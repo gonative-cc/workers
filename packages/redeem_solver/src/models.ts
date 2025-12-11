@@ -11,6 +11,8 @@ export interface ProposeRedeemCall {
 	nbtcContract: string;
 }
 
-export interface RedeemProposalResp {
-	utxos: number[];
+export interface SolveRedeemCall {
+	redeemId: string;
+	nbtcPkg: string;
+	nbtcContract: string;
 }

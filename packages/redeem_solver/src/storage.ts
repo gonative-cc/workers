@@ -33,8 +33,10 @@ interface UtxoRow {
 
 export interface Storage {
 	getPendingRedeems(): Promise<RedeemRequest[]>;
+	getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]>;
 	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
 	markRedeemProposed(redeemId: string, utxoIds: string[], utxoLockTimeMs: number): Promise<void>;
+	markRedeemSolved(redeemId: string): Promise<void>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 }
 
@@ -55,6 +57,29 @@ export class D1Storage implements Storage {
 		const { results } = await this.db
 			.prepare(query)
 			.bind(RedeemRequestStatus.Pending)
+			.all<RedeemRequestRow>();
+
+		return results.map((r) => ({
+			...r,
+			recipient_script: new Uint8Array(r.recipient_script),
+			sui_network: toSuiNet(r.sui_network),
+		}));
+	}
+
+	async getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]> {
+		const query = `
+            SELECT
+                r.redeem_id, r.package_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                p.nbtc_pkg, p.nbtc_contract, p.sui_network
+            FROM nbtc_redeem_requests r
+            JOIN nbtc_packages p ON r.package_id = p.id
+            WHERE r.status = ? AND r.created_at <= ?
+            ORDER BY r.created_at ASC
+            LIMIT 50;
+        `;
+		const { results } = await this.db
+			.prepare(query)
+			.bind(RedeemRequestStatus.Proposed, maxCreatedAt)
 			.all<RedeemRequestRow>();
 
 		return results.map((r) => ({
@@ -110,6 +135,13 @@ export class D1Storage implements Storage {
 			);
 		}
 		await this.db.batch(batch);
+	}
+
+	async markRedeemSolved(redeemId: string): Promise<void> {
+		await this.db
+			.prepare(`UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?`)
+			.bind(RedeemRequestStatus.Solved, redeemId)
+			.run();
 	}
 
 	async getActiveNetworks(): Promise<SuiNet[]> {

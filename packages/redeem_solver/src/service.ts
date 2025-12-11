@@ -9,6 +9,7 @@ export class RedeemService {
 		private storage: Storage,
 		private clients: Map<SuiNet, SuiClient>,
 		private utxoLockTimeMs: number,
+		private redeemDurationMs: number,
 	) {
 		if (clients.size === 0) {
 			throw new Error("No SuiClients configured");
@@ -24,6 +25,18 @@ export class RedeemService {
 
 		for (const req of pendingRequests) {
 			await this.processRequest(req);
+		}
+	}
+
+	async solveReadyRedeems() {
+		const maxCreatedAt = Date.now() - this.redeemDurationMs;
+		const readyRedeemRequests = await this.storage.getRedeemsReadyForSolving(maxCreatedAt);
+		if (readyRedeemRequests.length === 0) {
+			return;
+		}
+
+		for (const req of readyRedeemRequests) {
+			await this.solveRequest(req);
 		}
 	}
 
@@ -77,6 +90,40 @@ export class RedeemService {
 				{
 					msg: "Failed to propose UTXOs for redeem request",
 					method: "processRequest",
+					redeemId: req.redeem_id,
+				},
+				e,
+			);
+		}
+	}
+
+	private async solveRequest(req: RedeemRequest) {
+		logger.info({
+			msg: "Finalizing redeem request",
+			redeemId: req.redeem_id,
+		});
+
+		try {
+			const client = this.getSuiClient(req.sui_network);
+			// NOTE: we are not using a PBT here to avoid problems when someone frontruns this call
+			const txDigest = await client.solveRedeemRequest({
+				redeemId: req.redeem_id,
+				nbtcPkg: req.nbtc_pkg,
+				nbtcContract: req.nbtc_contract,
+			});
+
+			logger.info({
+				msg: "Solved redeem request",
+				redeemId: req.redeem_id,
+				txDigest: txDigest,
+			});
+
+			await this.storage.markRedeemSolved(req.redeem_id);
+		} catch (e: unknown) {
+			logError(
+				{
+					msg: "Failed to solve redeem request",
+					method: "solveRequest",
 					redeemId: req.redeem_id,
 				},
 				e,

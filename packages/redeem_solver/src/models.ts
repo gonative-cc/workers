@@ -11,7 +11,7 @@ export interface ProposeRedeemCall {
 	nbtcContract: string;
 }
 
-export interface FinalizeRedeemCall {
+export interface SolveRedeemCall {
 	redeemId: string;
 	nbtcPkg: string;
 	nbtcContract: string;

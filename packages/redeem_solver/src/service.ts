@@ -35,7 +35,7 @@ export class RedeemService {
 		}
 
 		for (const req of proposedRequests) {
-			await this.finalizeRequest(req);
+			await this.solveRequest(req);
 		}
 	}
 
@@ -96,7 +96,7 @@ export class RedeemService {
 		}
 	}
 
-	private async finalizeRequest(req: RedeemRequest) {
+	private async solveRequest(req: RedeemRequest) {
 		const now = Date.now();
 		const deadline = req.created_at + this.redeemDurationMs;
 
@@ -112,24 +112,25 @@ export class RedeemService {
 
 		try {
 			const client = this.getSuiClient(req.sui_network);
-			const txDigest = await client.finalizeRedeemRequest({
+			// NOTE: we are not using a PBT here to avoid problems when someone frontruns this call
+			const txDigest = await client.solveRedeemRequest({
 				redeemId: req.redeem_id,
 				nbtcPkg: req.nbtc_pkg,
 				nbtcContract: req.nbtc_contract,
 			});
 
 			logger.info({
-				msg: "Finalized redeem request",
+				msg: "Solved redeem request",
 				redeemId: req.redeem_id,
 				txDigest: txDigest,
 			});
 
-			await this.storage.markRedeemFinalized(req.redeem_id);
+			await this.storage.markRedeemSolved(req.redeem_id);
 		} catch (e: unknown) {
 			logError(
 				{
-					msg: "Failed to finalize redeem request",
-					method: "finalizeRequest",
+					msg: "Failed to solve redeem request",
+					method: "solveRequest",
 					redeemId: req.redeem_id,
 				},
 				e,

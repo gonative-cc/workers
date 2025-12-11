@@ -21,7 +21,7 @@ export interface Utxo {
 export enum RedeemRequestStatus {
 	Pending = "pending",
 	Proposed = "proposed",
-	Finalized = "finalized",
+	Solved = "solved",
 	Signed = "signed",
 	Broadcasted = "broadcasted",
 }

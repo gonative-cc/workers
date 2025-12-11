@@ -1,7 +1,7 @@
 import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
-import type { FinalizeRedeemCall, ProposeRedeemCall } from "./models";
+import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface SuiClientCfg {
@@ -11,7 +11,7 @@ export interface SuiClientCfg {
 
 export interface SuiClient {
 	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
-	finalizeRedeemRequest(args: FinalizeRedeemCall): Promise<string>;
+	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
 }
 
 export class SuiClientImp implements SuiClient {
@@ -55,9 +55,9 @@ export class SuiClientImp implements SuiClient {
 		return result.digest;
 	}
 
-	async finalizeRedeemRequest(args: FinalizeRedeemCall): Promise<string> {
+	async solveRedeemRequest(args: SolveRedeemCall): Promise<string> {
 		const tx = new Transaction();
-		const target = `${args.nbtcPkg}::nbtc::finalize_redeem_request`;
+		const target = `${args.nbtcPkg}::nbtc::finalize_redeem_request`; // TODO: for the next deployment change to solve_redeem_request
 		tx.moveCall({
 			target: target,
 			arguments: [

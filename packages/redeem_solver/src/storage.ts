@@ -36,7 +36,7 @@ export interface Storage {
 	getProposedRedeems(): Promise<RedeemRequest[]>;
 	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
 	markRedeemProposed(redeemId: string, utxoIds: string[], utxoLockTimeMs: number): Promise<void>;
-	markRedeemFinalized(redeemId: string): Promise<void>;
+	markRedeemSolved(redeemId: string): Promise<void>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 }
 
@@ -137,10 +137,10 @@ export class D1Storage implements Storage {
 		await this.db.batch(batch);
 	}
 
-	async markRedeemFinalized(redeemId: string): Promise<void> {
+	async markRedeemSolved(redeemId: string): Promise<void> {
 		await this.db
 			.prepare(`UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?`)
-			.bind(RedeemRequestStatus.Finalized, redeemId)
+			.bind(RedeemRequestStatus.Solved, redeemId)
 			.run();
 	}
 

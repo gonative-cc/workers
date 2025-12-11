@@ -33,7 +33,7 @@ interface UtxoRow {
 
 export interface Storage {
 	getPendingRedeems(): Promise<RedeemRequest[]>;
-	getProposedRedeems(): Promise<RedeemRequest[]>;
+	getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]>;
 	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
 	markRedeemProposed(redeemId: string, utxoIds: string[], utxoLockTimeMs: number): Promise<void>;
 	markRedeemSolved(redeemId: string): Promise<void>;
@@ -66,20 +66,20 @@ export class D1Storage implements Storage {
 		}));
 	}
 
-	async getProposedRedeems(): Promise<RedeemRequest[]> {
+	async getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]> {
 		const query = `
             SELECT
                 r.redeem_id, r.package_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
                 p.nbtc_pkg, p.nbtc_contract, p.sui_network
             FROM nbtc_redeem_requests r
             JOIN nbtc_packages p ON r.package_id = p.id
-            WHERE r.status = ?
+            WHERE r.status = ? AND r.created_at <= ?
             ORDER BY r.created_at ASC
             LIMIT 50;
         `;
 		const { results } = await this.db
 			.prepare(query)
-			.bind(RedeemRequestStatus.Proposed)
+			.bind(RedeemRequestStatus.Proposed, maxCreatedAt)
 			.all<RedeemRequestRow>();
 
 		return results.map((r) => ({

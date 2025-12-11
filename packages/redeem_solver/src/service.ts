@@ -28,13 +28,14 @@ export class RedeemService {
 		}
 	}
 
-	async processFinalizingRedeems() {
-		const proposedRequests = await this.storage.getProposedRedeems();
-		if (proposedRequests.length === 0) {
+	async solveReadyRedeems() {
+		const maxCreatedAt = Date.now() - this.redeemDurationMs;
+		const readyRedeemRequests = await this.storage.getRedeemsReadyForSolving(maxCreatedAt);
+		if (readyRedeemRequests.length === 0) {
 			return;
 		}
 
-		for (const req of proposedRequests) {
+		for (const req of readyRedeemRequests) {
 			await this.solveRequest(req);
 		}
 	}
@@ -97,14 +98,6 @@ export class RedeemService {
 	}
 
 	private async solveRequest(req: RedeemRequest) {
-		const now = Date.now();
-		const deadline = req.created_at + this.redeemDurationMs;
-
-		if (now <= deadline) {
-			// Not yet ready to finalize
-			return;
-		}
-
 		logger.info({
 			msg: "Finalizing redeem request",
 			redeemId: req.redeem_id,

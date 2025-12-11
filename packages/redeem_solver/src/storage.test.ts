@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
-import { D1Storage } from "./storage";
+import { D1Storage, UTXO_LOCK_TIME_MS } from "./storage";
 import { RedeemRequestStatus, UtxoStatus } from "@gonative-cc/sui-indexer/models";
 import { initDb } from "./db.test";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
@@ -41,6 +41,54 @@ describe("D1Storage", () => {
 	let storage: D1Storage;
 	let db: D1Database;
 
+	async function insertRedeemRequest(
+		redeemId: string,
+		packageId: number,
+		redeemer: string,
+		recipientScript: Uint8Array,
+		amountSats: number,
+		createdAt: number,
+		status: RedeemRequestStatus,
+	) {
+		await db
+			.prepare(
+				`INSERT INTO nbtc_redeem_requests (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			)
+			.bind(redeemId, packageId, redeemer, recipientScript, amountSats, createdAt, status)
+			.run();
+	}
+
+	async function insertUtxo(
+		utxoId: string,
+		addressId: number,
+		dwalletId: string,
+		txid: string,
+		vout: number,
+		amountSats: number,
+		scriptPubkey: Uint8Array,
+		status: UtxoStatus,
+		lockedUntil: number | null,
+	) {
+		await db
+			.prepare(
+				`INSERT INTO nbtc_utxos (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			)
+			.bind(
+				utxoId,
+				addressId,
+				dwalletId,
+				txid,
+				vout,
+				amountSats,
+				scriptPubkey,
+				status,
+				lockedUntil,
+			)
+			.run();
+	}
+
 	beforeEach(async () => {
 		db = await mf.getD1Database("DB");
 		storage = new D1Storage(db);
@@ -61,37 +109,24 @@ describe("D1Storage", () => {
 	it("getPendingRedeems should return pending redeems ordered by created_at", async () => {
 		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
 
-		await db
-			.prepare(
-				`INSERT INTO nbtc_redeem_requests (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				"redeem2",
-				1,
-				"redeemer1",
-				recipientScript,
-				5000,
-				2000,
-				RedeemRequestStatus.Pending,
-			)
-			.run();
-
-		await db
-			.prepare(
-				`INSERT INTO nbtc_redeem_requests (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				"redeem1",
-				1,
-				"redeemer1",
-				recipientScript,
-				3000,
-				1000,
-				RedeemRequestStatus.Pending,
-			)
-			.run();
+		await insertRedeemRequest(
+			"redeem2",
+			1,
+			"redeemer1",
+			recipientScript,
+			5000,
+			2000,
+			RedeemRequestStatus.Pending,
+		);
+		await insertRedeemRequest(
+			"redeem1",
+			1,
+			"redeemer1",
+			recipientScript,
+			3000,
+			1000,
+			RedeemRequestStatus.Pending,
+		);
 
 		const redeems = await storage.getPendingRedeems();
 
@@ -105,37 +140,24 @@ describe("D1Storage", () => {
 		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
 		const now = Date.now();
 
-		await db
-			.prepare(
-				`INSERT INTO nbtc_redeem_requests (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				"redeem1",
-				1,
-				"redeemer1",
-				recipientScript,
-				3000,
-				now - 5000,
-				RedeemRequestStatus.Proposed,
-			)
-			.run();
-
-		await db
-			.prepare(
-				`INSERT INTO nbtc_redeem_requests (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				"redeem2",
-				1,
-				"redeemer1",
-				recipientScript,
-				5000,
-				now + 5000,
-				RedeemRequestStatus.Proposed,
-			)
-			.run();
+		await insertRedeemRequest(
+			"redeem1",
+			1,
+			"redeemer1",
+			recipientScript,
+			3000,
+			now - 5000,
+			RedeemRequestStatus.Proposed,
+		);
+		await insertRedeemRequest(
+			"redeem2",
+			1,
+			"redeemer1",
+			recipientScript,
+			5000,
+			now + 5000,
+			RedeemRequestStatus.Proposed,
+		);
 
 		const redeems = await storage.getRedeemsReadyForSolving(now);
 
@@ -146,21 +168,28 @@ describe("D1Storage", () => {
 	it("getAvailableUtxos should return utxos ordered by amount DESC", async () => {
 		const scriptPubkey = new Uint8Array([0x00, 0x14]);
 
-		await db
-			.prepare(
-				`INSERT INTO nbtc_utxos (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind("utxo1", 1, "dwallet1", "tx1", 0, 1000, scriptPubkey, UtxoStatus.Available, null)
-			.run();
-
-		await db
-			.prepare(
-				`INSERT INTO nbtc_utxos (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind("utxo2", 1, "dwallet1", "tx2", 0, 5000, scriptPubkey, UtxoStatus.Available, null)
-			.run();
+		await insertUtxo(
+			"utxo1",
+			1,
+			"dwallet1",
+			"tx1",
+			0,
+			1000,
+			scriptPubkey,
+			UtxoStatus.Available,
+			null,
+		);
+		await insertUtxo(
+			"utxo2",
+			1,
+			"dwallet1",
+			"tx2",
+			0,
+			5000,
+			scriptPubkey,
+			UtxoStatus.Available,
+			null,
+		);
 
 		const utxos = await storage.getAvailableUtxos(1);
 
@@ -186,39 +215,39 @@ describe("D1Storage", () => {
 			)
 			.run();
 
-		await db
-			.prepare(
-				`INSERT INTO nbtc_utxos (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind("utxo1", 1, "dwallet1", "tx1", 0, 1000, scriptPubkey, UtxoStatus.Available, null)
-			.run();
-
-		await db
-			.prepare(
-				`INSERT INTO nbtc_utxos (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				"utxo_locked",
-				1,
-				"dwallet1",
-				"tx_locked",
-				0,
-				2000,
-				scriptPubkey,
-				UtxoStatus.Locked,
-				Date.now() + 10000,
-			)
-			.run();
-
-		await db
-			.prepare(
-				`INSERT INTO nbtc_utxos (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind("utxo2", 2, "dwallet2", "tx2", 0, 3000, scriptPubkey, UtxoStatus.Available, null)
-			.run();
+		await insertUtxo(
+			"utxo1",
+			1,
+			"dwallet1",
+			"tx1",
+			0,
+			1000,
+			scriptPubkey,
+			UtxoStatus.Available,
+			null,
+		);
+		await insertUtxo(
+			"utxo_locked",
+			1,
+			"dwallet1",
+			"tx_locked",
+			0,
+			2000,
+			scriptPubkey,
+			UtxoStatus.Locked,
+			Date.now() + 10000,
+		);
+		await insertUtxo(
+			"utxo2",
+			2,
+			"dwallet2",
+			"tx2",
+			0,
+			3000,
+			scriptPubkey,
+			UtxoStatus.Available,
+			null,
+		);
 
 		const utxos1 = await storage.getAvailableUtxos(1);
 		const utxos2 = await storage.getAvailableUtxos(2);
@@ -232,33 +261,29 @@ describe("D1Storage", () => {
 	it("markRedeemProposed should update redeem status and lock utxos", async () => {
 		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
 		const scriptPubkey = new Uint8Array([0x00, 0x14]);
-		const lockTimeMs = 60000;
 
-		await db
-			.prepare(
-				`INSERT INTO nbtc_redeem_requests (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				"redeem1",
-				1,
-				"redeemer1",
-				recipientScript,
-				3000,
-				1000,
-				RedeemRequestStatus.Pending,
-			)
-			.run();
+		await insertRedeemRequest(
+			"redeem1",
+			1,
+			"redeemer1",
+			recipientScript,
+			3000,
+			1000,
+			RedeemRequestStatus.Pending,
+		);
+		await insertUtxo(
+			"utxo1",
+			1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			scriptPubkey,
+			UtxoStatus.Available,
+			null,
+		);
 
-		await db
-			.prepare(
-				`INSERT INTO nbtc_utxos (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind("utxo1", 1, "dwallet1", "tx1", 0, 2000, scriptPubkey, UtxoStatus.Available, null)
-			.run();
-
-		await storage.markRedeemProposed("redeem1", ["utxo1"], lockTimeMs);
+		await storage.markRedeemProposed("redeem1", ["utxo1"], UTXO_LOCK_TIME_MS);
 
 		const redeem = await db
 			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
@@ -277,21 +302,15 @@ describe("D1Storage", () => {
 	it("markRedeemSolved should update redeem status", async () => {
 		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
 
-		await db
-			.prepare(
-				`INSERT INTO nbtc_redeem_requests (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				"redeem1",
-				1,
-				"redeemer1",
-				recipientScript,
-				3000,
-				1000,
-				RedeemRequestStatus.Proposed,
-			)
-			.run();
+		await insertRedeemRequest(
+			"redeem1",
+			1,
+			"redeemer1",
+			recipientScript,
+			3000,
+			1000,
+			RedeemRequestStatus.Proposed,
+		);
 
 		await storage.markRedeemSolved("redeem1");
 

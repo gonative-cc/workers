@@ -1089,3 +1089,32 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 		await verifyNbtcTxAndSenderCount(1, 0);
 	});
 });
+
+describe("Front-run detection in processFinalizedTransactions", () => {
+	it("should detect and skip minting when transaction is already minted", async () => {
+		const blockData = REGTEST_DATA[329]!;
+		const txData = blockData.txs[1]!;
+
+		const db = await mf.getD1Database("DB");
+		await insertFinalizedTx(db, txData);
+
+		const kv = await mf.getKVNamespace("BtcBlocks");
+		await putBlockInKv(kv, blockData);
+
+		mockSuiClient.isNbtcMinted.mockResolvedValue(true);
+		const mintSpy = jest.spyOn(mockSuiClient, "tryMintNbtcBatch");
+
+		await indexer.processFinalizedTransactions();
+
+		expect(mintSpy).not.toHaveBeenCalled();
+
+		const { results } = await db
+			.prepare("SELECT * FROM nbtc_minting WHERE tx_id = ?")
+			.bind(txData.id)
+			.all();
+		expect(results.length).toEqual(1);
+		expect(results[0]!.status).toEqual("minted");
+		// sui_tx_id is NULL because transaction was minted externally (front-run)
+		expect(results[0]!.sui_tx_id).toBeNull();
+	});
+});

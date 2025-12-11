@@ -313,6 +313,103 @@ export class Indexer {
 		return deposits;
 	}
 
+	/**
+	 * Checks which Bitcoin transaction IDs have already been minted on Sui.
+	 * Returns a Set of tx IDs that are already minted (front-run case).
+	 */
+	private async checkWhichTxsAreMinted(
+		txIds: string[],
+		client: SuiClientI,
+	): Promise<Set<string>> {
+		const alreadyMintedTxIds = new Set<string>();
+
+		try {
+			const mintedResults = await Promise.all(txIds.map((txId) => client.isNbtcMinted(txId)));
+
+			for (let i = 0; i < txIds.length; i++) {
+				const txId = txIds[i];
+				if (mintedResults[i] && txId) {
+					alreadyMintedTxIds.add(txId);
+					logger.info({
+						msg: "Front-run detected: tx already minted on-chain",
+						btcTxId: txId,
+					});
+				}
+			}
+		} catch (e) {
+			logError(
+				{
+					msg: "Front-run check failed, continuing",
+					method: "checkWhichTxsAreMinted",
+					txCount: txIds.length,
+				},
+				e,
+			);
+		}
+
+		return alreadyMintedTxIds;
+	}
+
+	/**
+	 * Use checkWhichTxsAreMinted and filters out transactions that have already been minted.
+	 * Marks them in the database, and removes them from groupedTxs to avoid using them in the Merkle proof.
+	 */
+	private async detectAndFilterFrontRuns(
+		groupedTxs: Map<string, GroupedFinalizedTx>,
+	): Promise<void> {
+		const txsByPackage = new Map<number, Map<string, GroupedFinalizedTx>>();
+		for (const [txId, txGroup] of groupedTxs.entries()) {
+			const firstDeposit = txGroup.deposits[0];
+			if (!firstDeposit?.package_id) continue;
+
+			if (!txsByPackage.has(firstDeposit.package_id)) {
+				txsByPackage.set(firstDeposit.package_id, new Map());
+			}
+			const pkgMap = txsByPackage.get(firstDeposit.package_id);
+			if (pkgMap) {
+				pkgMap.set(txId, txGroup);
+			}
+		}
+
+		for (const [packageId, pkgTxs] of txsByPackage.entries()) {
+			const firstTx = pkgTxs.values().next().value;
+			if (!firstTx?.deposits[0]) continue;
+
+			const config = this.getPackageConfig(packageId);
+			const client = this.getSuiClient(config.sui_network);
+
+			const txIds = Array.from(pkgTxs.keys());
+			const alreadyMintedTxIds = await this.checkWhichTxsAreMinted(txIds, client);
+
+			if (alreadyMintedTxIds.size > 0) {
+				const updates = [];
+				for (const txId of alreadyMintedTxIds) {
+					const txGroup = pkgTxs.get(txId);
+					if (txGroup) {
+						for (const deposit of txGroup.deposits) {
+							updates.push({
+								txId: deposit.tx_id,
+								vout: deposit.vout,
+								status: MintTxStatus.Minted,
+								// NULL sui_tx_id --> front-run
+							});
+						}
+						groupedTxs.delete(txId);
+					}
+				}
+
+				await this.storage.batchUpdateNbtcTxs(updates);
+
+				logger.info({
+					msg: "Front-runs detected and marked, skipping Merkle tree generation",
+					count: alreadyMintedTxIds.size,
+					packageId,
+				});
+			}
+		}
+	}
+
+	// TODO: Refactor processFinalizedTransactions into smaller methods..
 	async processFinalizedTransactions(): Promise<void> {
 		const finalizedTxs = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
 
@@ -352,6 +449,8 @@ export class Indexer {
 				});
 			}
 		}
+
+		await this.detectAndFilterFrontRuns(groupedTxs);
 
 		const mintBatchArgsByPkg = new Map<string, MintBatchArg[]>();
 		const processedKeysByPkg = new Map<string, { tx_id: string; vout: number }[]>();

@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (
-	sui_id TEXT NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
+	nbtc_utxo_id TEXT NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
 	address_id INTEGER NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	txid TEXT NOT NULL, -- Bitcoin transaction ID
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	recipient_script BLOB NOT NULL, -- script pubkey
 	amount_sats INTEGER NOT NULL,
 	created_at INTEGER NOT NULL,
-	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'signed', 'broadcasted'
+	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'solved', 'signed', 'broadcasted'
 	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
 ) STRICT;
 

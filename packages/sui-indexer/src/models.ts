@@ -1,6 +1,46 @@
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-export interface UtxoRecord {
-	sui_id: string;
+
+export enum UtxoStatus {
+	Available = "available",
+	Locked = "locked",
+	Spent = "spent",
+}
+
+export interface Utxo {
+	nbtc_utxo_id: string; // utxo_id (u64 index) from MintEvent
+	dwallet_id: string;
+	txid: string;
+	vout: number;
+	amount_sats: number;
+	script_pubkey: Uint8Array;
+	address_id: number;
+	status: UtxoStatus;
+	locked_until: number | null;
+}
+
+export enum RedeemRequestStatus {
+	Pending = "pending",
+	Proposed = "proposed",
+	Solved = "solved",
+	Signed = "signed",
+	Broadcasted = "broadcasted",
+}
+
+export interface RedeemRequest {
+	redeem_id: string; // u64
+	package_id: number;
+	redeemer: string;
+	recipient_script: Uint8Array;
+	amount_sats: number;
+	status: RedeemRequestStatus;
+	created_at: number;
+	nbtc_pkg: string;
+	nbtc_contract: string;
+	sui_network: SuiNet;
+}
+
+export interface UtxoIngestData {
+	nbtc_utxo_id: string;
 	dwallet_id: string;
 	txid: string;
 	vout: number;
@@ -12,16 +52,14 @@ export interface UtxoRecord {
 	locked_until: number | null;
 }
 
-export type UtxoStatus = "available" | "locked" | "spent";
-
-export interface RedeemRequestRecord {
+export interface RedeemRequestIngestData {
 	redeem_id: string;
 	redeemer: string;
 	recipient_script: Uint8Array;
 	amount_sats: number;
 	created_at: number;
 	nbtc_pkg: string;
-	sui_network: string;
+	sui_network: SuiNet;
 }
 
 // Raw Event Interfaces (Matches Move Events)

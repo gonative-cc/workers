@@ -15,6 +15,20 @@ import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
 
+export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
+
+export const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
+	id: 1,
+	btc_network: BtcNet.REGTEST,
+	sui_network: "testnet",
+	nbtc_pkg: "0xPACKAGE",
+	nbtc_contract: "0xNBTC",
+	lc_contract: "0xLIGHTCLIENT",
+	lc_pkg: "0xLC_PKG",
+	sui_fallback_address: SUI_FALLBACK_ADDRESS,
+	is_active: true,
+};
+
 export interface TxInfo {
 	id: string;
 	suiAddr: string;
@@ -102,17 +116,7 @@ export async function setupTestIndexer(
 	const blocksKV = env.BtcBlocks as KVNamespace;
 	const txsKV = env.nbtc_txs as KVNamespace;
 
-	const packageConfig: NbtcPkgCfg = options.packageConfig || {
-		id: 1,
-		btc_network: BtcNet.REGTEST,
-		sui_network: "testnet",
-		nbtc_pkg: "0xPACKAGE",
-		nbtc_contract: "0xNBTC",
-		lc_contract: "0xLIGHTCLIENT",
-		lc_pkg: "0xLC_PKG",
-		sui_fallback_address: "0xFALLBACK",
-		is_active: 1,
-	};
+	const packageConfig: NbtcPkgCfg = options.packageConfig || TEST_PACKAGE_CONFIG;
 
 	await db
 		.prepare(

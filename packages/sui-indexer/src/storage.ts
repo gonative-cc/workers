@@ -25,8 +25,8 @@ export class IndexerStorage {
 		const res = await this.db
 			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE pkg_id = ?")
 			.bind(pkgId)
-			.first<{ value: string }>();
-		return res?.value || null;
+			.first<{ nbtc_cursor: string }>();
+		return res?.nbtc_cursor || null;
 	}
 
 	// Saves the cursor position for querying Sui events.

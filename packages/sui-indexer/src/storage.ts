@@ -171,7 +171,7 @@ export class IndexerStorage {
 		}
 	}
 
-	async getActivePackages(networkName: string): Promise<string[]> {
+	async getActiveNbtcPkgs(networkName: string): Promise<string[]> {
 		const result = await this.db
 			.prepare("SELECT nbtc_pkg FROM nbtc_packages WHERE sui_network = ? AND is_active = 1")
 			.bind(networkName)

@@ -20,22 +20,23 @@ export class IndexerStorage {
 	constructor(private db: D1Database) {}
 
 	// returns the latest cursor position for querying Sui events.
-	async getSuiGqlCursor(packageId: string): Promise<string | null> {
+	// @pkgId: nbtc_packages row ID
+	async getSuiGqlCursor(pkgId: string): Promise<string | null> {
 		const res = await this.db
-			.prepare("SELECT value FROM indexer_state WHERE key = ?")
-			.bind(packageId)
+			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE pkg_id = ?")
+			.bind(pkgId)
 			.first<{ value: string }>();
 		return res?.value || null;
 	}
 
 	// Saves the cursor position for querying Sui events.
-	async saveSuiGqlCursor(packageId: string, cursor: string): Promise<void> {
+	async saveSuiGqlCursor(pkgId: string, nbtcCursor: string): Promise<void> {
 		await this.db
 			.prepare(
-				`INSERT INTO indexer_state (key, value, updated_at) VALUES (?, ?, ?)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+				`INSERT INTO indexer_state (pkg_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
+             ON CONFLICT(pkg_id) DO UPDATE SET nbtc_cursor = excluded.nbtc_cursor, updated_at = excluded.updated_at`,
 			)
-			.bind(packageId, cursor, Date.now())
+			.bind(pkgId, nbtcCursor, Date.now())
 			.run();
 	}
 

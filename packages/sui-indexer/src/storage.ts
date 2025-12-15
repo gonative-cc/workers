@@ -23,7 +23,7 @@ export class IndexerStorage {
 	// @pkgId: nbtc_packages row ID
 	async getSuiGqlCursor(pkgId: string): Promise<string | null> {
 		const res = await this.db
-			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE pkg_id = ?")
+			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE package_id = ?")
 			.bind(pkgId)
 			.first<{ nbtc_cursor: string }>();
 		return res?.nbtc_cursor || null;
@@ -33,8 +33,8 @@ export class IndexerStorage {
 	async saveSuiGqlCursor(pkgId: string, nbtcCursor: string): Promise<void> {
 		await this.db
 			.prepare(
-				`INSERT INTO indexer_state (pkg_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
-             ON CONFLICT(pkg_id) DO UPDATE SET nbtc_cursor = excluded.nbtc_cursor, updated_at = excluded.updated_at`,
+				`INSERT INTO indexer_state (package_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
+             ON CONFLICT(package_id) DO UPDATE SET nbtc_cursor = excluded.nbtc_cursor, updated_at = excluded.updated_at`,
 			)
 			.bind(pkgId, nbtcCursor, Date.now())
 			.run();

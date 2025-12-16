@@ -4,6 +4,7 @@ import {
 	UtxoStatus,
 	type RedeemRequestIngestData,
 	type UtxoIngestData,
+	type PkgCfg,
 } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
@@ -21,7 +22,7 @@ export class IndexerStorage {
 
 	// returns the latest cursor position for querying Sui events.
 	// @pkgId: nbtc_packages row ID
-	async getSuiGqlCursor(pkgId: string): Promise<string | null> {
+	async getSuiGqlCursor(pkgId: number): Promise<string | null> {
 		const res = await this.db
 			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE package_id = ?")
 			.bind(pkgId)
@@ -30,7 +31,7 @@ export class IndexerStorage {
 	}
 
 	// Saves the cursor position for querying Sui events.
-	async saveSuiGqlCursor(pkgId: string, nbtcCursor: string): Promise<void> {
+	async saveSuiGqlCursor(pkgId: number, nbtcCursor: string): Promise<void> {
 		await this.db
 			.prepare(
 				`INSERT INTO indexer_state (package_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
@@ -172,13 +173,13 @@ export class IndexerStorage {
 		}
 	}
 
-	async getActiveNbtcPkgs(networkName: string): Promise<string[]> {
+	async getActiveNbtcPkgs(networkName: string): Promise<PkgCfg[]> {
 		const result = await this.db
 			.prepare("SELECT nbtc_pkg FROM nbtc_packages WHERE sui_network = ? AND is_active = 1")
 			.bind(networkName)
-			.all<{ nbtc_pkg: string }>();
+			.all<PkgCfg>();
 
-		return result.results.map((r) => r.nbtc_pkg);
+		return result.results;
 	}
 
 	async getActiveNetworks(): Promise<SuiNet[]> {

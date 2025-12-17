@@ -119,10 +119,10 @@ describe("CFStorage", () => {
 	});
 
 	it("getDepositAddresses should return addresses for specific network", async () => {
-		const addrs = await storage.getDepositAddresses("regtest");
+		const addrs = await storage.getDepositAddresses(BtcNet.REGTEST);
 		expect(addrs).toContain("bcrt1qAddress1");
 
-		const mainnetAddrs = await storage.getDepositAddresses("mainnet");
+		const mainnetAddrs = await storage.getDepositAddresses(BtcNet.MAINNET);
 		expect(mainnetAddrs.length).toBe(0);
 	});
 

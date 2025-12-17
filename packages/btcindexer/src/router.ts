@@ -8,6 +8,7 @@ import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { btcNetFromString } from "@gonative-cc/lib/nbtc";
 
 export default class HttpRouter {
 	#indexer?: Indexer;
@@ -146,15 +147,34 @@ export default class HttpRouter {
 		return this.indexer().getNbtcMintTxsBySuiAddr(suiRecipient);
 	};
 
-	getLatestHeight = () => {
-		return this.indexer().getLatestHeight();
+	getLatestHeight = (req: IRequest) => {
+		const network = req.query.network;
+		if (typeof network !== "string") {
+			return error(400, "Missing or invalid network query parameter.");
+		}
+		try {
+			const btcNet = btcNetFromString(network);
+			return this.indexer().getLatestHeight(btcNet);
+		} catch (e) {
+			return error(400, "Invalid network parameter.");
+		}
 	};
 
 	getDepositsBySender = (req: IRequest) => {
 		const sender = req.query.sender;
+		const network = req.query.network;
+
 		if (!sender || typeof sender !== "string") {
 			return error(400, "Missing or invalid sender query parameter.");
 		}
-		return this.indexer().getDepositsBySender(sender);
+		if (!network || typeof network !== "string") {
+			return error(400, "Missing or invalid network query parameter.");
+		}
+		try {
+			const btcNet = btcNetFromString(network);
+			return this.indexer().getDepositsBySender(sender, btcNet);
+		} catch (e) {
+			return error(400, "Invalid network parameter.");
+		}
 	};
 }

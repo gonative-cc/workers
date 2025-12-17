@@ -10,9 +10,9 @@ export interface PutNbtcTxResponse {
  * Interface defining the BtcIndexer RPC functions.
  */
 export interface BtcIndexerRpcI {
-	latestHeight(): Promise<{ height: number | null }>;
+	latestHeight(network: BtcNet): Promise<{ height: number | null }>;
 	putNbtcTx(txHex: string, network: BtcNet): Promise<PutNbtcTxResponse>;
 	nbtcMintTx(txid: string): Promise<NbtcTxResp | null>;
 	nbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]>;
-	depositsBySender(address: string): Promise<NbtcTxResp[]>;
+	depositsBySender(address: string, network: BtcNet): Promise<NbtcTxResp[]>;
 }

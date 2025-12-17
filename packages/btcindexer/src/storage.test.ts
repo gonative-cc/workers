@@ -210,13 +210,13 @@ describe("CFStorage", () => {
 				timestamp_ms: 2,
 			});
 
-			const max = await storage.getLatestBlockHeight();
+			const max = await storage.getLatestBlockHeight(BtcNet.REGTEST);
 			expect(max).toBe(102);
 		});
 
 		it("KV operations for ChainTip and Block", async () => {
-			await storage.setChainTip(500);
-			expect(await storage.getChainTip()).toBe(500);
+			await storage.setChainTip(500, BtcNet.REGTEST);
+			expect(await storage.getChainTip(BtcNet.REGTEST)).toBe(500);
 
 			await env.BtcBlocks.put("hash123", new Uint8Array([1, 2, 3]));
 			const blockData = await storage.getBlock("hash123");

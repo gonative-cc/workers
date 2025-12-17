@@ -44,3 +44,20 @@ export function btcNetFromString(net: string): BtcNet {
 
 	return net as BtcNet;
 }
+
+/**
+ * Calculates the number of confirmations for a transaction in a block.
+ * @param txBlockHeight - The height of the block containing the transaction.
+ * @param chainTipHeight - The current height of the blockchain tip.
+ * @returns The number of confirmations (0 if unconfirmed or invalid).
+ */
+export function calculateConfirmations(
+	txBlockHeight: number | null | undefined,
+	chainTipHeight: number | null | undefined,
+): number {
+	if (txBlockHeight == null || chainTipHeight == null) {
+		return 0;
+	}
+	const confs = chainTipHeight - txBlockHeight + 1;
+	return confs > 0 ? confs : 0;
+}

@@ -24,9 +24,9 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	 * Get the latest block height stored in the indexer.
 	 * @returns Object containing the latest height (or null if no blocks exist)
 	 */
-	async latestHeight(): Promise<{ height: number | null }> {
+	async latestHeight(network: BtcNet): Promise<{ height: number | null }> {
 		const indexer = await this.getIndexer();
-		return indexer.getLatestHeight();
+		return indexer.getLatestHeight(network);
 	}
 
 	/**
@@ -63,8 +63,8 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	/**
 	 * Returns deposit transaction statuses by Bitcoin sender address
 	 */
-	async depositsBySender(address: string): Promise<NbtcTxResp[]> {
+	async depositsBySender(address: string, network: BtcNet): Promise<NbtcTxResp[]> {
 		const indexer = await this.getIndexer();
-		return indexer.getDepositsBySender(address);
+		return indexer.getDepositsBySender(address, network);
 	}
 }

@@ -12,7 +12,7 @@ import type {
 } from "./models";
 import { MintTxStatus } from "./models";
 import type { Storage } from "./storage";
-import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;
@@ -25,7 +25,7 @@ export class CFStorage implements Storage {
 		this.nbtcTxDB = nbtcTxDB;
 	}
 
-	async getDepositAddresses(btcNetwork: string): Promise<string[]> {
+	async getDepositAddresses(btcNetwork: BtcNet): Promise<string[]> {
 		try {
 			const { results } = await this.d1
 				.prepare(
@@ -102,7 +102,7 @@ export class CFStorage implements Storage {
 		return blocksToProcess.results ?? [];
 	}
 
-	async markBlockAsProcessed(hash: string, network: string): Promise<void> {
+	async markBlockAsProcessed(hash: string, network: BtcNet): Promise<void> {
 		const now = Date.now();
 		const updateStmt = `UPDATE btc_blocks SET is_scanned = 1, processed_at = ? WHERE hash = ? AND network = ?`;
 		try {
@@ -126,27 +126,28 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getLatestBlockHeight(): Promise<number | null> {
+	async getLatestBlockHeight(network: BtcNet): Promise<number | null> {
 		const result = await this.d1
-			.prepare("SELECT MAX(height) as height FROM btc_blocks")
+			.prepare("SELECT MAX(height) as height FROM btc_blocks WHERE network = ?")
+			.bind(network)
 			.first<{ height: number | null }>();
 		return result?.height ?? null;
 	}
 
-	async getChainTip(): Promise<number | null> {
-		const latestHeightStr = await this.blocksDB.get("chain_tip");
-		return latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
+	async getChainTip(network: BtcNet): Promise<number | null> {
+		const latestHeightStr = await this.blocksDB.get(`chain_tip:${network}`);
+		return latestHeightStr ? parseInt(latestHeightStr, 10) : null;
 	}
 
-	async setChainTip(height: number): Promise<void> {
-		await this.blocksDB.put("chain_tip", height.toString());
+	async setChainTip(height: number, network: BtcNet): Promise<void> {
+		await this.blocksDB.put(`chain_tip:${network}`, height.toString());
 	}
 
 	async getBlock(hash: string): Promise<ArrayBuffer | null> {
 		return this.blocksDB.get(hash, { type: "arrayBuffer" });
 	}
 
-	async getBlockHash(height: number, network: string): Promise<string | null> {
+	async getBlockHash(height: number, network: BtcNet): Promise<string | null> {
 		const row = await this.d1
 			.prepare("SELECT hash FROM btc_blocks WHERE height = ? AND network = ?")
 			.bind(height, network)
@@ -428,16 +429,16 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]> {
+	async getNbtcMintTxsByBtcSender(btcAddress: string, network: BtcNet): Promise<NbtcTxRow[]> {
 		const query = this.d1.prepare(`
             SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
             FROM nbtc_minting m
             JOIN nbtc_deposit_addresses a ON m.address_id = a.id
             JOIN nbtc_packages p ON a.package_id = p.id
-            WHERE m.sender = ?
+            WHERE m.sender = ? AND p.btc_network = ?
             ORDER BY m.created_at DESC
         `);
-		const dbResult = await query.bind(btcAddress).all<NbtcTxRow>();
+		const dbResult = await query.bind(btcAddress, network).all<NbtcTxRow>();
 		return dbResult.results ?? [];
 	}
 }

@@ -136,7 +136,7 @@ export class CFStorage implements Storage {
 
 	async getChainTip(network: BtcNet): Promise<number | null> {
 		const latestHeightStr = await this.blocksDB.get(`chain_tip:${network}`);
-		return latestHeightStr ? parseInt(latestHeightStr, 10) : 0;
+		return latestHeightStr ? parseInt(latestHeightStr, 10) : null;
 	}
 
 	async setChainTip(height: number, network: BtcNet): Promise<void> {
@@ -429,16 +429,16 @@ export class CFStorage implements Storage {
 		}
 	}
 
-	async getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]> {
+	async getNbtcMintTxsByBtcSender(btcAddress: string, network: BtcNet): Promise<NbtcTxRow[]> {
 		const query = this.d1.prepare(`
             SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
             FROM nbtc_minting m
             JOIN nbtc_deposit_addresses a ON m.address_id = a.id
             JOIN nbtc_packages p ON a.package_id = p.id
-            WHERE m.sender = ?
+            WHERE m.sender = ? AND p.btc_network = ?
             ORDER BY m.created_at DESC
         `);
-		const dbResult = await query.bind(btcAddress).all<NbtcTxRow>();
+		const dbResult = await query.bind(btcAddress, network).all<NbtcTxRow>();
 		return dbResult.results ?? [];
 	}
 }

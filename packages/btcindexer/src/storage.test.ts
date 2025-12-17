@@ -376,7 +376,7 @@ describe("CFStorage", () => {
 
 		it("getNbtcMintTxsByBtcSender should return txs for sender", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
-			const txs = await storage.getNbtcMintTxsByBtcSender(txBase.sender);
+			const txs = await storage.getNbtcMintTxsByBtcSender(txBase.sender, BtcNet.REGTEST);
 			expect(txs.length).toBe(1);
 			expect(txs[0]!.tx_id).toBe("tx1");
 		});

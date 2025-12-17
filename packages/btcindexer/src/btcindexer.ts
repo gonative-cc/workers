@@ -868,12 +868,11 @@ export class Indexer {
 	}
 
 	async getDepositsBySender(btcAddress: string, network: BtcNet): Promise<NbtcTxResp[]> {
-		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress);
-		const filteredRows = nbtcMintRows.filter((row) => row.btc_network === network);
+		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress, network);
 
 		const latestHeight = await this.storage.getChainTip(network);
 
-		return filteredRows.map((r) => nbtcRowToResp(r, latestHeight));
+		return nbtcMintRows.map((r) => nbtcRowToResp(r, latestHeight));
 	}
 
 	private async getSenderAddresses(tx: Transaction, network: BtcNet): Promise<string[]> {

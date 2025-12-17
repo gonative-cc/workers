@@ -41,7 +41,7 @@ export interface Storage {
 	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
-	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
+	getNbtcMintTxsByBtcSender(btcAddress: string, network: BtcNet): Promise<NbtcTxRow[]>;
 }
 
 // TODO: Add tests

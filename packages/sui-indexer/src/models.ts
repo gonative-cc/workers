@@ -88,6 +88,12 @@ export interface ProposeUtxoEventRaw {
 	utxo_ids: string[];
 }
 
+export interface SolvedEventRaw {
+	redeem_id: string;
+	utxo_ids: string[];
+	dwallet_ids: string[];
+}
+
 export interface SuiEventNode {
 	type: string;
 	timestamp: string;

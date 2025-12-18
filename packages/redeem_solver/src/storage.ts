@@ -5,6 +5,7 @@ import {
 	RedeemRequestStatus,
 	type Utxo,
 } from "@gonative-cc/sui-indexer/models";
+import type { RedeemInput } from "./models";
 
 interface RedeemRequestRow {
 	redeem_id: string;
@@ -37,6 +38,9 @@ export interface Storage {
 	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
 	markRedeemProposed(redeemId: string, utxoIds: string[], utxoLockTimeMs: number): Promise<void>;
 	markRedeemSolved(redeemId: string): Promise<void>;
+	saveRedeemInputs(inputs: Omit<RedeemInput, "id" | "sign_id">[]): Promise<void>;
+	updateInputSignature(redeemId: string, utxoId: string, signId: string): Promise<void>;
+	getRedeemInputs(redeemId: string): Promise<RedeemInput[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 }
 
@@ -142,6 +146,35 @@ export class D1Storage implements Storage {
 			.prepare(`UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?`)
 			.bind(RedeemRequestStatus.Solved, redeemId)
 			.run();
+	}
+
+	async saveRedeemInputs(inputs: Omit<RedeemInput, "id" | "sign_id">[]): Promise<void> {
+		if (inputs.length === 0) return;
+		const stmt = this.db.prepare(
+			`INSERT INTO nbtc_redeem_inputs (redeem_id, utxo_id, dwallet_id, created_at) VALUES (?, ?, ?, ?)`,
+		);
+		const batch = inputs.map((i) =>
+			stmt.bind(i.redeem_id, i.utxo_id, i.dwallet_id, i.created_at),
+		);
+		await this.db.batch(batch);
+	}
+
+	async updateInputSignature(redeemId: string, utxoId: string, signId: string): Promise<void> {
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_inputs SET sign_id = ? WHERE redeem_id = ? AND utxo_id = ?`,
+			)
+			.bind(signId, redeemId, utxoId)
+			.run();
+	}
+
+	async getRedeemInputs(redeemId: string): Promise<RedeemInput[]> {
+		return (
+			await this.db
+				.prepare(`SELECT * FROM nbtc_redeem_inputs WHERE redeem_id = ?`)
+				.bind(redeemId)
+				.all<RedeemInput>()
+		).results;
 	}
 
 	async getActiveNetworks(): Promise<SuiNet[]> {

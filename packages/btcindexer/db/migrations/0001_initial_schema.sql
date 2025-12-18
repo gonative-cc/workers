@@ -108,6 +108,19 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS nbtc_redeem_inputs (
+	id INTEGER PRIMARY KEY,
+	redeem_id TEXT NOT NULL,
+	utxo_id TEXT NOT NULL,
+	dwallet_id TEXT NOT NULL,
+	sign_id TEXT,
+	created_at INTEGER NOT NULL,
+	FOREIGN KEY (redeem_id) REFERENCES nbtc_redeem_requests(redeem_id),
+	FOREIGN KEY (utxo_id) REFERENCES nbtc_utxos(nbtc_utxo_id)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS nbtc_redeem_inputs_redeem_id ON nbtc_redeem_inputs(redeem_id);
+
 CREATE TABLE IF NOT EXISTS indexer_state ( -- TODO: maybe we should just use key-value here?
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL,

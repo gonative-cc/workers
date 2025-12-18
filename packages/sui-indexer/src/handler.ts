@@ -3,6 +3,7 @@ import {
 	type MintEventRaw,
 	type ProposeUtxoEventRaw,
 	type RedeemRequestEventRaw,
+	type SolvedEventRaw,
 	type SuiEventNode,
 	UtxoStatus,
 } from "./models";
@@ -31,6 +32,8 @@ export class SuiEventHandler {
 				await this.handleRedeemRequest(json as RedeemRequestEventRaw);
 			} else if (event.type.includes("::nbtc::ProposeUtxoEvent")) {
 				await this.handleProposeUtxo(json as ProposeUtxoEventRaw);
+			} else if (event.type.includes("::nbtc::redeem_request::SolvedEvent")) {
+				await this.handleSolved(json as SolvedEventRaw);
 			}
 		}
 	}
@@ -76,6 +79,17 @@ export class SuiEventHandler {
 			msg: "Locked UTXOs for Proposal",
 			redeemId: e.redeem_id,
 			count: e.utxo_ids.length,
+		});
+	}
+
+	private async handleSolved(e: SolvedEventRaw) {
+		await this.storage.upsertRedeemInputs(e.redeem_id, e.utxo_ids, e.dwallet_ids);
+		await this.storage.markRedeemSolved(e.redeem_id);
+
+		logger.info({
+			msg: "Marked redeem as solved and added inputs",
+			redeemId: e.redeem_id,
+			utxos: e.utxo_ids.length,
 		});
 	}
 }

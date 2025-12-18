@@ -40,6 +40,14 @@ export class RedeemService {
 		}
 	}
 
+	async signSolvedRedeems() {
+		// TODO: implement
+		// Fetch all the redeems that are solved but not signed
+		// For each redeem:
+		// 		1. Call IKA to create the user's share signature; need:
+		// 		2. Call Nbtc with the object from step 1, to complete the signature
+	}
+
 	private getSuiClient(suiNet: SuiNet): SuiClient {
 		const c = this.clients.get(suiNet);
 		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);

@@ -63,7 +63,7 @@ export default {
 			if (latestBlock && latestBlock.latest_height) {
 				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
 			}
-			await indexer.processFinalizedTransactions();
+			await indexer.processMintCandidates();
 			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
 			logError({ msg: "Cron job failed", method: "scheduled" }, e);

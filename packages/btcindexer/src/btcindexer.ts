@@ -319,7 +319,7 @@ export class Indexer {
 		return deposits;
 	}
 
-	async processFinalizedTransactions(): Promise<void> {
+	async processMintCandidates(): Promise<void> {
 		const mintCandidates = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
 
 		if (!mintCandidates || mintCandidates.length === 0) {

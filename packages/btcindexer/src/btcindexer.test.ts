@@ -533,7 +533,7 @@ describe("Indexer.processFinalizedTransactions", () => {
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue([true, fakeSuiTxDigest]);
 
-		await indexer.processFinalizedTransactions();
+		await indexer.processMintCandidates();
 		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 
 		const { results } = await db
@@ -559,7 +559,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const fakeSuiTxDigest = "5fSnS1NCf2bYH39n18aGo41ggd2a7sWEy42533g46T2e";
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue([true, fakeSuiTxDigest]);
 
-		await indexer.processFinalizedTransactions();
+		await indexer.processMintCandidates();
 
 		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 		const { results } = await db
@@ -582,7 +582,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(null);
 
-		await indexer.processFinalizedTransactions();
+		await indexer.processMintCandidates();
 
 		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 		const { results } = await db
@@ -606,7 +606,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 		const failedSuiTxDigest = "0xfailed123abc456def789onchain_execution_error";
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue([false, failedSuiTxDigest]);
 
-		await indexer.processFinalizedTransactions();
+		await indexer.processMintCandidates();
 
 		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 		const { results } = await db
@@ -631,7 +631,7 @@ describe("Indexer.processFinalizedTransactions Retry Logic", () => {
 
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(null);
 
-		await indexer.processFinalizedTransactions();
+		await indexer.processMintCandidates();
 
 		expect(mockSuiClient.tryMintNbtcBatch).toHaveBeenCalledTimes(1);
 		const { results } = await db

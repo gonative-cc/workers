@@ -9,12 +9,12 @@ import type {
 	PendingTx,
 	NbtcTxResp,
 	MintBatchArg,
-	GroupedFinalizedTx,
 	NbtcTxRow,
 	NbtcTxInsertion,
 	ElectrsTxResponse,
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
+	FinalizedTxRow,
 } from "./models";
 import { MintTxStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -24,6 +24,12 @@ import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+
+interface MintTask {
+	arg: MintBatchArg;
+	txId: string;
+	vout: number;
+}
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
@@ -314,275 +320,223 @@ export class Indexer {
 	}
 
 	async processFinalizedTransactions(): Promise<void> {
-		const finalizedTxs = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
+		const mintCandidates = await this.storage.getNbtcMintCandidates(this.maxNbtcMintTxRetries);
 
-		if (!finalizedTxs || finalizedTxs.length === 0) {
+		if (!mintCandidates || mintCandidates.length === 0) {
 			return;
 		}
 		logger.info({
 			msg: "Minting: Found deposits to process",
-			count: finalizedTxs.length,
+			count: mintCandidates.length,
 		});
 
-		// Group all finalized deposits by their parent transaction ID.
-		// A single Bitcoin transaction can contain multiple outputs (vouts) that pay to the nBTC
-		// deposit address. While the transaction typically has only one OP_RETURN to specify the
-		// Sui recipient, that single recipient applies to *all* deposit outputs within that transaction.
-		// Our indexer stores each of these deposits as a separate row.
-		// For the on-chain minting process, however all deposits from a single transaction must be
-		// processed together because they share a single Merkle proof. This grouping step
-		// collects all related deposits to generate a single proof. These groups are then further
-		// batched by their destination nBTC package for the final minting calls.
-		//
-		// TODO: Consider refactoring the database schema to store one row per transaction, rather than
-		// per deposit output. The schema could have columns like `vouts` (a list of vout indexes),
-		// `total_amount`, and `op_return_data`. This would align the database structure more
-		// closely with the on-chain reality and could simplify this function by removing the
-		// need for this grouping step.
-		const groupedTxs = new Map<string, GroupedFinalizedTx>();
-		for (const row of finalizedTxs) {
-			const group = groupedTxs.get(row.tx_id);
-			if (group) {
-				group.deposits.push(row);
-			} else {
-				groupedTxs.set(row.tx_id, {
-					blockHash: row.block_hash,
-					blockHeight: row.block_height,
-					deposits: [row],
+		// Map: PackageID -> Array of MintTask
+		const batches = new Map<string, MintTask[]>();
+
+		for (const row of mintCandidates) {
+			const mintData = await this.prepareMintData(row);
+			if (mintData) {
+				const pkgId = mintData.arg.nbtcPkg;
+				if (!batches.has(pkgId)) {
+					batches.set(pkgId, []);
+				}
+				batches.get(pkgId)?.push(mintData);
+			}
+		}
+
+		for (const [pkgId, mintTasks] of batches) {
+			if (!mintTasks || mintTasks.length === 0) continue;
+
+			const result = await this.executeMintBatch(pkgId, mintTasks);
+			if (!result) {
+				// Pre-submission error (Network/RPC failure)
+				logger.error({
+					msg: "Sui batch mint transaction failed (pre-submission error)",
+					method: "processFinalizedTransactions",
+					pkgId,
 				});
+				await this.updateMintBatchStatus(mintTasks, MintTxStatus.MintFailed);
+				continue;
 			}
-		}
 
-		const mintBatchArgsByPkg = new Map<string, MintBatchArg[]>();
-		const processedKeysByPkg = new Map<string, { tx_id: string; vout: number }[]>();
+			const [success, suiTxDigest] = result;
 
-		for (const [txId, txGroup] of groupedTxs.entries()) {
-			try {
-				const rawBlockBuffer = await this.storage.getBlock(txGroup.blockHash);
-				if (!rawBlockBuffer) {
-					logger.warn({
-						msg: "Minting: Block data not found in KV, skipping transaction.",
-						txId,
-						blockHash: txGroup.blockHash,
-					});
-					continue;
-				}
-				const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
-				const merkleTree = this.constructMerkleTree(block);
-				if (!merkleTree) continue;
-
-				if (!block.transactions) {
-					continue;
-				}
-
-				const txIndex = block.transactions.findIndex((tx) => tx.getId() === txId);
-
-				if (txIndex === -1) {
-					logger.error({
-						msg: "Minting: Could not find TX within its block. Detecting reorg.",
-						method: "processFinalizedTransactions",
-						txId,
-					});
-					try {
-						// We are processing a finalized transaction for minting, but discovered it is not in its
-						// block anymore (reorg detected). We verify the status is still Finalized or MintFailed
-						// before marking it as FinalizedReorg.
-						const currentStatus = await this.storage.getTxStatus(txId);
-						if (
-							currentStatus !== MintTxStatus.Finalized &&
-							currentStatus !== MintTxStatus.MintFailed
-						) {
-							logger.error({
-								msg: "Minting: Unexpected status during reorg detection, skipping",
-								method: "processFinalizedTransactions",
-								txId,
-								currentStatus,
-							});
-							continue;
-						}
-
-						await this.storage.updateNbtcTxsStatus([txId], MintTxStatus.FinalizedReorg);
-						logger.warn({
-							msg: "Minting: Transaction reorged",
-							method: "processFinalizedTransactions",
-							txId,
-							previousStatus: currentStatus,
-							newStatus: MintTxStatus.FinalizedReorg,
-						});
-					} catch (e) {
-						logError(
-							{
-								msg: "Minting: Failed to update reorg status",
-								method: "processFinalizedTransactions",
-								txId,
-							},
-							e,
-						);
-						throw e;
-					}
-					continue;
-				}
-
-				const targetTx = block.transactions[txIndex];
-				if (!targetTx) continue;
-
-				const proof = this.getTxProof(merkleTree, targetTx);
-
-				// NOTE: Soundness check. A mismatch between our calculated
-				// Merkle root and the one in the block header should  never happen.
-				// If it does, it indicates that the merkle tree implementaiton is incorrect,
-				// corrupted block data in KV, or a faulty realyer (sending us wrong data).
-				const calculatedRoot = merkleTree.getRoot();
-				if (
-					!proof ||
-					(block.merkleRoot !== undefined && !block.merkleRoot.equals(calculatedRoot))
-				) {
-					logger.error({
-						msg: "Failed to generate a valid merkle proof. Root mismatch.",
-						txId,
-						blockRoot: block.merkleRoot?.toString("hex"),
-						calculatedRoot: calculatedRoot.toString("hex"),
-					});
-					continue;
-				}
-
-				const firstDeposit = txGroup.deposits[0];
-				if (!firstDeposit) {
-					logger.warn({
-						msg: "Minting: Skipping transaction group with no deposits",
-						method: "processFinalizedTransactions",
-						txId,
-					});
-					continue;
-				}
-				const nbtcPkg = firstDeposit.nbtc_pkg;
-				const suiNetwork = firstDeposit.sui_network;
-				const pkgKey = nbtcPkg;
-
-				if (!nbtcPkg || !suiNetwork) {
-					logger.warn({
-						msg: "Minting: Skipping transaction group with missing nbtc_pkg or sui_network, likely old data.",
-						txId,
-					});
-					continue;
-				}
-
-				if (!mintBatchArgsByPkg.has(pkgKey)) {
-					mintBatchArgsByPkg.set(pkgKey, []);
-					processedKeysByPkg.set(pkgKey, []);
-				}
-
-				const mintBatchArgs = mintBatchArgsByPkg.get(pkgKey);
-				if (mintBatchArgs) {
-					mintBatchArgs.push({
-						tx: targetTx,
-						blockHeight: txGroup.blockHeight,
-						txIndex: txIndex,
-						proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
-						nbtcPkg: nbtcPkg,
-						suiNetwork: suiNetwork,
-						packageId: firstDeposit.package_id,
-					});
-				}
-
-				for (const deposit of txGroup.deposits) {
-					const processedKeys = processedKeysByPkg.get(pkgKey);
-					if (processedKeys) {
-						processedKeys.push({
-							tx_id: deposit.tx_id,
-							vout: deposit.vout,
-						});
-					}
-				}
-			} catch (e) {
-				logError(
-					{
-						msg: "Error preparing transaction for minting batch, will retry",
-						method: "processFinalizedTransactions",
-						txId,
-					},
-					e,
-				);
-				// NOTE: We don't update the status here. The transaction will be picked up
-				// again in the next run of processFinalizedTransactions.
-			}
-		}
-
-		if (mintBatchArgsByPkg.size > 0) {
-			for (const [pkgKey, mintBatchArgs] of mintBatchArgsByPkg.entries()) {
-				const processedPrimaryKeys = processedKeysByPkg.get(pkgKey);
-				if (!processedPrimaryKeys || processedPrimaryKeys.length === 0) {
-					continue;
-				}
-
-				const firstBatchArg = mintBatchArgs[0];
-				if (!firstBatchArg) {
-					continue;
-				}
-
-				const config = this.getPackageConfig(firstBatchArg.packageId);
-				const client = this.getSuiClient(config.sui_network);
-
+			if (success) {
+				// Success
 				logger.info({
-					msg: "Minting: Sending batch of mints to Sui",
-					count: mintBatchArgs.length,
-					pkgKey: pkgKey,
+					msg: "Sui batch mint transaction successful",
+					suiTxDigest,
+					pkgId,
 				});
-
-				const result = await client.tryMintNbtcBatch(mintBatchArgs);
-
-				if (!result) {
-					// Pre-submission error (network failure, validation error, etc.)
-					logger.error({
-						msg: "Sui batch mint transaction failed (pre-submission error)",
-						method: "processFinalizedTransactions",
-						pkgKey,
-					});
-					await this.storage.batchUpdateNbtcTxs(
-						processedPrimaryKeys.map((p) => ({
-							txId: p.tx_id,
-							vout: p.vout,
-							status: MintTxStatus.MintFailed,
-						})),
-					);
-					continue;
-				}
-
-				const [success, suiTxDigest] = result;
-
-				if (success) {
-					logger.info({
-						msg: "Sui batch mint transaction successful",
-						suiTxDigest,
-						pkgKey,
-					});
-					await this.storage.batchUpdateNbtcTxs(
-						processedPrimaryKeys.map((p) => ({
-							txId: p.tx_id,
-							vout: p.vout,
-							status: MintTxStatus.Minted,
-							suiTxDigest,
-						})),
-					);
-				} else {
-					// Transaction executed but failed on-chain
-					logger.error({
-						msg: "Sui batch mint transaction failed (on-chain failure)",
-						method: "processFinalizedTransactions",
-						pkgKey,
-						suiTxDigest,
-					});
-					await this.storage.batchUpdateNbtcTxs(
-						processedPrimaryKeys.map((p) => ({
-							txId: p.tx_id,
-							vout: p.vout,
-							status: MintTxStatus.MintFailed,
-							suiTxDigest,
-						})),
-					);
-				}
+				await this.updateMintBatchStatus(mintTasks, MintTxStatus.Minted, suiTxDigest);
+			} else {
+				// On-chain Failure (Move abort, etc.)
+				logger.error({
+					msg: "Sui batch mint transaction failed (on-chain failure)",
+					method: "processFinalizedTransactions",
+					pkgId,
+					suiTxDigest,
+				});
+				await this.updateMintBatchStatus(mintTasks, MintTxStatus.MintFailed, suiTxDigest);
 			}
 		}
+	}
+
+	private async updateMintBatchStatus(
+		tasks: MintTask[],
+		status: MintTxStatus,
+		digest?: string,
+	): Promise<void> {
+		await this.storage.batchUpdateNbtcTxs(
+			tasks.map((t) => ({
+				txId: t.txId,
+				vout: t.vout,
+				status: status,
+				suiTxDigest: digest,
+			})),
+		);
+	}
+
+	private async prepareMintData(row: FinalizedTxRow): Promise<MintTask | null> {
+		const txId = row.tx_id;
+		try {
+			const rawBlockBuffer = await this.storage.getBlock(row.block_hash);
+			if (!rawBlockBuffer) {
+				logger.warn({
+					msg: "Minting: Block data not found in KV, skipping transaction.",
+					txId,
+					blockHash: row.block_hash,
+				});
+				return null;
+			}
+			const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+			const merkleTree = this.constructMerkleTree(block);
+			if (!merkleTree) return null;
+
+			if (!block.transactions) {
+				return null;
+			}
+
+			const txIndex = block.transactions.findIndex((tx) => tx.getId() === txId);
+
+			if (txIndex === -1) {
+				logger.error({
+					msg: "Minting: Could not find TX within its block. Detecting reorg.",
+					method: "processFinalizedTransactions",
+					txId,
+				});
+				await this.handleMintReorg(txId);
+				return null;
+			}
+
+			const targetTx = block.transactions[txIndex];
+			if (!targetTx) return null;
+
+			const proof = this.getTxProof(merkleTree, targetTx);
+
+			// NOTE: Soundness check.
+			const calculatedRoot = merkleTree.getRoot();
+			if (
+				!proof ||
+				(block.merkleRoot !== undefined && !block.merkleRoot.equals(calculatedRoot))
+			) {
+				logger.error({
+					msg: "Failed to generate a valid merkle proof. Root mismatch.",
+					txId,
+					blockRoot: block.merkleRoot?.toString("hex"),
+					calculatedRoot: calculatedRoot.toString("hex"),
+				});
+				return null;
+			}
+
+			return {
+				arg: {
+					tx: targetTx,
+					blockHeight: row.block_height,
+					txIndex: txIndex,
+					proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
+					nbtcPkg: row.nbtc_pkg,
+					suiNetwork: row.sui_network,
+					packageId: row.package_id,
+				},
+				txId: row.tx_id,
+				vout: row.vout,
+			};
+		} catch (e) {
+			logError(
+				{
+					msg: "Error preparing transaction for minting batch, will retry",
+					method: "prepareMintData",
+					txId,
+				},
+				e,
+			);
+			return null;
+		}
+	}
+
+	private async handleMintReorg(txId: string): Promise<void> {
+		try {
+			// We are processing a finalized transaction for minting, but discovered it is not in its
+			// block anymore (reorg detected). We verify the status is still Finalized or MintFailed
+			// before marking it as FinalizedReorg.
+			const currentStatus = await this.storage.getTxStatus(txId);
+			if (
+				currentStatus !== MintTxStatus.Finalized &&
+				currentStatus !== MintTxStatus.MintFailed
+			) {
+				logger.error({
+					msg: "Minting: Unexpected status during reorg detection, skipping",
+					method: "handleMintReorg",
+					txId,
+					currentStatus,
+				});
+				return;
+			}
+
+			await this.storage.updateNbtcTxsStatus([txId], MintTxStatus.FinalizedReorg);
+			logger.warn({
+				msg: "Minting: Transaction reorged",
+				method: "handleMintReorg",
+				txId,
+				previousStatus: currentStatus,
+				newStatus: MintTxStatus.FinalizedReorg,
+			});
+		} catch (e) {
+			logError(
+				{
+					msg: "Minting: Failed to update reorg status",
+					method: "handleMintReorg",
+					txId,
+				},
+				e,
+			);
+			throw e;
+		}
+	}
+
+	private async executeMintBatch(
+		pkgKey: string,
+		tasks: MintTask[],
+	): Promise<[boolean, string] | null> {
+		if (!tasks || tasks.length === 0) {
+			return null;
+		}
+
+		const firstTask = tasks[0];
+		if (!firstTask) return null;
+
+		const config = this.getPackageConfig(firstTask.arg.packageId);
+		const client = this.getSuiClient(config.sui_network);
+
+		logger.info({
+			msg: "Minting: Sending batch of mints to Sui",
+			count: tasks.length,
+			pkgKey: pkgKey,
+		});
+
+		const mintArgs = tasks.map((j) => j.arg);
+		return await client.tryMintNbtcBatch(mintArgs);
 	}
 
 	async detectMintedReorgs(blockHeight: number): Promise<void> {

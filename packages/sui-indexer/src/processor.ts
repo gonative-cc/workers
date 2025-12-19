@@ -1,4 +1,4 @@
-import type { NetworkConfig } from "./models";
+import type { NetworkConfig, PkgCfg } from "./models";
 import { IndexerStorage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
@@ -15,15 +15,15 @@ export class Processor {
 		this.eventFetcher = eventFetcher;
 	}
 
-	async poolNbtcEvents(nbtcPkg: string) {
+	async poolNbtcEvents(nbtcPkg: PkgCfg) {
 		let cursor = null;
 		try {
-			cursor = await this.storage.getSuiGqlCursor(nbtcPkg);
+			cursor = await this.storage.getSuiGqlCursor(nbtcPkg.id);
 			let hasNextPage = true;
 			while (hasNextPage) {
-				const b = await this._poolNbtc(nbtcPkg, cursor);
+				const b = await this._poolNbtc(nbtcPkg.nbtc_pkg, cursor);
 				if (b.endCursor && b.endCursor !== cursor) {
-					await this.storage.saveSuiGqlCursor(nbtcPkg, b.endCursor);
+					await this.storage.saveSuiGqlCursor(nbtcPkg.id, b.endCursor);
 					hasNextPage = b.hasNextPage;
 				} else {
 					hasNextPage = false;

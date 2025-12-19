@@ -4,6 +4,7 @@ import {
 	UtxoStatus,
 	type RedeemRequestIngestData,
 	type UtxoIngestData,
+	type PkgCfg,
 } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
@@ -20,22 +21,23 @@ export class IndexerStorage {
 	constructor(private db: D1Database) {}
 
 	// returns the latest cursor position for querying Sui events.
-	async getSuiGqlCursor(packageId: string): Promise<string | null> {
+	// @pkgId: nbtc_packages row ID
+	async getSuiGqlCursor(pkgId: number): Promise<string | null> {
 		const res = await this.db
-			.prepare("SELECT value FROM indexer_state WHERE key = ?")
-			.bind(packageId)
-			.first<{ value: string }>();
-		return res?.value || null;
+			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE package_id = ?")
+			.bind(pkgId)
+			.first<{ nbtc_cursor: string }>();
+		return res?.nbtc_cursor || null;
 	}
 
 	// Saves the cursor position for querying Sui events.
-	async saveSuiGqlCursor(packageId: string, cursor: string): Promise<void> {
+	async saveSuiGqlCursor(pkgId: number, nbtcCursor: string): Promise<void> {
 		await this.db
 			.prepare(
-				`INSERT INTO indexer_state (key, value, updated_at) VALUES (?, ?, ?)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+				`INSERT INTO indexer_state (package_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
+             ON CONFLICT(package_id) DO UPDATE SET nbtc_cursor = excluded.nbtc_cursor, updated_at = excluded.updated_at`,
 			)
-			.bind(packageId, cursor, Date.now())
+			.bind(pkgId, nbtcCursor, Date.now())
 			.run();
 	}
 
@@ -171,13 +173,15 @@ export class IndexerStorage {
 		}
 	}
 
-	async getActiveNbtcPkgs(networkName: string): Promise<string[]> {
+	async getActiveNbtcPkgs(networkName: string): Promise<PkgCfg[]> {
 		const result = await this.db
-			.prepare("SELECT nbtc_pkg FROM nbtc_packages WHERE sui_network = ? AND is_active = 1")
+			.prepare(
+				"SELECT id, nbtc_pkg FROM nbtc_packages WHERE sui_network = ? AND is_active = 1",
+			)
 			.bind(networkName)
-			.all<{ nbtc_pkg: string }>();
+			.all<PkgCfg>();
 
-		return result.results.map((r) => r.nbtc_pkg);
+		return result.results;
 	}
 
 	async getActiveNetworks(): Promise<SuiNet[]> {

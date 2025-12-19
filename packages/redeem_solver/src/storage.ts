@@ -5,7 +5,7 @@ import {
 	RedeemRequestStatus,
 	type Utxo,
 } from "@gonative-cc/sui-indexer/models";
-import type { RedeemInput } from "./models";
+import type { RedeemInput, RedeemRequestWithInputs } from "./models";
 
 interface RedeemRequestRow {
 	redeem_id: string;
@@ -34,6 +34,7 @@ interface UtxoRow {
 
 export interface Storage {
 	getPendingRedeems(): Promise<RedeemRequest[]>;
+	getSolvedRedeems(): Promise<RedeemRequestWithInputs[]>;
 	getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]>;
 	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
 	markRedeemProposed(redeemId: string, utxoIds: string[], utxoLockTimeMs: number): Promise<void>;
@@ -67,6 +68,53 @@ export class D1Storage implements Storage {
 			...r,
 			recipient_script: new Uint8Array(r.recipient_script),
 			sui_network: toSuiNet(r.sui_network),
+		}));
+	}
+
+	async getSolvedRedeems(): Promise<RedeemRequestWithInputs[]> {
+		const query = `
+            SELECT
+                r.redeem_id, r.package_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                p.nbtc_pkg, p.nbtc_contract, p.sui_network
+            FROM nbtc_redeem_requests r
+            JOIN nbtc_packages p ON r.package_id = p.id
+            WHERE r.status = ?
+            ORDER BY r.created_at ASC
+            LIMIT 50;
+        `;
+		const { results: requests } = await this.db
+			.prepare(query)
+			.bind(RedeemRequestStatus.Solved)
+			.all<RedeemRequestRow>();
+
+		if (requests.length === 0) {
+			return [];
+		}
+
+		const redeemIds = requests.map((r) => r.redeem_id);
+		const placeholders = redeemIds.map(() => "?").join(",");
+		const inputsQuery = `SELECT * FROM nbtc_redeem_inputs WHERE redeem_id IN (${placeholders}) ORDER BY id ASC`;
+
+		const { results: inputs } = await this.db
+			.prepare(inputsQuery)
+			.bind(...redeemIds)
+			.all<RedeemInput>();
+
+		const inputsMap = new Map<string, RedeemInput[]>();
+		for (const input of inputs) {
+			const list = inputsMap.get(input.redeem_id);
+			if (list) {
+				list.push(input);
+			} else {
+				inputsMap.set(input.redeem_id, [input]);
+			}
+		}
+
+		return requests.map((r) => ({
+			...r,
+			recipient_script: new Uint8Array(r.recipient_script),
+			sui_network: toSuiNet(r.sui_network),
+			inputs: inputsMap.get(r.redeem_id) || [],
 		}));
 	}
 

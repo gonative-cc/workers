@@ -41,11 +41,67 @@ export class RedeemService {
 	}
 
 	async signSolvedRedeems() {
-		// TODO: implement
-		// Fetch all the redeems that are solved but not signed
-		// For each redeem:
-		// 		1. Call IKA to create the user's share signature; need:
-		// 		2. Call Nbtc with the object from step 1, to complete the signature
+		const solved = await this.storage.getSolvedRedeems();
+		if (solved.length === 0) return;
+
+		for (const req of solved) {
+			for (let i = 0; i < req.inputs.length; i++) {
+				const input = req.inputs[i];
+				if (!input || input.sign_id) continue;
+
+				try {
+					logger.info({
+						msg: "Requesting signature for input",
+						redeemId: req.redeem_id,
+						utxoId: input.utxo_id,
+						inputIdx: i,
+					});
+
+					const client = this.getSuiClient(req.sui_network);
+
+					const message = await client.getSigHash(
+						req.redeem_id,
+						i,
+						req.nbtc_pkg,
+						req.nbtc_contract,
+					);
+
+					const presignId = await client.requestGlobalPresign();
+					const { cap_id } = await client.createUserSigCap(
+						input.dwallet_id,
+						presignId,
+						message,
+					);
+
+					const signId = await client.requestInputSignature(
+						req.redeem_id,
+						i,
+						cap_id,
+						req.nbtc_pkg,
+						req.nbtc_contract,
+					);
+
+					await this.storage.updateInputSignature(req.redeem_id, input.utxo_id, signId);
+
+					logger.info({
+						msg: "Requested signature",
+						redeemId: req.redeem_id,
+						utxoId: input.utxo_id,
+						signId: signId,
+					});
+				} catch (e) {
+					logError(
+						{
+							msg: "Failed to request signature",
+							method: "signSolvedRedeems",
+							redeemId: req.redeem_id,
+							utxoId: input.utxo_id,
+						},
+						e,
+					);
+				}
+			}
+		}
 	}
 
 	private getSuiClient(suiNet: SuiNet): SuiClient {

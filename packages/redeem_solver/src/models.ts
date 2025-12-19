@@ -25,3 +25,7 @@ export interface RedeemInput {
 	sign_id: string | null;
 	created_at: number;
 }
+
+export interface RedeemRequestWithInputs extends RedeemRequest {
+	inputs: RedeemInput[];
+}

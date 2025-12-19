@@ -112,5 +112,5 @@ CREATE TABLE IF NOT EXISTS indexer_state (
 	package_id INTEGER PRIMARY KEY,
 	nbtc_cursor TEXT NOT NULL, -- last processed cursor state
 	updated_at INTEGER, -- epoch time in ms
-	FOREIGN KEY (pkg_id) REFERENCES nbtc_packages(id)
+	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
 ) STRICT;

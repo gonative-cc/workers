@@ -1,4 +1,5 @@
 import type { Utxo, RedeemRequest } from "@gonative-cc/sui-indexer/models";
+import type { RedeemRequestWithInputs } from "./models";
 import type { Storage } from "./storage";
 import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
@@ -45,61 +46,65 @@ export class RedeemService {
 		if (solved.length === 0) return;
 
 		for (const req of solved) {
-			for (let i = 0; i < req.inputs.length; i++) {
-				const input = req.inputs[i];
-				if (!input || input.sign_id) continue;
+			await this.processSolvedRedeem(req);
+		}
+	}
 
-				try {
-					logger.info({
-						msg: "Requesting signature for input",
+	private async processSolvedRedeem(req: RedeemRequestWithInputs) {
+		for (let i = 0; i < req.inputs.length; i++) {
+			const input = req.inputs[i];
+			if (!input || input.sign_id) continue;
+
+			try {
+				logger.info({
+					msg: "Requesting signature for input",
+					redeemId: req.redeem_id,
+					utxoId: input.utxo_id,
+					inputIdx: i,
+				});
+
+				const client = this.getSuiClient(req.sui_network);
+
+				const message = await client.getSigHash(
+					req.redeem_id,
+					i,
+					req.nbtc_pkg,
+					req.nbtc_contract,
+				);
+
+				const presignId = await client.requestGlobalPresign();
+				const { cap_id } = await client.createUserSigCap(
+					input.dwallet_id,
+					presignId,
+					message,
+				);
+
+				const signId = await client.requestInputSignature(
+					req.redeem_id,
+					i,
+					cap_id,
+					req.nbtc_pkg,
+					req.nbtc_contract,
+				);
+
+				await this.storage.updateInputSignature(req.redeem_id, input.utxo_id, signId);
+
+				logger.info({
+					msg: "Requested signature",
+					redeemId: req.redeem_id,
+					utxoId: input.utxo_id,
+					signId: signId,
+				});
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to request signature",
+						method: "processSolvedRedeem",
 						redeemId: req.redeem_id,
 						utxoId: input.utxo_id,
-						inputIdx: i,
-					});
-
-					const client = this.getSuiClient(req.sui_network);
-
-					const message = await client.getSigHash(
-						req.redeem_id,
-						i,
-						req.nbtc_pkg,
-						req.nbtc_contract,
-					);
-
-					const presignId = await client.requestGlobalPresign();
-					const { cap_id } = await client.createUserSigCap(
-						input.dwallet_id,
-						presignId,
-						message,
-					);
-
-					const signId = await client.requestInputSignature(
-						req.redeem_id,
-						i,
-						cap_id,
-						req.nbtc_pkg,
-						req.nbtc_contract,
-					);
-
-					await this.storage.updateInputSignature(req.redeem_id, input.utxo_id, signId);
-
-					logger.info({
-						msg: "Requested signature",
-						redeemId: req.redeem_id,
-						utxoId: input.utxo_id,
-						signId: signId,
-					});
-				} catch (e) {
-					logError(
-						{
-							msg: "Failed to request signature",
-							method: "signSolvedRedeems",
-							redeemId: req.redeem_id,
-							utxoId: input.utxo_id,
-						},
-						e,
-					);
-				}
+					},
+					e,
+				);
 			}
 		}
 	}

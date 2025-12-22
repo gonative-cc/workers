@@ -51,23 +51,22 @@ export class RedeemService {
 	}
 
 	private async processSolvedRedeem(req: RedeemRequestWithInputs) {
-		for (let i = 0; i < req.inputs.length; i++) {
-			const input = req.inputs[i];
-			if (!input || input.sign_id) continue;
+		for (const input of req.inputs) {
+			if (input.sign_id) continue;
 
 			try {
 				logger.info({
 					msg: "Requesting signature for input",
 					redeemId: req.redeem_id,
 					utxoId: input.utxo_id,
-					inputIdx: i,
+					inputIdx: input.input_index,
 				});
 
 				const client = this.getSuiClient(req.sui_network);
 
 				const message = await client.getSigHash(
 					req.redeem_id,
-					i,
+					input.input_index,
 					req.nbtc_pkg,
 					req.nbtc_contract,
 				);
@@ -81,7 +80,7 @@ export class RedeemService {
 
 				const signId = await client.requestInputSignature(
 					req.redeem_id,
-					i,
+					input.input_index,
 					nbtcPublicSignature,
 					presignId,
 					req.nbtc_pkg,
@@ -89,7 +88,6 @@ export class RedeemService {
 				);
 
 				await this.storage.updateInputSignature(req.redeem_id, input.utxo_id, signId);
-
 				logger.info({
 					msg: "Requested signature",
 					redeemId: req.redeem_id,

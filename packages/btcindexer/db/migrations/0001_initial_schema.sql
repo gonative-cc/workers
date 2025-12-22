@@ -108,9 +108,10 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS nbtc_redeem_inputs (
+CREATE TABLE IF NOT EXISTS nbtc_redeem_solutions (
 	redeem_id INTEGER NOT NULL,
 	utxo_id INTEGER NOT NULL,
+	input_index INTEGER NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	sign_id TEXT,
 	created_at INTEGER NOT NULL,
@@ -119,7 +120,7 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_inputs (
 	FOREIGN KEY (utxo_id) REFERENCES nbtc_utxos(nbtc_utxo_id)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS nbtc_redeem_inputs_redeem_id ON nbtc_redeem_inputs(redeem_id);
+CREATE INDEX IF NOT EXISTS nbtc_redeem_solutions_redeem_id ON nbtc_redeem_solutions(redeem_id);
 
 CREATE TABLE IF NOT EXISTS indexer_state (
 	package_id INTEGER PRIMARY KEY,

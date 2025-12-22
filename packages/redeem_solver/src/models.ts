@@ -20,11 +20,11 @@ export interface SolveRedeemCall {
 export interface RedeemInput {
 	redeem_id: number;
 	utxo_id: number;
+	input_index: number;
 	dwallet_id: string;
 	sign_id: string | null;
 	created_at: number;
 }
-
 export interface RedeemRequestWithInputs extends RedeemRequest {
 	inputs: RedeemInput[];
 }

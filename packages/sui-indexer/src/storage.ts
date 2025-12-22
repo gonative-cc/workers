@@ -203,13 +203,13 @@ export class IndexerStorage {
 		if (utxoIds.length === 0) return;
 
 		const stmt = this.db.prepare(
-			`INSERT OR IGNORE INTO nbtc_redeem_inputs (redeem_id, utxo_id, dwallet_id, created_at) VALUES (?, ?, ?, ?)`,
+			`INSERT OR IGNORE INTO nbtc_redeem_solutions (redeem_id, utxo_id, input_index, dwallet_id, created_at) VALUES (?, ?, ?, ?, ?)`,
 		);
 
 		const now = Date.now();
 		const batch = [];
 		for (let i = 0; i < utxoIds.length; i++) {
-			batch.push(stmt.bind(redeemId, utxoIds[i], dwalletIds[i], now));
+			batch.push(stmt.bind(redeemId, utxoIds[i], i, dwalletIds[i], now));
 		}
 		try {
 			await this.db.batch(batch);

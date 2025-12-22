@@ -93,7 +93,7 @@ export class D1Storage implements Storage {
 
 		const redeemIds = requests.map((r) => r.redeem_id);
 		const placeholders = redeemIds.map(() => "?").join(",");
-		const inputsQuery = `SELECT * FROM nbtc_redeem_inputs WHERE redeem_id IN (${placeholders}) ORDER BY created_at ASC`;
+		const inputsQuery = `SELECT * FROM nbtc_redeem_solutions WHERE redeem_id IN (${placeholders}) ORDER BY input_index ASC`;
 
 		const { results: inputs } = await this.db
 			.prepare(inputsQuery)
@@ -199,18 +199,17 @@ export class D1Storage implements Storage {
 	async saveRedeemInputs(inputs: Omit<RedeemInput, "sign_id">[]): Promise<void> {
 		if (inputs.length === 0) return;
 		const stmt = this.db.prepare(
-			`INSERT INTO nbtc_redeem_inputs (redeem_id, utxo_id, dwallet_id, created_at) VALUES (?, ?, ?, ?)`,
+			`INSERT INTO nbtc_redeem_solutions (redeem_id, utxo_id, input_index, dwallet_id, created_at) VALUES (?, ?, ?, ?, ?)`,
 		);
 		const batch = inputs.map((i) =>
-			stmt.bind(i.redeem_id, i.utxo_id, i.dwallet_id, i.created_at),
+			stmt.bind(i.redeem_id, i.utxo_id, i.input_index, i.dwallet_id, i.created_at),
 		);
 		await this.db.batch(batch);
 	}
-
 	async updateInputSignature(redeemId: number, utxoId: number, signId: string): Promise<void> {
 		await this.db
 			.prepare(
-				`UPDATE nbtc_redeem_inputs SET sign_id = ? WHERE redeem_id = ? AND utxo_id = ?`,
+				`UPDATE nbtc_redeem_solutions SET sign_id = ? WHERE redeem_id = ? AND utxo_id = ?`,
 			)
 			.bind(signId, redeemId, utxoId)
 			.run();
@@ -219,12 +218,13 @@ export class D1Storage implements Storage {
 	async getRedeemInputs(redeemId: number): Promise<RedeemInput[]> {
 		return (
 			await this.db
-				.prepare(`SELECT * FROM nbtc_redeem_inputs WHERE redeem_id = ?`)
+				.prepare(
+					`SELECT * FROM nbtc_redeem_solutions WHERE redeem_id = ? ORDER BY input_index ASC`,
+				)
 				.bind(redeemId)
 				.all<RedeemInput>()
 		).results;
 	}
-
 	async getActiveNetworks(): Promise<SuiNet[]> {
 		const result = await this.db
 			.prepare("SELECT DISTINCT sui_network FROM nbtc_packages WHERE is_active = 1")

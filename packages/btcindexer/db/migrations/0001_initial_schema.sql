@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (
-	nbtc_utxo_id TEXT NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
+	nbtc_utxo_id INTEGER NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
 	address_id INTEGER NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	txid TEXT NOT NULL, -- Bitcoin transaction ID
@@ -98,7 +98,7 @@ CREATE INDEX IF NOT EXISTS nbtc_utxos_selection ON nbtc_utxos(address_id, status
 CREATE INDEX IF NOT EXISTS _nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 
 CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
-	redeem_id TEXT NOT NULL PRIMARY KEY,
+	redeem_id INTEGER NOT NULL PRIMARY KEY,
 	package_id INTEGER NOT NULL,
 	redeemer TEXT NOT NULL,
 	recipient_script BLOB NOT NULL, -- script pubkey
@@ -109,12 +109,12 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_redeem_inputs (
-	id INTEGER PRIMARY KEY,
-	redeem_id TEXT NOT NULL,
-	utxo_id TEXT NOT NULL,
+	redeem_id INTEGER NOT NULL,
+	utxo_id INTEGER NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	sign_id TEXT,
 	created_at INTEGER NOT NULL,
+	PRIMARY KEY (redeem_id, utxo_id),
 	FOREIGN KEY (redeem_id) REFERENCES nbtc_redeem_requests(redeem_id),
 	FOREIGN KEY (utxo_id) REFERENCES nbtc_utxos(nbtc_utxo_id)
 ) STRICT;

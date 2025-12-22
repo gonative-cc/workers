@@ -8,7 +8,7 @@ import {
 import type { RedeemInput, RedeemRequestWithInputs } from "./models";
 
 interface RedeemRequestRow {
-	redeem_id: string;
+	redeem_id: number;
 	package_id: number;
 	redeemer: string;
 	recipient_script: ArrayBuffer;
@@ -21,7 +21,7 @@ interface RedeemRequestRow {
 }
 
 interface UtxoRow {
-	nbtc_utxo_id: string;
+	nbtc_utxo_id: number;
 	dwallet_id: string;
 	txid: string;
 	vout: number;
@@ -37,11 +37,11 @@ export interface Storage {
 	getSolvedRedeems(): Promise<RedeemRequestWithInputs[]>;
 	getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]>;
 	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
-	markRedeemProposed(redeemId: string, utxoIds: string[], utxoLockTimeMs: number): Promise<void>;
-	markRedeemSolved(redeemId: string): Promise<void>;
-	saveRedeemInputs(inputs: Omit<RedeemInput, "id" | "sign_id">[]): Promise<void>;
-	updateInputSignature(redeemId: string, utxoId: string, signId: string): Promise<void>;
-	getRedeemInputs(redeemId: string): Promise<RedeemInput[]>;
+	markRedeemProposed(redeemId: number, utxoIds: number[], utxoLockTimeMs: number): Promise<void>;
+	markRedeemSolved(redeemId: number): Promise<void>;
+	saveRedeemInputs(inputs: Omit<RedeemInput, "sign_id">[]): Promise<void>;
+	updateInputSignature(redeemId: number, utxoId: number, signId: string): Promise<void>;
+	getRedeemInputs(redeemId: number): Promise<RedeemInput[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 }
 
@@ -93,14 +93,14 @@ export class D1Storage implements Storage {
 
 		const redeemIds = requests.map((r) => r.redeem_id);
 		const placeholders = redeemIds.map(() => "?").join(",");
-		const inputsQuery = `SELECT * FROM nbtc_redeem_inputs WHERE redeem_id IN (${placeholders}) ORDER BY id ASC`;
+		const inputsQuery = `SELECT * FROM nbtc_redeem_inputs WHERE redeem_id IN (${placeholders}) ORDER BY created_at ASC`;
 
 		const { results: inputs } = await this.db
 			.prepare(inputsQuery)
 			.bind(...redeemIds)
 			.all<RedeemInput>();
 
-		const inputsMap = new Map<string, RedeemInput[]>();
+		const inputsMap = new Map<number, RedeemInput[]>();
 		for (const input of inputs) {
 			const list = inputsMap.get(input.redeem_id);
 			if (list) {
@@ -164,8 +164,8 @@ export class D1Storage implements Storage {
 
 	// Mark the redeem request as proposed and lock the selected UTXOs
 	async markRedeemProposed(
-		redeemId: string,
-		utxoIds: string[],
+		redeemId: number,
+		utxoIds: number[],
 		utxoLockTimeMs: number,
 	): Promise<void> {
 		const batch = [];
@@ -189,14 +189,14 @@ export class D1Storage implements Storage {
 		await this.db.batch(batch);
 	}
 
-	async markRedeemSolved(redeemId: string): Promise<void> {
+	async markRedeemSolved(redeemId: number): Promise<void> {
 		await this.db
 			.prepare(`UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?`)
 			.bind(RedeemRequestStatus.Solved, redeemId)
 			.run();
 	}
 
-	async saveRedeemInputs(inputs: Omit<RedeemInput, "id" | "sign_id">[]): Promise<void> {
+	async saveRedeemInputs(inputs: Omit<RedeemInput, "sign_id">[]): Promise<void> {
 		if (inputs.length === 0) return;
 		const stmt = this.db.prepare(
 			`INSERT INTO nbtc_redeem_inputs (redeem_id, utxo_id, dwallet_id, created_at) VALUES (?, ?, ?, ?)`,
@@ -207,7 +207,7 @@ export class D1Storage implements Storage {
 		await this.db.batch(batch);
 	}
 
-	async updateInputSignature(redeemId: string, utxoId: string, signId: string): Promise<void> {
+	async updateInputSignature(redeemId: number, utxoId: number, signId: string): Promise<void> {
 		await this.db
 			.prepare(
 				`UPDATE nbtc_redeem_inputs SET sign_id = ? WHERE redeem_id = ? AND utxo_id = ?`,
@@ -216,7 +216,7 @@ export class D1Storage implements Storage {
 			.run();
 	}
 
-	async getRedeemInputs(redeemId: string): Promise<RedeemInput[]> {
+	async getRedeemInputs(redeemId: number): Promise<RedeemInput[]> {
 		return (
 			await this.db
 				.prepare(`SELECT * FROM nbtc_redeem_inputs WHERE redeem_id = ?`)

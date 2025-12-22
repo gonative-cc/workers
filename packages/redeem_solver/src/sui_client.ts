@@ -25,7 +25,7 @@ export interface SuiClient {
 	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
 	getSigHash(
-		redeemId: string,
+		redeemId: number,
 		inputIdx: number,
 		nbtcPkg: string,
 		nbtcContract: string,
@@ -37,7 +37,7 @@ export interface SuiClient {
 		message: Uint8Array,
 	): Promise<{ cap_id: string }>;
 	requestInputSignature(
-		redeemId: string,
+		redeemId: number,
 		inputIdx: number,
 		userSigCapId: string,
 		nbtcPkg: string,
@@ -129,7 +129,7 @@ export class SuiClientImp implements SuiClient {
 	}
 
 	async getSigHash(
-		redeemId: string,
+		redeemId: number,
 		inputIdx: number,
 		nbtcPkg: string,
 		nbtcContract: string,
@@ -190,7 +190,6 @@ export class SuiClientImp implements SuiClient {
 		});
 
 		tx.transferObjects([presignCap], this.signer.toSuiAddress());
-		tx.setGasBudget(500000000);
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,
@@ -242,7 +241,6 @@ export class SuiClientImp implements SuiClient {
 		});
 
 		tx.transferObjects([partialUserSignatureCap], this.signer.toSuiAddress());
-		tx.setGasBudget(500000000);
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,
@@ -276,7 +274,7 @@ export class SuiClientImp implements SuiClient {
 	}
 
 	async requestInputSignature(
-		redeemId: string,
+		redeemId: number,
 		inputIdx: number,
 		userSigCapId: string,
 		nbtcPkg: string,
@@ -311,8 +309,6 @@ export class SuiClientImp implements SuiClient {
 				tx.gas, // paymentSui
 			],
 		});
-
-		tx.setGasBudget(500000000);
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,

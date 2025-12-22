@@ -108,7 +108,7 @@ export class IndexerStorage {
 		}
 	}
 
-	async lockUtxos(utxoIds: string[]): Promise<void> {
+	async lockUtxos(utxoIds: number[]): Promise<void> {
 		if (utxoIds.length === 0) return;
 		const placeholders = utxoIds.map(() => "?").join(",");
 		try {
@@ -189,8 +189,8 @@ export class IndexerStorage {
 	}
 
 	async upsertRedeemInputs(
-		redeemId: string,
-		utxoIds: string[],
+		redeemId: number,
+		utxoIds: number[],
 		dwalletIds: string[],
 	): Promise<void> {
 		if (utxoIds.length !== dwalletIds.length) {
@@ -223,7 +223,7 @@ export class IndexerStorage {
 		}
 	}
 
-	async markRedeemSolved(redeemId: string): Promise<void> {
+	async markRedeemSolved(redeemId: number): Promise<void> {
 		try {
 			await this.db
 				.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")

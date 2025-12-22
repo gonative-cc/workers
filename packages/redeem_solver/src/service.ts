@@ -73,7 +73,7 @@ export class RedeemService {
 				);
 
 				const presignId = await client.requestGlobalPresign();
-				const { cap_id } = await client.createUserSigCap(
+				const nbtcPublicSignature = await client.createUserSigMessage(
 					input.dwallet_id,
 					presignId,
 					message,
@@ -82,7 +82,8 @@ export class RedeemService {
 				const signId = await client.requestInputSignature(
 					req.redeem_id,
 					i,
-					cap_id,
+					nbtcPublicSignature,
+					presignId,
 					req.nbtc_pkg,
 					req.nbtc_contract,
 				);

@@ -12,8 +12,8 @@ import {
 	Hash,
 	SessionsManagerModule,
 	CoordinatorInnerModule,
+	createUserSignMessageWithCentralizedOutput,
 	type IkaConfig,
-	type SharedDWallet,
 } from "@ika.xyz/sdk";
 
 export interface SuiClientCfg {
@@ -31,15 +31,16 @@ export interface SuiClient {
 		nbtcContract: string,
 	): Promise<Uint8Array>;
 	requestGlobalPresign(): Promise<string>;
-	createUserSigCap(
+	createUserSigMessage(
 		dwalletId: string,
 		presignId: string,
 		message: Uint8Array,
-	): Promise<{ cap_id: string }>;
+	): Promise<Uint8Array>;
 	requestInputSignature(
 		redeemId: number,
 		inputIdx: number,
-		userSigCapId: string,
+		nbtcPublicSignature: Uint8Array,
+		presignId: string,
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<string>;
@@ -213,70 +214,49 @@ export class SuiClientImp implements SuiClient {
 		return eventDecoded.event_data.presign_id;
 	}
 
-	async createUserSigCap(
+	async createUserSigMessage(
 		dwalletId: string,
 		presignId: string,
 		message: Uint8Array,
-	): Promise<{ cap_id: string }> {
+	): Promise<Uint8Array> {
 		await this.ensureIkaInitialized();
-		const tx = new Transaction();
-		const ikaTx = new IkaTransaction({
-			ikaClient: this.ikaClient,
-			transaction: tx,
-		});
 
 		const dWallet = await this.ikaClient.getDWalletInParticularState(dwalletId, "Active");
-		const ikaCoin = await this.getIkaCoin(this.signer.toSuiAddress());
-		const presign = await this.ikaClient.getPresignInParticularState(presignId, "Completed");
-
-		const partialUserSignatureCap = await ikaTx.requestFutureSign({
-			dWallet: dWallet as SharedDWallet,
-			hashScheme: Hash.SHA256,
-			ikaCoin: tx.object(ikaCoin),
-			message,
-			presign,
-			signatureScheme: SignatureAlgorithm.ECDSASecp256k1,
-			suiCoin: tx.gas,
-			verifiedPresignCap: ikaTx.verifyPresignCap({ presign }),
+		const presign = await this.ikaClient.getPresignInParticularState(presignId, "Completed", {
+			timeout: 60000,
+			interval: 1000,
 		});
 
-		tx.transferObjects([partialUserSignatureCap], this.signer.toSuiAddress());
-
-		const result = await this.client.signAndExecuteTransaction({
-			signer: this.signer,
-			transaction: tx,
-			options: { showEvents: true },
-		});
-
-		if (result.effects?.status.status !== "success") {
-			throw new Error(`FutureSign request failed: ${result.effects?.status.error}`);
-		}
-
-		const event = result.events?.find((e) => e.type.includes("FutureSignRequestEvent"));
-		if (!event) {
-			throw new Error("FutureSignRequestEvent not found");
-		}
-
-		const eventDecoded = SessionsManagerModule.DWalletSessionEvent(
-			CoordinatorInnerModule.FutureSignRequestEvent,
-		).fromBase64(event.bcs as string);
-
-		const id = eventDecoded.event_data.partial_centralized_signed_message_id;
-
-		const state = await this.ikaClient.getPartialUserSignatureInParticularState(
-			id,
-			"NetworkVerificationCompleted",
-			{ timeout: 60000, interval: 1000 },
+		const protocolPublicParameters = await this.ikaClient.getProtocolPublicParameters(
+			dWallet,
+			Curve.SECP256K1,
 		);
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		return { cap_id: (state as any).cap_id };
+		const centralizedDkgOutput = Uint8Array.from(dWallet.state.Active.public_output);
+		const userSecretKeyShare = Uint8Array.from(
+			dWallet.public_user_secret_key_share as number[],
+		);
+		const presignState = Uint8Array.from(presign.state.Completed.presign as number[]);
+
+		const nbtcPublicSignature = await createUserSignMessageWithCentralizedOutput(
+			protocolPublicParameters,
+			centralizedDkgOutput,
+			userSecretKeyShare,
+			presignState,
+			message,
+			Hash.SHA256,
+			SignatureAlgorithm.ECDSASecp256k1,
+			Curve.SECP256K1,
+		);
+
+		return nbtcPublicSignature;
 	}
 
 	async requestInputSignature(
 		redeemId: number,
 		inputIdx: number,
-		userSigCapId: string,
+		nbtcPublicSignature: Uint8Array,
+		presignId: string,
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<string> {
@@ -290,11 +270,9 @@ export class SuiClientImp implements SuiClient {
 		const ikaCoin = await this.getIkaCoin(this.signer.toSuiAddress());
 		const coordinatorId = this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
 
-		const coordinatorPkg = this.ikaConfig.packages.ikaDwallet2pcMpcPackage;
-		const verifiedCap = tx.moveCall({
-			target: `${coordinatorPkg}::coordinator::verify_partial_user_signature_cap`,
-			arguments: [tx.object(coordinatorId), tx.object(userSigCapId)],
-		});
+		const unverifiedPresignCap = (
+			await this.ikaClient.getPresignInParticularState(presignId, "Completed")
+		).cap_id;
 
 		tx.moveCall({
 			target: `${nbtcPkg}::nbtc::request_signature_for_input`,
@@ -303,7 +281,8 @@ export class SuiClientImp implements SuiClient {
 				tx.object(coordinatorId),
 				tx.pure.u64(redeemId),
 				tx.pure.u64(inputIdx),
-				verifiedCap,
+				tx.pure.vector("u8", nbtcPublicSignature),
+				tx.object(unverifiedPresignCap),
 				ikaTx.createSessionIdentifier(),
 				tx.object(ikaCoin),
 				tx.gas, // paymentSui

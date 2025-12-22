@@ -279,7 +279,6 @@ export class CFStorage implements Storage {
 	}
 
 	async batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void> {
-		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
@@ -287,16 +286,25 @@ export class CFStorage implements Storage {
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, retry_count = retry_count + 1, updated_at = ? WHERE tx_id = ? AND vout = ?`,
 		);
 
-		const statements = updates.map((p) => {
-			if (p.status === MintTxStatus.Minted) {
-				return setMintedStmt.bind(MintTxStatus.Minted, p.suiTxDigest, now, p.txId, p.vout);
+		const batchTimestamp = Date.now();
+		const statements = updates.map((u) => {
+			const timestamp = u.timestamp ?? batchTimestamp;
+			if (u.status === MintTxStatus.Minted) {
+				// Note: sui_tx_id will be NULL if the transaction was minted by someone else (front-run)
+				return setMintedStmt.bind(
+					MintTxStatus.Minted,
+					u.suiTxDigest || null,
+					timestamp,
+					u.txId,
+					u.vout,
+				);
 			} else {
 				return setFailedStmt.bind(
 					MintTxStatus.MintFailed,
-					p.suiTxDigest ?? null,
-					now,
-					p.txId,
-					p.vout,
+					u.suiTxDigest ?? null,
+					timestamp,
+					u.txId,
+					u.vout,
 				);
 			}
 		});

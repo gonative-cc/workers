@@ -9,6 +9,7 @@ import type {
 	NbtcTxUpdate,
 	NbtcBroadcastedDeposit,
 	ConfirmingBlockInfo,
+	InsertBlockResult,
 } from "./models";
 import { MintTxStatus } from "./models";
 import type { Storage } from "./storage";
@@ -63,11 +64,12 @@ export class CFStorage implements Storage {
 	 * - AND The incoming `timestamp_ms` is greater than the stored `inserted_at`.
 	 *
 	 * @param b - The block record from the queue.
-	 * @returns `true` if the block was inserted or updated, `false` otherwise.
+	 * @returns InsertBlockResult tells us whether the block was inserted, updated, or skipped.
 	 */
-	async insertBlockInfo(b: BlockQueueRecord): Promise<boolean> {
-		// TODO: we should return here InsertResult {ignored, inserted, updated}
-		// we need to use batching
+	async insertBlockInfo(b: BlockQueueRecord): Promise<InsertBlockResult> {
+		const checkRowStmt = this.d1.prepare(
+			`SELECT 1 FROM btc_blocks WHERE height = ? AND network = ?`,
+		);
 		const insertStmt = this.d1.prepare(
 			`INSERT INTO btc_blocks (hash, height, network, inserted_at) VALUES (?, ?, ?, ?)
 			 ON CONFLICT(height, network) DO UPDATE SET
@@ -77,8 +79,28 @@ export class CFStorage implements Storage {
 			 WHERE btc_blocks.hash IS NOT excluded.hash AND excluded.inserted_at > btc_blocks.inserted_at`,
 		);
 		try {
-			const result = await insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms).run();
-			return result.meta.changes > 0;
+			const results = await this.d1.batch([
+				checkRowStmt.bind(b.height, b.network),
+				insertStmt.bind(b.hash, b.height, b.network, b.timestamp_ms),
+			]);
+
+			const checkResult = results[0];
+			const upsertResult = results[1];
+
+			if (!checkResult || !upsertResult) {
+				throw new Error("Batch operation failed");
+			}
+
+			const wasFound = checkResult.results.length > 0;
+			const rowsChanged = upsertResult.meta.changes > 0;
+
+			if (!wasFound) {
+				return { status: "inserted", changed: true };
+			} else if (rowsChanged) {
+				return { status: "updated", changed: true };
+			} else {
+				return { status: "skipped", changed: false };
+			}
 		} catch (e) {
 			logError(
 				{

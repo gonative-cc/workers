@@ -10,6 +10,7 @@ import type {
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
 	ConfirmingBlockInfo,
+	InsertBlockResult,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
@@ -18,7 +19,7 @@ import { toSuiNet } from "@gonative-cc/lib/nsui";
 export interface Storage {
 	// Block operations
 	markBlockAsProcessed(hash: string, network: BtcNet): Promise<void>;
-	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<boolean>;
+	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<InsertBlockResult>;
 	getLatestBlockHeight(network: BtcNet): Promise<number | null>;
 	getChainTip(network: BtcNet): Promise<number | null>;
 	setChainTip(height: number, network: BtcNet): Promise<void>;

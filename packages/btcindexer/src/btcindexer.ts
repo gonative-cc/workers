@@ -172,13 +172,14 @@ export class Indexer {
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
 		const existingHash = await this.storage.getBlockHash(blockInfo.height, blockInfo.network);
 
-		const isNewOrMinted = await this.storage.insertBlockInfo(blockInfo);
-		if (!isNewOrMinted) {
+		const result = await this.storage.insertBlockInfo(blockInfo);
+		if (!result.changed) {
 			logger.debug({
-				msg: "Skipping processing already processed block",
+				msg: "Skipping block, no changes made",
 				method: "Indexer.processBlock",
 				height: blockInfo.height,
 				hash: blockInfo.hash,
+				status: result.status,
 			});
 			return;
 		}

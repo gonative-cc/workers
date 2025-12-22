@@ -855,7 +855,7 @@ describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 		};
 
 		const result = await indexer.storage.insertBlockInfo(record);
-		expect(result).toBe(true);
+		expect(result).toEqual({ status: "inserted", changed: true });
 		const db = await mf.getD1Database("DB");
 		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
 		expect(row).toEqual(
@@ -885,7 +885,7 @@ describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 		const result = await indexer.storage.insertBlockInfo(newerRecord);
 		const db = await mf.getD1Database("DB");
 
-		expect(result).toBe(true);
+		expect(result).toEqual({ status: "updated", changed: true });
 		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
 		expect(row).toEqual(
 			expect.objectContaining({
@@ -913,7 +913,7 @@ describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 
 		const result = await indexer.storage.insertBlockInfo(staleRecord);
 
-		expect(result).toBe(false); // Update rejected
+		expect(result).toEqual({ status: "skipped", changed: false }); // Update rejected
 		const db = await mf.getD1Database("DB");
 		const row = await db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
 		expect(row).toEqual(

@@ -121,8 +121,9 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_inputs (
 
 CREATE INDEX IF NOT EXISTS nbtc_redeem_inputs_redeem_id ON nbtc_redeem_inputs(redeem_id);
 
-CREATE TABLE IF NOT EXISTS indexer_state ( -- TODO: maybe we should just use key-value here?
-	key TEXT PRIMARY KEY,
-	value TEXT NOT NULL,
-	updated_at INTEGER
+CREATE TABLE IF NOT EXISTS indexer_state (
+	package_id INTEGER PRIMARY KEY,
+	nbtc_cursor TEXT NOT NULL, -- last processed cursor state
+	updated_at INTEGER, -- epoch time in ms
+	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
 ) STRICT;

@@ -104,3 +104,9 @@ export interface NetworkConfig {
 	name: SuiNet;
 	url: string;
 }
+
+// partial entry in the nbtc_packages table
+export interface PkgCfg {
+	id: number;
+	nbtc_pkg: string;
+}

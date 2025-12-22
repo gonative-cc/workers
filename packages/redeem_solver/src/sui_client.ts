@@ -229,7 +229,7 @@ export class SuiClientImp implements SuiClient {
 
 		const protocolPublicParameters = await this.ikaClient.getProtocolPublicParameters(
 			dWallet,
-			Curve.SECP256K1,
+			Curve.SECP256K1,  // TODO: change to taproot
 		);
 
 		const centralizedDkgOutput = Uint8Array.from(dWallet.state.Active.public_output);

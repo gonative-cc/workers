@@ -30,7 +30,7 @@ export interface SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<Uint8Array>;
-	requestGlobalPresign(): Promise<string>;
+	createGlobalPresign(): Promise<string>;
 	createUserSigMessage(
 		dwalletId: string,
 		presignId: string,
@@ -52,6 +52,7 @@ export class SuiClientImp implements SuiClient {
 	private ikaClient: IkaClient;
 	private ikaConfig: IkaConfig;
 	private network: SuiNet;
+	private encryptionKeyId: string | null = null;
 
 	constructor(cfg: SuiClientCfg) {
 		const url = getFullnodeUrl(cfg.network);
@@ -163,6 +164,7 @@ export class SuiClientImp implements SuiClient {
 
 		// The result is in the 3rd return value of the transaction (index 2 in results array)
 		// results[0] = redeem_request, results[1] = storage, results[2] = sig_hash
+		// TODO: lets compute to sigHash locally rather than querying it from the contract every time
 		const sigHashResult = result.results?.[2]?.returnValues?.[0]?.[0];
 		if (!sigHashResult) {
 			throw new Error("Failed to get sig_hash result");
@@ -171,7 +173,7 @@ export class SuiClientImp implements SuiClient {
 		return Uint8Array.from(sigHashResult);
 	}
 
-	async requestGlobalPresign(): Promise<string> {
+	async createGlobalPresign(): Promise<string> {
 		await this.ensureIkaInitialized();
 		const tx = new Transaction();
 		const ikaTx = new IkaTransaction({
@@ -180,14 +182,21 @@ export class SuiClientImp implements SuiClient {
 		});
 
 		const ikaCoin = await this.getIkaCoin(this.signer.toSuiAddress());
-		const dWalletEncryptionKey = await this.ikaClient.getLatestNetworkEncryptionKey();
 
+		if (!this.encryptionKeyId) {
+			const dWalletEncryptionKey = await this.ikaClient.getLatestNetworkEncryptionKey();
+			this.encryptionKeyId = dWalletEncryptionKey.id;
+		}
+
+		// TODO: Implement recovery for unused presign objects.
+		// If the worker crashes after creating a presign but before using it, the presign object
+		// remains in the wallet, to be used. We should scan for it or save it in a db
 		const presignCap = ikaTx.requestGlobalPresign({
 			curve: Curve.SECP256K1,
 			signatureAlgorithm: SignatureAlgorithm.ECDSASecp256k1,
 			ikaCoin: tx.object(ikaCoin),
 			suiCoin: tx.gas,
-			dwalletNetworkEncryptionKeyId: dWalletEncryptionKey.id,
+			dwalletNetworkEncryptionKeyId: this.encryptionKeyId,
 		});
 
 		tx.transferObjects([presignCap], this.signer.toSuiAddress());
@@ -229,7 +238,7 @@ export class SuiClientImp implements SuiClient {
 
 		const protocolPublicParameters = await this.ikaClient.getProtocolPublicParameters(
 			dWallet,
-			Curve.SECP256K1,  // TODO: change to taproot
+			Curve.SECP256K1, // TODO: change to taproot
 		);
 
 		const centralizedDkgOutput = Uint8Array.from(dWallet.state.Active.public_output);

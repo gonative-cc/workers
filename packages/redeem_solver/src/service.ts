@@ -41,7 +41,7 @@ export class RedeemService {
 		}
 	}
 
-	async signSolvedRedeems() {
+	async processSolvedRedeems() {
 		const solved = await this.storage.getSolvedRedeems();
 		if (solved.length === 0) return;
 
@@ -71,7 +71,7 @@ export class RedeemService {
 					req.nbtc_contract,
 				);
 
-				const presignId = await client.requestGlobalPresign();
+				const presignId = await client.createGlobalPresign();
 				const nbtcPublicSignature = await client.createUserSigMessage(
 					input.dwallet_id,
 					presignId,

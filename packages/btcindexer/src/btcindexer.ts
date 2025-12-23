@@ -1,5 +1,5 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { BtcNet, type BlockQueueRecord, calculateConfirmations } from "@gonative-cc/lib/nbtc";
 
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
@@ -246,7 +246,7 @@ export class Indexer {
 		}
 
 		await this.storage.markBlockAsProcessed(blockInfo.hash, blockInfo.network);
-		await this.storage.setChainTip(blockInfo.height);
+		await this.storage.setChainTip(blockInfo.height, blockInfo.network);
 	}
 
 	findNbtcDeposits(tx: Transaction, network: networks.Network): Deposit[] {
@@ -768,13 +768,13 @@ export class Indexer {
 		const activeTxIds: string[] = [];
 		const inactiveTxIds: string[] = [];
 		for (const tx of pendingTxs) {
-			const confirmations = latestHeight - tx.block_height + 1;
+			const confirmations = calculateConfirmations(tx.block_height, latestHeight);
 			if (confirmations >= this.confirmationDepth) {
 				const depositInfo = this.nbtcDepositAddrMap.get(tx.deposit_address);
 				let isPkgActive = false;
 				if (depositInfo) {
 					const pkgConfig = this.getPackageConfig(depositInfo.package_id);
-					if (pkgConfig && pkgConfig.is_active) {
+					if (pkgConfig && pkgConfig.is_active && depositInfo.is_active) {
 						isPkgActive = true;
 					}
 				}
@@ -808,25 +808,23 @@ export class Indexer {
 		const nbtMintRow = await this.storage.getNbtcMintTx(txid);
 		if (!nbtMintRow) return null;
 
-		const latestHeight = await this.storage.getChainTip();
+		const latestHeight = await this.storage.getChainTip(nbtMintRow.btc_network);
 
 		return nbtcRowToResp(nbtMintRow, latestHeight);
 	}
 
 	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]> {
-		const latestHeight = await this.storage.getChainTip();
 		const dbResult = await this.storage.getNbtcMintTxsBySuiAddr(suiAddress);
 
+		const networks = new Set(dbResult.map((tx) => tx.btc_network));
+		const chainTips = new Map<string, number | null>();
+		for (const net of networks) {
+			chainTips.set(net, await this.storage.getChainTip(net));
+		}
+
 		return dbResult.map((tx): NbtcTxResp => {
-			const blockHeight = tx.block_height as number;
-			const confirmations = blockHeight && latestHeight ? latestHeight - blockHeight + 1 : 0;
-			return {
-				...tx,
-				btcTxId: tx.tx_id,
-				status: tx.status as MintTxStatus,
-				block_height: blockHeight,
-				confirmations: confirmations > 0 ? confirmations : 0,
-			};
+			const latestHeight = chainTips.get(tx.btc_network) ?? null;
+			return nbtcRowToResp(tx, latestHeight);
 		});
 	}
 
@@ -864,14 +862,15 @@ export class Indexer {
 		return { tx_id: txId, registered_deposits: deposits.length };
 	}
 
-	async getLatestHeight(): Promise<{ height: number | null }> {
-		const height = await this.storage.getLatestBlockHeight();
+	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {
+		const height = await this.storage.getLatestBlockHeight(network);
 		return { height };
 	}
 
-	async getDepositsBySender(btcAddress: string): Promise<NbtcTxResp[]> {
-		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress);
-		const latestHeight = await this.storage.getChainTip();
+	async getDepositsBySender(btcAddress: string, network: BtcNet): Promise<NbtcTxResp[]> {
+		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress, network);
+
+		const latestHeight = await this.storage.getChainTip(network);
 
 		return nbtcMintRows.map((r) => nbtcRowToResp(r, latestHeight));
 	}
@@ -927,15 +926,14 @@ function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 }
 
 function nbtcRowToResp(r: NbtcTxRow, latestHeight: number | null): NbtcTxResp {
-	const bh = r.block_height;
-	const confirmations = bh && latestHeight ? latestHeight - bh + 1 : 0;
+	const confirmations = calculateConfirmations(r.block_height, latestHeight);
 	const btcTxId = r.tx_id;
 	// @ts-expect-error The operand of a 'delete' operator must be optional
 	delete r.tx_id;
 
 	return {
 		btcTxId,
-		confirmations: confirmations > 0 ? confirmations : 0,
+		confirmations,
 		...r,
 	};
 }

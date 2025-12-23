@@ -41,11 +41,15 @@ func (c Client) PutBlocks(putBlocks PutBlocksReq) (*http.Response, error) {
 	return c.c.Do(req)
 }
 
-func (c Client) GetLatestHeight() (int64, error) {
+func (c Client) GetLatestHeight(network string) (int64, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprint(c.baseUrl, pathLatestHeight), nil)
 	if err != nil {
 		return 0, err
 	}
+
+	q := req.URL.Query()
+	q.Add("network", network)
+	req.URL.RawQuery = q.Encode()
 
 	resp, err := c.c.Do(req)
 	if err != nil {
@@ -74,7 +78,7 @@ func (c Client) GetLatestHeight() (int64, error) {
 	return *respData.Height, nil
 }
 
-func (c Client) GetDepositsBySender(senderAddress string) ([]NbtcTxStatusResp, error) {
+func (c Client) GetDepositsBySender(senderAddress string, network string) ([]NbtcTxStatusResp, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprint(c.baseUrl, pathDepositsBySender), nil)
 	if err != nil {
 		return nil, err
@@ -82,6 +86,7 @@ func (c Client) GetDepositsBySender(senderAddress string) ([]NbtcTxStatusResp, e
 
 	q := req.URL.Query()
 	q.Add("sender", senderAddress)
+	q.Add("network", network)
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := c.c.Do(req)

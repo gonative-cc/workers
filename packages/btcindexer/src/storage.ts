@@ -12,18 +12,18 @@ import type {
 	ConfirmingBlockInfo,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
-import type { BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
 
 export interface Storage {
 	// Block operations
-	markBlockAsProcessed(hash: string, network: string): Promise<void>;
+	markBlockAsProcessed(hash: string, network: BtcNet): Promise<void>;
 	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<boolean>;
-	getLatestBlockHeight(): Promise<number | null>;
-	getChainTip(): Promise<number | null>;
-	setChainTip(height: number): Promise<void>;
+	getLatestBlockHeight(network: BtcNet): Promise<number | null>;
+	getChainTip(network: BtcNet): Promise<number | null>;
+	setChainTip(height: number, network: BtcNet): Promise<void>;
 	getBlock(hash: string): Promise<ArrayBuffer | null>;
-	getBlockHash(height: number, network: string): Promise<string | null>;
+	getBlockHash(height: number, network: BtcNet): Promise<string | null>;
 	getConfirmingBlocks(): Promise<ConfirmingBlockInfo[]>;
 
 	// nBTC Transaction operations
@@ -41,7 +41,7 @@ export interface Storage {
 	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
-	getNbtcMintTxsByBtcSender(btcAddress: string): Promise<NbtcTxRow[]>;
+	getNbtcMintTxsByBtcSender(btcAddress: string, network: BtcNet): Promise<NbtcTxRow[]>;
 }
 
 // TODO: Add tests
@@ -63,7 +63,7 @@ export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcDepositAdd
 		.all<{ package_id: number; btc_address: string; is_active: boolean }>();
 	const addrMap: NbtcDepositAddrsMap = new Map();
 	for (const p of results || []) {
-		addrMap.set(p.btc_address, { package_id: p.package_id, is_active: p.is_active });
+		addrMap.set(p.btc_address, { package_id: p.package_id, is_active: !!p.is_active });
 	}
 	return addrMap;
 }
@@ -76,5 +76,5 @@ export async function fetchPackageConfigs(db: D1Database): Promise<NbtcPkgCfg[]>
 	// verify DB
 	for (const p of results) p.sui_network = toSuiNet(p.sui_network);
 
-	return results;
+	return results.map((p) => ({ ...p, is_active: !!p.is_active }));
 }

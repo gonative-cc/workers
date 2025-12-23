@@ -113,7 +113,7 @@ export class Indexer {
 		const pkgCfgMap = new Map(packageConfigs.map((c) => [c.id, c]));
 
 		for (const n of nbtcDepositAddrMap) {
-			if (!pkgCfgMap.has(n[1].package_id))
+			if (!pkgCfgMap.has(n[1].setup_id))
 				throw new Error("No nBTC package config found for bitcoin address " + n[0]);
 		}
 
@@ -277,7 +277,7 @@ export class Indexer {
 			}
 			try {
 				const btcAddress = address.fromOutputScript(vout.script, network);
-				const pkgId = this.nbtcDepositAddrMap.get(btcAddress)?.package_id;
+				const pkgId = this.nbtcDepositAddrMap.get(btcAddress)?.setup_id;
 				if (pkgId === undefined) continue;
 				const config = this.getPackageConfig(pkgId);
 
@@ -482,7 +482,7 @@ export class Indexer {
 						proof: { proofPath: proof, merkleRoot: calculatedRoot.toString("hex") },
 						nbtcPkg: nbtcPkg,
 						suiNetwork: suiNetwork,
-						packageId: firstDeposit.package_id,
+						setupId: firstDeposit.setup_id,
 					});
 				}
 
@@ -521,7 +521,7 @@ export class Indexer {
 					continue;
 				}
 
-				const config = this.getPackageConfig(firstBatchArg.packageId);
+				const config = this.getPackageConfig(firstBatchArg.setupId);
 				const client = this.getSuiClient(config.sui_network);
 
 				logger.info({
@@ -774,8 +774,8 @@ export class Indexer {
 				const depositInfo = this.nbtcDepositAddrMap.get(tx.deposit_address);
 				let isPkgActive = false;
 				if (depositInfo) {
-					const pkgConfig = this.getPackageConfig(depositInfo.package_id);
-					if (pkgConfig && pkgConfig.is_active && depositInfo.is_active) {
+					const setup = this.getPackageConfig(depositInfo.setup_id);
+					if (setup && setup.is_active && depositInfo.is_active) {
 						isPkgActive = true;
 					}
 				}

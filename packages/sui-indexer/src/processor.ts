@@ -50,7 +50,7 @@ export class Processor {
 		logger.debug({
 			msg: `Fetched events`,
 			network: network,
-			packageId: nbtcPkg,
+			nbtcPkg,
 			eventsLength: b.events.length,
 			startCursor,
 			endCursor: b.endCursor,

@@ -9,7 +9,7 @@ import type { RedeemInput, RedeemRequestWithInputs } from "./models";
 
 interface RedeemRequestRow {
 	redeem_id: number;
-	package_id: number;
+	setup_id: number;
 	redeemer: string;
 	recipient_script: ArrayBuffer;
 	amount_sats: number;
@@ -36,7 +36,7 @@ export interface Storage {
 	getPendingRedeems(): Promise<RedeemRequest[]>;
 	getSolvedRedeems(): Promise<RedeemRequestWithInputs[]>;
 	getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]>;
-	getAvailableUtxos(packageId: number): Promise<Utxo[]>;
+	getAvailableUtxos(setupId: number): Promise<Utxo[]>;
 	markRedeemProposed(redeemId: number, utxoIds: number[], utxoLockTimeMs: number): Promise<void>;
 	markRedeemSolved(redeemId: number): Promise<void>;
 	saveRedeemInputs(inputs: Omit<RedeemInput, "sign_id">[]): Promise<void>;
@@ -51,10 +51,10 @@ export class D1Storage implements Storage {
 	async getPendingRedeems(): Promise<RedeemRequest[]> {
 		const query = `
             SELECT
-                r.redeem_id, r.package_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
                 p.nbtc_pkg, p.nbtc_contract, p.sui_network
             FROM nbtc_redeem_requests r
-            JOIN nbtc_packages p ON r.package_id = p.id
+            JOIN setups p ON r.setup_id = p.id
             WHERE r.status = ?
             ORDER BY r.created_at ASC
             LIMIT 50;
@@ -117,10 +117,10 @@ export class D1Storage implements Storage {
 	async getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]> {
 		const query = `
             SELECT
-                r.redeem_id, r.package_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
                 p.nbtc_pkg, p.nbtc_contract, p.sui_network
             FROM nbtc_redeem_requests r
-            JOIN nbtc_packages p ON r.package_id = p.id
+            JOIN setups p ON r.setup_id = p.id
             WHERE r.status = ? AND r.created_at <= ?
             ORDER BY r.created_at ASC
             LIMIT 50;
@@ -137,19 +137,19 @@ export class D1Storage implements Storage {
 		}));
 	}
 
-	async getAvailableUtxos(packageId: number): Promise<Utxo[]> {
+	async getAvailableUtxos(setupId: number): Promise<Utxo[]> {
 		// TODO: we should not query all utxos every time
 		const query = `
 			SELECT u.nbtc_utxo_id, u.dwallet_id, u.txid, u.vout, u.amount_sats, u.script_pubkey, u.address_id, u.status, u.locked_until
 			FROM nbtc_utxos u
 			JOIN nbtc_deposit_addresses a ON u.address_id = a.id
-			WHERE a.package_id = ?
+			WHERE a.setup_id = ?
 			AND u.status = ?
 			ORDER BY u.amount_sats DESC;
 		`;
 		const { results } = await this.db
 			.prepare(query)
-			.bind(packageId, UtxoStatus.Available)
+			.bind(setupId, UtxoStatus.Available)
 			.all<UtxoRow>();
 
 		return results.map((u) => ({
@@ -223,7 +223,7 @@ export class D1Storage implements Storage {
 	}
 	async getActiveNetworks(): Promise<SuiNet[]> {
 		const result = await this.db
-			.prepare("SELECT DISTINCT sui_network FROM nbtc_packages WHERE is_active = 1")
+			.prepare("SELECT DISTINCT sui_network FROM setups WHERE is_active = 1")
 			.all<{ sui_network: string }>();
 
 		return result.results.map((r) => toSuiNet(r.sui_network));

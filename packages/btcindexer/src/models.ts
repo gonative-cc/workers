@@ -38,7 +38,7 @@ export interface FinalizedTxRow {
 	nbtc_pkg: string;
 	sui_network: SuiNet;
 	btc_network: string;
-	package_id: number;
+	setup_id: number;
 }
 
 export interface ReorgedMintedTx {
@@ -120,7 +120,7 @@ export interface MintBatchArg extends NbtcPkg {
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
-	packageId: number;
+	setupId: number;
 }
 
 export interface PostNbtcTxRequest {
@@ -178,7 +178,7 @@ export interface NbtcPkgCfg {
 }
 
 export interface NbtcDepositAddrVal {
-	package_id: number; // NbtcPkgCfg ID
+	setup_id: number; // NbtcPkgCfg ID
 	is_active: boolean; // flag if the associated bitcoin address is active
 }
 

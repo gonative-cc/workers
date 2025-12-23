@@ -1,5 +1,5 @@
 import { $ } from "bun"; // this for running the shell commands
-import { NBTC_PACKAGES, type EnvName } from "./config";
+import { SETUPS, type EnvName } from "./config";
 
 main().catch((err) => {
 	console.error("Error seeding addresses:", err);
@@ -22,7 +22,7 @@ async function main() {
 		return;
 	}
 
-	const config = NBTC_PACKAGES[env];
+	const config = SETUPS[env];
 	if (!config) {
 		console.error(`No configuration found for environment: ${env}`);
 		return;
@@ -31,12 +31,12 @@ async function main() {
 	const DB_NAME = config.db_name;
 	console.log(`Using environment: ${env}, DB: ${DB_NAME}`);
 
-	if (!config.nbtcCfgs || config.nbtcCfgs.length === 0) {
+	if (!config.setups || config.setups.length === 0) {
 		console.log("No packages to seed.");
 		return;
 	}
 
-	for (const entry of config.nbtcCfgs) {
+	for (const entry of config.setups) {
 		if (
 			!entry.btc_network ||
 			!entry.sui_network ||
@@ -51,30 +51,30 @@ async function main() {
 			continue;
 		}
 
-		const checkPkgQuery = `SELECT id FROM nbtc_packages WHERE btc_network = '${entry.btc_network}' AND sui_network = '${entry.sui_network}' AND nbtc_pkg = '${entry.nbtc_pkg}'`;
-		let packageId = await executeQuery<number>(checkPkgQuery, DB_NAME, local, "id");
-		if (!packageId) {
+		const checkSetupRowQuery = `SELECT id FROM setups WHERE btc_network = '${entry.btc_network}' AND sui_network = '${entry.sui_network}' AND nbtc_pkg = '${entry.nbtc_pkg}'`;
+		let setupId = await executeQuery<number>(checkSetupRowQuery, DB_NAME, local, "id");
+		if (!setupId) {
 			const insertPkgQuery = `
-				INSERT INTO nbtc_packages (btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address)
+				INSERT INTO setups (btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address)
 				VALUES ('${entry.btc_network}', '${entry.sui_network}', '${entry.nbtc_pkg}', '${entry.nbtc_contract}', '${entry.lc_pkg}', '${entry.lc_contract}', '${entry.sui_fallback_address}')
 				RETURNING id
 			`;
-			packageId = await executeQuery<number>(insertPkgQuery, DB_NAME, local, "id");
+			setupId = await executeQuery<number>(insertPkgQuery, DB_NAME, local, "id");
 		}
 
-		if (!packageId) {
-			console.error("Failed to get package ID for entry");
+		if (!setupId) {
+			console.error("Failed to get setup ID for entry");
 			continue;
 		}
 
-		const checkAddrQuery = `SELECT id FROM nbtc_deposit_addresses WHERE package_id = ${packageId} AND deposit_address = '${entry.btc_address}'`;
+		const checkAddrQuery = `SELECT id FROM nbtc_deposit_addresses WHERE package_id = ${setupId} AND deposit_address = '${entry.btc_address}'`;
 		const existingAddrId = await executeQuery<number>(checkAddrQuery, DB_NAME, local, "id");
 
 		if (existingAddrId) {
 			continue;
 		}
 
-		const insertAddrQuery = `INSERT INTO nbtc_deposit_addresses (package_id, deposit_address) VALUES (${packageId}, '${entry.btc_address}')`;
+		const insertAddrQuery = `INSERT INTO nbtc_deposit_addresses (package_id, deposit_address) VALUES (${setupId}, '${entry.btc_address}')`;
 		await executeQuery(insertAddrQuery, DB_NAME, local);
 	}
 }

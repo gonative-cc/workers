@@ -55,22 +55,22 @@ export interface Storage {
 export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcDepositAddrsMap> {
 	const { results } = await db
 		.prepare(
-			`SELECT a.package_id, a.deposit_address as btc_address,  a.is_active
+			`SELECT a.setup_id, a.deposit_address as btc_address,  a.is_active
 			 FROM nbtc_deposit_addresses a
-			 JOIN nbtc_packages p ON a.package_id = p.id
+			 JOIN setups p ON a.setup_id = p.id
 			 WHERE p.is_active = TRUE`,
 		)
-		.all<{ package_id: number; btc_address: string; is_active: boolean }>();
+		.all<{ setup_id: number; btc_address: string; is_active: boolean }>();
 	const addrMap: NbtcDepositAddrsMap = new Map();
 	for (const p of results || []) {
-		addrMap.set(p.btc_address, { package_id: p.package_id, is_active: !!p.is_active });
+		addrMap.set(p.btc_address, { setup_id: p.setup_id, is_active: !!p.is_active });
 	}
 	return addrMap;
 }
 
 export async function fetchPackageConfigs(db: D1Database): Promise<NbtcPkgCfg[]> {
 	let { results } = await db
-		.prepare("SELECT * FROM nbtc_packages WHERE is_active = 1")
+		.prepare("SELECT * FROM setups WHERE is_active = 1")
 		.all<NbtcPkgCfg>();
 	results = results || [];
 	// verify DB

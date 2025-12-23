@@ -82,7 +82,8 @@ CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (
-	nbtc_utxo_id TEXT NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
+	nbtc_utxo_id INTEGER NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
+	-- TODO: This is an ID assigned by the smart contract. The primary key should be a combination of (setup_id, nbtc_utxo_id)
 	address_id INTEGER NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	txid TEXT NOT NULL, -- Bitcoin transaction ID
@@ -98,8 +99,9 @@ CREATE INDEX IF NOT EXISTS nbtc_utxos_selection ON nbtc_utxos(address_id, status
 CREATE INDEX IF NOT EXISTS _nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 
 CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
-	redeem_id TEXT NOT NULL PRIMARY KEY,
+	redeem_id INTEGER NOT NULL PRIMARY KEY,
 	setup_id INTEGER NOT NULL,
+	package_id INTEGER NOT NULL,
 	redeemer TEXT NOT NULL,
 	recipient_script BLOB NOT NULL, -- script pubkey
 	amount_sats INTEGER NOT NULL,
@@ -107,6 +109,19 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'solved', 'signed', 'broadcasted'
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;
+
+CREATE TABLE IF NOT EXISTS nbtc_redeem_solutions (
+	redeem_id INTEGER NOT NULL, -- Reference to nbtc_redeem_requests (u64 from nbtc contract)
+	utxo_id INTEGER NOT NULL, -- Reference to nbtc_utxos
+	input_index INTEGER NOT NULL, -- The position of UTXO in the btc tx inputs
+	dwallet_id TEXT NOT NULL, -- The dWallet identifier this input
+	sign_id TEXT, -- Ika signature request identifie
+	created_at INTEGER NOT NULL,
+	PRIMARY KEY (redeem_id, utxo_id),
+	FOREIGN KEY (redeem_id) REFERENCES nbtc_redeem_requests(redeem_id),
+	FOREIGN KEY (utxo_id) REFERENCES nbtc_utxos(nbtc_utxo_id)
+) STRICT;
+CREATE INDEX IF NOT EXISTS nbtc_redeem_solutions_redeem_id ON nbtc_redeem_solutions(redeem_id);
 
 CREATE TABLE IF NOT EXISTS indexer_state (
 	setup_id INTEGER PRIMARY KEY,

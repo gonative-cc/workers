@@ -1,4 +1,5 @@
 import type { Utxo, RedeemRequest } from "@gonative-cc/sui-indexer/models";
+import type { RedeemRequestWithInputs } from "./models";
 import type { Storage } from "./storage";
 import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
@@ -37,6 +38,76 @@ export class RedeemService {
 
 		for (const req of readyRedeemRequests) {
 			await this.solveRequest(req);
+		}
+	}
+
+	async processSolvedRedeems() {
+		// NOTE: here we are processing only 50 redeems every minute (every cron), we are not
+		// looping thought all the solved redeems to avoid cloudflare timeout, since we are
+		// already waiting for ika to sign, when calling ikaSdk.getPresignInParicularState
+		const solved = await this.storage.getSolvedRedeems();
+		if (solved.length === 0) return;
+
+		for (const req of solved) {
+			await this.processSolvedRedeem(req);
+		}
+	}
+
+	private async processSolvedRedeem(req: RedeemRequestWithInputs) {
+		for (const input of req.inputs) {
+			if (input.sign_id) continue;
+
+			try {
+				logger.info({
+					msg: "Requesting signature for input",
+					redeemId: req.redeem_id,
+					utxoId: input.utxo_id,
+					inputIdx: input.input_index,
+				});
+
+				const client = this.getSuiClient(req.sui_network);
+
+				const message = await client.getSigHash(
+					req.redeem_id,
+					input.input_index,
+					req.nbtc_pkg,
+					req.nbtc_contract,
+				);
+
+				const presignId = await client.createGlobalPresign();
+				const nbtcPublicSignature = await client.createUserSigMessage(
+					input.dwallet_id,
+					presignId,
+					message,
+				);
+
+				const signId = await client.requestInputSignature(
+					req.redeem_id,
+					input.input_index,
+					nbtcPublicSignature,
+					presignId,
+					req.nbtc_pkg,
+					req.nbtc_contract,
+				);
+
+				await this.storage.updateInputSignature(req.redeem_id, input.utxo_id, signId);
+				logger.info({
+					msg: "Requested signature",
+					redeemId: req.redeem_id,
+					utxoId: input.utxo_id,
+					signId: signId,
+				});
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to request signature",
+						method: "processSolvedRedeem",
+						redeemId: req.redeem_id,
+						utxoId: input.utxo_id,
+					},
+					e,
+				);
+			}
 		}
 	}
 

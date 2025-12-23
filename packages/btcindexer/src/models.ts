@@ -120,7 +120,7 @@ export interface MintBatchArg extends NbtcPkg {
 	blockHeight: number;
 	txIndex: number;
 	proof: ProofResult;
-	packageId: number;
+	setupId: number;
 }
 
 export interface PostNbtcTxRequest {

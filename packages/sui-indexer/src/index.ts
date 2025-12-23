@@ -1,7 +1,7 @@
 import { SUI_NETWORK_URLS } from "./config";
 import { SuiGraphQLClient } from "./graphql-client";
-import { SuiEventHandler } from "./handler";
 import type { NetworkConfig } from "./models";
+import { Processor } from "./processor";
 import { IndexerStorage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 
@@ -16,7 +16,6 @@ export default {
 		}
 
 		const networksToProcess: NetworkConfig[] = [];
-
 		for (const netName of dbNetworks) {
 			const url = SUI_NETWORK_URLS[netName];
 			if (url) {
@@ -29,12 +28,14 @@ export default {
 			}
 		}
 
-		logger.info({
+		logger.debug({
 			msg: "Starting Indexer Loop",
 			networks: networksToProcess.map((n) => n.name),
 		});
 
-		const networkJobs = networksToProcess.map((network) => queryNewEvents(network, storage));
+		const networkJobs = networksToProcess.map((netCfg) =>
+			poolAndProcessEvents(netCfg, storage),
+		);
 		const results = await Promise.allSettled(networkJobs);
 		results.forEach((result, idx) => {
 			if (result.status === "rejected") {
@@ -49,45 +50,17 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-async function queryNewEvents(network: NetworkConfig, storage: IndexerStorage) {
-	const client = new SuiGraphQLClient(network.url);
-	const packages = await storage.getActivePackages(network.name);
+async function poolAndProcessEvents(netCfg: NetworkConfig, storage: IndexerStorage) {
+	const client = new SuiGraphQLClient(netCfg.url);
+	const packages = await storage.getActiveNbtcPkgs(netCfg.name);
 	if (packages.length === 0) return;
 	logger.info({
 		msg: `Processing network`,
-		network: network.name,
+		network: netCfg.name,
 		packageCount: packages.length,
 	});
+	const p = new Processor(netCfg, storage, client);
+	const jobs = packages.map((nbtcPkg) => p.poolNbtcEvents(nbtcPkg));
 
-	const packageJobs = packages.map(async (pkgId) => {
-		try {
-			const cursor = await storage.getSuiGqlCursor(pkgId);
-			const { events, nextCursor } = await client.fetchEvents(pkgId, cursor); // TODO: lets fetch events from all active packages at once
-			logger.debug({
-				msg: `Fetched events`,
-				network: network.name,
-				packageId: pkgId,
-				eventsLength: events.length,
-			});
-			if (events.length > 0) {
-				const handler = new SuiEventHandler(storage, pkgId, network.name);
-				await handler.handleEvents(events);
-			}
-			if (nextCursor && nextCursor !== cursor) {
-				await storage.saveSuiGqlCursor(pkgId, nextCursor);
-			}
-		} catch (e) {
-			logError(
-				{
-					msg: "Failed to index package",
-					method: "queryNewEvents",
-					network: network.name,
-					pkgId,
-				},
-				e,
-			);
-		}
-	});
-
-	await Promise.allSettled(packageJobs);
+	await Promise.allSettled(jobs);
 }

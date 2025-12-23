@@ -2,12 +2,101 @@
 
 # Workers
 
-Backend workers and indexers for BYield services
+The Native Workers are services for a distributed system for cross-chain Bitcoin-to-Sui interoperability and BYield. The architecture consists of several specialized workers that communicate via service bindings to enable seamless nBTC operations.
 
-- [btcindexer](./packages/btcindexer/) - Bitcoin indexer for nBTC and SPV prover.
-- [block-ingestor](./packages/block-ingestor/) - Worker that exposes REST API to receive new blocks and queue them for processing.
-- [lib](./packages/lib/) - Library package with common functions shared across packages.
-- [redeem_solver](./packages/redeem_solver/) - Worker to propose UTXOs for withdrawals.
+Workers are based on the Cloudflare Workers framework.
+
+## High-Level Architecture
+
+### Functional Interactions
+
+#### [Block Ingestor](./packages/block-ingestor/)
+
+- Receives Bitcoin blocks from an external relayer via REST API
+- Forwards blocks to BTCIndexer for processing
+- Enables decoupled block processing through queue mechanism
+
+#### [BTC Indexer](./packages/btcindexer/)
+
+- Main component for Bitcoin-to-Sui bridging
+- Processes Bitcoin blocks to detect nBTC deposits
+- Handles cross-chain minting of nBTC tokens on Sui
+- Provides status tracking for nBTC transactions
+- Runs scheduled cron jobs for continuous processing
+
+#### 3. [Redeem Solver](./packages/redeem_solver/)
+
+- Handles nBTC redemption requests from users
+- Tracks available UTXOs for redemptions
+- Proposes appropriate UTXO sets for withdrawal transactions
+- Coordinates with BTCIndexer for consistent state
+
+#### 4. [Sui Indexer](./packages/sui-indexer/)
+
+- Monitors Sui blockchain for nBTC-related events
+- Polls active packages for nBTC operations
+- Provides indexing capabilities for cross-chain activities
+
+#### 5. [Shared Library](./packages/lib/) (`lib`)
+
+- Provides common utilities, types, and configurations
+- Offers logging infrastructure used across packages
+- Ensures consistent implementation across all workers
+
+### Functional Flows
+
+1. **nBTC Minting Flow**: Bitcoin deposits → Block-Ingestor → BTC-Indexer → Sui minting
+2. **Redemption Flow**: nBTC burn on Sui → Sui-Indexer → Redeem-Solver → UTXO proposal
+3. **Status Tracking Flow**: UI requests → BTC-Indexer → Status updates
+
+### Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "External Systems"
+        Bitcoin[Bitcoin Network]
+        Sui[Sui Network]
+        Relayer[Bitcoin Relayer]
+        UI[bYield UI]
+    end
+
+    subgraph "Native Workers Infrastructure"
+        BI[(BTCIndexer)]
+        BL[(Block-Ingestor)]
+        RS[(Redeem Solver)]
+        SI[(Sui Indexer)]
+    end
+
+    %% External to Workers flows
+    Bitcoin -->|sends blocks| Relayer
+    Relayer -->|submits blocks| BL
+    UI -->|queries status| BI
+    UI -->|requests redemption| RS
+
+    %% Block ingestion flow
+    BL -->|forwards blocks| BI
+
+    %% Bitcoin indexing flow
+    BI -->|detects nBTC deposits| BI
+    BI -->|mints nBTC| Sui
+    BI -->|verifies blocks| Sui
+
+    %% Redemption flow
+    UI -->|initiates redemption| Sui
+    Sui -->|emits redemption events| SI
+    SI -->|monitors events| RS
+    RS -->|proposes UTXOs| Sui
+
+    %% Cross-component communication
+    BI -.-> BL
+    RS -.-> BI
+    SI -.-> Sui
+
+    style BI fill:#e1f5fe
+    style BL fill:#f3e5f5
+    style RS fill:#e8f5e8
+    style SI fill:#fff3e0
+```
 
 ## Setup
 

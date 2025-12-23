@@ -1,11 +1,23 @@
 import { GraphQLClient, gql } from "graphql-request";
 import type { SuiEventNode } from "./models";
 
+export type Cursor = string | null;
+
+export interface EventsBatch {
+	events: SuiEventNode[];
+	endCursor: Cursor;
+	hasNextPage: boolean;
+}
+
+export interface EventFetcher {
+	fetchEvents: (packageId: string, cursor: string | null) => Promise<EventsBatch>;
+}
+
 interface ModuleEventsResponse {
 	events: {
 		pageInfo: {
 			hasNextPage: boolean;
-			endCursor: string | null;
+			endCursor: Cursor;
 		};
 		nodes: {
 			timestamp: string; // ISO timestamp string
@@ -39,14 +51,15 @@ const MODULE_EVENTS_QUERY = gql`
 		}
 	}
 `;
-export class SuiGraphQLClient {
+
+export class SuiGraphQLClient implements EventFetcher {
 	private client: GraphQLClient;
 
 	constructor(endpoint: string) {
 		this.client = new GraphQLClient(endpoint);
 	}
 
-	async fetchEvents(packageId: string, cursor: string | null) {
+	async fetchEvents(packageId: string, cursor: string | null): Promise<EventsBatch> {
 		const filter = `${packageId}::nbtc`;
 		const data = await this.client.request<ModuleEventsResponse>(MODULE_EVENTS_QUERY, {
 			filter,
@@ -61,7 +74,8 @@ export class SuiGraphQLClient {
 
 		return {
 			events,
-			nextCursor: data.events.pageInfo.endCursor,
+			endCursor: data.events.pageInfo.endCursor,
+			hasNextPage: data.events.pageInfo.hasNextPage,
 		};
 	}
 }

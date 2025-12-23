@@ -4,6 +4,7 @@ import { handleIngestBlocks } from "./ingest";
 import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
 import { logError } from "@gonative-cc/lib/logger";
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { btcNetFromString } from "@gonative-cc/lib/nbtc";
 
 interface Env {
 	BtcBlocks: KVNamespace;
@@ -25,9 +26,16 @@ router.put("/bitcoin/blocks", async (request, env: Env) => {
 	}
 });
 
-router.get("/bitcoin/latest-height", async (_request, env: Env) => {
+router.get("/bitcoin/latest-height", async (request, env: Env) => {
+	const url = new URL(request.url);
+	const network = url.searchParams.get("network");
+	if (!network) {
+		return new Response("Missing network parameter", { status: 400 });
+	}
+
 	try {
-		const result = await env.BtcIndexer.latestHeight();
+		const btcNet = btcNetFromString(network);
+		const result = await env.BtcIndexer.latestHeight(btcNet);
 		return Response.json(result);
 	} catch (e) {
 		logError({ msg: "Failed to get latest height", method: "GET /bitcoin/latest-height" }, e);

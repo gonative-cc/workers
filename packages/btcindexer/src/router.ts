@@ -8,6 +8,7 @@ import { RestPath } from "./api/client";
 
 import type { AppRouter, CFArgs } from "./routertype";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";
 
 export default class HttpRouter {
 	#indexer?: Indexer;
@@ -68,6 +69,18 @@ export default class HttpRouter {
 			throw new Error("Indexer is not initialized");
 		}
 		return this.#indexer;
+	}
+
+	private getNetworkParam(req: IRequest): BtcNet {
+		const network = req.query.network;
+		if (!network || typeof network !== "string") {
+			throw new Error("Missing or invalid network query parameter.");
+		}
+		try {
+			return btcNetFromString(network);
+		} catch (e) {
+			throw new Error("Invalid network parameter.");
+		}
 	}
 
 	// NOTE: for handlers we user arrow function to avoid `bind` calls when using class methods
@@ -146,8 +159,14 @@ export default class HttpRouter {
 		return this.indexer().getNbtcMintTxsBySuiAddr(suiRecipient);
 	};
 
-	getLatestHeight = () => {
-		return this.indexer().getLatestHeight();
+	getLatestHeight = (req: IRequest) => {
+		try {
+			const btcNet = this.getNetworkParam(req);
+			return this.indexer().getLatestHeight(btcNet);
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : "Invalid request";
+			return error(400, msg);
+		}
 	};
 
 	getDepositsBySender = (req: IRequest) => {
@@ -155,6 +174,13 @@ export default class HttpRouter {
 		if (!sender || typeof sender !== "string") {
 			return error(400, "Missing or invalid sender query parameter.");
 		}
-		return this.indexer().getDepositsBySender(sender);
+
+		try {
+			const btcNet = this.getNetworkParam(req);
+			return this.indexer().getDepositsBySender(sender, btcNet);
+		} catch (e: unknown) {
+			const msg = e instanceof Error ? e.message : "Invalid request";
+			return error(400, msg);
+		}
 	};
 }

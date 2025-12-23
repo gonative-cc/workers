@@ -119,10 +119,10 @@ describe("CFStorage", () => {
 	});
 
 	it("getDepositAddresses should return addresses for specific network", async () => {
-		const addrs = await storage.getDepositAddresses("regtest");
+		const addrs = await storage.getDepositAddresses(BtcNet.REGTEST);
 		expect(addrs).toContain("bcrt1qAddress1");
 
-		const mainnetAddrs = await storage.getDepositAddresses("mainnet");
+		const mainnetAddrs = await storage.getDepositAddresses(BtcNet.MAINNET);
 		expect(mainnetAddrs.length).toBe(0);
 	});
 
@@ -210,13 +210,13 @@ describe("CFStorage", () => {
 				timestamp_ms: 2,
 			});
 
-			const max = await storage.getLatestBlockHeight();
+			const max = await storage.getLatestBlockHeight(BtcNet.REGTEST);
 			expect(max).toBe(102);
 		});
 
 		it("KV operations for ChainTip and Block", async () => {
-			await storage.setChainTip(500);
-			expect(await storage.getChainTip()).toBe(500);
+			await storage.setChainTip(500, BtcNet.REGTEST);
+			expect(await storage.getChainTip(BtcNet.REGTEST)).toBe(500);
 
 			await env.BtcBlocks.put("hash123", new Uint8Array([1, 2, 3]));
 			const blockData = await storage.getBlock("hash123");
@@ -376,7 +376,7 @@ describe("CFStorage", () => {
 
 		it("getNbtcMintTxsByBtcSender should return txs for sender", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
-			const txs = await storage.getNbtcMintTxsByBtcSender(txBase.sender);
+			const txs = await storage.getNbtcMintTxsByBtcSender(txBase.sender, BtcNet.REGTEST);
 			expect(txs.length).toBe(1);
 			expect(txs[0]!.tx_id).toBe("tx1");
 		});

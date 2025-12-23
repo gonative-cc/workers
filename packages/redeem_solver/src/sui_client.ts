@@ -231,6 +231,7 @@ export class SuiClientImp implements SuiClient {
 		await this.ensureIkaInitialized();
 
 		const dWallet = await this.ikaClient.getDWalletInParticularState(dwalletId, "Active");
+		// TODO: create presign objects upfront and use them
 		const presign = await this.ikaClient.getPresignInParticularState(presignId, "Completed", {
 			timeout: 60000,
 			interval: 1000,

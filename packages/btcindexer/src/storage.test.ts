@@ -135,7 +135,7 @@ describe("CFStorage", () => {
 				timestamp_ms: 1000,
 			};
 			const result = await storage.insertBlockInfo(block);
-			expect(result).toBe(true);
+			expect(result).toEqual({ status: "inserted", changed: true });
 
 			const saved = await storage.getBlockHash(100, BtcNet.REGTEST);
 			expect(saved).toBe("0000hash1");
@@ -155,7 +155,7 @@ describe("CFStorage", () => {
 				network: BtcNet.REGTEST,
 				timestamp_ms: 2000,
 			});
-			expect(result).toBe(true);
+			expect(result).toEqual({ status: "updated", changed: true });
 			const saved = await storage.getBlockHash(100, BtcNet.REGTEST);
 			expect(saved).toBe("0000hashNew");
 		});
@@ -174,7 +174,7 @@ describe("CFStorage", () => {
 				network: BtcNet.REGTEST,
 				timestamp_ms: 1000,
 			});
-			expect(result).toBe(false);
+			expect(result).toEqual({ status: "skipped", changed: false });
 			const saved = await storage.getBlockHash(100, BtcNet.REGTEST);
 			expect(saved).toBe("0000hashNew");
 		});

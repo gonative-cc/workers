@@ -1,4 +1,4 @@
-import type { RedeemRequestResp, Utxo } from "@gonative-cc/sui-indexer/models";
+import type { RedeemRequestResp, RedeemRequest, Utxo } from "@gonative-cc/sui-indexer/models";
 
 export type { RedeemRequestResp, Utxo };
 
@@ -25,6 +25,7 @@ export interface RedeemInput {
 	sign_id: string | null;
 	created_at: number;
 }
+
 export interface RedeemRequestWithInputs extends RedeemRequest {
 	inputs: RedeemInput[];
 }

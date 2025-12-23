@@ -3,6 +3,7 @@ import {
 	type MintEventRaw,
 	type ProposeUtxoEventRaw,
 	type RedeemRequestEventRaw,
+	type SolvedEventRaw,
 	type SuiEventNode,
 	UtxoStatus,
 } from "./models";
@@ -31,6 +32,8 @@ export class SuiEventHandler {
 				await this.handleRedeemRequest(json as RedeemRequestEventRaw);
 			} else if (event.type.includes("::nbtc::ProposeUtxoEvent")) {
 				await this.handleProposeUtxo(json as ProposeUtxoEventRaw);
+			} else if (event.type.includes("::nbtc::redeem_request::SolvedEvent")) {
+				await this.handleSolved(json as SolvedEventRaw);
 			}
 		}
 	}
@@ -41,7 +44,7 @@ export class SuiEventHandler {
 		const txId = fromBase64(e.btc_tx_id).reverse().toHex();
 
 		await this.storage.insertUtxo({
-			nbtc_utxo_id: e.utxo_id,
+			nbtc_utxo_id: Number(e.utxo_id),
 			dwallet_id: e.dwallet_id,
 			txid: txId,
 			vout: e.btc_vout,
@@ -57,7 +60,7 @@ export class SuiEventHandler {
 
 	private async handleRedeemRequest(e: RedeemRequestEventRaw) {
 		await this.storage.insertRedeemRequest({
-			redeem_id: e.redeem_id,
+			redeem_id: Number(e.redeem_id),
 			redeemer: e.redeemer,
 			recipient_script: fromBase64(e.recipient_script),
 			amount_sats: Number(e.amount),
@@ -71,11 +74,26 @@ export class SuiEventHandler {
 	private async handleProposeUtxo(e: ProposeUtxoEventRaw) {
 		// NOTE: the event is only emmited if the proposal is the best, thats why we are locking them here,
 		// we should lock them when we are proposing already, and here we should just attempt to lock else ignore
-		await this.storage.lockUtxos(e.utxo_ids);
+		await this.storage.lockUtxos(e.utxo_ids.map(Number));
 		logger.info({
 			msg: "Locked UTXOs for Proposal",
 			redeemId: e.redeem_id,
 			count: e.utxo_ids.length,
+		});
+	}
+
+	private async handleSolved(e: SolvedEventRaw) {
+		await this.storage.upsertRedeemInputs(
+			Number(e.redeem_id),
+			e.utxo_ids.map(Number),
+			e.dwallet_ids,
+		);
+		await this.storage.markRedeemSolved(Number(e.redeem_id));
+
+		logger.info({
+			msg: "Marked redeem as solved and added inputs",
+			redeemId: e.redeem_id,
+			utxos: e.utxo_ids.length,
 		});
 	}
 }

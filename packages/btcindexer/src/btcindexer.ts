@@ -773,8 +773,8 @@ export class Indexer {
 				const depositInfo = this.nbtcDepositAddrMap.get(tx.deposit_address);
 				let isPkgActive = false;
 				if (depositInfo) {
-					const pkgConfig = this.getPackageConfig(depositInfo.setup_id);
-					if (pkgConfig && pkgConfig.is_active && depositInfo.is_active) {
+					const setup = this.getPackageConfig(depositInfo.setup_id);
+					if (setup && setup.is_active && depositInfo.is_active) {
 						isPkgActive = true;
 					}
 				}

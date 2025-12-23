@@ -31,12 +31,12 @@ async function main() {
 	const DB_NAME = config.db_name;
 	console.log(`Using environment: ${env}, DB: ${DB_NAME}`);
 
-	if (!config.nbtcCfgs || config.nbtcCfgs.length === 0) {
+	if (!config.setups || config.setups.length === 0) {
 		console.log("No packages to seed.");
 		return;
 	}
 
-	for (const entry of config.nbtcCfgs) {
+	for (const entry of config.setups) {
 		if (
 			!entry.btc_network ||
 			!entry.sui_network ||

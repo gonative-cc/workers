@@ -27,12 +27,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	const db = await mf.getD1Database("DB");
-	const tables = [
-		"nbtc_utxos",
-		"nbtc_redeem_requests",
-		"nbtc_deposit_addresses",
-		"nbtc_packages",
-	];
+	const tables = ["nbtc_utxos", "nbtc_redeem_requests", "nbtc_deposit_addresses", "setups"];
 	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
 	await db.exec(dropStms);
 });
@@ -43,6 +38,7 @@ describe("D1Storage", () => {
 
 	async function insertRedeemRequest(
 		redeemId: number,
+		setupId: number,
 		packageId: number,
 		redeemer: string,
 		recipientScript: ArrayBuffer,
@@ -52,10 +48,19 @@ describe("D1Storage", () => {
 	) {
 		await db
 			.prepare(
-				`INSERT INTO nbtc_redeem_requests (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO nbtc_redeem_requests (redeem_id, setup_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
-			.bind(redeemId, packageId, redeemer, recipientScript, amountSats, createdAt, status)
+			.bind(
+				redeemId,
+				setupId,
+				packageId,
+				redeemer,
+				recipientScript,
+				amountSats,
+				createdAt,
+				status,
+			)
 			.run();
 	}
 
@@ -94,13 +99,13 @@ describe("D1Storage", () => {
 		storage = new D1Storage(db);
 		await db
 			.prepare(
-				`INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
                  VALUES (1, 'regtest', 'devnet', '0xPkg1', '0xContract1', '0xLC1', '0xLCC1', '0xFallback1', 1)`,
 			)
 			.run();
 		await db
 			.prepare(
-				`INSERT INTO nbtc_deposit_addresses (id, package_id, deposit_address, is_active)
+				`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
                  VALUES (1, 1, 'bcrt1qAddress1', 1)`,
 			)
 			.run();
@@ -112,6 +117,7 @@ describe("D1Storage", () => {
 		await insertRedeemRequest(
 			2,
 			1,
+			1,
 			"redeemer1",
 			recipientScript,
 			5000,
@@ -119,6 +125,7 @@ describe("D1Storage", () => {
 			RedeemRequestStatus.Pending,
 		);
 		await insertRedeemRequest(
+			1,
 			1,
 			1,
 			"redeemer1",
@@ -143,6 +150,7 @@ describe("D1Storage", () => {
 		await insertRedeemRequest(
 			1,
 			1,
+			1,
 			"redeemer1",
 			recipientScript,
 			3000,
@@ -151,6 +159,7 @@ describe("D1Storage", () => {
 		);
 		await insertRedeemRequest(
 			2,
+			1,
 			1,
 			"redeemer1",
 			recipientScript,
@@ -198,19 +207,19 @@ describe("D1Storage", () => {
 		expect(utxos[1]!.nbtc_utxo_id).toBe(1);
 	});
 
-	it("getAvailableUtxos should filter by package_id and status", async () => {
+	it("getAvailableUtxos should filter by setup_id and status", async () => {
 		const scriptPubkey = new Uint8Array([0x00, 0x14]).buffer;
 
 		await db
 			.prepare(
-				`INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
                  VALUES (2, 'testnet', 'testnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 1)`,
 			)
 			.run();
 
 		await db
 			.prepare(
-				`INSERT INTO nbtc_deposit_addresses (id, package_id, deposit_address, is_active)
+				`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
                  VALUES (2, 2, 'tb1qAddress2', 1)`,
 			)
 			.run();
@@ -265,6 +274,7 @@ describe("D1Storage", () => {
 		await insertRedeemRequest(
 			1,
 			1,
+			1,
 			"redeemer1",
 			recipientScript,
 			3000,
@@ -305,6 +315,7 @@ describe("D1Storage", () => {
 		await insertRedeemRequest(
 			1,
 			1,
+			1,
 			"redeemer1",
 			recipientScript,
 			3000,
@@ -324,13 +335,13 @@ describe("D1Storage", () => {
 	it("getActiveNetworks should return distinct active networks", async () => {
 		await db
 			.prepare(
-				`INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
                  VALUES (2, 'mainnet', 'mainnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 1)`,
 			)
 			.run();
 		await db
 			.prepare(
-				`INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
                  VALUES (3, 'testnet', 'testnet', '0xPkg3', '0xContract3', '0xLC3', '0xLCC3', '0xFallback3', 0)`,
 			)
 			.run();

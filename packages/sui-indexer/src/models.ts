@@ -39,6 +39,15 @@ export interface RedeemRequest {
 	sui_network: SuiNet;
 }
 
+// response interface for redeem requests rpc
+export interface RedeemRequestResp {
+	redeem_id: number;
+	recipient_script: string;
+	amount_sats: number;
+	status: RedeemRequestStatus;
+	created_at: number;
+}
+
 export interface UtxoIngestData {
 	nbtc_utxo_id: number;
 	dwallet_id: string;

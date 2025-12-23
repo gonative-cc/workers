@@ -282,16 +282,10 @@ export async function setupTestIndexer(
 
 	const expectSenderCount = async (count: number, expectedAddress?: string): Promise<void> => {
 		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
-		if (count === 0) {
-			if (results.length > 0 && results[0]) {
-				expect(results[0].sender).toEqual("");
-			}
-		} else {
-			const recordsWithSender = results.filter((r) => r.sender && r.sender !== "");
-			expect(recordsWithSender.length).toEqual(count);
-			if (expectedAddress && recordsWithSender[0]) {
-				expect(recordsWithSender[0].sender).toEqual(expectedAddress);
-			}
+		const recordsWithSender = results.filter((r) => r.sender && r.sender !== "");
+		expect(recordsWithSender.length).toEqual(count);
+		if (expectedAddress && recordsWithSender[0]) {
+			expect(recordsWithSender[0].sender).toEqual(expectedAddress);
 		}
 	};
 
@@ -304,9 +298,8 @@ export async function setupTestIndexer(
 			.bind(txId)
 			.all();
 		expect(results.length).toEqual(1);
-		if (results[0]) {
-			expect(results[0].status).toEqual(expectedStatus);
-		}
+		expect(results[0]).toBeDefined();
+		expect(results[0]!.status).toEqual(expectedStatus);
 	};
 
 	return {

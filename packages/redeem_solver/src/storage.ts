@@ -1,8 +1,9 @@
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import {
 	UtxoStatus,
-	type RedeemRequest,
 	RedeemRequestStatus,
+	type RedeemRequest,
+	type RedeemRequestResp,
 	type Utxo,
 } from "@gonative-cc/sui-indexer/models";
 import type { RedeemInput, RedeemRequestWithInputs } from "./models";
@@ -42,7 +43,7 @@ export interface Storage {
 	saveRedeemInputs(inputs: Omit<RedeemInput, "sign_id">[]): Promise<void>;
 	updateInputSignature(redeemId: number, utxoId: number, signId: string): Promise<void>;
 	getRedeemInputs(redeemId: number): Promise<RedeemInput[]>;
-	getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequest[]>;
+	getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 }
 
@@ -72,13 +73,11 @@ export class D1Storage implements Storage {
 		}));
 	}
 
-	async getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequest[]> {
+	async getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]> {
 		const query = `
             SELECT
-                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
-                p.nbtc_pkg, p.nbtc_contract, p.sui_network
+                r.redeem_id, r.recipient_script, r.amount_sats, r.status, r.created_at,
             FROM nbtc_redeem_requests r
-            JOIN setups p ON r.setup_id = p.id
             WHERE r.redeemer = ? AND r.setup_id = ?
             ORDER BY r.created_at DESC
         `;
@@ -86,13 +85,9 @@ export class D1Storage implements Storage {
 		const { results } = await this.db
 			.prepare(query)
 			.bind(redeemer, setupId)
-			.all<RedeemRequestRow>();
+			.all<RedeemRequestResp>();
 
-		return results.map((r) => ({
-			...r,
-			recipient_script: new Uint8Array(r.recipient_script),
-			sui_network: toSuiNet(r.sui_network),
-		}));
+		return results;
 	}
 
 	async getSolvedRedeems(): Promise<RedeemRequestWithInputs[]> {

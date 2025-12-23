@@ -1,4 +1,4 @@
-export interface NbtcPackageConfig {
+export interface SetupCfg {
 	btc_network: string;
 	sui_network: string;
 	nbtc_pkg: string;
@@ -13,13 +13,13 @@ export type EnvName = "prod" | "backstage" | "dev";
 
 interface Config {
 	db_name: string;
-	nbtcCfgs: NbtcPackageConfig[];
+	setups: SetupCfg[];
 }
 
-export const NBTC_PACKAGES: Record<EnvName, Config> = {
+export const SETUPS: Record<EnvName, Config> = {
 	dev: {
 		db_name: "btcindexer-dev",
-		nbtcCfgs: [
+		setups: [
 			// testnet-v3.0
 			{
 				btc_network: "regtest",
@@ -37,10 +37,10 @@ export const NBTC_PACKAGES: Record<EnvName, Config> = {
 	},
 	backstage: {
 		db_name: "btcindexer-backstage",
-		nbtcCfgs: [],
+		setups: [],
 	},
 	prod: {
 		db_name: "btcindexer-prod",
-		nbtcCfgs: [],
+		setups: [],
 	},
 };

@@ -124,7 +124,7 @@ export class RedeemService {
 			amountSats: req.amount_sats.toString(),
 		});
 		// TODO: we should only fetch it once for all requests. So we fetch it in processPendingRedeems and the pass it to this method
-		const availableUtxos = await this.storage.getAvailableUtxos(req.package_id);
+		const availableUtxos = await this.storage.getAvailableUtxos(req.setup_id);
 		const selectedUtxos = selectUtxos(availableUtxos, req.amount_sats);
 
 		if (!selectedUtxos) {

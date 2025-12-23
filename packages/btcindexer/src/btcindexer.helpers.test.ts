@@ -120,7 +120,7 @@ export async function setupTestIndexerSuite(
 
 	await db
 		.prepare(
-			`INSERT INTO nbtc_packages (
+			`INSERT INTO setups (
 				id, btc_network, sui_network, nbtc_pkg, nbtc_contract,
 				lc_pkg, lc_contract,
 				sui_fallback_address, is_active
@@ -145,14 +145,14 @@ export async function setupTestIndexerSuite(
 	for (const addr of depositAddresses) {
 		await db
 			.prepare(
-				`INSERT INTO nbtc_deposit_addresses (package_id, deposit_address, is_active)
+				`INSERT INTO nbtc_deposit_addresses (setup_id, deposit_address, is_active)
 				 VALUES (?, ?, 1)`,
 			)
 			.bind(packageConfig.id, addr)
 			.run();
 
 		nbtcAddressesMap.set(addr, {
-			package_id: packageConfig.id,
+			setup_id: packageConfig.id,
 			is_active: true,
 		});
 	}

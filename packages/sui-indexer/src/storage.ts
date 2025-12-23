@@ -21,31 +21,29 @@ export class IndexerStorage {
 	constructor(private db: D1Database) {}
 
 	// returns the latest cursor position for querying Sui events.
-	// @pkgId: nbtc_packages row ID
-	async getSuiGqlCursor(pkgId: number): Promise<string | null> {
+	// @setupId: setups row ID
+	async getSuiGqlCursor(setupId: number): Promise<string | null> {
 		const res = await this.db
-			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE package_id = ?")
-			.bind(pkgId)
+			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE setup_id = ?")
+			.bind(setupId)
 			.first<{ nbtc_cursor: string }>();
 		return res?.nbtc_cursor || null;
 	}
 
 	// Saves the cursor position for querying Sui events.
-	async saveSuiGqlCursor(pkgId: number, nbtcCursor: string): Promise<void> {
+	async saveSuiGqlCursor(setupId: number, nbtcCursor: string): Promise<void> {
 		await this.db
 			.prepare(
-				`INSERT INTO indexer_state (package_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
-             ON CONFLICT(package_id) DO UPDATE SET nbtc_cursor = excluded.nbtc_cursor, updated_at = excluded.updated_at`,
+				`INSERT INTO indexer_state (setup_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
+             ON CONFLICT(setup_id) DO UPDATE SET nbtc_cursor = excluded.nbtc_cursor, updated_at = excluded.updated_at`,
 			)
-			.bind(pkgId, nbtcCursor, Date.now())
+			.bind(setupId, nbtcCursor, Date.now())
 			.run();
 	}
 
 	async insertUtxo(u: UtxoIngestData): Promise<void> {
 		const pkgRow = await this.db
-			.prepare(
-				"SELECT id, btc_network FROM nbtc_packages WHERE nbtc_pkg = ? AND sui_network = ?",
-			)
+			.prepare("SELECT id, btc_network FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
 			.bind(u.nbtc_pkg, u.sui_network)
 			.first<{ id: number; btc_network: string }>();
 
@@ -68,7 +66,7 @@ export class IndexerStorage {
 
 		const addrRow = await this.db
 			.prepare(
-				"SELECT id FROM nbtc_deposit_addresses WHERE package_id = ? AND deposit_address = ?",
+				"SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ? AND deposit_address = ?",
 			)
 			.bind(pkgRow.id, depositAddress)
 			.first<{ id: number }>();
@@ -132,7 +130,7 @@ export class IndexerStorage {
 
 	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<void> {
 		const pkgRow = await this.db
-			.prepare("SELECT id FROM nbtc_packages WHERE nbtc_pkg = ? AND sui_network = ?")
+			.prepare("SELECT id FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
 			.bind(r.nbtc_pkg, r.sui_network)
 			.first<{ id: number }>();
 
@@ -145,7 +143,7 @@ export class IndexerStorage {
 			await this.db
 				.prepare(
 					`INSERT OR IGNORE INTO nbtc_redeem_requests
-            (redeem_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
+            (redeem_id, setup_id, redeemer, recipient_script, amount_sats, created_at, status)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
 				)
 				.bind(
@@ -175,9 +173,7 @@ export class IndexerStorage {
 
 	async getActiveNbtcPkgs(networkName: string): Promise<PkgCfg[]> {
 		const result = await this.db
-			.prepare(
-				"SELECT id, nbtc_pkg FROM nbtc_packages WHERE sui_network = ? AND is_active = 1",
-			)
+			.prepare("SELECT id, nbtc_pkg FROM setups WHERE sui_network = ? AND is_active = 1")
 			.bind(networkName)
 			.all<PkgCfg>();
 
@@ -186,7 +182,7 @@ export class IndexerStorage {
 
 	async getActiveNetworks(): Promise<SuiNet[]> {
 		const result = await this.db
-			.prepare("SELECT DISTINCT sui_network FROM nbtc_packages WHERE is_active = 1")
+			.prepare("SELECT DISTINCT sui_network FROM setups WHERE is_active = 1")
 			.all<{ sui_network: string }>();
 
 		return result.results.map((r) => r.sui_network as SuiNet);

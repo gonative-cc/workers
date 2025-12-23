@@ -175,7 +175,7 @@ export class Indexer {
 		const result = await this.storage.insertBlockInfo(blockInfo);
 		if (!result.changed) {
 			logger.debug({
-				msg: "Skipping block, no already processed",
+				msg: "Skipping: block already processed",
 				method: "Indexer.processBlock",
 				height: blockInfo.height,
 				hash: blockInfo.hash,

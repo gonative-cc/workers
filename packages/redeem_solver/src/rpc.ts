@@ -17,8 +17,8 @@ export class RPC extends WorkerEntrypoint<Env> {
 		return;
 	}
 
-	async redeemsBySuiAddr(suiAddress: string, nbtcPkg: string): Promise<RedeemRequest[]> {
+	async redeemsBySuiAddr(suiAddress: string, setupId: number): Promise<RedeemRequest[]> {
 		const storage = new D1Storage(this.env.DB);
-		return storage.getRedeemsBySuiAddr(suiAddress, nbtcPkg);
+		return storage.getRedeemsBySuiAddr(suiAddress, setupId);
 	}
 }

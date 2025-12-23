@@ -28,7 +28,7 @@ export enum RedeemRequestStatus {
 
 export interface RedeemRequest {
 	redeem_id: string; // u64
-	package_id: number;
+	setup_id: number;
 	redeemer: string;
 	recipient_script: Uint8Array;
 	amount_sats: number;
@@ -99,7 +99,7 @@ export interface NetworkConfig {
 	url: string;
 }
 
-// partial entry in the nbtc_packages table
+// partial entry in the setups table
 export interface PkgCfg {
 	id: number;
 	nbtc_pkg: string;

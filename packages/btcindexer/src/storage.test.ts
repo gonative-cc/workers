@@ -36,7 +36,7 @@ afterEach(async () => {
 		"btc_blocks",
 		"nbtc_minting",
 		"nbtc_withdrawal",
-		"nbtc_packages",
+		"setups",
 		"nbtc_deposit_addresses",
 	];
 	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
@@ -49,7 +49,7 @@ describe("Storage Helper Functions", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
             VALUES
             (1, 'regtest', 'devnet', '0xPkg1', '0xContract1', '0xLC1', '0xLCC1', '0xFallback1', 1),
             (2, 'regtest', 'devnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 0)
@@ -67,7 +67,7 @@ describe("Storage Helper Functions", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
             VALUES (1, 'regtest', 'devnet', '0xPkg1', '0xContract1', '0xLC1', '0xLCC1', '0xFallback1', 1)
         `,
 			)
@@ -75,7 +75,7 @@ describe("Storage Helper Functions", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO nbtc_deposit_addresses (package_id, deposit_address, is_active)
+            INSERT INTO nbtc_deposit_addresses (setup_id, deposit_address, is_active)
             VALUES (1, 'bcrt1qAddress1', 1), (1, 'bcrt1qAddress2', 0)
         `,
 			)
@@ -103,7 +103,7 @@ describe("CFStorage", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO nbtc_packages (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
             VALUES (1, 'regtest', 'devnet', '0xPkg1', '0xContract1', '0xLC1', '0xLCC1', '0xFallback1', 1)
         `,
 			)
@@ -111,7 +111,7 @@ describe("CFStorage", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO nbtc_deposit_addresses (id, package_id, deposit_address, is_active)
+            INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
             VALUES (10, 1, 'bcrt1qAddress1', 1)
         `,
 			)

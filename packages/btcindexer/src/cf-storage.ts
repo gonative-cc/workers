@@ -31,7 +31,7 @@ export class CFStorage implements Storage {
 				.prepare(
 					`SELECT a.deposit_address
 					 FROM nbtc_deposit_addresses a
-					 JOIN nbtc_packages p ON a.package_id = p.id
+					 JOIN setups p ON a.setup_id = p.id
 					 WHERE p.btc_network = ? AND a.is_active = 1`,
 				)
 				.bind(btcNetwork)
@@ -163,7 +163,7 @@ export class CFStorage implements Storage {
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
 			`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, sui_tx_id, retry_count)
-             VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN nbtc_packages p ON a.package_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, NULL, 0)
+             VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN setups p ON a.setup_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, NULL, 0)
              ON CONFLICT(tx_id) DO UPDATE SET
                 block_hash = excluded.block_hash,
                 block_height = excluded.block_height,
@@ -206,10 +206,10 @@ export class CFStorage implements Storage {
 	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network, p.id as package_id
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, m.retry_count, p.nbtc_pkg, p.sui_network, p.id as setup_id
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN nbtc_packages p ON a.package_id = p.id
+				 JOIN setups p ON a.setup_id = p.id
 				 WHERE m.status = '${MintTxStatus.Finalized}' OR (m.status = '${MintTxStatus.MintFailed}' AND m.retry_count <= ?)`,
 			)
 			.bind(maxRetries)
@@ -225,7 +225,7 @@ export class CFStorage implements Storage {
 				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN nbtc_packages p ON a.package_id = p.id
+				 JOIN setups p ON a.setup_id = p.id
 				 WHERE m.status = '${MintTxStatus.Minted}' AND m.block_height >= ?`,
 			)
 			.bind(blockHeight)
@@ -245,7 +245,7 @@ export class CFStorage implements Storage {
 				FROM nbtc_minting m
 				INNER JOIN btc_blocks b ON m.block_height = b.height
 				JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				JOIN nbtc_packages p ON a.package_id = p.id AND p.btc_network = b.network
+				JOIN setups p ON a.setup_id = p.id AND p.btc_network = b.network
 				WHERE m.status = '${MintTxStatus.Minted}'
 					AND m.block_height >= ?
 					AND m.block_hash != b.hash`,
@@ -319,7 +319,7 @@ export class CFStorage implements Storage {
 				`SELECT DISTINCT m.block_hash, p.btc_network as network
 				FROM nbtc_minting m
 				JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				JOIN nbtc_packages p ON a.package_id = p.id
+				JOIN setups p ON a.setup_id = p.id
 				WHERE m.status = '${MintTxStatus.Confirming}' AND m.block_hash IS NOT NULL`,
 			)
 			.all<ConfirmingBlockInfo>();
@@ -347,7 +347,7 @@ export class CFStorage implements Storage {
 				`SELECT m.tx_id, m.block_hash, m.block_height, p.btc_network, a.deposit_address
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN nbtc_packages p ON a.package_id = p.id
+				 JOIN setups p ON a.setup_id = p.id
 				 WHERE m.status = '${MintTxStatus.Confirming}'`,
 			)
 			.all<PendingTx>();
@@ -372,7 +372,7 @@ export class CFStorage implements Storage {
 				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN nbtc_packages p ON a.package_id = p.id
+				 JOIN setups p ON a.setup_id = p.id
 				 WHERE m.tx_id = ?`,
 			)
 			.bind(txId)
@@ -385,7 +385,7 @@ export class CFStorage implements Storage {
 				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN nbtc_packages p ON a.package_id = p.id
+				 JOIN setups p ON a.setup_id = p.id
 				 WHERE m.sui_recipient = ? ORDER BY m.created_at DESC`,
 			)
 			.bind(suiAddress)
@@ -397,7 +397,7 @@ export class CFStorage implements Storage {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT OR IGNORE INTO nbtc_minting (tx_id, address_id, sender, vout, sui_recipient, amount_sats, status, created_at, updated_at, sui_tx_id, retry_count)
-             VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN nbtc_packages p ON a.package_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, NULL, 0)`,
+             VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN setups p ON a.setup_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, NULL, 0)`,
 		);
 
 		const statements = deposits.map((deposit) =>
@@ -434,7 +434,7 @@ export class CFStorage implements Storage {
             SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
             FROM nbtc_minting m
             JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-            JOIN nbtc_packages p ON a.package_id = p.id
+            JOIN setups p ON a.setup_id = p.id
             WHERE m.sender = ? AND p.btc_network = ?
             ORDER BY m.created_at DESC
         `);

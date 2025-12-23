@@ -97,7 +97,7 @@ afterEach(async () => {
 		"btc_blocks",
 		"nbtc_minting",
 		"nbtc_withdrawal",
-		"nbtc_packages",
+		"setups",
 		"nbtc_deposit_addresses",
 	];
 	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
@@ -637,7 +637,7 @@ describe("Indexer.findFinalizedTxs (Inactive)", () => {
 			[
 				"inactive_address",
 				{
-					package_id: 1,
+					setup_id: 1,
 					is_active: false,
 				},
 			],

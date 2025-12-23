@@ -57,8 +57,8 @@ CREATE INDEX IF NOT EXISTS nbtc_withdraw_sender ON nbtc_withdrawal (sender, reci
 -- 5 = broadcasted to bitcoin
 -- 6 = confirmations (here user technically already has the funds)
 
--- This table holds the config for nBTC packages.
-CREATE TABLE IF NOT EXISTS nbtc_packages (
+-- This table holds the config for nBTC setups.
+CREATE TABLE IF NOT EXISTS setups (
 	id INTEGER PRIMARY KEY,
 	btc_network TEXT NOT NULL,
 	sui_network TEXT NOT NULL,
@@ -73,11 +73,11 @@ CREATE TABLE IF NOT EXISTS nbtc_packages (
 
 CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
 	id INTEGER PRIMARY KEY,
-	package_id INTEGER NOT NULL,
+	setup_id INTEGER NOT NULL,
 	deposit_address TEXT NOT NULL,
 	is_active INTEGER NOT NULL DEFAULT 1,
-	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id) ON DELETE CASCADE,
-	-- make sure we don't share bitcoin deposit address between packages
+	FOREIGN KEY (setup_id) REFERENCES setups(id) ON DELETE CASCADE,
+	-- make sure we don't share bitcoin deposit address between setups
 	UNIQUE(deposit_address)
 ) STRICT;
 
@@ -99,18 +99,18 @@ CREATE INDEX IF NOT EXISTS _nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 
 CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	redeem_id TEXT NOT NULL PRIMARY KEY,
-	package_id INTEGER NOT NULL,
+	setup_id INTEGER NOT NULL,
 	redeemer TEXT NOT NULL,
 	recipient_script BLOB NOT NULL, -- script pubkey
 	amount_sats INTEGER NOT NULL,
 	created_at INTEGER NOT NULL,
 	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'solved', 'signed', 'broadcasted'
-	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
+	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS indexer_state (
-	package_id INTEGER PRIMARY KEY,
+	setup_id INTEGER PRIMARY KEY,
 	nbtc_cursor TEXT NOT NULL, -- last processed cursor state
 	updated_at INTEGER, -- epoch time in ms
-	FOREIGN KEY (package_id) REFERENCES nbtc_packages(id)
+	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;

@@ -7,7 +7,7 @@ export enum UtxoStatus {
 }
 
 export interface Utxo {
-	nbtc_utxo_id: string; // utxo_id (u64 index) from MintEvent
+	nbtc_utxo_id: number; // utxo_id (u64 index) from MintEvent
 	dwallet_id: string;
 	txid: string;
 	vout: number;
@@ -27,7 +27,7 @@ export enum RedeemRequestStatus {
 }
 
 export interface RedeemRequest {
-	redeem_id: string; // u64
+	redeem_id: number; // u64
 	package_id: number;
 	redeemer: string;
 	recipient_script: Uint8Array;
@@ -40,7 +40,7 @@ export interface RedeemRequest {
 }
 
 export interface UtxoIngestData {
-	nbtc_utxo_id: string;
+	nbtc_utxo_id: number;
 	dwallet_id: string;
 	txid: string;
 	vout: number;
@@ -53,7 +53,7 @@ export interface UtxoIngestData {
 }
 
 export interface RedeemRequestIngestData {
-	redeem_id: string;
+	redeem_id: number;
 	redeemer: string;
 	recipient_script: Uint8Array;
 	amount_sats: number;
@@ -86,6 +86,12 @@ export interface ProposeUtxoEventRaw {
 	redeem_id: string;
 	dwallet_ids: string[];
 	utxo_ids: string[];
+}
+
+export interface SolvedEventRaw {
+	redeem_id: string;
+	utxo_ids: string[];
+	dwallet_ids: string[];
 }
 
 export interface SuiEventNode {

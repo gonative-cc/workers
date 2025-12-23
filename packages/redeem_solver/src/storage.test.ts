@@ -42,10 +42,10 @@ describe("D1Storage", () => {
 	let db: D1Database;
 
 	async function insertRedeemRequest(
-		redeemId: string,
+		redeemId: number,
 		packageId: number,
 		redeemer: string,
-		recipientScript: Uint8Array,
+		recipientScript: ArrayBuffer,
 		amountSats: number,
 		createdAt: number,
 		status: RedeemRequestStatus,
@@ -60,13 +60,13 @@ describe("D1Storage", () => {
 	}
 
 	async function insertUtxo(
-		utxoId: string,
+		utxoId: number,
 		addressId: number,
 		dwalletId: string,
 		txid: string,
 		vout: number,
 		amountSats: number,
-		scriptPubkey: Uint8Array,
+		scriptPubkey: ArrayBuffer,
 		status: UtxoStatus,
 		lockedUntil: number | null,
 	) {
@@ -107,10 +107,10 @@ describe("D1Storage", () => {
 	});
 
 	it("getPendingRedeems should return pending redeems ordered by created_at", async () => {
-		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
+		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
 
 		await insertRedeemRequest(
-			"redeem2",
+			2,
 			1,
 			"redeemer1",
 			recipientScript,
@@ -119,7 +119,7 @@ describe("D1Storage", () => {
 			RedeemRequestStatus.Pending,
 		);
 		await insertRedeemRequest(
-			"redeem1",
+			1,
 			1,
 			"redeemer1",
 			recipientScript,
@@ -131,17 +131,17 @@ describe("D1Storage", () => {
 		const redeems = await storage.getPendingRedeems();
 
 		expect(redeems.length).toBe(2);
-		expect(redeems[0]!.redeem_id).toBe("redeem1");
-		expect(redeems[1]!.redeem_id).toBe("redeem2");
+		expect(redeems[0]!.redeem_id).toBe(1);
+		expect(redeems[1]!.redeem_id).toBe(2);
 		expect(redeems[0]!.sui_network).toBe(toSuiNet("devnet"));
 	});
 
 	it("getRedeemsReadyForSolving should filter by status and created_at", async () => {
-		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
+		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
 		const now = Date.now();
 
 		await insertRedeemRequest(
-			"redeem1",
+			1,
 			1,
 			"redeemer1",
 			recipientScript,
@@ -150,7 +150,7 @@ describe("D1Storage", () => {
 			RedeemRequestStatus.Proposed,
 		);
 		await insertRedeemRequest(
-			"redeem2",
+			2,
 			1,
 			"redeemer1",
 			recipientScript,
@@ -162,14 +162,14 @@ describe("D1Storage", () => {
 		const redeems = await storage.getRedeemsReadyForSolving(now);
 
 		expect(redeems.length).toBe(1);
-		expect(redeems[0]!.redeem_id).toBe("redeem1");
+		expect(redeems[0]!.redeem_id).toBe(1);
 	});
 
 	it("getAvailableUtxos should return utxos ordered by amount DESC", async () => {
-		const scriptPubkey = new Uint8Array([0x00, 0x14]);
+		const scriptPubkey = new Uint8Array([0x00, 0x14]).buffer;
 
 		await insertUtxo(
-			"utxo1",
+			1,
 			1,
 			"dwallet1",
 			"tx1",
@@ -180,7 +180,7 @@ describe("D1Storage", () => {
 			null,
 		);
 		await insertUtxo(
-			"utxo2",
+			2,
 			1,
 			"dwallet1",
 			"tx2",
@@ -194,12 +194,12 @@ describe("D1Storage", () => {
 		const utxos = await storage.getAvailableUtxos(1);
 
 		expect(utxos.length).toBe(2);
-		expect(utxos[0]!.nbtc_utxo_id).toBe("utxo2");
-		expect(utxos[1]!.nbtc_utxo_id).toBe("utxo1");
+		expect(utxos[0]!.nbtc_utxo_id).toBe(2);
+		expect(utxos[1]!.nbtc_utxo_id).toBe(1);
 	});
 
 	it("getAvailableUtxos should filter by package_id and status", async () => {
-		const scriptPubkey = new Uint8Array([0x00, 0x14]);
+		const scriptPubkey = new Uint8Array([0x00, 0x14]).buffer;
 
 		await db
 			.prepare(
@@ -216,7 +216,7 @@ describe("D1Storage", () => {
 			.run();
 
 		await insertUtxo(
-			"utxo1",
+			1,
 			1,
 			"dwallet1",
 			"tx1",
@@ -227,7 +227,7 @@ describe("D1Storage", () => {
 			null,
 		);
 		await insertUtxo(
-			"utxo_locked",
+			3,
 			1,
 			"dwallet1",
 			"tx_locked",
@@ -238,7 +238,7 @@ describe("D1Storage", () => {
 			Date.now() + 10000,
 		);
 		await insertUtxo(
-			"utxo2",
+			2,
 			2,
 			"dwallet2",
 			"tx2",
@@ -253,17 +253,17 @@ describe("D1Storage", () => {
 		const utxos2 = await storage.getAvailableUtxos(2);
 
 		expect(utxos1.length).toBe(1);
-		expect(utxos1[0]!.nbtc_utxo_id).toBe("utxo1");
+		expect(utxos1[0]!.nbtc_utxo_id).toBe(1);
 		expect(utxos2.length).toBe(1);
-		expect(utxos2[0]!.nbtc_utxo_id).toBe("utxo2");
+		expect(utxos2[0]!.nbtc_utxo_id).toBe(2);
 	});
 
 	it("markRedeemProposed should update redeem status and lock utxos", async () => {
-		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
-		const scriptPubkey = new Uint8Array([0x00, 0x14]);
+		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
+		const scriptPubkey = new Uint8Array([0x00, 0x14]).buffer;
 
 		await insertRedeemRequest(
-			"redeem1",
+			1,
 			1,
 			"redeemer1",
 			recipientScript,
@@ -272,7 +272,7 @@ describe("D1Storage", () => {
 			RedeemRequestStatus.Pending,
 		);
 		await insertUtxo(
-			"utxo1",
+			1,
 			1,
 			"dwallet1",
 			"tx1",
@@ -283,27 +283,27 @@ describe("D1Storage", () => {
 			null,
 		);
 
-		await storage.markRedeemProposed("redeem1", ["utxo1"], UTXO_LOCK_TIME_MS);
+		await storage.markRedeemProposed(1, [1], UTXO_LOCK_TIME_MS);
 
 		const redeem = await db
 			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
-			.bind("redeem1")
+			.bind(1)
 			.first<{ status: string }>();
 		expect(redeem!.status).toBe(RedeemRequestStatus.Proposed);
 
 		const utxo = await db
 			.prepare("SELECT status, locked_until FROM nbtc_utxos WHERE nbtc_utxo_id = ?")
-			.bind("utxo1")
+			.bind(1)
 			.first<{ status: string; locked_until: number }>();
 		expect(utxo!.status).toBe(UtxoStatus.Locked);
 		expect(utxo!.locked_until).toBeGreaterThan(Date.now());
 	});
 
 	it("markRedeemSolved should update redeem status", async () => {
-		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
+		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
 
 		await insertRedeemRequest(
-			"redeem1",
+			1,
 			1,
 			"redeemer1",
 			recipientScript,
@@ -312,11 +312,11 @@ describe("D1Storage", () => {
 			RedeemRequestStatus.Proposed,
 		);
 
-		await storage.markRedeemSolved("redeem1");
+		await storage.markRedeemSolved(1);
 
 		const redeem = await db
 			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
-			.bind("redeem1")
+			.bind(1)
 			.first<{ status: string }>();
 		expect(redeem!.status).toBe(RedeemRequestStatus.Solved);
 	});

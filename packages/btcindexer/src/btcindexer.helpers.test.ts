@@ -101,7 +101,7 @@ export interface TestIndexerHelper {
 	expectTxStatus: (txId: string, expectedStatus: MintTxStatus | string) => Promise<void>;
 }
 
-export async function setupTestIndexer(
+export async function setupTestIndexerSuite(
 	mf: Miniflare,
 	options: SetupOptions = {},
 ): Promise<TestIndexerHelper> {

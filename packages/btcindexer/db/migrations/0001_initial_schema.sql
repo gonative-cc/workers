@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;
 
+CREATE INDEX IF NOT EXISTS nbtc_redeem_requests_redeemer ON nbtc_redeem_requests (redeemer);
+
 CREATE TABLE IF NOT EXISTS nbtc_redeem_solutions (
 	redeem_id INTEGER NOT NULL, -- Reference to nbtc_redeem_requests (u64 from nbtc contract)
 	utxo_id INTEGER NOT NULL, -- Reference to nbtc_utxos
@@ -121,9 +123,8 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_solutions (
 	FOREIGN KEY (redeem_id) REFERENCES nbtc_redeem_requests(redeem_id),
 	FOREIGN KEY (utxo_id) REFERENCES nbtc_utxos(nbtc_utxo_id)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS nbtc_redeem_solutions_redeem_id ON nbtc_redeem_solutions(redeem_id);
 
-CREATE INDEX IF NOT EXISTS nbtc_redeem_requests_redeemer ON nbtc_redeem_requests (redeemer);
+CREATE INDEX IF NOT EXISTS nbtc_redeem_solutions_redeem_id ON nbtc_redeem_solutions(redeem_id);
 
 CREATE TABLE IF NOT EXISTS indexer_state (
 	setup_id INTEGER PRIMARY KEY,

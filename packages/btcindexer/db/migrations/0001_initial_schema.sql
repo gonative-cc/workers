@@ -123,6 +123,8 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_solutions (
 ) STRICT;
 CREATE INDEX IF NOT EXISTS nbtc_redeem_solutions_redeem_id ON nbtc_redeem_solutions(redeem_id);
 
+CREATE INDEX IF NOT EXISTS nbtc_redeem_requests_redeemer ON nbtc_redeem_requests (redeemer);
+
 CREATE TABLE IF NOT EXISTS indexer_state (
 	setup_id INTEGER PRIMARY KEY,
 	nbtc_cursor TEXT NOT NULL, -- last processed cursor state

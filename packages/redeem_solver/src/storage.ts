@@ -42,6 +42,7 @@ export interface Storage {
 	saveRedeemInputs(inputs: Omit<RedeemInput, "sign_id">[]): Promise<void>;
 	updateInputSignature(redeemId: number, utxoId: number, signId: string): Promise<void>;
 	getRedeemInputs(redeemId: number): Promise<RedeemInput[]>;
+	getRedeemsBySuiAddr(redeemer: string, nbtcPkg: string): Promise<RedeemRequest[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 }
 
@@ -62,6 +63,29 @@ export class D1Storage implements Storage {
 		const { results } = await this.db
 			.prepare(query)
 			.bind(RedeemRequestStatus.Pending)
+			.all<RedeemRequestRow>();
+
+		return results.map((r) => ({
+			...r,
+			recipient_script: new Uint8Array(r.recipient_script),
+			sui_network: toSuiNet(r.sui_network),
+		}));
+	}
+
+	async getRedeemsBySuiAddr(redeemer: string, nbtcPkg: string): Promise<RedeemRequest[]> {
+		const query = `
+            SELECT
+                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                p.nbtc_pkg, p.nbtc_contract, p.sui_network
+            FROM nbtc_redeem_requests r
+            JOIN setups p ON r.setup_id = p.id
+            WHERE r.redeemer = ? AND p.nbtc_pkg = ?
+            ORDER BY r.created_at DESC
+        `;
+
+		const { results } = await this.db
+			.prepare(query)
+			.bind(redeemer, nbtcPkg)
 			.all<RedeemRequestRow>();
 
 		return results.map((r) => ({

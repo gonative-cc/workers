@@ -1,6 +1,6 @@
-import type { RedeemRequest, Utxo } from "@gonative-cc/sui-indexer/models";
+import type { RedeemRequestResp, RedeemRequest, Utxo } from "@gonative-cc/sui-indexer/models";
 
-export type { RedeemRequest, Utxo };
+export type { RedeemRequestResp, Utxo };
 
 // Arguments for the contract call
 export interface ProposeRedeemCall {
@@ -25,6 +25,7 @@ export interface RedeemInput {
 	sign_id: string | null;
 	created_at: number;
 }
+
 export interface RedeemRequestWithInputs extends RedeemRequest {
 	inputs: RedeemInput[];
 }

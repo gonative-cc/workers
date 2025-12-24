@@ -54,7 +54,13 @@ interface SetupOptions {
 	testData?: TestBlocks;
 }
 
-export interface TestIndexerHelper {
+interface MfBindings {
+	DB: D1Database;
+	BtcBlocks: KVNamespace;
+	nbtc_txs: KVNamespace;
+}
+
+export class TesSuiteHelper {
 	indexer: Indexer;
 	db: D1Database;
 	blocksKV: KVNamespace;
@@ -62,134 +68,104 @@ export interface TestIndexerHelper {
 	storage: CFStorage;
 	mockSuiClient: MockSuiClient;
 	mockElectrs: Electrs;
+	private testData: TestBlocks;
+	private options: SetupOptions;
 
-	setupBlock: (height: number) => Promise<void>;
-	getBlock: (height: number) => Block;
-	getTx: (
-		height: number,
-		txIndex: number,
-	) => {
-		blockData: TestBlock;
-		block: Block;
-		targetTx: Transaction;
-		txInfo: TxInfo;
-	};
-	createBlockQueueRecord: (
-		height: number,
-		options?: Partial<BlockQueueRecord>,
-	) => BlockQueueRecord;
-
-	mockElectrsSender: (address: string) => void;
-	mockElectrsError: (error: Error) => void;
-	mockSuiMintBatch: (result: [boolean, string] | null) => void;
-
-	insertTx: (options: {
-		txId: string;
-		status: MintTxStatus | string;
-		retryCount?: number;
-		blockHeight?: number;
-		blockHash?: string;
-		suiRecipient?: string;
-		amountSats?: number;
-		depositAddress?: string;
-		sender?: string;
-		vout?: number;
-	}) => Promise<void>;
-
-	expectMintingCount: (count: number) => Promise<void>;
-	expectSenderCount: (count: number, expectedAddress?: string) => Promise<void>;
-	expectTxStatus: (txId: string, expectedStatus: MintTxStatus | string) => Promise<void>;
-}
-
-// test suite helper functions constructor.
-export async function setupTestIndexerSuite(
-	mf: Miniflare,
-	options: SetupOptions = {},
-): Promise<TestIndexerHelper> {
-	const testData = options.testData || {};
-
-	const db = await mf.getD1Database("DB");
-	await initDb(db);
-
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const env = (await mf.getBindings()) as any;
-	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
-	const blocksKV = env.BtcBlocks as KVNamespace;
-	const txsKV = env.nbtc_txs as KVNamespace;
-
-	const packageConfig: NbtcPkgCfg = options.packageConfig || TEST_PACKAGE_CONFIG;
-
-	await db
-		.prepare(
-			`INSERT INTO setups (
-				id, btc_network, sui_network, nbtc_pkg, nbtc_contract,
-				lc_pkg, lc_contract,
-				sui_fallback_address, is_active
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		)
-		.bind(
-			packageConfig.id,
-			packageConfig.btc_network,
-			packageConfig.sui_network,
-			packageConfig.nbtc_pkg,
-			packageConfig.nbtc_contract,
-			packageConfig.lc_pkg,
-			packageConfig.lc_contract,
-			packageConfig.sui_fallback_address,
-			packageConfig.is_active,
-		)
-		.run();
-
-	const nbtcAddressesMap: NbtcDepositAddrsMap = new Map();
-	const depositAddresses = options.depositAddresses || [];
-
-	for (const addr of depositAddresses) {
-		await db
-			.prepare(
-				`INSERT INTO nbtc_deposit_addresses (setup_id, deposit_address, is_active)
-				 VALUES (?, ?, 1)`,
-			)
-			.bind(packageConfig.id, addr)
-			.run();
-
-		nbtcAddressesMap.set(addr, {
-			setup_id: packageConfig.id,
-			is_active: true,
-		});
+	constructor(options: SetupOptions = {}) {
+		this.testData = options.testData || {};
+		this.options = options;
+		this.db = null!;
+		this.blocksKV = null!;
+		this.txsKV = null!;
+		this.storage = null!;
+		this.mockSuiClient = null!;
+		this.mockElectrs = null!;
+		this.indexer = null!;
 	}
 
-	const suiClients = new Map<SuiNet, SuiClientI>();
-	const mockSuiClient = options.customSuiClient || new MockSuiClient();
-	suiClients.set(toSuiNet(packageConfig.sui_network), mockSuiClient);
+	async init(mf: Miniflare): Promise<void> {
+		this.db = await mf.getD1Database("DB");
+		await initDb(this.db);
 
-	const electrsClients = new Map<BtcNet, Electrs>();
-	const mockElectrs = mkElectrsServiceMock();
-	electrsClients.set(BtcNet.REGTEST, mockElectrs);
+		const env = (await mf.getBindings()) as MfBindings;
+		this.storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
+		this.blocksKV = env.BtcBlocks;
+		this.txsKV = env.nbtc_txs;
 
-	const indexer = new Indexer(
-		storage,
-		[packageConfig],
-		suiClients,
-		nbtcAddressesMap,
-		options.confirmationDepth || 8,
-		options.maxRetries || 2,
-		electrsClients,
-	);
+		const packageConfig: NbtcPkgCfg = this.options.packageConfig || TEST_PACKAGE_CONFIG;
 
-	const setupBlock = async (height: number): Promise<void> => {
-		const blockData = testData[height];
+		await this.db
+			.prepare(
+				`INSERT INTO setups (
+					id, btc_network, sui_network, nbtc_pkg, nbtc_contract,
+					lc_pkg, lc_contract,
+					sui_fallback_address, is_active
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			)
+			.bind(
+				packageConfig.id,
+				packageConfig.btc_network,
+				packageConfig.sui_network,
+				packageConfig.nbtc_pkg,
+				packageConfig.nbtc_contract,
+				packageConfig.lc_pkg,
+				packageConfig.lc_contract,
+				packageConfig.sui_fallback_address,
+				packageConfig.is_active,
+			)
+			.run();
+
+		const nbtcAddressesMap: NbtcDepositAddrsMap = new Map();
+		const depositAddresses = this.options.depositAddresses || [];
+
+		for (const addr of depositAddresses) {
+			await this.db
+				.prepare(
+					`INSERT INTO nbtc_deposit_addresses (setup_id, deposit_address, is_active)
+					 VALUES (?, ?, 1)`,
+				)
+				.bind(packageConfig.id, addr)
+				.run();
+
+			nbtcAddressesMap.set(addr, {
+				setup_id: packageConfig.id,
+				is_active: true,
+			});
+		}
+
+		const suiClients = new Map<SuiNet, SuiClientI>();
+		this.mockSuiClient = this.options.customSuiClient || new MockSuiClient();
+		suiClients.set(toSuiNet(packageConfig.sui_network), this.mockSuiClient);
+
+		const electrsClients = new Map<BtcNet, Electrs>();
+		this.mockElectrs = mkElectrsServiceMock();
+		electrsClients.set(BtcNet.REGTEST, this.mockElectrs);
+
+		this.indexer = new Indexer(
+			this.storage,
+			[packageConfig],
+			suiClients,
+			nbtcAddressesMap,
+			this.options.confirmationDepth || 8,
+			this.options.maxRetries || 2,
+			electrsClients,
+		);
+	}
+
+	setupBlock = async (height: number): Promise<void> => {
+		const blockData = this.testData[height];
 		if (!blockData) throw new Error(`Block ${height} not found in test data`);
-		await blocksKV.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
+		await this.blocksKV.put(blockData.hash, Buffer.from(blockData.rawBlockHex, "hex").buffer);
 	};
 
-	const getBlock = (height: number): Block => {
-		const blockData = testData[height];
+	getBlock = (height: number): Block => {
+		const blockData = this.testData[height];
 		if (!blockData) throw new Error(`Block ${height} not found in test data`);
 		return Block.fromHex(blockData.rawBlockHex);
 	};
 
-	const getTx = (height: number, txIndex: number) => {
-		const blockData = testData[height];
+	getTx = (height: number, txIndex: number) => {
+		const blockData = this.testData[height];
 		if (!blockData) throw new Error(`Block ${height} not found in test data`);
 
 		const block = Block.fromHex(blockData.rawBlockHex);
@@ -202,11 +178,11 @@ export async function setupTestIndexerSuite(
 		return { blockData, block, targetTx, txInfo };
 	};
 
-	const createBlockQueueRecord = (
+	createBlockQueueRecord = (
 		height: number,
 		options?: Partial<BlockQueueRecord>,
 	): BlockQueueRecord => {
-		const blockData = testData[height];
+		const blockData = this.testData[height];
 		if (!blockData) throw new Error(`Block ${height} not found in test data`);
 
 		return {
@@ -217,9 +193,9 @@ export async function setupTestIndexerSuite(
 		};
 	};
 
-	const mockElectrsSender = (address: string): void => {
+	mockElectrsSender = (address: string): void => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(mockElectrs.getTx as any).mockResolvedValue(
+		(this.mockElectrs.getTx as any).mockResolvedValue(
 			new Response(
 				JSON.stringify({
 					vout: [{ scriptpubkey_address: address }],
@@ -228,16 +204,16 @@ export async function setupTestIndexerSuite(
 		);
 	};
 
-	const mockElectrsError = (error: Error): void => {
+	mockElectrsError = (error: Error): void => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(mockElectrs.getTx as any).mockRejectedValue(error);
+		(this.mockElectrs.getTx as any).mockRejectedValue(error);
 	};
 
-	const mockSuiMintBatch = (result: [boolean, string] | null): void => {
-		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(result);
+	mockSuiMintBatch = (result: [boolean, string] | null): void => {
+		this.mockSuiClient.tryMintNbtcBatch.mockResolvedValue(result);
 	};
 
-	const insertTx = async (options: {
+	insertTx = async (options: {
 		txId: string;
 		status: MintTxStatus | string;
 		retryCount?: number;
@@ -249,13 +225,13 @@ export async function setupTestIndexerSuite(
 		sender?: string;
 		vout?: number;
 	}): Promise<void> => {
-		const defaultBlock = testData[329] || testData[327] || Object.values(testData)[0];
+		const defaultBlock =
+			this.testData[329] || this.testData[327] || Object.values(this.testData)[0];
 		if (!defaultBlock) throw new Error("No test data available for default values");
 
 		const depositAddr = options.depositAddress || defaultBlock.depositAddr;
 
-		// Validate that the deposit address exists in the database
-		const addressResult = await db
+		const addressResult = await this.db
 			.prepare(`SELECT id FROM nbtc_deposit_addresses WHERE deposit_address = ?`)
 			.bind(depositAddr)
 			.first<{ id: number }>();
@@ -267,7 +243,7 @@ export async function setupTestIndexerSuite(
 			);
 		}
 
-		await db
+		await this.db
 			.prepare(
 				`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count)
 				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -289,13 +265,13 @@ export async function setupTestIndexerSuite(
 			.run();
 	};
 
-	const expectMintingCount = async (count: number): Promise<void> => {
-		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
+	expectMintingCount = async (count: number): Promise<void> => {
+		const { results } = await this.db.prepare("SELECT * FROM nbtc_minting").all();
 		expect(results.length).toEqual(count);
 	};
 
-	const expectSenderCount = async (count: number, expectedAddress?: string): Promise<void> => {
-		const { results } = await db.prepare("SELECT * FROM nbtc_minting").all();
+	expectSenderCount = async (count: number, expectedAddress?: string): Promise<void> => {
+		const { results } = await this.db.prepare("SELECT * FROM nbtc_minting").all();
 		const recordsWithSender = results.filter((r) => r.sender && r.sender !== "");
 		expect(recordsWithSender.length).toEqual(count);
 		if (expectedAddress && recordsWithSender[0]) {
@@ -303,37 +279,13 @@ export async function setupTestIndexerSuite(
 		}
 	};
 
-	const expectTxStatus = async (
-		txId: string,
-		expectedStatus: MintTxStatus | string,
-	): Promise<void> => {
-		const { results } = await db
+	expectTxStatus = async (txId: string, expectedStatus: MintTxStatus | string): Promise<void> => {
+		const { results } = await this.db
 			.prepare("SELECT status FROM nbtc_minting WHERE tx_id = ?")
 			.bind(txId)
 			.all();
 		expect(results.length).toEqual(1);
 		expect(results[0]).toBeDefined();
 		expect(results[0]!.status).toEqual(expectedStatus);
-	};
-
-	return {
-		indexer,
-		db,
-		blocksKV,
-		txsKV,
-		storage,
-		mockSuiClient,
-		mockElectrs,
-		setupBlock,
-		getBlock,
-		getTx,
-		createBlockQueueRecord,
-		mockElectrsSender,
-		mockElectrsError,
-		mockSuiMintBatch,
-		insertTx,
-		expectMintingCount,
-		expectSenderCount,
-		expectTxStatus,
 	};
 }

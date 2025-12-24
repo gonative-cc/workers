@@ -8,7 +8,8 @@ import { Indexer } from "./btcindexer";
 import type { Deposit, ProofResult } from "./models";
 import { MintTxStatus } from "./models";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
-import { setupTestIndexerSuite, type TestIndexerHelper } from "./btcindexer.helpers.test";
+import { TesSuiteHelper } from "./btcindexer.helpers.test";
+
 interface TxInfo {
 	id: string;
 	suiAddr: string;
@@ -63,9 +64,9 @@ const REGTEST_DATA: TestBlocks = {
 
 let mf: Miniflare;
 let indexer: Indexer;
-let suite: TestIndexerHelper;
+let suite: TesSuiteHelper;
 
-beforeAll(async () => {
+beforeAll(() => {
 	mf = new Miniflare({
 		script: "",
 		modules: true,
@@ -82,13 +83,13 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-	suite = await setupTestIndexerSuite(mf, {
+	suite = new TesSuiteHelper({
 		depositAddresses: [REGTEST_DATA[329]!.depositAddr],
 		confirmationDepth: 8,
 		maxRetries: 2,
 		testData: REGTEST_DATA,
 	});
-
+	suite.init(mf);
 	indexer = suite.indexer;
 });
 

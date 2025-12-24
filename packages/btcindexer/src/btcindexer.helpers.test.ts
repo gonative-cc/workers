@@ -1,7 +1,6 @@
 import { Miniflare } from "miniflare";
-import { Block, type Transaction } from "bitcoinjs-lib";
+import { Block } from "bitcoinjs-lib";
 import { expect } from "bun:test";
-import type { D1Database, KVNamespace } from "@cloudflare/workers-types";
 
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";

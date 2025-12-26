@@ -16,7 +16,7 @@ type Client struct {
 
 const (
 	pathBlocks           = "/bitcoin/blocks"
-	pathLatestHeight     = "/bitcoin/height"
+	pathLatestHeight     = "/bitcoin/latest-height"
 	pathDepositsBySender = "/bitcoin/deposits/"
 )
 

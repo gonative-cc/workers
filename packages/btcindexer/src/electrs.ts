@@ -5,7 +5,7 @@ export type GlobalFetcher = (input: RequestInfo | URL, init?: RequestInit) => Pr
 export const ELECTRS_URLS_BY_NETWORK: Record<BtcNet, string | undefined> = {
 	mainnet: undefined,
 	testnet: undefined,
-	regtest: "https://bitcoin-devnet.gonative.cc",
+	regtest: "http://localhost:8080/regtest/api",
 	signet: undefined,
 };
 

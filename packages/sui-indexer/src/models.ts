@@ -47,8 +47,8 @@ export interface RedeemRequestResp {
 	status: RedeemRequestStatus;
 	created_at: number;
 	sui_tx: string; // sui tx initiating the redeem process
-	btc_tx: string | null; // null if not broadasted
-	confirmations: number; // 0 if not broadasted
+	btc_tx: string | null; // null if not broadcasted
+	confirmations: number; // 0 if not broadcasted
 }
 
 export interface UtxoIngestData {

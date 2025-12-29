@@ -27,6 +27,9 @@ interface ModuleEventsResponse {
 				};
 				json: unknown; // event data
 			};
+			transaction: {
+				digest: string;
+			};
 		}[];
 	};
 }
@@ -46,6 +49,9 @@ const MODULE_EVENTS_QUERY = gql`
 						repr
 					}
 					json
+				}
+				transaction {
+					digest
 				}
 			}
 		}
@@ -70,6 +76,7 @@ export class SuiGraphQLClient implements EventFetcher {
 			type: node.contents.type.repr,
 			json: node.contents.json,
 			timestamp: node.timestamp,
+			txDigest: node.transaction.digest,
 		}));
 
 		return {

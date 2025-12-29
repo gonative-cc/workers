@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	recipient_script BLOB NOT NULL, -- script pubkey
 	amount_sats INTEGER NOT NULL,
 	created_at INTEGER NOT NULL,
+	sui_tx TEXT NOT NULL,
+	btc_tx TEXT, -- null if not broadcasted
 	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'solved', 'signed', 'broadcasted'
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;

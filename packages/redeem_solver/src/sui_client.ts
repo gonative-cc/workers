@@ -44,6 +44,13 @@ export interface SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<string>;
+	validateSignature(
+		redeemId: number,
+		inputIdx: number,
+		signId: string,
+		nbtcPkg: string,
+		nbtcContract: string,
+	): Promise<void>;
 }
 
 export class SuiClientImp implements SuiClient {
@@ -319,6 +326,41 @@ export class SuiClientImp implements SuiClient {
 		).fromBase64(event.bcs as string);
 
 		return eventDecoded.event_data.sign_id;
+	}
+
+	async validateSignature(
+		redeemId: number,
+		inputIdx: number,
+		signId: string,
+		nbtcPkg: string,
+		nbtcContract: string,
+	): Promise<void> {
+		await this.ensureIkaInitialized();
+		const tx = new Transaction();
+		const coordinatorId = this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
+
+		tx.moveCall({
+			target: `${nbtcPkg}::nbtc::validate_signature`,
+			arguments: [
+				tx.object(nbtcContract),
+				tx.object(coordinatorId),
+				tx.pure.u64(redeemId),
+				tx.pure.u64(inputIdx),
+				tx.object(signId),
+			],
+		});
+
+		const result = await this.client.signAndExecuteTransaction({
+			signer: this.signer,
+			transaction: tx,
+			options: {
+				showEffects: true,
+			},
+		});
+
+		if (result.effects?.status.status !== "success") {
+			throw new Error(`Signature validation failed: ${result.effects?.status.error}`);
+		}
 	}
 
 	private async ensureIkaInitialized() {

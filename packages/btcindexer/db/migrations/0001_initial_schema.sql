@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_solutions (
 	input_index INTEGER NOT NULL, -- The position of UTXO in the btc tx inputs
 	dwallet_id TEXT NOT NULL, -- The dWallet identifier this input
 	sign_id TEXT, -- Ika signature request identifie
+	verified INTEGER NOT NULL DEFAULT 0,
 	created_at INTEGER NOT NULL,
 	PRIMARY KEY (redeem_id, utxo_id),
 	FOREIGN KEY (redeem_id) REFERENCES nbtc_redeem_requests(redeem_id),

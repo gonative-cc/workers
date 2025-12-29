@@ -76,7 +76,7 @@ export class D1Storage implements Storage {
 	async getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]> {
 		const query = `
             SELECT
-                r.redeem_id, r.recipient_script, r.amount_sats, r.status, r.created_at, sui_tx, btc_tx
+                r.redeem_id, r.recipient_script, r.amount_sats, r.status, r.created_at, r.sui_tx, r.btc_tx
             FROM nbtc_redeem_requests r
             WHERE r.redeemer = ? AND r.setup_id = ?
             ORDER BY r.created_at DESC

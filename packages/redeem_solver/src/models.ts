@@ -23,6 +23,7 @@ export interface RedeemInput {
 	input_index: number;
 	dwallet_id: string;
 	sign_id: string | null;
+	verified: boolean;
 	created_at: number;
 }
 

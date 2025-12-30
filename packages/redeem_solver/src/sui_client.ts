@@ -340,7 +340,7 @@ export class SuiClientImp implements SuiClient {
 		const coordinatorId = this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
 
 		tx.moveCall({
-			target: `${nbtcPkg}::nbtc::validate_signature`,
+			target: `${nbtcPkg}::nbtc::record_signature`,
 			arguments: [
 				tx.object(nbtcContract),
 				tx.object(coordinatorId),

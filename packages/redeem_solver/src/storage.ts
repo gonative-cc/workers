@@ -51,8 +51,8 @@ export interface Storage {
 	markRedeemProposed(redeemId: number, utxoIds: number[], utxoLockTimeMs: number): Promise<void>;
 	markRedeemSolved(redeemId: number): Promise<void>;
 	saveRedeemInputs(inputs: Omit<RedeemInput, "sign_id" | "verified">[]): Promise<void>;
-	updateInputSignature(redeemId: number, utxoId: number, signId: string): Promise<void>;
-	markInputVerified(redeemId: number, utxoId: number): Promise<void>;
+	updateRedeemInputSig(redeemId: number, utxoId: number, signId: string): Promise<void>;
+	markRedeemInputVerified(redeemId: number, utxoId: number): Promise<void>;
 	getRedeemInputs(redeemId: number): Promise<RedeemInput[]>;
 	getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
@@ -235,7 +235,7 @@ export class D1Storage implements Storage {
 		);
 		await this.db.batch(batch);
 	}
-	async updateInputSignature(redeemId: number, utxoId: number, signId: string): Promise<void> {
+	async updateRedeemInputSig(redeemId: number, utxoId: number, signId: string): Promise<void> {
 		await this.db
 			.prepare(
 				`UPDATE nbtc_redeem_solutions SET sign_id = ? WHERE redeem_id = ? AND utxo_id = ?`,
@@ -244,7 +244,7 @@ export class D1Storage implements Storage {
 			.run();
 	}
 
-	async markInputVerified(redeemId: number, utxoId: number): Promise<void> {
+	async markRedeemInputVerified(redeemId: number, utxoId: number): Promise<void> {
 		await this.db
 			.prepare(
 				`UPDATE nbtc_redeem_solutions SET verified = 1 WHERE redeem_id = ? AND utxo_id = ?`,

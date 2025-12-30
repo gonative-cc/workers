@@ -59,9 +59,9 @@ export class RedeemService {
 		for (const input of req.inputs) {
 			try {
 				if (!input.sign_id) {
-					await this.ensureInputSigned(client, req, input);
+					await this.requestIkaSig(client, req, input);
 				} else if (input.sign_id && !input.verified) {
-					await this.ensureInputVerified(client, req, input);
+					await this.verifyIkaSig(client, req, input);
 				}
 			} catch (e) {
 				logError(
@@ -78,7 +78,7 @@ export class RedeemService {
 		}
 	}
 
-	private async ensureInputSigned(
+	private async requestIkaSig(
 		client: SuiClient,
 		req: RedeemRequestWithInputs,
 		input: RedeemInput,
@@ -113,7 +113,7 @@ export class RedeemService {
 			req.nbtc_contract,
 		);
 
-		await this.storage.updateInputSignature(req.redeem_id, input.utxo_id, signId);
+		await this.storage.updateRedeemInputSig(req.redeem_id, input.utxo_id, signId);
 		logger.info({
 			msg: "Requested signature",
 			redeemId: req.redeem_id,
@@ -122,7 +122,7 @@ export class RedeemService {
 		});
 	}
 
-	private async ensureInputVerified(
+	private async verifyIkaSig(
 		client: SuiClient,
 		req: RedeemRequestWithInputs,
 		input: RedeemInput,
@@ -147,7 +147,7 @@ export class RedeemService {
 			req.nbtc_contract,
 		);
 
-		await this.storage.markInputVerified(req.redeem_id, input.utxo_id);
+		await this.storage.markRedeemInputVerified(req.redeem_id, input.utxo_id);
 		logger.info({
 			msg: "Signature verified",
 			redeemId: req.redeem_id,

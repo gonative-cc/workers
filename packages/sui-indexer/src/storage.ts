@@ -143,8 +143,8 @@ export class IndexerStorage {
 			await this.db
 				.prepare(
 					`INSERT OR IGNORE INTO nbtc_redeem_requests
-            (redeem_id, setup_id, redeemer, recipient_script, amount_sats, created_at, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            (redeem_id, setup_id, redeemer, recipient_script, amount_sats, created_at, sui_tx, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 				)
 				.bind(
 					r.redeem_id,
@@ -153,6 +153,7 @@ export class IndexerStorage {
 					r.recipient_script,
 					r.amount_sats,
 					r.created_at,
+					r.sui_tx,
 					RedeemRequestStatus.Pending,
 				)
 				.run();

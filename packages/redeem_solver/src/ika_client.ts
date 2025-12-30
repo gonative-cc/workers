@@ -19,8 +19,8 @@ import {
 } from "@mysten/sui/transactions";
 
 export interface IkaClient {
-	initialize(): Promise<void>;
-	getIkaCoin(owner: string): Promise<string>;
+	/** Returns the coin object ID for an IKA coin owned by the address */
+	selectIkaCoin(owner: string): Promise<string>;
 	getLatestNetworkEncryptionKeyId(): Promise<string>;
 	getCoordinatorId(): string;
 	getPresignCapId(presignId: string): Promise<string>;
@@ -52,9 +52,10 @@ export class IkaClientImp implements IkaClient {
 		network: SuiNet,
 		private mystenClient: MystenClient,
 	) {
-		// this is needed because ika do not support devnet as of now
-		const ikaNetwork = network === "mainnet" ? "mainnet" : "testnet";
-		this.ikaConfig = getNetworkConfig(ikaNetwork);
+		if (network !== "mainnet" && network !== "testnet") {
+			throw new Error(`Ika SDK does not support network: ${network}`);
+		}
+		this.ikaConfig = getNetworkConfig(network);
 
 		this.ikaClient = new SdkIkaClient({
 			suiClient: this.mystenClient,
@@ -62,7 +63,13 @@ export class IkaClientImp implements IkaClient {
 		});
 	}
 
-	async initialize(): Promise<void> {
+	static async create(network: SuiNet, mystenClient: MystenClient): Promise<IkaClient> {
+		const client = new IkaClientImp(network, mystenClient);
+		await client.initialize();
+		return client;
+	}
+
+	private async initialize(): Promise<void> {
 		if (this.ikaClient.initialize) {
 			await this.ikaClient.initialize();
 		}
@@ -72,7 +79,7 @@ export class IkaClientImp implements IkaClient {
 		return this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
 	}
 
-	async getIkaCoin(owner: string): Promise<string> {
+	async selectIkaCoin(owner: string): Promise<string> {
 		const coins = await this.mystenClient.getCoins({
 			owner: owner,
 			coinType: `${this.ikaConfig.packages.ikaPackage}::ika::IKA`,

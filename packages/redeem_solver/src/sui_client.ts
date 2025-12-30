@@ -162,10 +162,9 @@ export class SuiClientImp implements SuiClient {
 	}
 
 	async createGlobalPresign(): Promise<string> {
-		await this.ikaClient.initialize();
 		const tx = new Transaction();
 
-		const ikaCoin = await this.ikaClient.getIkaCoin(this.signer.toSuiAddress());
+		const ikaCoin = await this.ikaClient.selectIkaCoin(this.signer.toSuiAddress());
 
 		if (!this.encryptionKeyId) {
 			const dWalletEncryptionKey = await this.ikaClient.getLatestNetworkEncryptionKeyId();
@@ -208,7 +207,6 @@ export class SuiClientImp implements SuiClient {
 		presignId: string,
 		message: Uint8Array,
 	): Promise<Uint8Array> {
-		await this.ikaClient.initialize();
 		return await this.ikaClient.createUserSigMessage(dwalletId, presignId, message);
 	}
 
@@ -220,10 +218,9 @@ export class SuiClientImp implements SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<string> {
-		await this.ikaClient.initialize();
 		const tx = new Transaction();
 
-		const ikaCoin = await this.ikaClient.getIkaCoin(this.signer.toSuiAddress());
+		const ikaCoin = await this.ikaClient.selectIkaCoin(this.signer.toSuiAddress());
 		const coordinatorId = this.ikaClient.getCoordinatorId();
 
 		const unverifiedPresignCap = await this.ikaClient.getPresignCapId(presignId);
@@ -270,7 +267,6 @@ export class SuiClientImp implements SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void> {
-		await this.ikaClient.initialize();
 		const tx = new Transaction();
 		const coordinatorId = this.ikaClient.getCoordinatorId();
 
@@ -299,15 +295,15 @@ export class SuiClientImp implements SuiClient {
 	}
 }
 
-export function createSuiClients(
+export async function createSuiClients(
 	activeNetworks: SuiNet[],
 	mnemonic: string,
-): Map<SuiNet, SuiClient> {
+): Promise<Map<SuiNet, SuiClient>> {
 	const clients = new Map<SuiNet, SuiClient>();
 	for (const net of activeNetworks) {
 		const url = getFullnodeUrl(net);
 		const mystenClient = new Client({ url });
-		const ikaClient = new IkaClientImp(net, mystenClient);
+		const ikaClient = await IkaClientImp.create(net, mystenClient);
 		clients.set(
 			net,
 			new SuiClientImp({

@@ -28,7 +28,7 @@ export default {
 		}
 		const storage = new D1Storage(env.DB);
 		const activeNetworks = await storage.getActiveNetworks();
-		const clients = createSuiClients(activeNetworks, mnemonic);
+		const clients = await createSuiClients(activeNetworks, mnemonic);
 		const service = new RedeemService(
 			storage,
 			clients,

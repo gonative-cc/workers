@@ -16,7 +16,7 @@ import type {
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
 } from "./models";
-import { MintTxStatus } from "./models";
+import { MintTxStatus, InsertBlockStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService, ELECTRS_URLS_BY_NETWORK } from "./electrs";
@@ -170,26 +170,25 @@ export class Indexer {
 			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
 		}
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
-		const existingHash = await this.storage.getBlockHash(blockInfo.height, blockInfo.network);
 
 		const result = await this.storage.insertBlockInfo(blockInfo);
-		if (!result.changed) {
+		if (result === InsertBlockStatus.Skipped) {
 			logger.debug({
 				msg: "Skipping: block already processed",
 				method: "Indexer.processBlock",
 				height: blockInfo.height,
 				hash: blockInfo.hash,
-				status: result.status,
+				status: result,
 			});
 			return;
 		}
 
-		if (existingHash !== null && existingHash !== blockInfo.hash) {
+		if (result === InsertBlockStatus.Updated) {
 			logger.info({
 				msg: "Reorg detected, calling detectMintedReorgs",
 				height: blockInfo.height,
-				existingHash,
-				newHash: blockInfo.hash,
+				hash: blockInfo.hash,
+				status: result,
 			});
 			await this.detectMintedReorgs(blockInfo.height);
 		}

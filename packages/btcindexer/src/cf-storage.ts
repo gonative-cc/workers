@@ -11,7 +11,7 @@ import type {
 	ConfirmingBlockInfo,
 	InsertBlockResult,
 } from "./models";
-import { MintTxStatus } from "./models";
+import { MintTxStatus, InsertBlockStatus } from "./models";
 import type { Storage } from "./storage";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
 
@@ -95,11 +95,11 @@ export class CFStorage implements Storage {
 			const rowsChanged = upsertResult.meta.changes > 0;
 
 			if (!wasFound) {
-				return { status: "inserted", changed: true };
+				return InsertBlockStatus.Inserted;
 			} else if (rowsChanged) {
-				return { status: "updated", changed: true };
+				return InsertBlockStatus.Updated;
 			} else {
-				return { status: "skipped", changed: false };
+				return InsertBlockStatus.Skipped;
 			}
 		} catch (e) {
 			logError(

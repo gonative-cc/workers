@@ -101,11 +101,12 @@ CREATE INDEX IF NOT EXISTS _nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	redeem_id INTEGER NOT NULL PRIMARY KEY,
 	setup_id INTEGER NOT NULL,
-	package_id INTEGER NOT NULL,
 	redeemer TEXT NOT NULL,
 	recipient_script BLOB NOT NULL, -- script pubkey
 	amount_sats INTEGER NOT NULL,
 	created_at INTEGER NOT NULL,
+	sui_tx TEXT NOT NULL,
+	btc_tx TEXT, -- null if not broadcasted
 	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'solved', 'signed', 'broadcasted'
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;
@@ -117,7 +118,8 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_solutions (
 	utxo_id INTEGER NOT NULL, -- Reference to nbtc_utxos
 	input_index INTEGER NOT NULL, -- The position of UTXO in the btc tx inputs
 	dwallet_id TEXT NOT NULL, -- The dWallet identifier this input
-	sign_id TEXT, -- Ika signature request identifie
+	sign_id TEXT, -- Ika signature request identifier
+	verified INTEGER NOT NULL DEFAULT 0,
 	created_at INTEGER NOT NULL,
 	PRIMARY KEY (redeem_id, utxo_id),
 	FOREIGN KEY (redeem_id) REFERENCES nbtc_redeem_requests(redeem_id),

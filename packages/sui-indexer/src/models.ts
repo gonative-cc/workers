@@ -46,6 +46,9 @@ export interface RedeemRequestResp {
 	amount_sats: number;
 	status: RedeemRequestStatus;
 	created_at: number;
+	sui_tx: string; // sui tx initiating the redeem process
+	btc_tx: string | null; // null if not broadcasted
+	confirmations: number; // 0 if not broadcasted
 }
 
 export interface UtxoIngestData {
@@ -69,6 +72,7 @@ export interface RedeemRequestIngestData {
 	created_at: number;
 	nbtc_pkg: string;
 	sui_network: SuiNet;
+	sui_tx: string;
 }
 
 // Raw Event Interfaces (Matches Move Events)
@@ -107,6 +111,7 @@ export interface SuiEventNode {
 	type: string;
 	timestamp: string;
 	json: unknown;
+	txDigest: string;
 }
 
 export interface NetworkConfig {

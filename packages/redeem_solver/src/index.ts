@@ -37,9 +37,11 @@ export default {
 		);
 
 		await Promise.allSettled([
-			service.processPendingRedeems(), // record new redeem request
-			service.solveReadyRedeems(), // propose a solution
-			service.processSolvedRedeems(), // request signatures
+			service.processPendingRedeems(), // propose a solution
+			async () => {
+				await service.solveReadyRedeems(); // trigger status change
+				return service.processSolvedRedeems(); // request signatures
+			},
 		]);
 	},
 } satisfies ExportedHandler<Env>;

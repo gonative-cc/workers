@@ -36,9 +36,11 @@ export default {
 			env.REDEEM_DURATION_MS,
 		);
 
-		await service.processPendingRedeems();
-		await service.solveReadyRedeems();
-		await service.processSolvedRedeems();
+		await Promise.allSettled([
+			service.processPendingRedeems(), // record new redeem request
+			service.solveReadyRedeems(), // propose a solution
+			service.processSolvedRedeems(), // request signatures
+		]);
 	},
 } satisfies ExportedHandler<Env>;
 

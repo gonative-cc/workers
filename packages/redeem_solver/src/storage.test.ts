@@ -52,34 +52,29 @@ describe("D1Storage", () => {
 	const depositAddress2 = p2wpkh2.address!;
 	const scriptPubkey2 = new Uint8Array(p2wpkh2.output!);
 
-	const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
+	const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
 
 	async function insertRedeemRequest(
 		redeemId: number,
-		setupId: number,
-		packageId: number,
 		redeemer: string,
-		recipientScript: ArrayBuffer,
+		recipientScript: Uint8Array,
 		amountSats: number,
 		createdAt: number,
-		status: RedeemRequestStatus,
+		suiTx: string,
+		nbtcPkg = "0xPkg1",
+		suiNetwork: SuiNet = "devnet",
 	) {
-		await db
-			.prepare(
-				`INSERT INTO nbtc_redeem_requests (redeem_id, setup_id, package_id, redeemer, recipient_script, amount_sats, created_at, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			)
-			.bind(
-				redeemId,
-				setupId,
-				packageId,
-				redeemer,
-				recipientScript,
-				amountSats,
-				createdAt,
-				status,
-			)
-			.run();
+		const redeemData: RedeemRequestIngestData = {
+			redeem_id: redeemId,
+			redeemer: redeemer,
+			recipient_script: recipientScript,
+			amount_sats: amountSats,
+			created_at: createdAt,
+			nbtc_pkg: nbtcPkg,
+			sui_network: suiNetwork,
+			sui_tx: suiTx,
+		};
+		await indexerStorage.insertRedeemRequest(redeemData);
 	}
 
 	async function insertUtxo(
@@ -186,26 +181,8 @@ describe("D1Storage", () => {
 	});
 
 	it("getPendingRedeems should return pending redeems ordered by created_at", async () => {
-		await insertRedeemRequest(
-			2,
-			1,
-			1,
-			"redeemer1",
-			recipientScript,
-			5000,
-			2000,
-			RedeemRequestStatus.Pending,
-		);
-		await insertRedeemRequest(
-			1,
-			1,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			RedeemRequestStatus.Pending,
-		);
+		await insertRedeemRequest(2, "redeemer1", recipientScript, 5000, 2000, "0xSuiTx2");
+		await insertRedeemRequest(1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 
 		const redeems = await storage.getPendingRedeems();
 
@@ -217,27 +194,12 @@ describe("D1Storage", () => {
 
 	it("getRedeemsReadyForSolving should filter by status and created_at", async () => {
 		const now = Date.now();
-
-		await insertRedeemRequest(
-			1,
-			1,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			now - 5000,
-			RedeemRequestStatus.Proposed,
-		);
-		await insertRedeemRequest(
-			2,
-			1,
-			1,
-			"redeemer1",
-			recipientScript,
-			5000,
-			now + 5000,
-			RedeemRequestStatus.Proposed,
-		);
+		await insertRedeemRequest(1, "redeemer1", recipientScript, 3000, now - 5000, "0xSuiTx1");
+		await insertRedeemRequest(2, "redeemer1", recipientScript, 5000, now + 5000, "0xSuiTx2");
+		await db
+			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id IN (?, ?)")
+			.bind(RedeemRequestStatus.Proposed, 1, 2)
+			.run();
 
 		const redeems = await storage.getRedeemsReadyForSolving(now);
 
@@ -336,16 +298,7 @@ describe("D1Storage", () => {
 	});
 
 	it("markRedeemProposed should update redeem status and lock utxos", async () => {
-		await insertRedeemRequest(
-			1,
-			1,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			RedeemRequestStatus.Pending,
-		);
+		await insertRedeemRequest(1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await insertUtxo(
 			1,
 			depositAddress1,
@@ -375,16 +328,7 @@ describe("D1Storage", () => {
 	});
 
 	it("markRedeemProposed should handle empty utxo array", async () => {
-		await insertRedeemRequest(
-			1,
-			1,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			RedeemRequestStatus.Pending,
-		);
+		await insertRedeemRequest(1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 
 		await storage.markRedeemProposed(1, [], UTXO_LOCK_TIME_MS);
 
@@ -396,16 +340,11 @@ describe("D1Storage", () => {
 	});
 
 	it("markRedeemSolved should update redeem status", async () => {
-		await insertRedeemRequest(
-			1,
-			1,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			RedeemRequestStatus.Proposed,
-		);
+		await insertRedeemRequest(1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await db
+			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
+			.bind(RedeemRequestStatus.Proposed, 1)
+			.run();
 
 		await storage.markRedeemSolved(1);
 

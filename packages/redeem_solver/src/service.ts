@@ -61,6 +61,7 @@ export class RedeemService {
 				if (!input.sign_id) {
 					await this.requestIkaSig(client, req, input);
 				} else if (input.sign_id && !input.verified) {
+					// TODO: this should be triggered when getting the event from ika
 					await this.recordIkaSig(client, req, input);
 				}
 			} catch (e) {

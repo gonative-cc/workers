@@ -78,7 +78,7 @@ export class RedeemService {
 			}
 		}
 	}
-
+	// TODO: handle front runs
 	private async requestIkaSig(
 		client: SuiClient,
 		req: RedeemRequestWithInputs,

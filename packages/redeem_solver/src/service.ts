@@ -61,7 +61,7 @@ export class RedeemService {
 				if (!input.sign_id) {
 					await this.requestIkaSig(client, req, input);
 				} else if (input.sign_id && !input.verified) {
-					await this.verifyIkaSig(client, req, input);
+					await this.recordIkaSig(client, req, input);
 				}
 			} catch (e) {
 				logError(
@@ -122,7 +122,7 @@ export class RedeemService {
 		});
 	}
 
-	private async verifyIkaSig(
+	private async recordIkaSig(
 		client: SuiClient,
 		req: RedeemRequestWithInputs,
 		input: RedeemInput,

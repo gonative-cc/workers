@@ -67,14 +67,14 @@ async function main() {
 			continue;
 		}
 
-		const checkAddrQuery = `SELECT id FROM nbtc_deposit_addresses WHERE package_id = ${setupId} AND deposit_address = '${entry.btc_address}'`;
+		const checkAddrQuery = `SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ${setupId} AND deposit_address = '${entry.btc_address}'`;
 		const existingAddrId = await executeQuery<number>(checkAddrQuery, DB_NAME, local, "id");
 
 		if (existingAddrId) {
 			continue;
 		}
 
-		const insertAddrQuery = `INSERT INTO nbtc_deposit_addresses (package_id, deposit_address) VALUES (${setupId}, '${entry.btc_address}')`;
+		const insertAddrQuery = `INSERT INTO nbtc_deposit_addresses (setup_id, deposit_address) VALUES (${setupId}, '${entry.btc_address}')`;
 		await executeQuery(insertAddrQuery, DB_NAME, local);
 	}
 }

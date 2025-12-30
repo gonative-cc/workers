@@ -101,11 +101,12 @@ CREATE INDEX IF NOT EXISTS _nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	redeem_id INTEGER NOT NULL PRIMARY KEY,
 	setup_id INTEGER NOT NULL,
-	package_id INTEGER NOT NULL,
 	redeemer TEXT NOT NULL,
 	recipient_script BLOB NOT NULL, -- script pubkey
 	amount_sats INTEGER NOT NULL,
 	created_at INTEGER NOT NULL,
+	sui_tx TEXT NOT NULL,
+	btc_tx TEXT, -- null if not broadcasted
 	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'solved', 'signed', 'broadcasted'
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;

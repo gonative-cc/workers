@@ -42,20 +42,20 @@ export class IndexerStorage {
 	}
 
 	async insertUtxo(u: UtxoIngestData): Promise<void> {
-		const pkgRow = await this.db
+		const setupRow = await this.db
 			.prepare("SELECT id, btc_network FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
 			.bind(u.nbtc_pkg, u.sui_network)
 			.first<{ id: number; btc_network: string }>();
 
-		if (!pkgRow) {
+		if (!setupRow) {
 			throw new Error(
 				`Package not found for nbtc_pkg=${u.nbtc_pkg}, sui_network=${u.sui_network}`,
 			);
 		}
 
-		const network = btcNetworks[pkgRow.btc_network];
+		const network = btcNetworks[setupRow.btc_network];
 		if (!network) {
-			throw new Error(`Unknown BTC network: ${pkgRow.btc_network}`);
+			throw new Error(`Unknown BTC network: ${setupRow.btc_network}`);
 		}
 		let depositAddress: string;
 		try {
@@ -68,12 +68,12 @@ export class IndexerStorage {
 			.prepare(
 				"SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ? AND deposit_address = ?",
 			)
-			.bind(pkgRow.id, depositAddress)
+			.bind(setupRow.id, depositAddress)
 			.first<{ id: number }>();
 
 		if (!addrRow) {
 			throw new Error(
-				`Deposit address not found for package_id=${pkgRow.id}, address=${depositAddress}`,
+				`Deposit address not found for setup_id=${setupRow.id}, address=${depositAddress}`,
 			);
 		}
 

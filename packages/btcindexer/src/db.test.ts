@@ -1,6 +1,6 @@
 import * as path from "path";
 import { D1Database } from "@cloudflare/workers-types";
-import { initDb as initDbShared } from "@gonative-cc/lib/common-setup/db.test";
+import { initDb as initDbShared } from "@gonative-cc/lib/test-helpers/db.test";
 
 const MIGRATIONS_PATH = path.resolve(__dirname, "../db/migrations");
 

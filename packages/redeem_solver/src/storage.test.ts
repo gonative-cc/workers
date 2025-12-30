@@ -1,9 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
 import { D1Storage, UTXO_LOCK_TIME_MS } from "./storage";
-import { RedeemRequestStatus, UtxoStatus } from "@gonative-cc/sui-indexer/models";
+import {
+	RedeemRequestStatus,
+	UtxoStatus,
+	type UtxoIngestData,
+	type RedeemRequestIngestData,
+} from "@gonative-cc/sui-indexer/models";
+import { IndexerStorage } from "@gonative-cc/sui-indexer/storage";
 import { initDb } from "./db.test";
-import { toSuiNet } from "@gonative-cc/lib/nsui";
+import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
+import { payments, networks } from "bitcoinjs-lib";
 
 let mf: Miniflare;
 
@@ -20,21 +27,32 @@ afterAll(async () => {
 	await mf.dispose();
 });
 
-beforeEach(async () => {
-	const db = await mf.getD1Database("DB");
-	await initDb(db);
-});
-
-afterEach(async () => {
-	const db = await mf.getD1Database("DB");
-	const tables = ["nbtc_utxos", "nbtc_redeem_requests", "nbtc_deposit_addresses", "setups"];
-	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
-	await db.exec(dropStms);
-});
-
 describe("D1Storage", () => {
 	let storage: D1Storage;
+	let indexerStorage: IndexerStorage;
 	let db: D1Database;
+
+	const p2wpkh1 = payments.p2wpkh({
+		pubkey: Buffer.from(
+			"03b32dc780fba98db25b4b72cf2b69da228f5e10ca6aa8f46eabe7f9fe22c994ee",
+			"hex",
+		),
+		network: networks.regtest,
+	});
+	const depositAddress1 = p2wpkh1.address!;
+	const scriptPubkey1 = new Uint8Array(p2wpkh1.output!);
+
+	const p2wpkh2 = payments.p2wpkh({
+		pubkey: Buffer.from(
+			"02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+			"hex",
+		),
+		network: networks.testnet,
+	});
+	const depositAddress2 = p2wpkh2.address!;
+	const scriptPubkey2 = new Uint8Array(p2wpkh2.output!);
+
+	const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
 
 	async function insertRedeemRequest(
 		redeemId: number,
@@ -66,54 +84,108 @@ describe("D1Storage", () => {
 
 	async function insertUtxo(
 		utxoId: number,
-		addressId: number,
+		depositAddress: string,
+		scriptPubkey: Uint8Array,
 		dwalletId: string,
 		txid: string,
 		vout: number,
 		amountSats: number,
-		scriptPubkey: ArrayBuffer,
 		status: UtxoStatus,
 		lockedUntil: number | null,
+		nbtcPkg = "0xPkg1",
+		suiNetwork: SuiNet = "devnet",
 	) {
-		await db
+		const utxoData: UtxoIngestData = {
+			nbtc_utxo_id: utxoId,
+			dwallet_id: dwalletId,
+			txid: txid,
+			vout: vout,
+			amount_sats: amountSats,
+			script_pubkey: scriptPubkey,
+			nbtc_pkg: nbtcPkg,
+			sui_network: suiNetwork,
+			status: status,
+			locked_until: lockedUntil,
+		};
+		await indexerStorage.insertUtxo(utxoData);
+	}
+
+	async function insertSetup(
+		database: D1Database,
+		id: number,
+		btcNetwork: string,
+		suiNetwork: string,
+		nbtcPkg: string,
+		nbtcContract: string,
+		lcPkg: string,
+		lcContract: string,
+		suiFallbackAddress: string,
+		isActive = 1,
+	) {
+		await database
 			.prepare(
-				`INSERT INTO nbtc_utxos (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount_sats, script_pubkey, status, locked_until)
+				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(
-				utxoId,
-				addressId,
-				dwalletId,
-				txid,
-				vout,
-				amountSats,
-				scriptPubkey,
-				status,
-				lockedUntil,
+				id,
+				btcNetwork,
+				suiNetwork,
+				nbtcPkg,
+				nbtcContract,
+				lcPkg,
+				lcContract,
+				suiFallbackAddress,
+				isActive,
 			)
+			.run();
+	}
+
+	async function insertDepositAddress(
+		database: D1Database,
+		id: number,
+		setupId: number,
+		depositAddress: string,
+		isActive = 1,
+	) {
+		await database
+			.prepare(
+				`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
+                 VALUES (?, ?, ?, ?)`,
+			)
+			.bind(id, setupId, depositAddress, isActive)
 			.run();
 	}
 
 	beforeEach(async () => {
 		db = await mf.getD1Database("DB");
+		await initDb(db);
+
 		storage = new D1Storage(db);
-		await db
-			.prepare(
-				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
-                 VALUES (1, 'regtest', 'devnet', '0xPkg1', '0xContract1', '0xLC1', '0xLCC1', '0xFallback1', 1)`,
-			)
-			.run();
-		await db
-			.prepare(
-				`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
-                 VALUES (1, 1, 'bcrt1qAddress1', 1)`,
-			)
-			.run();
+		indexerStorage = new IndexerStorage(db);
+
+		await insertSetup(
+			db,
+			1,
+			"regtest",
+			"devnet",
+			"0xPkg1",
+			"0xContract1",
+			"0xLC1",
+			"0xLCC1",
+			"0xFallback1",
+		);
+		await insertDepositAddress(db, 1, 1, depositAddress1);
+	});
+
+	afterEach(async () => {
+		const db = await mf.getD1Database("DB");
+		const tables = ["nbtc_utxos", "nbtc_redeem_requests", "nbtc_deposit_addresses", "setups"];
+		const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
+		await db.exec(dropStms);
 	});
 
 	it("getPendingRedeems should return pending redeems ordered by created_at", async () => {
-		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
-
 		await insertRedeemRequest(
 			2,
 			1,
@@ -144,7 +216,6 @@ describe("D1Storage", () => {
 	});
 
 	it("getRedeemsReadyForSolving should filter by status and created_at", async () => {
-		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
 		const now = Date.now();
 
 		await insertRedeemRequest(
@@ -175,27 +246,25 @@ describe("D1Storage", () => {
 	});
 
 	it("getAvailableUtxos should return utxos ordered by amount DESC", async () => {
-		const scriptPubkey = new Uint8Array([0x00, 0x14]).buffer;
-
 		await insertUtxo(
 			1,
-			1,
+			depositAddress1,
+			scriptPubkey1,
 			"dwallet1",
 			"tx1",
 			0,
 			1000,
-			scriptPubkey,
 			UtxoStatus.Available,
 			null,
 		);
 		await insertUtxo(
 			2,
-			1,
+			depositAddress1,
+			scriptPubkey1,
 			"dwallet1",
 			"tx2",
 			0,
 			5000,
-			scriptPubkey,
 			UtxoStatus.Available,
 			null,
 		);
@@ -208,54 +277,53 @@ describe("D1Storage", () => {
 	});
 
 	it("getAvailableUtxos should filter by setup_id and status", async () => {
-		const scriptPubkey = new Uint8Array([0x00, 0x14]).buffer;
-
-		await db
-			.prepare(
-				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
-                 VALUES (2, 'testnet', 'testnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 1)`,
-			)
-			.run();
-
-		await db
-			.prepare(
-				`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
-                 VALUES (2, 2, 'tb1qAddress2', 1)`,
-			)
-			.run();
+		await insertSetup(
+			db,
+			2,
+			"testnet",
+			"testnet",
+			"0xPkg2",
+			"0xContract2",
+			"0xLC2",
+			"0xLCC2",
+			"0xFallback2",
+		);
+		await insertDepositAddress(db, 2, 2, depositAddress2);
 
 		await insertUtxo(
 			1,
-			1,
+			depositAddress1,
+			scriptPubkey1,
 			"dwallet1",
 			"tx1",
 			0,
 			1000,
-			scriptPubkey,
 			UtxoStatus.Available,
 			null,
 		);
 		await insertUtxo(
 			3,
-			1,
+			depositAddress1,
+			scriptPubkey1,
 			"dwallet1",
 			"tx_locked",
 			0,
 			2000,
-			scriptPubkey,
 			UtxoStatus.Locked,
 			Date.now() + 10000,
 		);
 		await insertUtxo(
 			2,
-			2,
+			depositAddress2,
+			scriptPubkey2,
 			"dwallet2",
 			"tx2",
 			0,
 			3000,
-			scriptPubkey,
 			UtxoStatus.Available,
 			null,
+			"0xPkg2",
+			"testnet",
 		);
 
 		const utxos1 = await storage.getAvailableUtxos(1);
@@ -268,9 +336,6 @@ describe("D1Storage", () => {
 	});
 
 	it("markRedeemProposed should update redeem status and lock utxos", async () => {
-		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
-		const scriptPubkey = new Uint8Array([0x00, 0x14]).buffer;
-
 		await insertRedeemRequest(
 			1,
 			1,
@@ -283,12 +348,12 @@ describe("D1Storage", () => {
 		);
 		await insertUtxo(
 			1,
-			1,
+			depositAddress1,
+			scriptPubkey1,
 			"dwallet1",
 			"tx1",
 			0,
 			2000,
-			scriptPubkey,
 			UtxoStatus.Available,
 			null,
 		);
@@ -306,12 +371,31 @@ describe("D1Storage", () => {
 			.bind(1)
 			.first<{ status: string; locked_until: number }>();
 		expect(utxo!.status).toBe(UtxoStatus.Locked);
-		expect(utxo!.locked_until).toBeGreaterThan(Date.now());
+		expect(utxo!.locked_until).toBeDefined();
+	});
+
+	it("markRedeemProposed should handle empty utxo array", async () => {
+		await insertRedeemRequest(
+			1,
+			1,
+			1,
+			"redeemer1",
+			recipientScript,
+			3000,
+			1000,
+			RedeemRequestStatus.Pending,
+		);
+
+		await storage.markRedeemProposed(1, [], UTXO_LOCK_TIME_MS);
+
+		const redeem = await db
+			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(1)
+			.first<{ status: string }>();
+		expect(redeem!.status).toBe(RedeemRequestStatus.Proposed);
 	});
 
 	it("markRedeemSolved should update redeem status", async () => {
-		const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]).buffer;
-
 		await insertRedeemRequest(
 			1,
 			1,

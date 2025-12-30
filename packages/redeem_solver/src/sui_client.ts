@@ -3,22 +3,13 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import {
-	IkaClient,
-	IkaTransaction,
-	getNetworkConfig,
-	Curve,
-	SignatureAlgorithm,
-	Hash,
-	SessionsManagerModule,
-	CoordinatorInnerModule,
-	createUserSignMessageWithCentralizedOutput,
-	type IkaConfig,
-} from "@ika.xyz/sdk";
+import { type IkaClient, IkaClientImp } from "./ika_client";
 
 export interface SuiClientCfg {
 	network: SuiNet;
 	signerMnemonic: string;
+	ikaClient: IkaClient;
+	client: Client;
 }
 
 export interface SuiClient {
@@ -57,24 +48,14 @@ export class SuiClientImp implements SuiClient {
 	private client: Client;
 	private signer: Ed25519Keypair;
 	private ikaClient: IkaClient;
-	private ikaConfig: IkaConfig;
 	private network: SuiNet;
 	private encryptionKeyId: string | null = null;
 
 	constructor(cfg: SuiClientCfg) {
-		const url = getFullnodeUrl(cfg.network);
-		this.client = new Client({ url });
+		this.client = cfg.client;
 		this.signer = Ed25519Keypair.deriveKeypair(cfg.signerMnemonic);
 		this.network = cfg.network;
-
-		// this is needed because ika do not support devnet as of now
-		const ikaNetwork = this.network === "mainnet" ? "mainnet" : "testnet";
-		this.ikaConfig = getNetworkConfig(ikaNetwork);
-
-		this.ikaClient = new IkaClient({
-			suiClient: this.client,
-			config: this.ikaConfig,
-		});
+		this.ikaClient = cfg.ikaClient;
 	}
 
 	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {
@@ -181,30 +162,25 @@ export class SuiClientImp implements SuiClient {
 	}
 
 	async createGlobalPresign(): Promise<string> {
-		await this.ensureIkaInitialized();
+		await this.ikaClient.initialize();
 		const tx = new Transaction();
-		const ikaTx = new IkaTransaction({
-			ikaClient: this.ikaClient,
-			transaction: tx,
-		});
 
-		const ikaCoin = await this.getIkaCoin(this.signer.toSuiAddress());
+		const ikaCoin = await this.ikaClient.getIkaCoin(this.signer.toSuiAddress());
 
 		if (!this.encryptionKeyId) {
-			const dWalletEncryptionKey = await this.ikaClient.getLatestNetworkEncryptionKey();
-			this.encryptionKeyId = dWalletEncryptionKey.id;
+			const dWalletEncryptionKey = await this.ikaClient.getLatestNetworkEncryptionKeyId();
+			this.encryptionKeyId = dWalletEncryptionKey;
 		}
 
 		// TODO: Implement recovery for unused presign objects.
 		// If the worker crashes after creating a presign but before using it, the presign object
 		// remains in the wallet, to be used. We should scan for it or save it in a db
-		const presignCap = ikaTx.requestGlobalPresign({
-			curve: Curve.SECP256K1,
-			signatureAlgorithm: SignatureAlgorithm.ECDSASecp256k1,
-			ikaCoin: tx.object(ikaCoin),
-			suiCoin: tx.gas,
-			dwalletNetworkEncryptionKeyId: this.encryptionKeyId,
-		});
+		const presignCap = this.ikaClient.requestGlobalPresign(
+			tx,
+			tx.object(ikaCoin),
+			tx.gas,
+			this.encryptionKeyId,
+		);
 
 		tx.transferObjects([presignCap], this.signer.toSuiAddress());
 
@@ -223,11 +199,8 @@ export class SuiClientImp implements SuiClient {
 			throw new Error("PresignRequestEvent not found");
 		}
 
-		const eventDecoded = SessionsManagerModule.DWalletSessionEvent(
-			CoordinatorInnerModule.PresignRequestEvent,
-		).fromBase64(event.bcs as string);
-
-		return eventDecoded.event_data.presign_id;
+		const decoded = this.ikaClient.decodePresignRequestEvent(event.bcs as string);
+		return decoded.presign_id;
 	}
 
 	async createUserSigMessage(
@@ -235,38 +208,8 @@ export class SuiClientImp implements SuiClient {
 		presignId: string,
 		message: Uint8Array,
 	): Promise<Uint8Array> {
-		await this.ensureIkaInitialized();
-
-		const dWallet = await this.ikaClient.getDWalletInParticularState(dwalletId, "Active");
-		// TODO: create presign objects upfront and use them
-		const presign = await this.ikaClient.getPresignInParticularState(presignId, "Completed", {
-			timeout: 60000,
-			interval: 1000,
-		});
-
-		const protocolPublicParameters = await this.ikaClient.getProtocolPublicParameters(
-			dWallet,
-			Curve.SECP256K1, // TODO: change to taproot
-		);
-
-		const centralizedDkgOutput = Uint8Array.from(dWallet.state.Active.public_output);
-		const userSecretKeyShare = Uint8Array.from(
-			dWallet.public_user_secret_key_share as number[],
-		);
-		const presignState = Uint8Array.from(presign.state.Completed.presign as number[]);
-
-		const nbtcPublicSignature = await createUserSignMessageWithCentralizedOutput(
-			protocolPublicParameters,
-			centralizedDkgOutput,
-			userSecretKeyShare,
-			presignState,
-			message,
-			Hash.SHA256,
-			SignatureAlgorithm.ECDSASecp256k1,
-			Curve.SECP256K1,
-		);
-
-		return nbtcPublicSignature;
+		await this.ikaClient.initialize();
+		return await this.ikaClient.createUserSigMessage(dwalletId, presignId, message);
 	}
 
 	async requestInputSignature(
@@ -277,19 +220,14 @@ export class SuiClientImp implements SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<string> {
-		await this.ensureIkaInitialized();
+		await this.ikaClient.initialize();
 		const tx = new Transaction();
-		const ikaTx = new IkaTransaction({
-			ikaClient: this.ikaClient,
-			transaction: tx,
-		});
 
-		const ikaCoin = await this.getIkaCoin(this.signer.toSuiAddress());
-		const coordinatorId = this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
+		const ikaCoin = await this.ikaClient.getIkaCoin(this.signer.toSuiAddress());
+		const coordinatorId = this.ikaClient.getCoordinatorId();
 
-		const unverifiedPresignCap = (
-			await this.ikaClient.getPresignInParticularState(presignId, "Completed")
-		).cap_id;
+		const unverifiedPresignCap = await this.ikaClient.getPresignCapId(presignId);
+		const sessionIdentifier = this.ikaClient.createSessionIdentifier(tx);
 
 		tx.moveCall({
 			target: `${nbtcPkg}::nbtc::request_signature_for_input`,
@@ -300,7 +238,7 @@ export class SuiClientImp implements SuiClient {
 				tx.pure.u64(inputIdx),
 				tx.pure.vector("u8", nbtcPublicSignature),
 				tx.object(unverifiedPresignCap),
-				ikaTx.createSessionIdentifier(),
+				sessionIdentifier,
 				tx.object(ikaCoin),
 				tx.gas, // paymentSui
 			],
@@ -321,11 +259,8 @@ export class SuiClientImp implements SuiClient {
 			throw new Error("SignRequestEvent not found");
 		}
 
-		const eventDecoded = SessionsManagerModule.DWalletSessionEvent(
-			CoordinatorInnerModule.SignRequestEvent,
-		).fromBase64(event.bcs as string);
-
-		return eventDecoded.event_data.sign_id;
+		const decoded = this.ikaClient.decodeSignRequestEvent(event.bcs as string);
+		return decoded.sign_id;
 	}
 
 	async validateSignature(
@@ -335,9 +270,9 @@ export class SuiClientImp implements SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void> {
-		await this.ensureIkaInitialized();
+		await this.ikaClient.initialize();
 		const tx = new Transaction();
-		const coordinatorId = this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
+		const coordinatorId = this.ikaClient.getCoordinatorId();
 
 		tx.moveCall({
 			target: `${nbtcPkg}::nbtc::record_signature`,
@@ -362,27 +297,6 @@ export class SuiClientImp implements SuiClient {
 			throw new Error(`Signature validation failed: ${result.effects?.status.error}`);
 		}
 	}
-
-	private async ensureIkaInitialized() {
-		if (this.ikaClient.initialize) {
-			await this.ikaClient.initialize();
-		}
-	}
-
-	private async getIkaCoin(addr: string): Promise<string> {
-		const coins = await this.client.getCoins({
-			owner: addr,
-			coinType: `${this.ikaConfig.packages.ikaPackage}::ika::IKA`,
-			limit: 5,
-		});
-		// TODO: for now lets just take the first one
-		const firstCoin = coins.data[0];
-		if (!firstCoin) {
-			throw new Error(`No IKA coins found for address ${addr}`);
-		}
-
-		return firstCoin.coinObjectId;
-	}
 }
 
 export function createSuiClients(
@@ -391,11 +305,16 @@ export function createSuiClients(
 ): Map<SuiNet, SuiClient> {
 	const clients = new Map<SuiNet, SuiClient>();
 	for (const net of activeNetworks) {
+		const url = getFullnodeUrl(net);
+		const mystenClient = new Client({ url });
+		const ikaClient = new IkaClientImp(net, mystenClient);
 		clients.set(
 			net,
 			new SuiClientImp({
 				network: net,
 				signerMnemonic: mnemonic,
+				ikaClient: ikaClient,
+				client: mystenClient,
 			}),
 		);
 	}

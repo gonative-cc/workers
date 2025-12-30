@@ -23,23 +23,24 @@ export class SuiEventHandler {
 	}
 
 	public async handleEvents(events: SuiEventNode[]) {
-		for (const event of events) {
-			const json = event.json;
+		for (const e of events) {
+			const json = e.json;
 
-			if (event.type.includes("::nbtc::MintEvent")) {
-				await this.handleMint(json as MintEventRaw);
-			} else if (event.type.includes("::nbtc::RedeemRequestEvent")) {
-				await this.handleRedeemRequest(json as RedeemRequestEventRaw);
-			} else if (event.type.includes("::nbtc::ProposeUtxoEvent")) {
+			if (e.type.includes("::nbtc::MintEvent")) {
+				await this.handleMint(e.txDigest, json as MintEventRaw);
+			} else if (e.type.includes("::nbtc::RedeemRequestEvent")) {
+				await this.handleRedeemRequest(e.txDigest, json as RedeemRequestEventRaw);
+			} else if (e.type.includes("::nbtc::ProposeUtxoEvent")) {
 				await this.handleProposeUtxo(json as ProposeUtxoEventRaw);
-			} else if (event.type.includes("::nbtc::redeem_request::SolvedEvent")) {
+			} else if (e.type.includes("::nbtc::redeem_request::SolvedEvent")) {
 				await this.handleSolved(json as SolvedEventRaw);
 			}
 		}
 	}
 
-	private async handleMint(e: MintEventRaw) {
-		// NOTE: bitcoin library we use in the other worker uses tx.getId() which returns the reversed order, its just for consistency
+	private async handleMint(txDigest: string, e: MintEventRaw) {
+		// NOTE: bitcoin library we use in the other worker uses tx.getId() which returns the
+		// reversed order, its just for consistency
 		// TODO: check if we actually need that
 		const txId = fromBase64(e.btc_tx_id).reverse().toHex();
 
@@ -58,7 +59,8 @@ export class SuiEventHandler {
 		logger.info({ msg: "Indexed Mint", utxo: e.utxo_id });
 	}
 
-	private async handleRedeemRequest(e: RedeemRequestEventRaw) {
+	private async handleRedeemRequest(txDigest: string, e: RedeemRequestEventRaw) {
+		// TODO: we should use setup_id here rather sui_network + nbtc_pkg
 		await this.storage.insertRedeemRequest({
 			redeem_id: Number(e.redeem_id),
 			redeemer: e.redeemer,
@@ -67,6 +69,7 @@ export class SuiEventHandler {
 			created_at: Number(e.created_at),
 			nbtc_pkg: this.nbtcPkg,
 			sui_network: this.suiNetwork,
+			sui_tx: txDigest,
 		});
 		logger.info({ msg: "Indexed Redeem Request", id: e.redeem_id });
 	}

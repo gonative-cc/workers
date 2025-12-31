@@ -65,17 +65,12 @@ export class D1Storage implements Storage {
 
 	async popPresignObject(): Promise<string | null> {
 		const result = await this.db
-			.prepare("SELECT presign_id FROM presign_objects ORDER BY created_at ASC LIMIT 1")
+			.prepare(
+				"DELETE FROM presign_objects WHERE presign_id = (SELECT presign_id FROM presign_objects ORDER BY created_at ASC LIMIT 1) RETURNING presign_id",
+			)
 			.first<{ presign_id: string }>();
 
-		if (!result) return null;
-
-		await this.db
-			.prepare("DELETE FROM presign_objects WHERE presign_id = ?")
-			.bind(result.presign_id)
-			.run();
-
-		return result.presign_id;
+		return result?.presign_id || null;
 	}
 
 	async savePresignObject(presignId: string): Promise<void> {

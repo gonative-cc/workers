@@ -102,7 +102,11 @@ export class RedeemService {
 		if (!presignId) {
 			presignId = await client.createGlobalPresign();
 			await this.storage.savePresignObject(presignId);
-			presignId = await this.storage.popPresignObject();
+			const popped = await this.storage.popPresignObject();
+			if (!popped) {
+				throw new Error("Failed to pop presign object immediately after creation");
+			}
+			presignId = popped;
 
 			logger.info({
 				msg: "Created new presign object and added to pool",

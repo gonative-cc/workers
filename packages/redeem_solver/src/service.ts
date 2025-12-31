@@ -98,29 +98,58 @@ export class RedeemService {
 			req.nbtc_contract,
 		);
 
-		const presignId = await client.createGlobalPresign();
-		const nbtcPublicSignature = await client.createUserSigMessage(
-			input.dwallet_id,
-			presignId,
-			message,
-		);
+		let presignId = await this.storage.popPresignObject();
+		if (!presignId) {
+			presignId = await client.createGlobalPresign();
+			await this.storage.savePresignObject(presignId);
+			presignId = await this.storage.popPresignObject();
 
-		const signId = await client.requestInputSignature(
-			req.redeem_id,
-			input.input_index,
-			nbtcPublicSignature,
-			presignId,
-			req.nbtc_pkg,
-			req.nbtc_contract,
-		);
+			logger.info({
+				msg: "Created new presign object and added to pool",
+				redeemId: req.redeem_id,
+				presignId,
+			});
+		} else {
+			logger.info({
+				msg: "Using existing presign object from pool",
+				redeemId: req.redeem_id,
+				presignId,
+			});
+		}
 
-		await this.storage.updateRedeemInputSig(req.redeem_id, input.utxo_id, signId);
-		logger.info({
-			msg: "Requested signature",
-			redeemId: req.redeem_id,
-			utxoId: input.utxo_id,
-			signId: signId,
-		});
+		try {
+			const nbtcPublicSignature = await client.createUserSigMessage(
+				input.dwallet_id,
+				presignId,
+				message,
+			);
+
+			const signId = await client.requestInputSignature(
+				req.redeem_id,
+				input.input_index,
+				nbtcPublicSignature,
+				presignId,
+				req.nbtc_pkg,
+				req.nbtc_contract,
+			);
+
+			await this.storage.updateRedeemInputSig(req.redeem_id, input.utxo_id, signId);
+			logger.info({
+				msg: "Requested signature",
+				redeemId: req.redeem_id,
+				utxoId: input.utxo_id,
+				signId: signId,
+			});
+		} catch (e) {
+			logger.warn({
+				msg: "Failed to request signature, returning presign object to pool",
+				redeemId: req.redeem_id,
+				presignId,
+				error: e,
+			});
+			await this.storage.savePresignObject(presignId);
+			throw e;
+		}
 	}
 
 	private async recordIkaSig(

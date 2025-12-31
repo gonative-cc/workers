@@ -56,10 +56,34 @@ export interface Storage {
 	getRedeemInputs(redeemId: number): Promise<RedeemInput[]>;
 	getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
+	popPresignObject(): Promise<string | null>;
+	savePresignObject(presignId: string): Promise<void>;
 }
 
 export class D1Storage implements Storage {
 	constructor(private db: D1Database) {}
+
+	async popPresignObject(): Promise<string | null> {
+		const result = await this.db
+			.prepare("SELECT presign_id FROM presign_objects ORDER BY created_at ASC LIMIT 1")
+			.first<{ presign_id: string }>();
+
+		if (!result) return null;
+
+		await this.db
+			.prepare("DELETE FROM presign_objects WHERE presign_id = ?")
+			.bind(result.presign_id)
+			.run();
+
+		return result.presign_id;
+	}
+
+	async savePresignObject(presignId: string): Promise<void> {
+		await this.db
+			.prepare("INSERT INTO presign_objects (presign_id, created_at) VALUES (?, ?)")
+			.bind(presignId, Date.now())
+			.run();
+	}
 
 	async getPendingRedeems(): Promise<RedeemRequest[]> {
 		const query = `

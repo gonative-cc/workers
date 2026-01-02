@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import { Miniflare } from "miniflare";
 import { fetchNbtcAddresses, fetchPackageConfigs } from "./storage";
 import { CFStorage as CFStorageImpl } from "./cf-storage";
-import { MintTxStatus } from "./models";
+import { MintTxStatus, InsertBlockStatus } from "./models";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { initDb } from "./db.test";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
@@ -135,7 +135,7 @@ describe("CFStorage", () => {
 				timestamp_ms: 1000,
 			};
 			const result = await storage.insertBlockInfo(block);
-			expect(result).toBe(true);
+			expect(result).toBe(InsertBlockStatus.Inserted);
 
 			const saved = await storage.getBlockHash(100, BtcNet.REGTEST);
 			expect(saved).toBe("0000hash1");
@@ -155,7 +155,7 @@ describe("CFStorage", () => {
 				network: BtcNet.REGTEST,
 				timestamp_ms: 2000,
 			});
-			expect(result).toBe(true);
+			expect(result).toBe(InsertBlockStatus.Updated);
 			const saved = await storage.getBlockHash(100, BtcNet.REGTEST);
 			expect(saved).toBe("0000hashNew");
 		});
@@ -174,7 +174,7 @@ describe("CFStorage", () => {
 				network: BtcNet.REGTEST,
 				timestamp_ms: 1000,
 			});
-			expect(result).toBe(false);
+			expect(result).toBe(InsertBlockStatus.Skipped);
 			const saved = await storage.getBlockHash(100, BtcNet.REGTEST);
 			expect(saved).toBe("0000hashNew");
 		});

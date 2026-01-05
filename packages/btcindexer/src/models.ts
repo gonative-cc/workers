@@ -184,3 +184,11 @@ export interface NbtcDepositAddrVal {
 
 // Maps Bitcoin deposit address to NbtcDepositAddrMapping
 export type NbtcDepositAddrsMap = Map<string, NbtcDepositAddrVal>;
+
+export const enum InsertBlockStatus {
+	Inserted = "inserted",
+	Updated = "updated",
+	Skipped = "skipped",
+}
+
+export type InsertBlockResult = InsertBlockStatus;

@@ -1,8 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { Transaction, address, networks } from "bitcoinjs-lib";
 import { parseSuiRecipientFromOpReturn } from "../src/btcindexer";
-
-const OP_RETURN = 0x6a;
+import { OP_RETURN } from "../src/opcodes";
 
 interface ValidationResult {
 	valid: boolean;

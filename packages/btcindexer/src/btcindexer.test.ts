@@ -6,7 +6,7 @@ import { Block, networks } from "bitcoinjs-lib";
 
 import { Indexer } from "./btcindexer";
 import type { Deposit, ProofResult } from "./models";
-import { MintTxStatus } from "./models";
+import { MintTxStatus, InsertBlockStatus } from "./models";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { setupTestIndexerSuite, type TestIndexerHelper } from "./btcindexer.helpers.test";
 interface TxInfo {
@@ -663,7 +663,7 @@ describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 		};
 
 		const result = await indexer.storage.insertBlockInfo(record);
-		expect(result).toBe(true);
+		expect(result).toBe(InsertBlockStatus.Inserted);
 		const row = await suite.db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
 		expect(row).toEqual(
 			expect.objectContaining({
@@ -691,7 +691,7 @@ describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 
 		const result = await indexer.storage.insertBlockInfo(newerRecord);
 
-		expect(result).toBe(true);
+		expect(result).toBe(InsertBlockStatus.Updated);
 		const row = await suite.db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
 		expect(row).toEqual(
 			expect.objectContaining({
@@ -719,7 +719,7 @@ describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 
 		const result = await indexer.storage.insertBlockInfo(staleRecord);
 
-		expect(result).toBe(false); // Update rejected
+		expect(result).toBe(InsertBlockStatus.Skipped);
 		const row = await suite.db.prepare("SELECT * FROM btc_blocks WHERE height = 100").first();
 		expect(row).toEqual(
 			expect.objectContaining({

@@ -3,7 +3,7 @@ import { readdir } from "fs/promises";
 import { D1Database } from "@cloudflare/workers-types";
 
 // Loads all migration files into database
-export async function initDb(db: D1Database, migrationsPath: string) {
+export async function applyMigrations(db: D1Database, migrationsPath: string) {
 	const migrationFiles = await readdir(migrationsPath);
 	migrationFiles.sort();
 

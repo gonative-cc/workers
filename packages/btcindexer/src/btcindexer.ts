@@ -905,7 +905,7 @@ export class Indexer {
 	}
 }
 
-function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
+export function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 	if (script.length === 0 || script[0] !== OP_RETURN) {
 		return null;
 	}

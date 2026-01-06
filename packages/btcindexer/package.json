@@ -16,7 +16,7 @@
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
 		"test": "bun test",
-		"seed:addresses": "bun run scripts/seed-addresses.ts"
+		"seed:config": "bun run scripts/seed-config.ts"
 	},
 	"dependencies": {
 		"@gonative-cc/lib": "workspace:*",

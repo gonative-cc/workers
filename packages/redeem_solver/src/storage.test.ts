@@ -54,7 +54,7 @@ async function insertRedeemRequest(
 	redeemId: number,
 	redeemer: string,
 	recipientScript: Uint8Array,
-	amountSats: number,
+	amount: number,
 	createdAt: number,
 	suiTx: string,
 	nbtcPkg = "0xPkg1",
@@ -64,7 +64,7 @@ async function insertRedeemRequest(
 		redeem_id: redeemId,
 		redeemer: redeemer,
 		recipient_script: recipientScript,
-		amount_sats: amountSats,
+		amount: amount,
 		created_at: createdAt,
 		nbtc_pkg: nbtcPkg,
 		sui_network: suiNetwork,
@@ -81,7 +81,7 @@ async function insertUtxo(
 	dwalletId: string,
 	txid: string,
 	vout: number,
-	amountSats: number,
+	amount: number,
 	status: UtxoStatus,
 	lockedUntil: number | null,
 	nbtcPkg = "0xPkg1",
@@ -92,7 +92,7 @@ async function insertUtxo(
 		dwallet_id: dwalletId,
 		txid: txid,
 		vout: vout,
-		amount_sats: amountSats,
+		amount: amount,
 		script_pubkey: scriptPubkey,
 		nbtc_pkg: nbtcPkg,
 		sui_network: suiNetwork,
@@ -522,7 +522,7 @@ describe("D1Storage", () => {
 
 		expect(redeems.length).toBe(1);
 		expect(redeems[0]!.redeem_id).toBe(1);
-		expect(redeems[0]!.amount_sats).toBe(3000);
+		expect(redeems[0]!.amount).toBe(3000);
 	});
 
 	it("saveRedeemInputs should save redeem solutions", async () => {

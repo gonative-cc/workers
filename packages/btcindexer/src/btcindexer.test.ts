@@ -12,7 +12,7 @@ import { setupTestIndexerSuite, type TestIndexerHelper } from "./btcindexer.help
 interface TxInfo {
 	id: string;
 	suiAddr: string;
-	amountSats: number;
+	amount: number;
 }
 interface TestBlock {
 	depositAddr: string;
@@ -36,7 +36,7 @@ const REGTEST_DATA: TestBlocks = {
 			1: {
 				id: "8af4f7ceb96f41d16a932936f763b75ba778f28c37a2409371267cc2b22a3ec3",
 				suiAddr: "0xbbad40ecca892cf0d54ba0b9c986454be0695ce29642223a02c37e3b87a4499c",
-				amountSats: 50000,
+				amount: 50000,
 			},
 		},
 	},
@@ -50,12 +50,12 @@ const REGTEST_DATA: TestBlocks = {
 			1: {
 				id: "22c0c042fd2b8bc083079987d9690ecebe9a74d427b0148888637065097e3f49",
 				suiAddr: "0x11223344556677889900aabbccddeeff0011223344556677889900aabbccdd",
-				amountSats: 70000,
+				amount: 70000,
 			},
 			2: {
 				id: "9752c64f7c40ffbfce444ceead859cec41f4ab8e51829bb0d7383f26c9a86e7c",
 				suiAddr: "0xaabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
-				amountSats: 60000,
+				amount: 60000,
 			},
 		},
 	},
@@ -132,7 +132,7 @@ describe("Indexer.findNbtcDeposits", () => {
 
 		const deposits = indexer.findNbtcDeposits(targetTx!, networks.regtest);
 		expect(deposits.length).toEqual(1);
-		expect(deposits[0]!.amountSats).toEqual(REGTEST_DATA[329]!.txs[1]!.amountSats);
+		expect(deposits[0]!.amount).toEqual(REGTEST_DATA[329]!.txs[1]!.amount);
 		expect(deposits[0]!.suiRecipient).toEqual(REGTEST_DATA[329]!.txs[1]!.suiAddr);
 		expect(deposits[0]!.vout).toEqual(0);
 	});
@@ -151,10 +151,10 @@ describe("Indexer.findNbtcDeposits", () => {
 		expect(deposits.length).toEqual(2);
 		// TX_1
 		expect(deposits[0]![0]!.suiRecipient).toEqual(REGTEST_DATA[327]!.txs[1]!.suiAddr);
-		expect(deposits[0]![0]!.amountSats).toEqual(REGTEST_DATA[327]!.txs[1]!.amountSats);
+		expect(deposits[0]![0]!.amount).toEqual(REGTEST_DATA[327]!.txs[1]!.amount);
 		// TX 2
 		expect(deposits[1]![0]!.suiRecipient).toEqual(REGTEST_DATA[327]!.txs[2]!.suiAddr);
-		expect(deposits[1]![0]!.amountSats).toEqual(REGTEST_DATA[327]!.txs[2]!.amountSats);
+		expect(deposits[1]![0]!.amount).toEqual(REGTEST_DATA[327]!.txs[2]!.amount);
 	});
 });
 
@@ -313,7 +313,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		expect(results[0]!.tx_id).toEqual(txInfo.id);
 		expect(results[0]!.vout).toEqual(0);
 		expect(results[0]!.sui_recipient).toEqual(txInfo.suiAddr);
-		expect(results[0]!.amount_sats).toEqual(txInfo.amountSats);
+		expect(results[0]!.amount).toEqual(txInfo.amount);
 	});
 
 	it("should return 0 registered_deposits when tx already exists", async () => {
@@ -741,7 +741,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			blockHash: block329.hash,
 			blockHeight: block329.height,
 			suiRecipient: tx329.suiAddr,
-			amountSats: tx329.amountSats,
+			amount: tx329.amount,
 			depositAddress: block329.depositAddr,
 		});
 
@@ -762,7 +762,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			blockHash: block329.hash,
 			blockHeight: block329.height,
 			suiRecipient: tx329.suiAddr,
-			amountSats: tx329.amountSats,
+			amount: tx329.amount,
 			depositAddress: block329.depositAddr,
 		});
 
@@ -790,7 +790,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			blockHash: block329.hash,
 			blockHeight: block329.height,
 			suiRecipient: tx329.suiAddr,
-			amountSats: tx329.amountSats,
+			amount: tx329.amount,
 			depositAddress: block329.depositAddr,
 		});
 

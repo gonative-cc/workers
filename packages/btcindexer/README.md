@@ -51,7 +51,7 @@ To populate the `nbtc_addresses` you can use the `seed:addresses` script. This s
 - For local development:
 
   ```sh
-  bun run seed:config--local
+  bun run seed:config --local
   ```
 
 - For the remote (production/backstage):

@@ -10,7 +10,6 @@ import { RPC } from "./rpc";
 import { D1Storage } from "./storage";
 import { RedeemService } from "./service";
 import { createSuiClients } from "./sui_client";
-import { logger } from "@gonative-cc/lib/logger";
 import { logger, logError } from "@gonative-cc/lib/logger";
 
 export default {

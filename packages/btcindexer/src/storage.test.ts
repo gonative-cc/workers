@@ -237,7 +237,7 @@ describe("CFStorage", () => {
 			blockHash: "blockHash1",
 			blockHeight: 100,
 			suiRecipient: "0xSui1",
-			amountSats: 5000,
+			amount: 5000,
 		};
 
 		it("insertOrUpdateNbtcTxs should insert transaction", async () => {
@@ -312,7 +312,7 @@ describe("CFStorage", () => {
 					sender: "sender2",
 					vout: 1,
 					suiRecipient: "0xSui2",
-					amountSats: 1000,
+					amount: 1000,
 				},
 			]);
 

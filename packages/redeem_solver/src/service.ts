@@ -166,7 +166,7 @@ export class RedeemService {
 		logger.info({
 			msg: "Processing redeem request",
 			redeemId: req.redeem_id,
-			amountSats: req.amount.toString(),
+			amount: req.amount.toString(),
 		});
 		// TODO: we should only fetch it once for all requests. So we fetch it in processPendingRedeems and the pass it to this method
 		const availableUtxos = await this.storage.getAvailableUtxos(req.setup_id);
@@ -176,7 +176,7 @@ export class RedeemService {
 			logger.warn({
 				msg: "Insufficient UTXOs for request",
 				redeemId: req.redeem_id,
-				neededAmountSats: req.amount.toString(),
+				neededAmount: req.amount.toString(),
 			});
 			return;
 		}

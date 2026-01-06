@@ -32,7 +32,7 @@ export const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
 export interface TxInfo {
 	id: string;
 	suiAddr: string;
-	amountSats: number;
+	amount: number;
 }
 
 export interface TestBlock {
@@ -90,7 +90,7 @@ export interface TestIndexerHelper {
 		blockHeight?: number;
 		blockHash?: string;
 		suiRecipient?: string;
-		amountSats?: number;
+		amount?: number;
 		depositAddress?: string;
 		sender?: string;
 		vout?: number;
@@ -244,7 +244,7 @@ export async function setupTestIndexerSuite(
 		blockHeight?: number;
 		blockHash?: string;
 		suiRecipient?: string;
-		amountSats?: number;
+		amount?: number;
 		depositAddress?: string;
 		sender?: string;
 		vout?: number;
@@ -280,7 +280,7 @@ export async function setupTestIndexerSuite(
 				options.blockHash || defaultBlock.hash,
 				options.blockHeight || defaultBlock.height,
 				options.suiRecipient || "0xtest_recipient",
-				options.amountSats || 10000,
+				options.amount || 10000,
 				options.status,
 				Date.now(),
 				Date.now(),

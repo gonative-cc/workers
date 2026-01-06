@@ -3,7 +3,7 @@ import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { NbtcPkg, SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface NbtcDeposit {
-	amountSats: number;
+	amount: number;
 	suiRecipient: string;
 }
 

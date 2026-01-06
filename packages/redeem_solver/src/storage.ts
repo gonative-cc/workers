@@ -8,6 +8,8 @@ import {
 } from "@gonative-cc/sui-indexer/models";
 import type { RedeemInput, RedeemRequestWithInputs } from "./models";
 
+export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
+
 interface RedeemRequestRow {
 	redeem_id: number;
 	setup_id: number;

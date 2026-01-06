@@ -173,7 +173,7 @@ export class RedeemService {
 		const availableUtxos = await this.storage.getAvailableUtxos(req.setup_id);
 		const selectedUtxos = selectUtxos(availableUtxos, req.amount_sats);
 
-		// TODO: we should continue only if our solution is better then the existing one - in case
+		// TODO: we should continue only if our solution is better than the existing one - in case
 		//   someone frontrun us.
 
 		if (!selectedUtxos) {

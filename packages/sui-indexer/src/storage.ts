@@ -128,7 +128,8 @@ export class IndexerStorage {
 		}
 	}
 
-	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<void> {
+	// returns 1 if the insert happened, null otherwise.
+	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null> {
 		const pkgRow = await this.db
 			.prepare("SELECT id FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
 			.bind(r.nbtc_pkg, r.sui_network)
@@ -140,11 +141,11 @@ export class IndexerStorage {
 			);
 		}
 		try {
-			await this.db
+			const result = await this.db
 				.prepare(
 					`INSERT OR IGNORE INTO nbtc_redeem_requests
             (redeem_id, setup_id, redeemer, recipient_script, amount_sats, created_at, sui_tx, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING 1 as output`,
 				)
 				.bind(
 					r.redeem_id,
@@ -156,7 +157,8 @@ export class IndexerStorage {
 					r.sui_tx,
 					RedeemRequestStatus.Pending,
 				)
-				.run();
+				.first<{ output: number }>();
+			return result?.output || null;
 		} catch (error) {
 			logError(
 				{

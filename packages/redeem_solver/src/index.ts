@@ -10,7 +10,7 @@ import { RPC } from "./rpc";
 import { D1Storage } from "./storage";
 import { RedeemService } from "./service";
 import { createSuiClients } from "./sui_client";
-import { logger } from "@gonative-cc/lib/logger";
+import { logger, logError } from "@gonative-cc/lib/logger";
 
 export default {
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
@@ -36,9 +36,29 @@ export default {
 			env.REDEEM_DURATION_MS,
 		);
 
-		await service.processPendingRedeems();
-		await service.solveReadyRedeems();
-		await service.processSolvedRedeems();
+		const results = await Promise.allSettled([
+			service.processPendingRedeems(), // propose a solution
+			service
+				.solveReadyRedeems() // trigger status change
+				.then(service.processSolvedRedeems), // request signatures
+		]);
+
+		// Check for any rejected promises and log errors
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				logError(
+					{
+						msg: "Processing redeems error",
+						method: "redeem-solver scheduler",
+						task:
+							index === 0
+								? "processPendingRedeems"
+								: "solveReadyRedeems/processSolvedRedeems",
+					},
+					result.reason,
+				);
+			}
+		});
 	},
 } satisfies ExportedHandler<Env>;
 

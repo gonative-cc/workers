@@ -17,6 +17,7 @@ export class RedeemService {
 		}
 	}
 
+	// Propose a solution for pending redeems.
 	async processPendingRedeems() {
 		const pendingRequests = await this.storage.getPendingRedeems();
 		if (pendingRequests.length === 0) {
@@ -25,7 +26,7 @@ export class RedeemService {
 		}
 
 		for (const req of pendingRequests) {
-			await this.processRequest(req);
+			await this.redeemReqProposeSolution(req);
 		}
 	}
 
@@ -162,7 +163,7 @@ export class RedeemService {
 		return c;
 	}
 
-	private async processRequest(req: RedeemRequest) {
+	private async redeemReqProposeSolution(req: RedeemRequest) {
 		logger.info({
 			msg: "Processing redeem request",
 			redeemId: req.redeem_id,
@@ -171,6 +172,9 @@ export class RedeemService {
 		// TODO: we should only fetch it once for all requests. So we fetch it in processPendingRedeems and the pass it to this method
 		const availableUtxos = await this.storage.getAvailableUtxos(req.setup_id);
 		const selectedUtxos = selectUtxos(availableUtxos, req.amount);
+
+		// TODO: we should continue only if our solution is better than the existing one - in case
+		//   someone frontrun us.
 
 		if (!selectedUtxos) {
 			logger.warn({

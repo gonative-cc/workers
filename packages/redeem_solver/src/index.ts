@@ -11,6 +11,7 @@ import { D1Storage } from "./storage";
 import { RedeemService } from "./service";
 import { createSuiClients } from "./sui_client";
 import { logger } from "@gonative-cc/lib/logger";
+import { logger, logError } from "@gonative-cc/lib/logger";
 
 export default {
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
@@ -36,13 +37,23 @@ export default {
 			env.REDEEM_DURATION_MS,
 		);
 
-		await Promise.allSettled([
-			service.processPendingRedeems(), // propose a solution
-			async () => {
-				await service.solveReadyRedeems(); // trigger status change
-				return service.processSolvedRedeems(); // request signatures
-			},
-		]);
+		try {
+			await Promise.allSettled([
+				service.processPendingRedeems(), // propose a solution
+				async () => {
+					await service.solveReadyRedeems(); // trigger status change
+					return service.processSolvedRedeems(); // request signatures
+				},
+			]);
+		} catch (e) {
+			logError(
+				{
+					msg: "Processing redeems error",
+					method: "redeem-solver scheduler",
+				},
+				e,
+			);
+		}
 	},
 } satisfies ExportedHandler<Env>;
 

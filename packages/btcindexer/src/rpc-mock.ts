@@ -8,7 +8,7 @@ import { BtcNet } from "@gonative-cc/lib/nbtc";
 
 interface MockTxData {
 	suiRecipient: string;
-	amountSats: number;
+	amount: number;
 	createdAt: number;
 }
 
@@ -59,7 +59,7 @@ function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
 		block_hash: null,
 		block_height: null,
 		sui_recipient: data.suiRecipient,
-		amount_sats: data.amountSats,
+		amount: data.amount,
 		created_at: data.createdAt,
 		updated_at: data.createdAt,
 		sui_tx_id: null,
@@ -99,14 +99,14 @@ export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements BtcIndex
 			throw new Error("Transaction does not contain a valid Sui recipient in OP_RETURN");
 		}
 
-		let amountSats = 0;
+		let amount = 0;
 		for (const vout of tx.outs) {
-			amountSats += vout.value;
+			amount += vout.value;
 		}
 
 		this.txStatuses.set(tx_id, {
 			suiRecipient,
-			amountSats,
+			amount,
 			createdAt: Date.now(),
 		});
 

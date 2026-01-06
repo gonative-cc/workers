@@ -69,7 +69,7 @@ export class RPC extends WorkerEntrypoint<Env> {
 				redeem_id: Number(e.redeem_id),
 				redeemer: e.redeemer,
 				recipient_script: fromBase64(e.recipient_script),
-				amount_sats: Number(e.amount),
+				amount: Number(e.amount),
 				created_at: Number(e.created_at),
 				nbtc_pkg: setupRow.nbtc_pkg,
 				sui_network: setupRow.sui_network,

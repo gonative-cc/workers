@@ -15,7 +15,7 @@ interface RedeemRequestRow {
 	setup_id: number;
 	redeemer: string;
 	recipient_script: ArrayBuffer;
-	amount_sats: number;
+	amount: number;
 	status: RedeemRequestStatus;
 	created_at: number;
 	nbtc_pkg: string;
@@ -28,7 +28,7 @@ interface UtxoRow {
 	dwallet_id: string;
 	txid: string;
 	vout: number;
-	amount_sats: number;
+	amount: number;
 	script_pubkey: ArrayBuffer;
 	address_id: number;
 	status: UtxoStatus;
@@ -66,7 +66,7 @@ export class D1Storage implements Storage {
 	async getPendingRedeems(): Promise<RedeemRequest[]> {
 		const query = `
             SELECT
-                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
                 p.nbtc_pkg, p.nbtc_contract, p.sui_network
             FROM nbtc_redeem_requests r
             JOIN setups p ON r.setup_id = p.id
@@ -89,7 +89,7 @@ export class D1Storage implements Storage {
 	async getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]> {
 		const query = `
             SELECT
-                r.redeem_id, r.recipient_script, r.amount_sats, r.status, r.created_at, r.sui_tx, r.btc_tx
+                r.redeem_id, r.recipient_script, r.amount, r.status, r.created_at, r.sui_tx, r.btc_tx
             FROM nbtc_redeem_requests r
             WHERE r.redeemer = ? AND r.setup_id = ?
             ORDER BY r.created_at DESC
@@ -110,7 +110,7 @@ export class D1Storage implements Storage {
 	async getSolvedRedeems(): Promise<RedeemRequestWithInputs[]> {
 		const query = `
 	     	SELECT
-			    r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+			    r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
 			    p.nbtc_pkg, p.nbtc_contract, p.sui_network
 			FROM nbtc_redeem_requests r
 			JOIN setups p ON r.setup_id = p.id
@@ -157,7 +157,7 @@ export class D1Storage implements Storage {
 	async getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]> {
 		const query = `
             SELECT
-                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
                 p.nbtc_pkg, p.nbtc_contract, p.sui_network
             FROM nbtc_redeem_requests r
             JOIN setups p ON r.setup_id = p.id
@@ -180,12 +180,12 @@ export class D1Storage implements Storage {
 	async getAvailableUtxos(setupId: number): Promise<Utxo[]> {
 		// TODO: we should not query all utxos every time
 		const query = `
-			SELECT u.nbtc_utxo_id, u.dwallet_id, u.txid, u.vout, u.amount_sats, u.script_pubkey, u.address_id, u.status, u.locked_until
+			SELECT u.nbtc_utxo_id, u.dwallet_id, u.txid, u.vout, u.amount, u.script_pubkey, u.address_id, u.status, u.locked_until
 			FROM nbtc_utxos u
 			JOIN nbtc_deposit_addresses a ON u.address_id = a.id
 			WHERE a.setup_id = ?
 			AND u.status = ?
-			ORDER BY u.amount_sats DESC;
+			ORDER BY u.amount DESC;
 		`;
 		const { results } = await this.db
 			.prepare(query)

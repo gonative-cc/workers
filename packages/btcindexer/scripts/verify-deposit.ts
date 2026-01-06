@@ -3,7 +3,7 @@ import { Transaction, address, networks } from "bitcoinjs-lib";
 import { parseSuiRecipientFromOpReturn } from "../src/btcindexer";
 import { OP_RETURN } from "../src/opcodes";
 
-interface ValidationResult {
+export interface ValidationResult {
 	valid: boolean;
 	errors: string[];
 	deposit?: {
@@ -14,7 +14,7 @@ interface ValidationResult {
 	};
 }
 
-function validateDepositTx(
+export function validateDepositTx(
 	txHex: string,
 	depositAddr: string,
 	network: networks.Network,
@@ -53,7 +53,10 @@ function validateDepositTx(
 
 	for (let i = 0; i < tx.outs.length; i++) {
 		const vout = tx.outs[i];
-		if (!vout || vout.script[0] === OP_RETURN) {
+		if (!vout || !vout.script) {
+			continue;
+		}
+		if (vout.script[0] === OP_RETURN) {
 			continue;
 		}
 
@@ -89,47 +92,53 @@ function validateDepositTx(
 	return { valid, errors };
 }
 
-const args = process.argv.slice(2);
-if (args.length < 3) {
-	console.error("Usage: bun verify-deposit.ts <tx-hex-or-file> <deposit-address> <network>");
-	process.exit(1);
-}
-
-const [txInput, depositAddr, networkName] = args;
-
-const networkMap: Record<string, networks.Network> = {
-	mainnet: networks.bitcoin,
-	testnet: networks.testnet,
-	regtest: networks.regtest,
-};
-
-const network = networkMap[networkName!];
-if (!network) {
-	console.error(`Invalid network: ${networkName}. Use: mainnet, testnet, or regtest`);
-	process.exit(1);
-}
-
-try {
-	let txHex: string;
-	if (existsSync(txInput!)) {
-		txHex = readFileSync(txInput!, "utf8").trim();
-	} else {
-		txHex = txInput!.trim();
+function main() {
+	const args = process.argv.slice(2);
+	if (args.length < 3) {
+		console.error("Usage: bun verify-deposit.ts <tx-hex-or-file> <deposit-address> <network>");
+		process.exit(1);
 	}
 
-	const result = validateDepositTx(txHex, depositAddr!, network);
-	console.log(JSON.stringify(result, null, 2));
-	process.exit(result.valid ? 0 : 1);
-} catch (e) {
-	console.error(
-		JSON.stringify(
-			{
-				valid: false,
-				errors: [`Error: ${e instanceof Error ? e.message : String(e)}`],
-			},
-			null,
-			2,
-		),
-	);
-	process.exit(1);
+	const [txInput, depositAddr, networkName] = args;
+
+	const networkMap: Record<string, networks.Network> = {
+		mainnet: networks.bitcoin,
+		testnet: networks.testnet,
+		regtest: networks.regtest,
+	};
+
+	const network = networkMap[networkName!];
+	if (!network) {
+		console.error(`Invalid network: ${networkName}. Use: mainnet, testnet, or regtest`);
+		process.exit(1);
+	}
+
+	try {
+		let txHex: string;
+		if (existsSync(txInput!)) {
+			txHex = readFileSync(txInput!, "utf8").trim();
+		} else {
+			txHex = txInput!.trim();
+		}
+
+		const result = validateDepositTx(txHex, depositAddr!, network);
+		console.log(JSON.stringify(result, null, 2));
+		process.exit(result.valid ? 0 : 1);
+	} catch (e) {
+		console.error(
+			JSON.stringify(
+				{
+					valid: false,
+					errors: [`Error: ${e instanceof Error ? e.message : String(e)}`],
+				},
+				null,
+				2,
+			),
+		);
+		process.exit(1);
+	}
+}
+
+if (import.meta.main) {
+	main();
 }

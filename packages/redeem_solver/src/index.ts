@@ -38,10 +38,9 @@ export default {
 
 		const results = await Promise.allSettled([
 			service.processPendingRedeems(), // propose a solution
-			async () => {
-				await service.solveReadyRedeems(); // trigger status change
-				return service.processSolvedRedeems(); // request signatures
-			},
+			service
+				.solveReadyRedeems() // trigger status change
+				.then(service.processSolvedRedeems), // request signatures
 		]);
 
 		// Check for any rejected promises and log errors

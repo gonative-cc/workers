@@ -102,7 +102,7 @@ export interface NbtcTxRow {
 	// null if tx was detected in mempool
 	block_height: number | null;
 	sui_recipient: string;
-	amount_sats: number;
+	amount: number;
 	status: MintTxStatus;
 	// epoch time in ms
 	created_at: number;

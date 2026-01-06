@@ -59,7 +59,7 @@ function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
 		block_hash: null,
 		block_height: null,
 		sui_recipient: data.suiRecipient,
-		amount_sats: data.amountSats,
+		amount: data.amountSats,
 		created_at: data.createdAt,
 		updated_at: data.createdAt,
 		sui_tx_id: null,

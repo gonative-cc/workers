@@ -269,7 +269,7 @@ export async function setupTestIndexerSuite(
 
 		await db
 			.prepare(
-				`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, retry_count)
+				`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount, status, created_at, updated_at, retry_count)
 				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(

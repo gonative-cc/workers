@@ -246,7 +246,7 @@ describe("CFStorage", () => {
 			const tx = await storage.getNbtcMintTx("tx1");
 			expect(tx).not.toBeNull();
 			expect(tx!.status).toBe(MintTxStatus.Confirming);
-			expect(tx!.amount_sats).toBe(5000);
+			expect(tx!.amount).toBe(5000);
 		});
 
 		it("getNbtcMintCandidates should return correct candidates", async () => {

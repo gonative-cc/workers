@@ -313,7 +313,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 		expect(results[0]!.tx_id).toEqual(txInfo.id);
 		expect(results[0]!.vout).toEqual(0);
 		expect(results[0]!.sui_recipient).toEqual(txInfo.suiAddr);
-		expect(results[0]!.amount_sats).toEqual(txInfo.amountSats);
+		expect(results[0]!.amount).toEqual(txInfo.amountSats);
 	});
 
 	it("should return 0 registered_deposits when tx already exists", async () => {

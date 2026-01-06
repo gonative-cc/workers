@@ -36,23 +36,30 @@ export default {
 			env.REDEEM_DURATION_MS,
 		);
 
-		try {
-			await Promise.allSettled([
-				service.processPendingRedeems(), // propose a solution
-				async () => {
-					await service.solveReadyRedeems(); // trigger status change
-					return service.processSolvedRedeems(); // request signatures
-				},
-			]);
-		} catch (e) {
-			logError(
-				{
-					msg: "Processing redeems error",
-					method: "redeem-solver scheduler",
-				},
-				e,
-			);
-		}
+		const results = await Promise.allSettled([
+			service.processPendingRedeems(), // propose a solution
+			async () => {
+				await service.solveReadyRedeems(); // trigger status change
+				return service.processSolvedRedeems(); // request signatures
+			},
+		]);
+
+		// Check for any rejected promises and log errors
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				logError(
+					{
+						msg: "Processing redeems error",
+						method: "redeem-solver scheduler",
+						task:
+							index === 0
+								? "processPendingRedeems"
+								: "solveReadyRedeems/processSolvedRedeems",
+					},
+					result.reason,
+				);
+			}
+		});
 	},
 } satisfies ExportedHandler<Env>;
 

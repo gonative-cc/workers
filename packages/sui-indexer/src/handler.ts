@@ -39,9 +39,9 @@ export class SuiEventHandler {
 	}
 
 	private async handleMint(txDigest: string, e: MintEventRaw) {
-		// NOTE: bitcoin library we use in the other worker uses tx.getId() which returns the
-		// reversed order, its just for consistency
-		// TODO: check if we actually need that
+		// NOTE: Sui contract gives us the txid in natural byte order, but bitcoinjs-lib's tx.getId()
+		// returns it reversed (see https://github.com/bitcoinjs/bitcoinjs-lib/blob/dc8d9e26f2b9c7380aec7877155bde97594a9ade/ts_src/transaction.ts#L617)
+		// so we reverse here to match what the btcindexer uses
 		const txId = fromBase64(e.btc_tx_id).reverse().toHex();
 
 		await this.storage.insertUtxo({

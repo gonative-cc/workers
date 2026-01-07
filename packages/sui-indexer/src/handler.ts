@@ -39,8 +39,8 @@ export class SuiEventHandler {
 	}
 
 	private async handleMint(txDigest: string, e: MintEventRaw) {
-		// NOTE: Sui contract gives us the txid in natural byte order, but bitcoinjs-lib's tx.getId()
-		// returns it reversed (see https://github.com/bitcoinjs/bitcoinjs-lib/blob/dc8d9e26f2b9c7380aec7877155bde97594a9ade/ts_src/transaction.ts#L617)
+		// NOTE: Sui contract gives us the txid in big-endian, but bitcoinjs-lib's tx.getId()
+		// returns it in little-endian (see https://github.com/bitcoinjs/bitcoinjs-lib/blob/dc8d9e26f2b9c7380aec7877155bde97594a9ade/ts_src/transaction.ts#L617)
 		// so we reverse here to match what the btcindexer uses
 		const txId = fromBase64(e.btc_tx_id).reverse().toHex();
 

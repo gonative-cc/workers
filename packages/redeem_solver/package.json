@@ -19,7 +19,8 @@
 		"@gonative-cc/sui-indexer": "workspace:*",
 		"@ika.xyz/sdk": "^0.2.7",
 		"@mysten/bcs": "^1.9.2",
-		"@mysten/sui": "^1.45.2"
+		"@mysten/sui": "^1.45.2",
+		"bitcoinjs-lib": "^6.1.7"
 	},
 	"devDependencies": {
 		"@types/crypto-js": "^4.2.2",

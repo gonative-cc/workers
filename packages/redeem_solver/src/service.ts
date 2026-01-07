@@ -4,6 +4,7 @@ import type { Storage } from "./storage";
 import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } from "./sighash";
 
 export class RedeemService {
 	constructor(
@@ -92,12 +93,43 @@ export class RedeemService {
 			inputIdx: input.input_index,
 		});
 
-		const message = await client.getSigHash(
-			req.redeem_id,
-			input.input_index,
-			req.nbtc_pkg,
-			req.nbtc_contract,
-		);
+		const utxos = await this.storage.getRedeemUtxosWithDetails(req.redeem_id);
+		const redeemData = await this.storage.getRedeemRequestData(req.redeem_id);
+
+		if (!redeemData) {
+			throw new Error(`Redeem request ${req.redeem_id} not found`);
+		}
+
+		const inputs: UtxoInput[] = utxos.map((u) => ({
+			txid: u.txid,
+			vout: u.vout,
+			amount: u.amount,
+			script_pubkey: u.script_pubkey,
+		}));
+
+		const totalInput = inputs.reduce((sum, inp) => sum + inp.amount, 0);
+		const userReceiveAmount = redeemData.amount - DEFAULT_FEE_SATS;
+		const remainAmount = totalInput - redeemData.amount;
+
+		const outputs: TxOutput[] = [
+			{
+				amount: userReceiveAmount,
+				script: redeemData.recipient_script,
+			},
+		];
+
+		if (remainAmount > 0) {
+			const currentUtxo = utxos.find((u) => u.input_index === input.input_index);
+			if (!currentUtxo) {
+				throw new Error(`UTXO not found for input ${input.input_index}`);
+			}
+			outputs.push({
+				amount: remainAmount,
+				script: currentUtxo.script_pubkey,
+			});
+		}
+
+		const message = computeBtcSighash(inputs, outputs, input.input_index);
 
 		const presignId = await client.createGlobalPresign();
 		const nbtcPublicSignature = await client.createUserSigMessage(

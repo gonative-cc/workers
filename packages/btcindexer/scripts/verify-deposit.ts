@@ -100,7 +100,6 @@ function main() {
 	}
 
 	const [txInput, depositAddr, networkName] = args;
-
 	const networkMap: Record<string, networks.Network> = {
 		mainnet: networks.bitcoin,
 		testnet: networks.testnet,

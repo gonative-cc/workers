@@ -15,6 +15,7 @@ import type {
 	ElectrsTxResponse,
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
+	NbtcRedeemResp,
 } from "./models";
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -908,7 +909,7 @@ export class Indexer {
 		return { height };
 	}
 
-	async getRedeemsBySuiAddr(suiAddress: string, network: BtcNet): Promise<NbtcRedeemRow[]> {
+	async getRedeemsBySuiAddr(suiAddress: string, network: BtcNet): Promise<NbtcRedeemResp[]> {
 		const redeems = await this.storage.getNbtcRedeemsBySuiAddr(suiAddress, network);
 		const latestHeight = await this.storage.getChainTip(network);
 
@@ -919,8 +920,14 @@ export class Indexer {
 			}
 
 			return {
-				...r,
+				redeem_id: r.redeem_id,
+				amount: r.amount,
+				status: r.status,
+				created_at: r.created_at,
+				sui_tx: r.sui_tx,
+				btc_tx: r.btc_tx,
 				confirmations: confirmations,
+				network: r.btc_network,
 			};
 		});
 	}

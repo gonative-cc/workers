@@ -203,5 +203,15 @@ export interface NbtcRedeemRow {
 	btc_block_height: number | null;
 	btc_broadcasted_at: number | null;
 	btc_network: BtcNet;
-	confirmations?: number;
+}
+
+export interface NbtcRedeemResp {
+	redeem_id: number;
+	amount: number;
+	status: string;
+	created_at: number;
+	sui_tx: string;
+	btc_tx: string | null;
+	confirmations: number;
+	network: BtcNet;
 }

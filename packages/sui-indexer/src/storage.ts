@@ -192,6 +192,21 @@ export class IndexerStorage {
 	}
 
 	upsertRedeemInputs(redeemId: number, utxoIds: number[], dwalletIds: string[]): Promise<void> {
+		if (utxoIds.length !== dwalletIds.length) {
+			const error = new Error(
+				`Mismatch between utxoIds (${utxoIds.length}) and dwalletIds (${dwalletIds.length})`,
+			);
+			logError(
+				{
+					msg: "Failed to upsert redeem inputs: array length mismatch",
+					method: "upsertRedeemInputs",
+					redeemId,
+				},
+				error,
+			);
+			return Promise.reject(error);
+		}
+
 		if (utxoIds.length === 0) return Promise.resolve();
 		const now = Date.now();
 		const stmt = this.db.prepare(
@@ -200,10 +215,28 @@ export class IndexerStorage {
              ON CONFLICT(redeem_id, utxo_id) DO NOTHING`,
 		);
 
-		const batch = utxoIds.map((utxoId, i) =>
-			stmt.bind(redeemId, utxoId, i, dwalletIds[i], now),
-		);
-		return this.db.batch(batch).then();
+		const batch = utxoIds.map((utxoId, i) => {
+			// dwalletIds[i] is guaranteed to exist due to length check
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			return stmt.bind(redeemId, utxoId, i, dwalletIds[i]!, now);
+		});
+
+		return this.db
+			.batch(batch)
+			.then(() => {
+				return;
+			})
+			.catch((error) => {
+				logError(
+					{
+						msg: "Failed to batch upsert redeem inputs in D1",
+						method: "upsertRedeemInputs",
+						redeemId,
+					},
+					error,
+				);
+				throw error;
+			});
 	}
 
 	markRedeemInputVerified(redeemId: number, utxoId: number): Promise<void> {

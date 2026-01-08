@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS nbtc_minting (
 	block_hash TEXT,
 	block_height INTEGER,
 	sui_recipient TEXT NOT NULL,
-	amount_sats INTEGER NOT NULL,
+	amount INTEGER NOT NULL,
 	status TEXT NOT NULL, -- 'broadcasting' | 'confirming' | 'finalized' | 'minting' | 'minted' | 'reorg'
 	created_at INTEGER NOT NULL, -- timestamp_ms
 	updated_at INTEGER NOT NULL, -- timestamp_ms
@@ -88,14 +88,14 @@ CREATE TABLE IF NOT EXISTS nbtc_utxos (
 	dwallet_id TEXT NOT NULL,
 	txid TEXT NOT NULL, -- Bitcoin transaction ID
 	vout INTEGER NOT NULL,
-	amount_sats INTEGER NOT NULL,
+	amount INTEGER NOT NULL,
 	script_pubkey BLOB NOT NULL,
 	status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent' TODO: lets remove the 'spent' utxos after some time?
 	locked_until INTEGER,
 	FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(id)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS nbtc_utxos_selection ON nbtc_utxos(address_id, status, amount_sats);
+CREATE INDEX IF NOT EXISTS nbtc_utxos_selection ON nbtc_utxos(address_id, status, amount);
 CREATE INDEX IF NOT EXISTS _nbtc_utxos_txid_vout ON nbtc_utxos(txid, vout);
 
 CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	setup_id INTEGER NOT NULL,
 	redeemer TEXT NOT NULL,
 	recipient_script BLOB NOT NULL, -- script pubkey
-	amount_sats INTEGER NOT NULL,
+	amount INTEGER NOT NULL,
 	created_at INTEGER NOT NULL,
 	sui_tx TEXT NOT NULL,
 	btc_tx TEXT, -- null if not broadcasted

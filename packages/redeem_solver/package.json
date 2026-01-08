@@ -12,7 +12,7 @@
 		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
-		"test": "echo no tests"
+		"test": "bun test"
 	},
 	"dependencies": {
 		"@gonative-cc/btcindexer": "workspace:*",

@@ -35,5 +35,5 @@ type NbtcTxStatusResp struct {
 	BlockHeight   *int64  `json:"block_height"`
 	Confirmations int64   `json:"confirmations"`
 	SuiRecipient  string  `json:"sui_recipient"`
-	AmountSats    int64   `json:"amount_sats"`
+	Amount        int64   `json:"amount"`
 }

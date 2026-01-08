@@ -215,7 +215,7 @@ export class Indexer {
 						msg: "Found new nBTC deposit",
 						txId: tx.getId(),
 						vout: deposit.vout,
-						amountSats: deposit.amountSats,
+						amount: deposit.amount,
 						suiRecipient: deposit.suiRecipient,
 						nbtcPkg: deposit.nbtcPkg,
 						suiNetwork: deposit.suiNetwork,
@@ -229,7 +229,7 @@ export class Indexer {
 						blockHash: blockInfo.hash,
 						blockHeight: blockInfo.height,
 						suiRecipient: deposit.suiRecipient,
-						amountSats: deposit.amountSats,
+						amount: deposit.amount,
 						btcNetwork: blockInfo.network,
 						nbtcPkg: deposit.nbtcPkg,
 						suiNetwork: deposit.suiNetwork,
@@ -299,7 +299,7 @@ export class Indexer {
 
 				deposits.push({
 					vout: i,
-					amountSats: Number(vout.value),
+					amount: Number(vout.value),
 					suiRecipient: finalRecipient,
 					nbtcPkg: config.nbtc_pkg,
 					suiNetwork: config.sui_network,
@@ -969,7 +969,7 @@ export class Indexer {
 	}
 }
 
-function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
+export function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 	if (script.length === 0 || script[0] !== OP_RETURN) {
 		return null;
 	}

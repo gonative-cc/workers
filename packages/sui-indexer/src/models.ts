@@ -11,7 +11,7 @@ export interface Utxo {
 	dwallet_id: string;
 	txid: string;
 	vout: number;
-	amount_sats: number;
+	amount: number;
 	script_pubkey: Uint8Array;
 	address_id: number;
 	status: UtxoStatus;
@@ -32,7 +32,7 @@ export interface RedeemRequest {
 	setup_id: number;
 	redeemer: string;
 	recipient_script: Uint8Array;
-	amount_sats: number;
+	amount: number;
 	status: RedeemRequestStatus;
 	created_at: number;
 	nbtc_pkg: string;
@@ -44,7 +44,7 @@ export interface RedeemRequest {
 export interface RedeemRequestResp {
 	redeem_id: number;
 	recipient_script: string;
-	amount_sats: number;
+	amount: number;
 	status: RedeemRequestStatus;
 	created_at: number;
 	sui_tx: string; // sui tx initiating the redeem process
@@ -57,7 +57,7 @@ export interface UtxoIngestData {
 	dwallet_id: string;
 	txid: string;
 	vout: number;
-	amount_sats: number;
+	amount: number;
 	script_pubkey: Uint8Array;
 	nbtc_pkg: string;
 	sui_network: SuiNet;
@@ -69,7 +69,7 @@ export interface RedeemRequestIngestData {
 	redeem_id: number;
 	redeemer: string;
 	recipient_script: Uint8Array;
-	amount_sats: number;
+	amount: number;
 	created_at: number;
 	nbtc_pkg: string;
 	sui_network: SuiNet;

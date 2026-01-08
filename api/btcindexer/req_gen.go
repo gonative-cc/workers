@@ -226,10 +226,10 @@ func (z *NbtcTxStatusResp) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "SuiRecipient")
 				return
 			}
-		case "AmountSats":
-			z.AmountSats, err = dc.ReadInt64()
+		case "Amount":
+			z.Amount, err = dc.ReadInt64()
 			if err != nil {
-				err = msgp.WrapError(err, "AmountSats")
+				err = msgp.WrapError(err, "Amount")
 				return
 			}
 		default:
@@ -320,14 +320,14 @@ func (z *NbtcTxStatusResp) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "SuiRecipient")
 		return
 	}
-	// write "AmountSats"
-	err = en.Append(0xaa, 0x41, 0x6d, 0x6f, 0x75, 0x6e, 0x74, 0x53, 0x61, 0x74, 0x73)
+	// write "Amount"
+	err = en.Append(0xa6, 0x41, 0x6d, 0x6f, 0x75, 0x6e, 0x74)
 	if err != nil {
 		return
 	}
-	err = en.WriteInt64(z.AmountSats)
+	err = en.WriteInt64(z.Amount)
 	if err != nil {
-		err = msgp.WrapError(err, "AmountSats")
+		err = msgp.WrapError(err, "Amount")
 		return
 	}
 	return
@@ -363,9 +363,9 @@ func (z *NbtcTxStatusResp) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "SuiRecipient"
 	o = append(o, 0xac, 0x53, 0x75, 0x69, 0x52, 0x65, 0x63, 0x69, 0x70, 0x69, 0x65, 0x6e, 0x74)
 	o = msgp.AppendString(o, z.SuiRecipient)
-	// string "AmountSats"
-	o = append(o, 0xaa, 0x41, 0x6d, 0x6f, 0x75, 0x6e, 0x74, 0x53, 0x61, 0x74, 0x73)
-	o = msgp.AppendInt64(o, z.AmountSats)
+	// string "Amount"
+	o = append(o, 0xa6, 0x41, 0x6d, 0x6f, 0x75, 0x6e, 0x74)
+	o = msgp.AppendInt64(o, z.Amount)
 	return
 }
 
@@ -445,10 +445,10 @@ func (z *NbtcTxStatusResp) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "SuiRecipient")
 				return
 			}
-		case "AmountSats":
-			z.AmountSats, bts, err = msgp.ReadInt64Bytes(bts)
+		case "Amount":
+			z.Amount, bts, err = msgp.ReadInt64Bytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "AmountSats")
+				err = msgp.WrapError(err, "Amount")
 				return
 			}
 		default:
@@ -477,7 +477,7 @@ func (z *NbtcTxStatusResp) Msgsize() (s int) {
 	} else {
 		s += msgp.Int64Size
 	}
-	s += 14 + msgp.Int64Size + 13 + msgp.StringPrefixSize + len(z.SuiRecipient) + 11 + msgp.Int64Size
+	s += 14 + msgp.Int64Size + 13 + msgp.StringPrefixSize + len(z.SuiRecipient) + 7 + msgp.Int64Size
 	return
 }
 

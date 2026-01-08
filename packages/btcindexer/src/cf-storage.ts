@@ -185,7 +185,7 @@ export class CFStorage implements Storage {
 		}
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
-			`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount_sats, status, created_at, updated_at, sui_tx_id, retry_count)
+			`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount, status, created_at, updated_at, sui_tx_id, retry_count)
              VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN setups p ON a.setup_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, NULL, 0)
              ON CONFLICT(tx_id) DO UPDATE SET
                 block_hash = excluded.block_hash,
@@ -207,7 +207,7 @@ export class CFStorage implements Storage {
 				tx.blockHash,
 				tx.blockHeight,
 				tx.suiRecipient,
-				tx.amountSats,
+				tx.amount,
 				now,
 				now,
 			),
@@ -419,7 +419,7 @@ export class CFStorage implements Storage {
 	async registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void> {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
-			`INSERT OR IGNORE INTO nbtc_minting (tx_id, address_id, sender, vout, sui_recipient, amount_sats, status, created_at, updated_at, sui_tx_id, retry_count)
+			`INSERT OR IGNORE INTO nbtc_minting (tx_id, address_id, sender, vout, sui_recipient, amount, status, created_at, updated_at, sui_tx_id, retry_count)
              VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN setups p ON a.setup_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, NULL, 0)`,
 		);
 
@@ -433,7 +433,7 @@ export class CFStorage implements Storage {
 				deposit.sender,
 				deposit.vout,
 				deposit.suiRecipient,
-				deposit.amountSats,
+				deposit.amount,
 				now,
 				now,
 			),

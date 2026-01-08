@@ -497,7 +497,7 @@ export class CFStorage implements Storage {
 	async getNbtcRedeemsBySuiAddr(suiAddress: string, network: BtcNet): Promise<NbtcRedeemRow[]> {
 		const results = await this.d1
 			.prepare(
-				`SELECT r.redeem_id, r.amount_sats, r.status, r.created_at, r.sui_tx,
+				`SELECT r.redeem_id, r.amount, r.status, r.created_at, r.sui_tx,
                         r.btc_tx, r.btc_block_height, r.btc_broadcasted_at, p.btc_network
                  FROM nbtc_redeem_requests r
                  JOIN setups p ON r.setup_id = p.id

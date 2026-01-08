@@ -285,7 +285,7 @@ export class D1Storage implements Storage {
 	async getSignedRedeems(): Promise<(RedeemRequest & { btc_network: string })[]> {
 		const query = `
             SELECT
-                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
                 p.nbtc_pkg, p.nbtc_contract, p.sui_network, p.btc_network
             FROM nbtc_redeem_requests r
             JOIN setups p ON r.setup_id = p.id

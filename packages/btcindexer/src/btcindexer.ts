@@ -919,14 +919,8 @@ export class Indexer {
 			}
 
 			return {
-				redeem_id: r.redeem_id,
-				amount_sats: r.amount_sats,
-				status: r.status,
-				created_at: r.created_at,
-				sui_tx: r.sui_tx,
-				btc_tx: r.btc_tx,
+				...r,
 				confirmations: confirmations,
-				network: r.btc_network,
 			};
 		});
 	}

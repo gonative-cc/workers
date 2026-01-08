@@ -195,7 +195,7 @@ export type InsertBlockResult = InsertBlockStatus;
 
 export interface NbtcRedeemRow {
 	redeem_id: number;
-	amount_sats: number;
+	amount: number;
 	status: string;
 	created_at: number;
 	sui_tx: string;
@@ -203,4 +203,5 @@ export interface NbtcRedeemRow {
 	btc_block_height: number | null;
 	btc_broadcasted_at: number | null;
 	btc_network: BtcNet;
+	confirmations?: number;
 }

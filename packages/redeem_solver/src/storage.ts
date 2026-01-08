@@ -56,6 +56,7 @@ export interface Storage {
 	getRedeemInputs(redeemId: number): Promise<RedeemInput[]>;
 	getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
+	getSignedRedeems(): Promise<(RedeemRequest & { btc_network: string })[]>;
 }
 
 export class D1Storage implements Storage {
@@ -277,5 +278,35 @@ export class D1Storage implements Storage {
 			.all<{ sui_network: string }>();
 
 		return result.results.map((r) => toSuiNet(r.sui_network));
+	}
+
+	async getSignedRedeems(): Promise<(RedeemRequest & { btc_network: string })[]> {
+		const query = `
+            SELECT
+                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount_sats, r.status, r.created_at,
+                p.nbtc_pkg, p.nbtc_contract, p.sui_network, p.btc_network
+            FROM nbtc_redeem_requests r
+            JOIN setups p ON r.setup_id = p.id
+            WHERE r.status = 'solved'
+            AND NOT EXISTS (
+                SELECT 1 FROM nbtc_redeem_solutions s
+                WHERE s.redeem_id = r.redeem_id AND s.verified = 0
+            )
+            AND EXISTS (
+                SELECT 1 FROM nbtc_redeem_solutions s
+                WHERE s.redeem_id = r.redeem_id
+            )
+            ORDER BY r.created_at ASC
+            LIMIT 50;
+        `;
+		const { results } = await this.db
+			.prepare(query)
+			.all<RedeemRequestRow & { btc_network: string }>();
+
+		return results.map((r) => ({
+			...r,
+			recipient_script: new Uint8Array(r.recipient_script),
+			sui_network: toSuiNet(r.sui_network),
+		}));
 	}
 }

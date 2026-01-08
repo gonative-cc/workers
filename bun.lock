@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "workers",
@@ -53,6 +52,7 @@
       "name": "@gonative-cc/redeem_solver",
       "version": "0.0.1",
       "dependencies": {
+        "@gonative-cc/btcindexer": "workspace:*",
         "@gonative-cc/lib": "workspace:*",
         "@gonative-cc/sui-indexer": "workspace:*",
         "@ika.xyz/sdk": "^0.2.7",

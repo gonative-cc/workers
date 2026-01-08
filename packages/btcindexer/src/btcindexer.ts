@@ -194,7 +194,10 @@ export class Indexer {
 		}
 
 		const nbtcTxs: NbtcTxInsertion[] = [];
+		const txIds: string[] = [];
+
 		for (const tx of block.transactions ?? []) {
+			txIds.push(tx.getId());
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
 				const txSenders = await this.getSenderAddresses(tx, blockInfo.network);
@@ -235,6 +238,10 @@ export class Indexer {
 					});
 				}
 			}
+		}
+
+		if (txIds.length > 0) {
+			await this.storage.confirmRedeemsInBlock(txIds, blockInfo.height, blockInfo.hash);
 		}
 
 		if (nbtcTxs.length > 0) {
@@ -862,9 +869,66 @@ export class Indexer {
 		return { tx_id: txId, registered_deposits: deposits.length };
 	}
 
+	async broadcastRedeemTx(
+		txHex: string,
+		network: BtcNet,
+		redeemId: number,
+	): Promise<{ tx_id: string }> {
+		const electrs = this.getElectrsClient(network);
+		const response = await electrs.broadcastTx(txHex);
+
+		if (!response.ok) {
+			const error = await response.text();
+			logError(
+				{
+					msg: "Failed to broadcast redeem transaction",
+					method: "broadcastRedeemTx",
+					redeemId,
+					network,
+				},
+				new Error(error),
+			);
+			throw new Error(`Broadcast failed: ${error}`);
+		}
+
+		const txId = await response.text();
+		logger.info({
+			msg: "Redeem transaction broadcasted",
+			redeemId,
+			txId,
+			network,
+		});
+
+		await this.storage.updateRedeemStatusToBroadcasted(redeemId, txId);
+		return { tx_id: txId };
+	}
+
 	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {
 		const height = await this.storage.getLatestBlockHeight(network);
 		return { height };
+	}
+
+	async getRedeemsBySuiAddr(suiAddress: string, network: BtcNet): Promise<NbtcRedeemRow[]> {
+		const redeems = await this.storage.getNbtcRedeemsBySuiAddr(suiAddress, network);
+		const latestHeight = await this.storage.getChainTip(network);
+
+		return redeems.map((r) => {
+			let confirmations = 0;
+			if (r.btc_block_height !== null && latestHeight !== null) {
+				confirmations = calculateConfirmations(r.btc_block_height, latestHeight);
+			}
+
+			return {
+				redeem_id: r.redeem_id,
+				amount_sats: r.amount_sats,
+				status: r.status,
+				created_at: r.created_at,
+				sui_tx: r.sui_tx,
+				btc_tx: r.btc_tx,
+				confirmations: confirmations,
+				network: r.btc_network,
+			};
+		});
 	}
 
 	async getDepositsBySender(btcAddress: string, network: BtcNet): Promise<NbtcTxResp[]> {

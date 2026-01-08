@@ -11,6 +11,7 @@ import type {
 	NbtcDepositAddrsMap,
 	ConfirmingBlockInfo,
 	InsertBlockResult,
+	NbtcRedeemRow,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
@@ -43,6 +44,9 @@ export interface Storage {
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
 	getNbtcMintTxsByBtcSender(btcAddress: string, network: BtcNet): Promise<NbtcTxRow[]>;
+	updateRedeemStatusToBroadcasted(redeemId: number, txId: string): Promise<void>;
+	confirmRedeemsInBlock(txIds: string[], blockHeight: number, blockHash: string): Promise<void>;
+	getNbtcRedeemsBySuiAddr(suiAddress: string, network: BtcNet): Promise<NbtcRedeemRow[]>;
 }
 
 // TODO: Add tests

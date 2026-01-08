@@ -192,3 +192,15 @@ export const enum InsertBlockStatus {
 }
 
 export type InsertBlockResult = InsertBlockStatus;
+
+export interface NbtcRedeemRow {
+	redeem_id: number;
+	amount_sats: number;
+	status: string;
+	created_at: number;
+	sui_tx: string;
+	btc_tx: string | null;
+	btc_block_height: number | null;
+	btc_broadcasted_at: number | null;
+	btc_network: BtcNet;
+}

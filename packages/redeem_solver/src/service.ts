@@ -4,11 +4,16 @@ import type { Storage } from "./storage";
 import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import { btcNetFromString } from "@gonative-cc/lib/nbtc";
+import type { Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
+import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
 
 export class RedeemService {
 	constructor(
 		private storage: Storage,
 		private clients: Map<SuiNet, SuiClient>,
+		private btcIndexer: Service<BtcIndexerRpcI & WorkerEntrypoint>,
 		private utxoLockTimeMs: number,
 		private redeemDurationMs: number,
 	) {
@@ -50,6 +55,51 @@ export class RedeemService {
 
 		for (const req of solved) {
 			await this.processSolvedRedeem(req);
+		}
+	}
+
+	async broadcastReadyRedeems() {
+		const readyRedeems = await this.storage.getSignedRedeems();
+		if (readyRedeems.length === 0) return;
+
+		for (const req of readyRedeems) {
+			await this.broadcastRedeem(req);
+		}
+	}
+
+	private async broadcastRedeem(req: RedeemRequest) {
+		logger.info({
+			msg: "Broadcasting redeem transaction",
+			redeemId: req.redeem_id,
+		});
+
+		try {
+			const client = this.getSuiClient(req.sui_network);
+			const rawTxHex = await client.getRedeemBtcTx(
+				req.redeem_id,
+				req.nbtc_pkg,
+				req.nbtc_contract,
+			);
+
+			// @ts-expect-error btc_network is selected in the query but not present in the base RedeemRequest type
+			const btcNetworkStr = req.btc_network || "regtest";
+			const btcNetwork = btcNetFromString(btcNetworkStr);
+
+			await this.btcIndexer.broadcastRedeemTx(rawTxHex, btcNetwork, req.redeem_id);
+
+			logger.info({
+				msg: "Successfully broadcasted redeem transaction",
+				redeemId: req.redeem_id,
+			});
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to broadcast redeem transaction",
+					method: "broadcastRedeem",
+					redeemId: req.redeem_id,
+				},
+				e,
+			);
 		}
 	}
 

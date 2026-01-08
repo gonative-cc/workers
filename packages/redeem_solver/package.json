@@ -15,6 +15,7 @@
 		"test": "echo no tests"
 	},
 	"dependencies": {
+		"@gonative-cc/btcindexer": "workspace:*",
 		"@gonative-cc/lib": "workspace:*",
 		"@gonative-cc/sui-indexer": "workspace:*",
 		"@ika.xyz/sdk": "^0.2.7",

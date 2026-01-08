@@ -11,6 +11,9 @@ import { D1Storage } from "./storage";
 import { RedeemService } from "./service";
 import { createSuiClients } from "./sui_client";
 import { logger } from "@gonative-cc/lib/logger";
+import type { Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
+import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
 
 export default {
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
@@ -32,6 +35,7 @@ export default {
 		const service = new RedeemService(
 			storage,
 			clients,
+			env.BTCINDEXER as unknown as Service<BtcIndexerRpcI & WorkerEntrypoint>,
 			env.UTXO_LOCK_TIME,
 			env.REDEEM_DURATION_MS,
 		);
@@ -39,6 +43,7 @@ export default {
 		await service.processPendingRedeems();
 		await service.solveReadyRedeems();
 		await service.processSolvedRedeems();
+		await service.broadcastReadyRedeems();
 	},
 } satisfies ExportedHandler<Env>;
 

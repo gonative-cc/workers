@@ -21,7 +21,7 @@ export class Processor {
 			cursor = await this.storage.getSuiGqlCursor(nbtcPkg.id);
 			let hasNextPage = true;
 			while (hasNextPage) {
-				const b = await this._poolNbtc(nbtcPkg.nbtc_pkg, cursor);
+				const b = await this._poolNbtc(nbtcPkg.id, nbtcPkg.nbtc_pkg, cursor);
 				if (b.endCursor && b.endCursor !== cursor) {
 					await this.storage.saveSuiGqlCursor(nbtcPkg.id, b.endCursor);
 					hasNextPage = b.hasNextPage;
@@ -43,7 +43,11 @@ export class Processor {
 		}
 	}
 
-	private async _poolNbtc(nbtcPkg: string, startCursor: Cursor): Promise<EventsBatch> {
+	private async _poolNbtc(
+		setupId: number,
+		nbtcPkg: string,
+		startCursor: Cursor,
+	): Promise<EventsBatch> {
 		const network = this.netCfg.name;
 		// TODO: lets fetch events from all active packages at once
 		const b = await this.eventFetcher.fetchEvents(nbtcPkg, startCursor);
@@ -56,7 +60,7 @@ export class Processor {
 			endCursor: b.endCursor,
 		});
 		if (b.events.length > 0) {
-			const handler = new SuiEventHandler(this.storage, nbtcPkg, network);
+			const handler = new SuiEventHandler(this.storage, setupId);
 			await handler.handleEvents(b.events);
 		}
 		return b;

@@ -45,16 +45,16 @@ export default {
 			service
 				.solveReadyRedeems() // trigger status change
 				.then(service.processSolvedRedeems), // request signatures
-      service.broadcastReadyRedeems(), // broadcast fully signed txs             
+			service.broadcastReadyRedeems(), // broadcast fully signed txs
 		]);
 
 		// Check for any rejected promises and log errors
 		results.forEach((result, index) => {
 			if (result.status === "rejected") {
-        let taskName = "unknown";     
-        if (index === 0) taskName = "processPendingRedeems";     
-        else if (index === 1) taskName = "solveReadyRedeems/processSolvedRedeems";   
-        else if (index === 2) taskName = "broadcastReadyRedeems";                   
+				let taskName = "unknown";
+				if (index === 0) taskName = "processPendingRedeems";
+				else if (index === 1) taskName = "solveReadyRedeems/processSolvedRedeems";
+				else if (index === 2) taskName = "broadcastReadyRedeems";
 				logError(
 					{
 						msg: "Processing redeems error",

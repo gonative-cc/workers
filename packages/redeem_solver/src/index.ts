@@ -6,11 +6,14 @@
  * Bind resources to your Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
  * `Env` object can be regenerated with `bun run typegen`.
  */
-import { RPC } from "./rpc";
 import { D1Storage } from "./storage";
 import { RedeemService } from "./service";
 import { createSuiClients } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
+
+// Export RPC entrypoints for service bindings
+export { RPC } from "./rpc";
+export { RPCMock } from "./rpc-mock";
 
 export default {
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
@@ -61,5 +64,3 @@ export default {
 		});
 	},
 } satisfies ExportedHandler<Env>;
-
-export { RPC };

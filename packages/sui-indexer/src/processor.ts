@@ -42,7 +42,7 @@ export class Processor {
 					logger.debug({
 						msg: `Fetched events`,
 						network: this.netCfg.name,
-						nbtcPkgs,
+						packageIds: nbtcPkgs.map((pkg) => pkg.id),
 						eventsLength: result.events.length,
 						endCursor: result.endCursor,
 					});
@@ -73,10 +73,10 @@ export class Processor {
 		} catch (e) {
 			logError(
 				{
-					msg: "Failed to index package",
+					msg: "Failed to index packages",
 					method: "queryNewEvents",
 					network: this.netCfg,
-					pkgIds: nbtcPkgs,
+					packageIds: nbtcPkgs.map((pkg) => pkg.id),
 				},
 				e,
 			);

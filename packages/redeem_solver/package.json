@@ -12,7 +12,7 @@
 		"deploy:prod": "wrangler deploy -c ./wrangler-prod.jsonc",
 		"typecheck": "tsc",
 		"cf-typegen": "wrangler types",
-		"test": "echo no tests"
+		"test": "bun test"
 	},
 	"dependencies": {
 		"@gonative-cc/lib": "workspace:*",
@@ -23,6 +23,7 @@
 	},
 	"devDependencies": {
 		"@types/crypto-js": "^4.2.2",
+		"bitcoinjs-lib": "^7.0.1",
 		"miniflare": "4.20251008.0"
 	}
 }

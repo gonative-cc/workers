@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@gonative-cc/lib": "workspace:*",
+    "@mysten/sui": "^1.45.2",
     "bitcoinjs-lib": "^6.1.7",
     "graphql": "^16.12.0",
     "graphql-request": "^7.4.0"

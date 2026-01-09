@@ -51,16 +51,16 @@ To populate the `nbtc_addresses` you can use the `seed:addresses` script. This s
 - For local development:
 
   ```sh
-  bun run seed:addresses --local
+  bun run seed:config --local
   ```
 
 - For the remote (production/backstage):
 
   ```sh
-  bun run seed:addresses
+  bun run seed:config
   ```
 
-  You can add or modify the addresses in the `scripts/nbtc_addresses.json` file to manage the list of deposit addresses.
+  You can add or modify the addresses in the `scripts/config.ts` file to manage the list of deposit addresses.
 
 ## Components
 

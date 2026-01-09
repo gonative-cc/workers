@@ -17,6 +17,7 @@ export class RedeemService {
 		}
 	}
 
+	// Propose a solution for pending redeems.
 	async processPendingRedeems() {
 		const pendingRequests = await this.storage.getPendingRedeems();
 		if (pendingRequests.length === 0) {
@@ -25,7 +26,7 @@ export class RedeemService {
 		}
 
 		for (const req of pendingRequests) {
-			await this.processRequest(req);
+			await this.redeemReqProposeSolution(req);
 		}
 	}
 
@@ -195,21 +196,24 @@ export class RedeemService {
 		return c;
 	}
 
-	private async processRequest(req: RedeemRequest) {
+	private async redeemReqProposeSolution(req: RedeemRequest) {
 		logger.info({
 			msg: "Processing redeem request",
 			redeemId: req.redeem_id,
-			amountSats: req.amount_sats.toString(),
+			amount: req.amount.toString(),
 		});
 		// TODO: we should only fetch it once for all requests. So we fetch it in processPendingRedeems and the pass it to this method
 		const availableUtxos = await this.storage.getAvailableUtxos(req.setup_id);
-		const selectedUtxos = selectUtxos(availableUtxos, req.amount_sats);
+		const selectedUtxos = selectUtxos(availableUtxos, req.amount);
+
+		// TODO: we should continue only if our solution is better than the existing one - in case
+		//   someone frontrun us.
 
 		if (!selectedUtxos) {
 			logger.warn({
 				msg: "Insufficient UTXOs for request",
 				redeemId: req.redeem_id,
-				neededAmountSats: req.amount_sats.toString(),
+				neededAmount: req.amount.toString(),
 			});
 			return;
 		}
@@ -287,7 +291,7 @@ function selectUtxos(available: Utxo[], targetAmount: number): Utxo[] | null {
 	const selected: Utxo[] = [];
 
 	for (const utxo of available) {
-		sum += utxo.amount_sats;
+		sum += utxo.amount;
 		selected.push(utxo);
 		if (sum >= targetAmount) {
 			return selected;

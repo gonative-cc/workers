@@ -2,7 +2,7 @@ import type { NetworkConfig, PkgCfg } from "./models";
 import { IndexerStorage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
-import type { EventFetcher, EventsBatch, Cursor } from "./graphql-client";
+import type { EventFetcher } from "./graphql-client";
 
 export class Processor {
 	netCfg: NetworkConfig;
@@ -15,50 +15,76 @@ export class Processor {
 		this.eventFetcher = eventFetcher;
 	}
 
-	async poolNbtcEvents(nbtcPkg: PkgCfg) {
-		let cursor = null;
+	// pool Nbtc events by multiple package ids
+	async poolAllNbtcEvents(nbtcPkgs: PkgCfg[]) {
 		try {
-			cursor = await this.storage.getSuiGqlCursor(nbtcPkg.id);
-			let hasNextPage = true;
-			while (hasNextPage) {
-				const b = await this._poolNbtc(nbtcPkg.nbtc_pkg, cursor);
-				if (b.endCursor && b.endCursor !== cursor) {
-					await this.storage.saveSuiGqlCursor(nbtcPkg.id, b.endCursor);
-					hasNextPage = b.hasNextPage;
-				} else {
-					hasNextPage = false;
+			if (nbtcPkgs.length === 0) return;
+
+			const setupIds = nbtcPkgs.map((pkg) => pkg.id);
+			const cursors = await this.storage.getMultipleSuiGqlCursors(setupIds);
+
+			let hasAnyNextPage = true;
+			while (hasAnyNextPage) {
+				const packages = nbtcPkgs.map((pkg) => ({
+					id: pkg.nbtc_pkg,
+					cursor: cursors[pkg.id] || null,
+				}));
+
+				const results = await this.eventFetcher.fetchMultipleEvents(packages);
+
+				const cursorsToSave: { setupId: number; cursor: string }[] = [];
+				hasAnyNextPage = false;
+
+				for (const pkg of nbtcPkgs) {
+					const result = results[pkg.nbtc_pkg];
+					if (!result) continue;
+
+					logger.debug({
+						msg: `Fetched events`,
+						network: this.netCfg.name,
+						packageIds: nbtcPkgs.map((pkg) => pkg.id),
+						eventsLength: result.events.length,
+						endCursor: result.endCursor,
+					});
+
+					if (result.events.length > 0) {
+						const handler = new SuiEventHandler(
+							this.storage,
+							pkg.nbtc_pkg,
+							this.netCfg.name,
+						);
+						await handler.handleEvents(result.events);
+					}
+
+					if (result.endCursor && result.endCursor !== cursors[pkg.id]) {
+						cursorsToSave.push({ setupId: pkg.id, cursor: result.endCursor });
+						cursors[pkg.id] = result.endCursor;
+					}
+
+					if (result.hasNextPage) {
+						hasAnyNextPage = true;
+					}
+				}
+
+				if (cursorsToSave.length > 0) {
+					await this.storage.saveMultipleSuiGqlCursors(cursorsToSave);
 				}
 			}
 		} catch (e) {
 			logError(
 				{
-					msg: "Failed to index package",
+					msg: "Failed to index packages",
 					method: "queryNewEvents",
 					network: this.netCfg,
-					pkgId: nbtcPkg,
-					startCursor: cursor,
+					packageIds: nbtcPkgs.map((pkg) => pkg.id),
 				},
 				e,
 			);
 		}
 	}
 
-	private async _poolNbtc(nbtcPkg: string, startCursor: Cursor): Promise<EventsBatch> {
-		const network = this.netCfg.name;
-		// TODO: lets fetch events from all active packages at once
-		const b = await this.eventFetcher.fetchEvents(nbtcPkg, startCursor);
-		logger.debug({
-			msg: `Fetched events`,
-			network: network,
-			nbtcPkg,
-			eventsLength: b.events.length,
-			startCursor,
-			endCursor: b.endCursor,
-		});
-		if (b.events.length > 0) {
-			const handler = new SuiEventHandler(this.storage, nbtcPkg, network);
-			await handler.handleEvents(b.events);
-		}
-		return b;
+	// pool Nbtc events by single package id
+	async poolNbtcEvents(nbtcPkg: PkgCfg) {
+		await this.poolAllNbtcEvents([nbtcPkg]);
 	}
 }

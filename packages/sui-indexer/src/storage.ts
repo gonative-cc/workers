@@ -191,39 +191,62 @@ export class IndexerStorage {
 		return result.results.map((r) => r.sui_network as SuiNet);
 	}
 
-	async upsertRedeemInputs(
-		redeemId: number,
-		utxoIds: number[],
-		dwalletIds: string[],
-	): Promise<void> {
+	upsertRedeemInputs(redeemId: number, utxoIds: number[], dwalletIds: string[]): Promise<void> {
 		if (utxoIds.length !== dwalletIds.length) {
-			throw new Error("Mismatched lengths of utxoIds and dwalletIds");
-		}
-		if (utxoIds.length === 0) return;
-
-		const stmt = this.db.prepare(
-			`INSERT OR IGNORE INTO nbtc_redeem_solutions (redeem_id, utxo_id, input_index, dwallet_id, created_at) VALUES (?, ?, ?, ?, ?)`,
-		);
-
-		const now = Date.now();
-		const batch = [];
-		for (let i = 0; i < utxoIds.length; i++) {
-			batch.push(stmt.bind(redeemId, utxoIds[i], i, dwalletIds[i], now));
-		}
-		try {
-			await this.db.batch(batch);
-		} catch (error) {
+			const error = new Error(
+				`Mismatch between utxoIds (${utxoIds.length}) and dwalletIds (${dwalletIds.length})`,
+			);
 			logError(
 				{
-					msg: "Failed to upsert redeem inputs",
+					msg: "Failed to upsert redeem inputs: array length mismatch",
 					method: "upsertRedeemInputs",
 					redeemId,
 				},
 				error,
 			);
-
-			throw error;
+			return Promise.reject(error);
 		}
+
+		if (utxoIds.length === 0) return Promise.resolve();
+		const now = Date.now();
+		const stmt = this.db.prepare(
+			`INSERT INTO nbtc_redeem_solutions (redeem_id, utxo_id, input_index, dwallet_id, created_at, verified)
+             VALUES (?, ?, ?, ?, ?, 0)
+             ON CONFLICT(redeem_id, utxo_id) DO NOTHING`,
+		);
+
+		const batch = utxoIds.map((utxoId, i) => {
+			// dwalletIds[i] is guaranteed to exist due to length check
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			return stmt.bind(redeemId, utxoId, i, dwalletIds[i]!, now);
+		});
+
+		return this.db
+			.batch(batch)
+			.then(() => {
+				return;
+			})
+			.catch((error) => {
+				logError(
+					{
+						msg: "Failed to batch upsert redeem inputs in D1",
+						method: "upsertRedeemInputs",
+						redeemId,
+					},
+					error,
+				);
+				throw error;
+			});
+	}
+
+	markRedeemInputVerified(redeemId: number, utxoId: number): Promise<void> {
+		return this.db
+			.prepare(
+				`UPDATE nbtc_redeem_solutions SET verified = 1 WHERE redeem_id = ? AND utxo_id = ?`,
+			)
+			.bind(redeemId, utxoId)
+			.run()
+			.then();
 	}
 
 	async markRedeemSolved(redeemId: number): Promise<void> {

@@ -24,6 +24,7 @@ export enum RedeemRequestStatus {
 	Solved = "solved",
 	Signed = "signed",
 	Broadcasted = "broadcasted",
+	Confirmed = "confirmed",
 }
 
 export interface RedeemRequest {
@@ -105,6 +106,12 @@ export interface SolvedEventRaw {
 	redeem_id: string;
 	utxo_ids: string[];
 	dwallet_ids: string[];
+}
+
+export interface SignatureRecordedEventRaw {
+	redeem_id: string;
+	utxo_id: string;
+	sign_id: string;
 }
 
 export interface SuiEventNode {

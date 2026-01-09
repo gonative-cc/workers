@@ -14,6 +14,7 @@ import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
+import { D1Storage } from "@gonative-cc/redeem_solver/storage";
 
 export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
@@ -166,6 +167,8 @@ export async function setupTestIndexerSuite(
 	const mockElectrs = mkElectrsServiceMock();
 	electrsClients.set(BtcNet.REGTEST, mockElectrs);
 
+	const redeemStorage = new D1Storage(db);
+
 	const indexer = new Indexer(
 		storage,
 		[packageConfig],
@@ -174,6 +177,7 @@ export async function setupTestIndexerSuite(
 		options.confirmationDepth || 8,
 		options.maxRetries || 2,
 		electrsClients,
+		redeemStorage,
 	);
 
 	const setupBlock = async (height: number): Promise<void> => {

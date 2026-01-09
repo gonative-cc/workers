@@ -10,6 +10,7 @@ import type {
 	NbtcBroadcastedDeposit,
 	ConfirmingBlockInfo,
 	InsertBlockResult,
+	NbtcRedeemRow,
 } from "./models";
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import type { Storage } from "./storage";

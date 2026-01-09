@@ -20,6 +20,7 @@
 	},
 	"dependencies": {
 		"@gonative-cc/lib": "workspace:*",
+		"@gonative-cc/redeem_solver": "workspace:*",
 		"@mysten/bcs": "^1.9.2",
 		"@mysten/sui": "^1.45.2",
 		"bitcoinjs-lib": "^6.1.7",

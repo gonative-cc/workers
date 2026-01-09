@@ -11,6 +11,7 @@ export const ELECTRS_URLS_BY_NETWORK: Record<BtcNet, string | undefined> = {
 
 export interface Electrs {
 	getTx: (txId: string) => Promise<Response>;
+	broadcastTx: (txHex: string) => Promise<Response>;
 }
 
 export class ElectrsService implements Electrs {
@@ -23,5 +24,12 @@ export class ElectrsService implements Electrs {
 
 	async getTx(txId: string) {
 		return fetch(this.baseUrl + "/tx/" + txId);
+	}
+
+	async broadcastTx(txHex: string) {
+		return fetch(this.baseUrl + "/tx", {
+			method: "POST",
+			body: txHex,
+		});
 	}
 }

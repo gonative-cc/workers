@@ -93,13 +93,4 @@ export class RPC extends WorkerEntrypoint<Env> {
 			throw error;
 		}
 	}
-
-	async notifyRedeemsConfirmed(
-		txIds: string[],
-		blockHeight: number,
-		blockHash: string,
-	): Promise<void> {
-		const storage = new D1Storage(this.env.DB);
-		await storage.confirmRedeem(txIds, blockHeight, blockHash);
-	}
 }

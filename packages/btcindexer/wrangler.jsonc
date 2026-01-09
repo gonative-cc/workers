@@ -55,7 +55,7 @@
    * Service Bindings (communicate between multiple Workers)
    * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
    */
-  "services": [{ "binding": "REDEEM_SOLVER", "service": "redeem_solver" }],
+  // "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
   //
   "d1_databases": [
     {

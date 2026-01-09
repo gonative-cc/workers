@@ -25,6 +25,9 @@ import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { RedeemSolverRpcI } from "@gonative-cc/redeem_solver/rpc-interface";
+import type { Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
@@ -71,6 +74,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 			confirmationDepth,
 			maxNbtcMintTxRetries,
 			electrsClients,
+			env.REDEEM_SOLVER as unknown as Service<RedeemSolverRpcI & WorkerEntrypoint>,
 		);
 	} catch (err) {
 		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
@@ -86,6 +90,7 @@ export class Indexer {
 	#packageConfigs: Map<number, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	#suiClients: Map<SuiNet, SuiClientI>;
 	#electrsClients: Map<BtcNet, Electrs>;
+	#redeemSolver: Service<RedeemSolverRpcI & WorkerEntrypoint>;
 
 	constructor(
 		storage: Storage,
@@ -95,6 +100,7 @@ export class Indexer {
 		confirmationDepth: number,
 		maxRetries: number,
 		electrsClients: Map<BtcNet, Electrs>,
+		redeemSolver: Service<RedeemSolverRpcI & WorkerEntrypoint>,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
@@ -125,6 +131,7 @@ export class Indexer {
 		this.#electrsClients = electrsClients;
 		this.#packageConfigs = pkgCfgMap;
 		this.#suiClients = suiClients;
+		this.#redeemSolver = redeemSolver;
 	}
 
 	async hasNbtcMintTx(txId: string): Promise<boolean> {
@@ -242,7 +249,11 @@ export class Indexer {
 		}
 
 		if (txIds.length > 0) {
-			await this.storage.confirmRedeemsInBlock(txIds, blockInfo.height, blockInfo.hash);
+			await this.#redeemSolver.notifyRedeemsConfirmed(
+				txIds,
+				blockInfo.height,
+				blockInfo.hash,
+			);
 		}
 
 		if (nbtcTxs.length > 0) {
@@ -900,36 +911,12 @@ export class Indexer {
 			network,
 		});
 
-		await this.storage.updateRedeemStatusToBroadcasted(redeemId, txId);
 		return { tx_id: txId };
 	}
 
 	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {
 		const height = await this.storage.getLatestBlockHeight(network);
 		return { height };
-	}
-
-	async getRedeemsBySuiAddr(suiAddress: string, network: BtcNet): Promise<NbtcRedeemResp[]> {
-		const redeems = await this.storage.getNbtcRedeemsBySuiAddr(suiAddress, network);
-		const latestHeight = await this.storage.getChainTip(network);
-
-		return redeems.map((r) => {
-			let confirmations = 0;
-			if (r.btc_block_height !== null && latestHeight !== null) {
-				confirmations = calculateConfirmations(r.btc_block_height, latestHeight);
-			}
-
-			return {
-				redeem_id: r.redeem_id,
-				amount: r.amount,
-				status: r.status,
-				created_at: r.created_at,
-				sui_tx: r.sui_tx,
-				btc_tx: r.btc_tx,
-				confirmations: confirmations,
-				network: r.btc_network,
-			};
-		});
 	}
 
 	async getDepositsBySender(btcAddress: string, network: BtcNet): Promise<NbtcTxResp[]> {

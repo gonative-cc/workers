@@ -86,7 +86,12 @@ export class RedeemService {
 			const btcNetworkStr = req.btc_network || "regtest";
 			const btcNetwork = btcNetFromString(btcNetworkStr);
 
-			await this.btcIndexer.broadcastRedeemTx(rawTxHex, btcNetwork, req.redeem_id);
+			const { tx_id } = await this.btcIndexer.broadcastRedeemTx(
+				rawTxHex,
+				btcNetwork,
+				req.redeem_id,
+			);
+			await this.storage.markRedeemBroadcasted(req.redeem_id, tx_id);
 
 			logger.info({
 				msg: "Successfully broadcasted redeem transaction",

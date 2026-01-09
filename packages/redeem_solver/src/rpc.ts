@@ -2,7 +2,6 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { D1Storage } from "./storage";
 import type { RedeemRequestResp } from "./models";
 import { type RedeemRequestEventRaw } from "@gonative-cc/sui-indexer/models";
-import { IndexerStorage } from "@gonative-cc/sui-indexer/storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
@@ -43,7 +42,7 @@ export class RPC extends WorkerEntrypoint<Env> {
 	 */
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
-			const storage = new IndexerStorage(this.env.DB);
+			const storage = new D1Storage(this.env.DB);
 			const setupRow = await this.env.DB.prepare(
 				"SELECT sui_network, nbtc_pkg FROM setups WHERE id = ?",
 			)
@@ -93,5 +92,14 @@ export class RPC extends WorkerEntrypoint<Env> {
 			);
 			throw error;
 		}
+	}
+
+	async notifyRedeemsConfirmed(
+		txIds: string[],
+		blockHeight: number,
+		blockHash: string,
+	): Promise<void> {
+		const storage = new D1Storage(this.env.DB);
+		await storage.confirmRedeem(txIds, blockHeight, blockHash);
 	}
 }

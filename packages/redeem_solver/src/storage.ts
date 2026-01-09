@@ -5,8 +5,10 @@ import {
 	type RedeemRequest,
 	type RedeemRequestResp,
 	type Utxo,
+	type RedeemRequestIngestData,
 } from "@gonative-cc/sui-indexer/models";
 import type { RedeemInput, RedeemRequestWithInputs } from "./models";
+import { logError } from "@gonative-cc/lib/logger";
 
 export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
 
@@ -57,12 +59,93 @@ export interface Storage {
 	markRedeemInputVerified(redeemId: number, utxoId: number): Promise<void>;
 	getRedeemInputs(redeemId: number): Promise<RedeemInput[]>;
 	getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]>;
+	getRedeemsByAddrAndNetwork(redeemer: string, btcNetwork: string): Promise<RedeemRequestResp[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 	getSignedRedeems(): Promise<(RedeemRequest & { btc_network: string })[]>;
+	markRedeemBroadcasted(redeemId: number, txId: string): Promise<void>;
+	confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void>;
+	insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null>;
 }
 
 export class D1Storage implements Storage {
 	constructor(private db: D1Database) {}
+
+	async markRedeemBroadcasted(redeemId: number, txId: string): Promise<void> {
+		const now = Date.now();
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_requests
+                 SET status = ?, btc_tx = ?, btc_broadcasted_at = ?
+                 WHERE redeem_id = ?`,
+			)
+			.bind(RedeemRequestStatus.Broadcasted, txId, now, redeemId)
+			.run();
+	}
+
+	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {
+		if (txIds.length === 0) return;
+		const placeholders = txIds.map(() => "?").join(",");
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_requests
+                 SET status = ?, btc_block_height = ?, btc_block_hash = ?
+                 WHERE status = ? AND btc_tx IN (${placeholders})`,
+			)
+			.bind(
+				RedeemRequestStatus.Confirmed,
+				blockHeight,
+				blockHash,
+				RedeemRequestStatus.Broadcasted,
+				...txIds,
+			)
+			.run();
+	}
+
+	// returns 1 if the insert happened, null otherwise.
+	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null> {
+		const pkgRow = await this.db
+			.prepare("SELECT id FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
+			.bind(r.nbtc_pkg, r.sui_network)
+			.first<{ id: number }>();
+
+		if (!pkgRow) {
+			throw new Error(
+				`Package not found for nbtc_pkg=${r.nbtc_pkg}, sui_network=${r.sui_network}`,
+			);
+		}
+		try {
+			const result = await this.db
+				.prepare(
+					`INSERT OR IGNORE INTO nbtc_redeem_requests
+            (redeem_id, setup_id, redeemer, recipient_script, amount, created_at, sui_tx, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING 1 as output`,
+				)
+				.bind(
+					r.redeem_id,
+					pkgRow.id,
+					r.redeemer,
+					r.recipient_script,
+					r.amount,
+					r.created_at,
+					r.sui_tx,
+					RedeemRequestStatus.Pending,
+				)
+				.first<{ output: number }>();
+			return result?.output || null;
+		} catch (error) {
+			logError(
+				{
+					msg: "Failed to insert Redeem Request",
+					method: "insertRedeemRequest",
+					redeem_id: r.redeem_id,
+					redeemer: r.redeemer,
+					sui_network: r.sui_network,
+				},
+				error,
+			);
+			throw error;
+		}
+	}
 
 	async getPendingRedeems(): Promise<RedeemRequest[]> {
 		const query = `
@@ -98,6 +181,31 @@ export class D1Storage implements Storage {
 		const { results } = await this.db
 			.prepare(query)
 			.bind(redeemer, setupId)
+			.all<RedeemRequestResp>();
+
+		// TODO handle confirmations
+		for (const r of results) {
+			r.confirmations = 0;
+		}
+
+		return results;
+	}
+
+	async getRedeemsByAddrAndNetwork(
+		redeemer: string,
+		btcNetwork: string,
+	): Promise<RedeemRequestResp[]> {
+		const query = `
+            SELECT
+                r.redeem_id, r.recipient_script, r.amount, r.status, r.created_at, r.sui_tx, r.btc_tx
+            FROM nbtc_redeem_requests r
+            JOIN setups p ON r.setup_id = p.id
+            WHERE r.redeemer = ? AND p.btc_network = ?
+            ORDER BY r.created_at DESC
+        `;
+		const { results } = await this.db
+			.prepare(query)
+			.bind(redeemer, btcNetwork)
 			.all<RedeemRequestResp>();
 
 		// TODO handle confirmations
@@ -289,7 +397,7 @@ export class D1Storage implements Storage {
                 p.nbtc_pkg, p.nbtc_contract, p.sui_network, p.btc_network
             FROM nbtc_redeem_requests r
             JOIN setups p ON r.setup_id = p.id
-            WHERE r.status = 'solved'
+            WHERE r.status = ?
             AND NOT EXISTS (
                 SELECT 1 FROM nbtc_redeem_solutions s
                 WHERE s.redeem_id = r.redeem_id AND s.verified = 0
@@ -303,6 +411,7 @@ export class D1Storage implements Storage {
         `;
 		const { results } = await this.db
 			.prepare(query)
+			.bind(RedeemRequestStatus.Solved)
 			.all<RedeemRequestRow & { btc_network: string }>();
 
 		return results.map((r) => ({

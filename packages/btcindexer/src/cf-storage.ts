@@ -464,49 +464,4 @@ export class CFStorage implements Storage {
 		const dbResult = await query.bind(btcAddress, network).all<NbtcTxRow>();
 		return dbResult.results ?? [];
 	}
-
-	async updateRedeemStatusToBroadcasted(redeemId: number, txId: string): Promise<void> {
-		const now = Date.now();
-		await this.d1
-			.prepare(
-				`UPDATE nbtc_redeem_requests
-                 SET status = 'broadcasted', btc_tx = ?, btc_broadcasted_at = ?
-                 WHERE redeem_id = ?`,
-			)
-			.bind(txId, now, redeemId)
-			.run();
-	}
-
-	async confirmRedeemsInBlock(
-		txIds: string[],
-		blockHeight: number,
-		blockHash: string,
-	): Promise<void> {
-		if (txIds.length === 0) return;
-		const placeholders = txIds.map(() => "?").join(",");
-		await this.d1
-			.prepare(
-				`UPDATE nbtc_redeem_requests
-                 SET status = 'confirmed', btc_block_height = ?, btc_block_hash = ?
-                 WHERE status = 'broadcasted' AND btc_tx IN (${placeholders})`,
-			)
-			.bind(blockHeight, blockHash, ...txIds)
-			.run();
-	}
-
-	async getNbtcRedeemsBySuiAddr(suiAddress: string, network: BtcNet): Promise<NbtcRedeemRow[]> {
-		const results = await this.d1
-			.prepare(
-				`SELECT r.redeem_id, r.amount, r.status, r.created_at, r.sui_tx,
-                        r.btc_tx, r.btc_block_height, r.btc_broadcasted_at, p.btc_network
-                 FROM nbtc_redeem_requests r
-                 JOIN setups p ON r.setup_id = p.id
-                 WHERE r.redeemer = ? AND p.btc_network = ?
-                 ORDER BY r.created_at DESC`,
-			)
-			.bind(suiAddress, network)
-			.all<NbtcRedeemRow>();
-
-		return results.results ?? [];
-	}
 }

@@ -14,6 +14,9 @@ import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
+import type { RedeemSolverRpcI } from "@gonative-cc/redeem_solver/rpc-interface";
+import type { Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
 
 export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
@@ -166,6 +169,13 @@ export async function setupTestIndexerSuite(
 	const mockElectrs = mkElectrsServiceMock();
 	electrsClients.set(BtcNet.REGTEST, mockElectrs);
 
+	const mockRedeemSolver = {
+		notifyRedeemsConfirmed: () => Promise.resolve(),
+		putRedeemTx: () => Promise.resolve(),
+		proposeRedeemUtxos: () => Promise.resolve(),
+		redeemsBySuiAddr: () => Promise.resolve([]),
+	} as unknown as Service<RedeemSolverRpcI & WorkerEntrypoint>;
+
 	const indexer = new Indexer(
 		storage,
 		[packageConfig],
@@ -174,6 +184,7 @@ export async function setupTestIndexerSuite(
 		options.confirmationDepth || 8,
 		options.maxRetries || 2,
 		electrsClients,
+		mockRedeemSolver,
 	);
 
 	const setupBlock = async (height: number): Promise<void> => {

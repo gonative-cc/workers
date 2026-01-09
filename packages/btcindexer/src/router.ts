@@ -34,7 +34,6 @@ export default class HttpRouter {
 		r.get(RestPath.nbtcTx, this.getNbtcMintTxsBySuiAddr);
 		r.get(RestPath.nbtcTx + "/:txid", this.getNbtcMintTx); // query by bitcoin_tx_id
 		r.get(RestPath.depositsBySender, this.getDepositsBySender);
-		r.get(RestPath.redeems + "/:address", this.getRedeemsBySuiAddr);
 
 		//
 		// TESTING
@@ -179,25 +178,6 @@ export default class HttpRouter {
 		try {
 			const btcNet = this.getNetworkParam(req);
 			return this.indexer().getDepositsBySender(sender, btcNet);
-		} catch (e: unknown) {
-			const msg = e instanceof Error ? e.message : "Invalid request";
-			return error(400, msg);
-		}
-	};
-
-	getRedeemsBySuiAddr = async (req: IRequest) => {
-		const params = req.params;
-		if (!params || !params.address) {
-			return error(400, "Missing address parameter");
-		}
-		if (!isValidSuiAddress(params.address)) {
-			return error(400, "Invalid SUI address format.");
-		}
-
-		try {
-			const btcNet = this.getNetworkParam(req);
-			const redeems = await this.indexer().getRedeemsBySuiAddr(params.address, btcNet);
-			return redeems;
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : "Invalid request";
 			return error(400, msg);

@@ -14,8 +14,14 @@ import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
 import { logger, logError } from "@gonative-cc/lib/logger";
+import HttpRouter from "./router";
+
+const router = new HttpRouter();
 
 export default {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		return router.fetch(request, env, ctx);
+	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		logger.info({ msg: "Running scheduled redeem solver task..." });
 		let mnemonic: string;

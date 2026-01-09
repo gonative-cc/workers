@@ -83,15 +83,23 @@ export class IkaClientImp implements IkaClient {
 		const coins = await this.mystenClient.getCoins({
 			owner: owner,
 			coinType: `${this.ikaConfig.packages.ikaPackage}::ika::IKA`,
-			limit: 5,
+			limit: 50,
 		});
-		// TODO: for now lets just take the first one
-		const firstCoin = coins.data[0];
-		if (!firstCoin) {
+
+		if (coins.data.length === 0) {
 			throw new Error(`No IKA coins found for address ${owner}`);
 		}
 
-		return firstCoin.coinObjectId;
+		const sortedCoins = coins.data.sort((a, b) =>
+			Number(BigInt(b.balance) - BigInt(a.balance)),
+		);
+		const selectedCoin = sortedCoins[0];
+
+		if (!selectedCoin) {
+			throw new Error(`Failed to select IKA coin for address ${owner}`);
+		}
+
+		return selectedCoin.coinObjectId;
 	}
 
 	async getLatestNetworkEncryptionKeyId(): Promise<string> {

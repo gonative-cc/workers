@@ -11,6 +11,9 @@ export interface EventsBatch {
 
 export interface EventFetcher {
 	fetchEvents: (packageId: string, cursor: string | null) => Promise<EventsBatch>;
+	fetchMultipleEvents: (
+		packages: { id: string; cursor: string | null }[],
+	) => Promise<Record<string, EventsBatch>>;
 }
 
 interface ModuleEventsResponse {
@@ -58,6 +61,37 @@ const MODULE_EVENTS_QUERY = gql`
 	}
 `;
 
+function buildMultipleEventsQuery(packageCount: number): string {
+	const variables = [];
+	const queries = [];
+
+	for (let i = 0; i < packageCount; i++) {
+		variables.push(`$filter${i}: String!`, `$cursor${i}: String`);
+		queries.push(`
+			events${i}: events(filter: { module: $filter${i} }, first: 50, after: $cursor${i}) {
+				pageInfo {
+					hasNextPage
+					endCursor
+				}
+				nodes {
+					timestamp
+					contents {
+						type {
+							repr
+						}
+						json
+					}
+					transaction {
+						digest
+					}
+				}
+			}`);
+	}
+
+	return `query FetchMultipleModuleEvents(${variables.join(", ")}) {${queries.join("")}
+	}`;
+}
+
 export class SuiGraphQLClient implements EventFetcher {
 	private client: GraphQLClient;
 
@@ -84,5 +118,45 @@ export class SuiGraphQLClient implements EventFetcher {
 			endCursor: data.events.pageInfo.endCursor,
 			hasNextPage: data.events.pageInfo.hasNextPage,
 		};
+	}
+
+	async fetchMultipleEvents(
+		packages: { id: string; cursor: string | null }[],
+	): Promise<Record<string, EventsBatch>> {
+		if (packages.length === 0) return {};
+
+		const query = buildMultipleEventsQuery(packages.length);
+		const variables: Record<string, string | null> = {};
+
+		packages.forEach((pkg, i) => {
+			variables[`filter${i}`] = `${pkg.id}::nbtc`;
+			variables[`cursor${i}`] = pkg.cursor;
+		});
+
+		const data = await this.client.request<Record<string, ModuleEventsResponse["events"]>>(
+			query,
+			variables,
+		);
+
+		const result: Record<string, EventsBatch> = {};
+		packages.forEach((pkg, i) => {
+			const eventsData = data[`events${i}`];
+			if (eventsData) {
+				const events: SuiEventNode[] = eventsData.nodes.map((node) => ({
+					type: node.contents.type.repr,
+					json: node.contents.json,
+					timestamp: node.timestamp,
+					txDigest: node.transaction.digest,
+				}));
+
+				result[pkg.id] = {
+					events,
+					endCursor: eventsData.pageInfo.endCursor,
+					hasNextPage: eventsData.pageInfo.hasNextPage,
+				};
+			}
+		});
+
+		return result;
 	}
 }

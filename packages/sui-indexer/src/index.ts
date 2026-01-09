@@ -60,7 +60,17 @@ async function poolAndProcessEvents(netCfg: NetworkConfig, storage: IndexerStora
 		packageCount: packages.length,
 	});
 	const p = new Processor(netCfg, storage, client);
-	const jobs = packages.map((nbtcPkg) => p.poolNbtcEvents(nbtcPkg));
-
-	await Promise.allSettled(jobs);
+	try {
+		await p.poolAllNbtcEvents(packages);
+	} catch (e) {
+		logError(
+			{
+				msg: "Failed to process packages",
+				method: "poolAndProcessEvents",
+				network: netCfg.name,
+				packageCount: packages.length,
+			},
+			e,
+		);
+	}
 }

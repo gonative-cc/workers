@@ -56,13 +56,13 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 				throw new Error(`No setup found with id: ${setupId}`);
 			}
 
-			const redeemRow = await this.env.DB.prepare(
-				"SELECT * FROM nbtc_redeem_requests WHERE redeem_id = ?",
+			const ok = await this.env.DB.prepare(
+				"SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?",
 			)
 				.bind(e.redeem_id)
 				.first();
 
-			if (redeemRow) {
+			if (ok) {
 				logger.info({ msg: `Redeem id: ${e.redeem_id} already exists in the table` });
 				return;
 			}

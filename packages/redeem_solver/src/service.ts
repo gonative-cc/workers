@@ -6,6 +6,8 @@ import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } from "./sighash";
 
+const MAXIMUM_NUMBER_UTXO = 100;
+
 export class RedeemService {
 	constructor(
 		private storage: Storage,
@@ -290,6 +292,9 @@ function selectUtxos(available: Utxo[], targetAmount: number): Utxo[] | null {
 	const selected: Utxo[] = [];
 
 	for (const utxo of available) {
+		if (selected.length >= MAXIMUM_NUMBER_UTXO) {
+			break;
+		}
 		sum += utxo.amount;
 		selected.push(utxo);
 		if (sum >= targetAmount) {

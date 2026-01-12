@@ -94,7 +94,7 @@ export function computeBtcSighash(
 	}
 
 	for (const output of outputs) {
-		tx.addOutput(Buffer.from(output.script), output.amount);
+		tx.addOutput(Buffer.from(output.script), BigInt(output.amount));
 	}
 
 	const sigmsg = buildTaprootSigMsg(tx, inputs, outputs, inputIdx, hashType);

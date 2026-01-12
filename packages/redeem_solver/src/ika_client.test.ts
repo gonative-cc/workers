@@ -19,6 +19,12 @@ describe("IkaClient - selectIkaCoin", () => {
 		version: "1",
 	});
 
+	const createCoins = (amounts: string[], hasNextPage = false) => ({
+		data: amounts.map((amount, index) => createMockCoin(index.toString(), amount)),
+		hasNextPage,
+		nextCursor: null,
+	});
+
 	beforeEach(() => {
 		mockMystenClient = {
 			getCoins: mock(async () => ({ data: [], hasNextPage: false, nextCursor: null })),
@@ -28,39 +34,23 @@ describe("IkaClient - selectIkaCoin", () => {
 	});
 
 	it("should select the coin with the highest balance", async () => {
-		const mockCoins = {
-			data: [
-				createMockCoin("coin1", "1000"),
-				createMockCoin("coin2", "5000"),
-				createMockCoin("coin3", "3000"),
-			],
-			hasNextPage: false,
-			nextCursor: null,
-		};
+		const mockCoins = createCoins(["1000", "5000", "3000"]);
 
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 		const result = await ikaClient.selectIkaCoin(testOwner);
-		expect(result).toBe("coin2");
+		expect(result).toBe("1");
 	});
 
 	it("should handle single coin", async () => {
-		const mockCoins = {
-			data: [createMockCoin("coin1", "1000")],
-			hasNextPage: false,
-			nextCursor: null,
-		};
+		const mockCoins = createCoins(["1000"]);
 
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 		const result = await ikaClient.selectIkaCoin(testOwner);
-		expect(result).toBe("coin1");
+		expect(result).toBe("0");
 	});
 
 	it("should throw error when no coins are found", async () => {
-		const mockCoins = {
-			data: [],
-			hasNextPage: false,
-			nextCursor: null,
-		};
+		const mockCoins = createCoins([]);
 
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 		await expect(ikaClient.selectIkaCoin(testOwner)).rejects.toThrow(
@@ -69,47 +59,26 @@ describe("IkaClient - selectIkaCoin", () => {
 	});
 
 	it("should handle coins with equal balances", async () => {
-		const mockCoins = {
-			data: [createMockCoin("coin1", "5000"), createMockCoin("coin2", "5000")],
-			hasNextPage: false,
-			nextCursor: null,
-		};
+		const mockCoins = createCoins(["5000", "5000"]);
 
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 		const result = await ikaClient.selectIkaCoin(testOwner);
-		expect(["coin1", "coin2"]).toContain(result);
+		expect(["0", "1"]).toContain(result);
 	});
 
 	it("should handle large balance values", async () => {
-		const mockCoins = {
-			data: [
-				createMockCoin("coin1", "1000000000000"),
-				createMockCoin("coin2", "999999999999"),
-			],
-			hasNextPage: false,
-			nextCursor: null,
-		};
+		const mockCoins = createCoins(["1000000000000", "999999999999"]);
 
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 		const result = await ikaClient.selectIkaCoin(testOwner);
-		expect(result).toBe("coin1");
+		expect(result).toBe("0");
 	});
 
 	it("should select largest among many coins", async () => {
-		const mockCoins = {
-			data: [
-				createMockCoin("coin1", "100"),
-				createMockCoin("coin2", "200"),
-				createMockCoin("coin3", "150"),
-				createMockCoin("coin4", "500"),
-				createMockCoin("coin5", "300"),
-			],
-			hasNextPage: false,
-			nextCursor: null,
-		};
+		const mockCoins = createCoins(["100", "200", "150", "500", "300"]);
 
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 		const result = await ikaClient.selectIkaCoin(testOwner);
-		expect(result).toBe("coin4");
+		expect(result).toBe("3");
 	});
 });

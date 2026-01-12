@@ -7,7 +7,6 @@ import {
 	Hash,
 	SessionsManagerModule,
 	CoordinatorInnerModule,
-	createUserSignMessageWithCentralizedOutput,
 	type IkaConfig,
 	createUserSignMessageWithPublicOutput,
 } from "@ika.xyz/sdk";

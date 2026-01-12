@@ -5,6 +5,8 @@ import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
+const MAXIMUM_NUMBER_UTXO = 100;
+
 export class RedeemService {
 	constructor(
 		private storage: Storage,
@@ -258,6 +260,9 @@ function selectUtxos(available: Utxo[], targetAmount: number): Utxo[] | null {
 	const selected: Utxo[] = [];
 
 	for (const utxo of available) {
+		if (selected.length >= MAXIMUM_NUMBER_UTXO) {
+			break;
+		}
 		sum += utxo.amount;
 		selected.push(utxo);
 		if (sum >= targetAmount) {

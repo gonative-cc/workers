@@ -11,7 +11,6 @@ import type {
 	NbtcDepositAddrsMap,
 	ConfirmingBlockInfo,
 	InsertBlockResult,
-	NbtcRedeemRow,
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";

@@ -15,7 +15,6 @@ import type {
 	ElectrsTxResponse,
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
-	NbtcRedeemResp,
 } from "./models";
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -25,7 +24,9 @@ import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import { D1Storage as RedeemStorage } from "@gonative-cc/redeem_solver/storage";
+import type { Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
+import type { RedeemSolverRpc } from "@gonative-cc/redeem_solver/rpc";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
@@ -63,8 +64,6 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		if (url) electrsClients.set(net as BtcNet, new ElectrsService(url));
 	}
 
-	const redeemStorage = new RedeemStorage(env.DB);
-
 	try {
 		return new Indexer(
 			storage,
@@ -74,7 +73,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 			confirmationDepth,
 			maxNbtcMintTxRetries,
 			electrsClients,
-			redeemStorage,
+			env.REDEEM_SOLVER as unknown as Service<RedeemSolverRpc & WorkerEntrypoint>,
 		);
 	} catch (err) {
 		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
@@ -90,7 +89,7 @@ export class Indexer {
 	#packageConfigs: Map<number, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	#suiClients: Map<SuiNet, SuiClientI>;
 	#electrsClients: Map<BtcNet, Electrs>;
-	#redeemStorage: RedeemStorage;
+	redeemSolver: Service<RedeemSolverRpc & WorkerEntrypoint>;
 
 	constructor(
 		storage: Storage,
@@ -100,7 +99,7 @@ export class Indexer {
 		confirmationDepth: number,
 		maxRetries: number,
 		electrsClients: Map<BtcNet, Electrs>,
-		redeemStorage: RedeemStorage,
+		redeemSolver: Service<RedeemSolverRpc & WorkerEntrypoint>,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
@@ -131,7 +130,7 @@ export class Indexer {
 		this.#electrsClients = electrsClients;
 		this.#packageConfigs = pkgCfgMap;
 		this.#suiClients = suiClients;
-		this.#redeemStorage = redeemStorage;
+		this.redeemSolver = redeemSolver;
 	}
 
 	async hasNbtcMintTx(txId: string): Promise<boolean> {
@@ -257,7 +256,7 @@ export class Indexer {
 				: txIds;
 
 			if (potentialRedeems.length > 0) {
-				await this.#redeemStorage.confirmRedeem(
+				await this.redeemSolver.confirmRedeem(
 					potentialRedeems,
 					blockInfo.height,
 					blockInfo.hash,
@@ -924,7 +923,7 @@ export class Indexer {
 	}
 
 	async getBroadcastedRedeemTxIds(): Promise<string[]> {
-		return this.#redeemStorage.getBroadcastedBtcTxIds();
+		return this.redeemSolver.getBroadcastedRedeemTxIds();
 	}
 
 	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {

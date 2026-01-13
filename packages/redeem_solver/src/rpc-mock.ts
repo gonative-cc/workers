@@ -12,6 +12,14 @@ export class RPCMock extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 		return;
 	}
 
+	async getBroadcastedRedeemTxIds(): Promise<string[]> {
+		return [];
+	}
+
+	async confirmRedeem(_txIds: string[], _blockHeight: number, _blockHash: string): Promise<void> {
+		return;
+	}
+
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		const r: RedeemRequestResp = {
 			redeem_id: Number(e.redeem_id),

@@ -8,6 +8,8 @@ import type { SuiNet } from "@gonative-cc/lib/nsui";
 export interface RedeemSolverRpc {
 	finalizeRedeem: () => Promise<void>;
 	putRedeemTx: (setupId: number, suiTxId: string, e: RedeemRequestEventRaw) => Promise<void>;
+	getBroadcastedRedeemTxIds: () => Promise<string[]>;
+	confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) => Promise<void>;
 }
 
 /**
@@ -22,6 +24,16 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 	 */
 	async finalizeRedeem(): Promise<void> {
 		return;
+	}
+
+	async getBroadcastedRedeemTxIds(): Promise<string[]> {
+		const storage = new D1Storage(this.env.DB);
+		return storage.getBroadcastedBtcTxIds();
+	}
+
+	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {
+		const storage = new D1Storage(this.env.DB);
+		return storage.confirmRedeem(txIds, blockHeight, blockHash);
 	}
 
 	/**

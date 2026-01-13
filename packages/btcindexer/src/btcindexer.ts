@@ -63,7 +63,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		if (url) electrsClients.set(net as BtcNet, new ElectrsService(url));
 	}
 
-	const redeemStorage = new D1Storage(env.DB);
+	const redeemStorage = new RedeemStorage(env.DB);
 
 	try {
 		return new Indexer(

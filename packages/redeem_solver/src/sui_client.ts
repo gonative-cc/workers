@@ -15,12 +15,6 @@ export interface SuiClientCfg {
 export interface SuiClient {
 	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
-	getSigHash(
-		redeemId: number,
-		inputIdx: number,
-		nbtcPkg: string,
-		nbtcContract: string,
-	): Promise<Uint8Array>;
 	createGlobalPresign(): Promise<string>;
 	createUserSigMessage(
 		dwalletId: string,
@@ -153,49 +147,6 @@ export class SuiClientImp implements SuiClient {
 		}
 
 		return result.digest;
-	}
-
-	async getSigHash(
-		redeemId: number,
-		inputIdx: number,
-		nbtcPkg: string,
-		nbtcContract: string,
-	): Promise<Uint8Array> {
-		const tx = new Transaction();
-
-		const redeem = tx.moveCall({
-			target: `${nbtcPkg}::nbtc::redeem_request`,
-			arguments: [tx.object(nbtcContract), tx.pure.u64(redeemId)],
-		});
-
-		const storage = tx.moveCall({
-			target: `${nbtcPkg}::nbtc::storage`,
-			arguments: [tx.object(nbtcContract)],
-		});
-
-		tx.moveCall({
-			target: `${nbtcPkg}::redeem_request::sig_hash`,
-			arguments: [redeem, tx.pure.u64(inputIdx), storage],
-		});
-
-		const result = await this.client.devInspectTransactionBlock({
-			transactionBlock: tx,
-			sender: this.signer.toSuiAddress(),
-		});
-
-		if (result.error) {
-			throw new Error(`DevInspect failed: ${result.error}`);
-		}
-
-		// The result is in the 3rd return value of the transaction (index 2 in results array)
-		// results[0] = redeem_request, results[1] = storage, results[2] = sig_hash
-		// TODO: lets compute to sigHash locally rather than querying it from the contract every time
-		const sigHashResult = result.results?.[2]?.returnValues?.[0]?.[0];
-		if (!sigHashResult) {
-			throw new Error("Failed to get sig_hash result");
-		}
-
-		return Uint8Array.from(sigHashResult);
 	}
 
 	async createGlobalPresign(): Promise<string> {

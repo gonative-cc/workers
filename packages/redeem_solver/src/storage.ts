@@ -48,11 +48,22 @@ interface RedeemInputRow {
 	created_at: number;
 }
 
+export interface UtxoWithInputIndex extends Utxo {
+	input_index: number;
+}
+
+export interface RedeemRequestData {
+	recipient_script: Uint8Array;
+	amount: number;
+}
+
 export interface Storage {
 	getPendingRedeems(): Promise<RedeemRequest[]>;
 	getSolvedRedeems(): Promise<RedeemRequestWithInputs[]>;
 	getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]>;
 	getAvailableUtxos(setupId: number): Promise<Utxo[]>;
+	getRedeemUtxosWithDetails(redeemId: number): Promise<UtxoWithInputIndex[]>;
+	getRedeemRequestData(redeemId: number): Promise<RedeemRequestData | null>;
 	markRedeemProposed(redeemId: number, utxoIds: number[], utxoLockTimeMs: number): Promise<void>;
 	markRedeemSolved(redeemId: number): Promise<void>;
 	saveRedeemInputs(inputs: Omit<RedeemInput, "sign_id" | "verified">[]): Promise<void>;
@@ -362,6 +373,47 @@ export class D1Storage implements Storage {
 			verified: r.verified === 1,
 		}));
 	}
+
+	async getRedeemUtxosWithDetails(redeemId: number): Promise<UtxoWithInputIndex[]> {
+		const query = `
+			SELECT
+				u.nbtc_utxo_id, u.dwallet_id, u.txid, u.vout, u.amount,
+				u.script_pubkey, u.address_id, u.status, u.locked_until,
+				s.input_index
+			FROM nbtc_redeem_solutions s
+			JOIN nbtc_utxos u ON s.utxo_id = u.nbtc_utxo_id
+			WHERE s.redeem_id = ?
+			ORDER BY s.input_index ASC
+		`;
+		const { results } = await this.db
+			.prepare(query)
+			.bind(redeemId)
+			.all<UtxoRow & { input_index: number }>();
+
+		return results.map((r) => ({
+			...r,
+			script_pubkey: new Uint8Array(r.script_pubkey),
+		}));
+	}
+
+	async getRedeemRequestData(redeemId: number): Promise<RedeemRequestData | null> {
+		const result = await this.db
+			.prepare(
+				`SELECT recipient_script, amount FROM nbtc_redeem_requests WHERE redeem_id = ?`,
+			)
+			.bind(redeemId)
+			.first<{ recipient_script: ArrayBuffer; amount: number }>();
+
+		if (!result) {
+			return null;
+		}
+
+		return {
+			recipient_script: new Uint8Array(result.recipient_script),
+			amount: result.amount,
+		};
+	}
+
 	async getActiveNetworks(): Promise<SuiNet[]> {
 		const result = await this.db
 			.prepare("SELECT DISTINCT sui_network FROM setups WHERE is_active = 1")

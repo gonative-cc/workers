@@ -36,7 +36,7 @@ export class SuiEventHandler {
 			} else if (e.type.includes("::nbtc::redeem_request::SolvedEvent")) {
 				await this.handleSolved(json as SolvedEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SignatureRecordedEvent")) {
-				await this.handleSignatureRecorded(json as SignatureRecordedEventRaw);
+				await this.handleIkaSignatureRecorded(json as SignatureRecordedEventRaw);
 			}
 		}
 	}
@@ -103,7 +103,7 @@ export class SuiEventHandler {
 		});
 	}
 
-	private async handleSignatureRecorded(e: SignatureRecordedEventRaw) {
+	private async handleIkaSignatureRecorded(e: SignatureRecordedEventRaw) {
 		await this.storage.markRedeemInputVerified(Number(e.redeem_id), Number(e.utxo_id));
 		logger.info({
 			msg: "Marked redeem input as verified",

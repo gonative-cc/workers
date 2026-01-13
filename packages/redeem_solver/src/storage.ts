@@ -96,21 +96,26 @@ export class D1Storage implements Storage {
 
 	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {
 		if (txIds.length === 0) return;
-		const placeholders = txIds.map(() => "?").join(",");
-		await this.db
-			.prepare(
-				`UPDATE nbtc_redeem_requests
+
+		const batchSize = 100;
+		for (let i = 0; i < txIds.length; i += batchSize) {
+			const batch = txIds.slice(i, i + batchSize);
+			const placeholders = batch.map(() => "?").join(",");
+			await this.db
+				.prepare(
+					`UPDATE nbtc_redeem_requests
                  SET status = ?, btc_block_height = ?, btc_block_hash = ?
                  WHERE status = ? AND btc_tx IN (${placeholders})`,
-			)
-			.bind(
-				RedeemRequestStatus.Confirming,
-				blockHeight,
-				blockHash,
-				RedeemRequestStatus.Broadcasting,
-				...txIds,
-			)
-			.run();
+				)
+				.bind(
+					RedeemRequestStatus.Confirming,
+					blockHeight,
+					blockHash,
+					RedeemRequestStatus.Broadcasting,
+					...batch,
+				)
+				.run();
+		}
 	}
 
 	// returns 1 if the insert happened, null otherwise.
@@ -293,14 +298,18 @@ export class D1Storage implements Storage {
 		const lockUntil = Date.now() + utxoLockTimeMs;
 
 		if (utxoIds.length > 0) {
-			const placeholders = utxoIds.map(() => "?").join(", ");
-			batch.push(
-				this.db
-					.prepare(
-						`UPDATE nbtc_utxos SET status = ?, locked_until = ? WHERE nbtc_utxo_id IN (${placeholders})`,
-					)
-					.bind(UtxoStatus.Locked, lockUntil, ...utxoIds),
-			);
+			const batchSize = 100;
+			for (let i = 0; i < utxoIds.length; i += batchSize) {
+				const chunk = utxoIds.slice(i, i + batchSize);
+				const placeholders = chunk.map(() => "?").join(", ");
+				batch.push(
+					this.db
+						.prepare(
+							`UPDATE nbtc_utxos SET status = ?, locked_until = ? WHERE nbtc_utxo_id IN (${placeholders})`,
+						)
+						.bind(UtxoStatus.Locked, lockUntil, ...chunk),
+				);
+			}
 		}
 		await this.db.batch(batch);
 	}

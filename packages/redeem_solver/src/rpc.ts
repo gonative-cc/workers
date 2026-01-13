@@ -1,23 +1,28 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { D1Storage } from "./storage";
 import type { RedeemRequestResp } from "./models";
-import { type RedeemRequestEventRaw } from "@gonative-cc/sui-indexer/models";
+import type { RedeemRequestEventRaw } from "@gonative-cc/sui-indexer/models";
 import { IndexerStorage } from "@gonative-cc/sui-indexer/storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
+
+export interface RedeemSolverRpc {
+	finalizeRedeem: () => Promise<void>;
+	redeemsBySuiAddr: (suiAddress: string, setupId: number) => Promise<RedeemRequestResp[]>;
+	putRedeemTx: (setupId: number, suiTxId: string, e: RedeemRequestEventRaw) => Promise<void>;
+}
 
 /**
  * RPC entrypoint for the worker.
  *
  * @see https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/
  */
-export class RPC extends WorkerEntrypoint<Env> {
+export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 	/**
-	 * Based on tx result, it shoud lock the UTXOs and mark them as spent
-	 * TODO (in the future): we need to observe which UTXOs has been spent because maybe
-	 * someone else proposes a better one.
+	 * Once BTC withdraw for the Redeem Request is confirmed and finalzed, this method
+	 * will update the DB state and remove related UTXOs.
 	 */
-	async proposeRedeemUtxos(): Promise<void> {
+	async finalizeRedeem(): Promise<void> {
 		return;
 	}
 
@@ -27,11 +32,8 @@ export class RPC extends WorkerEntrypoint<Env> {
 	}
 
 	/**
-	 * Stores a redeem request transaction emitted on Sui into the indexer storage.
-	 *
-	 * This method looks up the redeem setup by its identifier to determine the
-	 * Sui network and NBTC package, then persists the redeem request event
-	 * details (including the Sui transaction ID) for later processing.
+	 * Stores a redeem request transaction emitted on Sui into the indexer storage, to be later
+	 * tracked by the indexer to trigger solution (UTXOs) proposal in this worker scheduler.
 	 *
 	 * @param setupId - Identifier of the redeem setup used to fetch network and package metadata.
 	 * @param suiTxId - The Sui transaction digest/hash associated with the redeem request.
@@ -44,13 +46,13 @@ export class RPC extends WorkerEntrypoint<Env> {
 		try {
 			const storage = new IndexerStorage(this.env.DB);
 
-			const redeemRow = await this.env.DB.prepare(
-				"SELECT * FROM nbtc_redeem_requests WHERE redeem_id = ?",
+			const ok = await this.env.DB.prepare(
+				"SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?",
 			)
 				.bind(e.redeem_id)
 				.first();
 
-			if (redeemRow) {
+			if (ok) {
 				logger.info({ msg: `Redeem id: ${e.redeem_id} already exists in the table` });
 				return;
 			}

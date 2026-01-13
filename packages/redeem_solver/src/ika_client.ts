@@ -7,8 +7,8 @@ import {
 	Hash,
 	SessionsManagerModule,
 	CoordinatorInnerModule,
-	createUserSignMessageWithCentralizedOutput,
 	type IkaConfig,
+	createUserSignMessageWithPublicOutput,
 } from "@ika.xyz/sdk";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import type { SuiClient as MystenClient } from "@mysten/sui/client";
@@ -118,23 +118,23 @@ export class IkaClientImp implements IkaClient {
 
 		const protocolPublicParameters = await this.ikaClient.getProtocolPublicParameters(
 			dWallet,
-			Curve.SECP256K1, // TODO: change to taproot
+			Curve.SECP256K1,
 		);
 
-		const centralizedDkgOutput = Uint8Array.from(dWallet.state.Active.public_output);
+		const dWalletPublicOutput = Uint8Array.from(dWallet.state.Active.public_output);
 		const userSecretKeyShare = Uint8Array.from(
 			dWallet.public_user_secret_key_share as number[],
 		);
 		const presignState = Uint8Array.from(presign.state.Completed.presign as number[]);
 
-		return await createUserSignMessageWithCentralizedOutput(
+		return await createUserSignMessageWithPublicOutput(
 			protocolPublicParameters,
-			centralizedDkgOutput,
+			dWalletPublicOutput,
 			userSecretKeyShare,
 			presignState,
 			message,
 			Hash.SHA256,
-			SignatureAlgorithm.ECDSASecp256k1,
+			SignatureAlgorithm.Taproot,
 			Curve.SECP256K1,
 		);
 	}
@@ -152,7 +152,7 @@ export class IkaClientImp implements IkaClient {
 
 		return ikaTx.requestGlobalPresign({
 			curve: Curve.SECP256K1,
-			signatureAlgorithm: SignatureAlgorithm.ECDSASecp256k1,
+			signatureAlgorithm: SignatureAlgorithm.Taproot,
 			ikaCoin: ikaCoin,
 			suiCoin: suiCoin,
 			dwalletNetworkEncryptionKeyId: dwalletNetworkEncryptionKeyId,

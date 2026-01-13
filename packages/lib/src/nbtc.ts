@@ -12,6 +12,22 @@ export interface BlockQueueRecord {
 	timestamp_ms: number;
 }
 
+/**
+ * Represents the lifecycle status of a Bitcoin tx.
+ * - **broadcasting**: The deposit transaction has been broadcast to the Bitcoin network, but has not yet been included in a block.
+ * - **confirming**: The deposit tx has been found in a Bitcoin block but does not yet have enough confirmations.
+ * - **finalized**: The tx has reached the required confirmation depth and is ready to run finalization code.
+ * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
+ * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
+ */
+export enum BitcoinTxStatus {
+	Broadcasting = "broadcasting",
+	Confirming = "confirming",
+	Reorg = "reorg",
+	Finalized = "finalized",
+	FinalizedReorg = "finalized-reorg",
+}
+
 export function kvBlocksKey(network: string, blockHash: string): string {
 	return `b:${network}:${blockHash}`;
 }

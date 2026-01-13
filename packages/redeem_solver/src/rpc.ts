@@ -1,6 +1,5 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { D1Storage } from "./storage";
-import type { RedeemRequestResp } from "./models";
 import { type RedeemRequestEventRaw } from "@gonative-cc/sui-indexer/models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
@@ -19,11 +18,6 @@ export class RPC extends WorkerEntrypoint<Env> {
 	 */
 	async proposeRedeemUtxos(): Promise<void> {
 		return;
-	}
-
-	async redeemsBySuiAddr(suiAddress: string, setupId: number): Promise<RedeemRequestResp[]> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.getRedeemsBySuiAddr(suiAddress, setupId);
 	}
 
 	/**

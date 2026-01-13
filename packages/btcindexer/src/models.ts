@@ -72,15 +72,16 @@ export interface GroupedFinalizedTx {
  * - **minted-reorg**: An edge-case where a tx was successfully minted on Sui, but the Bitcoin deposit was later reorged. Tracked for monitoring purposes for now.
  * - **finalized-non-active**: The deposit has been finalized, however the minting will not be attempted because the deposit address is a non-active one. There will be a redemption mechanism for these cases.
  */
-enum mintTxStatus {
+enum MintTxStatusEnum {
 	Minted = "minted",
 	MintedReorg = "minted-reorg",
 	MintFailed = "mint-failed",
 	FinalizedNonActive = "finalized-non-active",
 }
 
-export type MintTxStatus = mintTxStatus | BitcoinTxStatus;
-export const MintTxStatus = { ...mintTxStatus, ...BitcoinTxStatus };
+export type MintTxStatus = MintTxStatusEnum | BitcoinTxStatus;
+// NOTE: In case of key conflicts, BitcoinTxStatus takes precedence because it is spread last.
+export const MintTxStatus = { ...MintTxStatusEnum, ...BitcoinTxStatus };
 
 export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {
 	btcTxId: string;

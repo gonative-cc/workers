@@ -11,7 +11,7 @@ import {
 	createUserSignMessageWithPublicOutput,
 } from "@ika.xyz/sdk";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import type { SuiClient as MystenClient } from "@mysten/sui/client";
+import type { CoinStruct, SuiClient as MystenClient } from "@mysten/sui/client";
 import {
 	Transaction,
 	type TransactionArgument,
@@ -24,6 +24,11 @@ export interface IkaClient {
 	getLatestNetworkEncryptionKeyId(): Promise<string>;
 	getCoordinatorId(): string;
 	getPresignCapId(presignId: string): Promise<string>;
+	prepareIkaCoin(
+		tx: Transaction,
+		owner: string,
+		minBalance?: bigint,
+	): Promise<TransactionObjectArgument>;
 
 	createUserSigMessage(
 		dwalletId: string,
@@ -79,18 +84,25 @@ export class IkaClientImp implements IkaClient {
 		return this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
 	}
 
-	async selectIkaCoin(owner: string): Promise<string> {
-		const coins = await this.mystenClient.getCoins({
-			owner: owner,
-			coinType: `${this.ikaConfig.packages.ikaPackage}::ika::IKA`,
-			limit: 50,
-		});
+	private async fetchSortedIkaCoins(owner: string): Promise<CoinStruct[]> {
+		const allCoins: CoinStruct[] = [];
+		let cursor: string | null | undefined = null;
 
-		if (coins.data.length === 0) {
+		do {
+			const result = await this.mystenClient.getCoins({
+				owner: owner,
+				coinType: `${this.ikaConfig.packages.ikaPackage}::ika::IKA`,
+				cursor: cursor,
+			});
+			allCoins.push(...result.data);
+			cursor = result.hasNextPage ? result.nextCursor : null;
+		} while (cursor);
+
+		if (allCoins.length === 0) {
 			throw new Error(`No IKA coins found for address ${owner}`);
 		}
 
-		const sortedCoins = coins.data.sort((a, b) => {
+		return allCoins.sort((a, b) => {
 			const aBalance = BigInt(a.balance);
 			const bBalance = BigInt(b.balance);
 			if (aBalance === bBalance) {
@@ -98,17 +110,62 @@ export class IkaClientImp implements IkaClient {
 			}
 			return bBalance > aBalance ? 1 : -1;
 		});
+	}
+	async prepareIkaCoin(
+		tx: Transaction,
+		owner: string,
+		minBalance?: bigint,
+	): Promise<TransactionObjectArgument> {
+		const sortedCoins = await this.fetchSortedIkaCoins(owner);
 
-		const largestCoin = sortedCoins[0];
-		if (!largestCoin) {
-			throw new Error(`Failed to select IKA coin for address ${owner}`);
+		if (minBalance == undefined) {
+			const largestCoin = sortedCoins[0];
+			if (!largestCoin) {
+				throw new Error("No coins available");
+			}
+			return tx.object(largestCoin.coinObjectId);
+		}
+		const selectedCoin: CoinStruct[] = [];
+		let totalBalance = BigInt(0);
+
+		for (const coin of sortedCoins) {
+			selectedCoin.push(coin);
+			totalBalance += BigInt(coin.balance);
+			if (totalBalance >= minBalance) {
+				break;
+			}
 		}
 
-		// TODO: Handle case where largest coin has insufficient balance
-		// Should select multiple coins and merge them using PTB if needed.
-		// Function should return multiple coin IDs or a result indicating success/failure.
-		// If multiple coins are returned, caller needs to merge them before use.
-		// Requires determining minimum required balance (dynamic in IKA pricing).
+		if (totalBalance < minBalance) {
+			throw new Error(
+				`Total balance ${totalBalance} is less than minimum balance ${minBalance}`,
+			);
+		}
+
+		if (selectedCoin.length === 1) {
+			const singleCoin = selectedCoin[0];
+			if (!singleCoin) {
+				throw new Error("No coin selected");
+			}
+			return tx.object(singleCoin.coinObjectId);
+		}
+
+		const [primaryCoin, ...coinToMerge] = selectedCoin;
+		if (!primaryCoin) {
+			throw new Error("No primary coin available");
+		}
+		const primaryCoinArg = tx.object(primaryCoin.coinObjectId);
+		const coinToMergeArgs = coinToMerge.map((c) => tx.object(c.coinObjectId));
+
+		tx.mergeCoins(primaryCoinArg, coinToMergeArgs);
+		return primaryCoinArg;
+	}
+	async selectIkaCoin(owner: string): Promise<string> {
+		const sortedCoins = await this.fetchSortedIkaCoins(owner);
+		const largestCoin = sortedCoins[0];
+		if (!largestCoin) {
+			throw new Error("No coins available");
+		}
 		return largestCoin.coinObjectId;
 	}
 

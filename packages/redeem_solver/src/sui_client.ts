@@ -5,6 +5,9 @@ import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { type IkaClient, IkaClientImp } from "./ika_client";
 
+// Not sure what the minimum balance is, can be adapted later
+const MIN_IKA_BALANCE = BigInt(100);
+
 export interface SuiClientCfg {
 	network: SuiNet;
 	signerMnemonic: string;
@@ -164,7 +167,11 @@ export class SuiClientImp implements SuiClient {
 	async createGlobalPresign(): Promise<string> {
 		const tx = new Transaction();
 
-		const ikaCoin = await this.ikaClient.selectIkaCoin(this.signer.toSuiAddress());
+		const ikaCoin = await this.ikaClient.prepareIkaCoin(
+			tx,
+			this.signer.toSuiAddress(),
+			MIN_IKA_BALANCE,
+		);
 
 		if (!this.encryptionKeyId) {
 			const dWalletEncryptionKey = await this.ikaClient.getLatestNetworkEncryptionKeyId();
@@ -176,7 +183,7 @@ export class SuiClientImp implements SuiClient {
 		// remains in the wallet, to be used. We should scan for it or save it in a db
 		const presignCap = this.ikaClient.requestGlobalPresign(
 			tx,
-			tx.object(ikaCoin),
+			ikaCoin,
 			tx.gas,
 			this.encryptionKeyId,
 		);
@@ -220,7 +227,11 @@ export class SuiClientImp implements SuiClient {
 	): Promise<string> {
 		const tx = new Transaction();
 
-		const ikaCoin = await this.ikaClient.selectIkaCoin(this.signer.toSuiAddress());
+		const ikaCoin = await this.ikaClient.prepareIkaCoin(
+			tx,
+			this.signer.toSuiAddress(),
+			MIN_IKA_BALANCE,
+		);
 		const coordinatorId = this.ikaClient.getCoordinatorId();
 
 		const unverifiedPresignCap = await this.ikaClient.getPresignCapId(presignId);
@@ -236,8 +247,8 @@ export class SuiClientImp implements SuiClient {
 				tx.pure.vector("u8", nbtcPublicSignature),
 				tx.object(unverifiedPresignCap),
 				sessionIdentifier,
-				tx.object(ikaCoin),
-				tx.gas, // paymentSui
+				ikaCoin,
+				tx.gas,
 			],
 		});
 

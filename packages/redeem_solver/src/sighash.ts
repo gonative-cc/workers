@@ -1,6 +1,7 @@
 import { Transaction } from "bitcoinjs-lib";
 import { createHash } from "crypto";
 
+// TODO: make this configurable via constructor parameter or config since it can be set by user
 export const DEFAULT_FEE_SATS = 150;
 
 /**
@@ -67,6 +68,20 @@ function writeVarSlice(buffer: Buffer): Buffer {
 	}
 }
 
+/**
+ * Computes BIP341 Taproot sighash preimage for a specific input.
+ *
+ * Returns the preimage (TAG || TAG || ext_flag || sigmsg) that Ika will hash and sign.
+ * This is NOT the final sighash, Ika will perform the final SHA256 hash during signing.
+ *
+ * @param inputs - Array of transaction inputs with amounts and scriptPubkeys
+ * @param outputs - Array of transaction outputs
+ * @param inputIdx - Index of the input being signed (0-based)
+ * @param hashType - SIGHASH type (default: SIGHASH_DEFAULT = 0x00)
+ * @param locktime - Transaction locktime (default: 0)
+ * @returns Uint8Array containing the BIP341 preimage to be signed
+ * @throws Error if inputs/outputs are empty or inputIdx is invalid
+ */
 export function computeBtcSighash(
 	inputs: UtxoInput[],
 	outputs: TxOutput[],

@@ -110,6 +110,13 @@ export class RedeemService {
 		}));
 
 		const totalInput = inputs.reduce((sum, inp) => sum + inp.amount, 0);
+
+		if (redeemData.amount < DEFAULT_FEE_SATS) {
+			throw new Error(
+				`Redeem amount ${redeemData.amount} is less than minimum fee ${DEFAULT_FEE_SATS}`,
+			);
+		}
+
 		const userReceiveAmount = redeemData.amount - DEFAULT_FEE_SATS;
 		const remainAmount = totalInput - redeemData.amount;
 
@@ -121,13 +128,13 @@ export class RedeemService {
 		];
 
 		if (remainAmount > 0) {
-			const currentUtxo = utxos.find((u) => u.input_index === input.input_index);
-			if (!currentUtxo) {
-				throw new Error(`UTXO not found for input ${input.input_index}`);
+			const firstUtxo = utxos[0];
+			if (!firstUtxo) {
+				throw new Error("No UTXOs available for change output");
 			}
 			outputs.push({
 				amount: remainAmount,
-				script: currentUtxo.script_pubkey,
+				script: firstUtxo.script_pubkey,
 			});
 		}
 

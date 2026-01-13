@@ -8,8 +8,8 @@ import {
 	type Utxo,
 	type RedeemRequestIngestData,
 } from "@gonative-cc/sui-indexer/models";
+import { insertRedeemRequestFn } from "@gonative-cc/sui-indexer/storage";
 import type { RedeemInput, RedeemRequestWithInputs, RedeemRequestWithNetwork } from "./models";
-import { logError } from "@gonative-cc/lib/logger";
 
 export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
 
@@ -115,48 +115,7 @@ export class D1Storage implements Storage {
 
 	// returns 1 if the insert happened, null otherwise.
 	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null> {
-		const pkgRow = await this.db
-			.prepare("SELECT id FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
-			.bind(r.nbtc_pkg, r.sui_network)
-			.first<{ id: number }>();
-
-		if (!pkgRow) {
-			throw new Error(
-				`Package not found for nbtc_pkg=${r.nbtc_pkg}, sui_network=${r.sui_network}`,
-			);
-		}
-		try {
-			const result = await this.db
-				.prepare(
-					`INSERT OR IGNORE INTO nbtc_redeem_requests
-            (redeem_id, setup_id, redeemer, recipient_script, amount, created_at, sui_tx, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING 1 as output`,
-				)
-				.bind(
-					r.redeem_id,
-					pkgRow.id,
-					r.redeemer,
-					r.recipient_script,
-					r.amount,
-					r.created_at,
-					r.sui_tx,
-					RedeemRequestStatus.Pending,
-				)
-				.first<{ output: number }>();
-			return result?.output || null;
-		} catch (error) {
-			logError(
-				{
-					msg: "Failed to insert Redeem Request",
-					method: "insertRedeemRequest",
-					redeem_id: r.redeem_id,
-					redeemer: r.redeemer,
-					sui_network: r.sui_network,
-				},
-				error,
-			);
-			throw error;
-		}
+		return insertRedeemRequestFn(this.db, r);
 	}
 
 	async getPendingRedeems(): Promise<RedeemRequest[]> {

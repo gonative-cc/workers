@@ -68,7 +68,6 @@ export interface GroupedFinalizedTx {
  * Represents the lifecycle status of an nBTC minting tx, extending BitcoinTxStatus.
  * - **minted**: The nBTC has been successfully minted on the SUI network.
  * - **mint-failed**: An attempt to mint a finalized tx failed. Mint should be retried.
- * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
  * - **minted-reorg**: An edge-case where a tx was successfully minted on Sui, but the Bitcoin deposit was later reorged. Tracked for monitoring purposes for now.
  * - **finalized-non-active**: The deposit has been finalized, however the minting will not be attempted because the deposit address is a non-active one. There will be a redemption mechanism for these cases.
  */

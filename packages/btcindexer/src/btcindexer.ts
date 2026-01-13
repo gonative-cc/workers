@@ -25,7 +25,7 @@ import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import { D1Storage } from "@gonative-cc/redeem_solver/storage";
+import { D1Storage as RedeemStorage } from "@gonative-cc/redeem_solver/storage";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
@@ -90,7 +90,7 @@ export class Indexer {
 	#packageConfigs: Map<number, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	#suiClients: Map<SuiNet, SuiClientI>;
 	#electrsClients: Map<BtcNet, Electrs>;
-	#redeemStorage: D1Storage;
+	#redeemStorage: RedeemStorage;
 
 	constructor(
 		storage: Storage,
@@ -100,7 +100,7 @@ export class Indexer {
 		confirmationDepth: number,
 		maxRetries: number,
 		electrsClients: Map<BtcNet, Electrs>,
-		redeemStorage: D1Storage,
+		redeemStorage: RedeemStorage,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");

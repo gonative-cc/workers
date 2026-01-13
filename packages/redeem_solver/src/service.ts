@@ -1,10 +1,9 @@
 import type { Utxo, RedeemRequest } from "@gonative-cc/sui-indexer/models";
-import type { RedeemRequestWithInputs, RedeemInput } from "./models";
+import type { RedeemRequestWithInputs, RedeemInput, RedeemRequestWithNetwork } from "./models";
 import type { Storage } from "./storage";
 import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import { btcNetFromString } from "@gonative-cc/lib/nbtc";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
@@ -68,7 +67,7 @@ export class RedeemService {
 		}
 	}
 
-	private async broadcastRedeem(req: RedeemRequest) {
+	private async broadcastRedeem(req: RedeemRequestWithNetwork) {
 		logger.info({
 			msg: "Broadcasting redeem transaction",
 			redeemId: req.redeem_id,
@@ -82,13 +81,9 @@ export class RedeemService {
 				req.nbtc_contract,
 			);
 
-			// @ts-expect-error btc_network is selected in the query but not present in the base RedeemRequest type
-			const btcNetworkStr = req.btc_network || "regtest";
-			const btcNetwork = btcNetFromString(btcNetworkStr);
-
 			const { tx_id } = await this.btcIndexer.broadcastRedeemTx(
 				rawTxHex,
-				btcNetwork,
+				req.btc_network,
 				req.redeem_id,
 			);
 			await this.storage.markRedeemBroadcasted(req.redeem_id, tx_id);

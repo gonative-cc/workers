@@ -191,7 +191,11 @@ export class IndexerStorage {
 		return result.results.map((r) => r.sui_network as SuiNet);
 	}
 
-	upsertRedeemInputs(redeemId: number, utxoIds: number[], dwalletIds: string[]): Promise<void> {
+	async upsertRedeemInputs(
+		redeemId: number,
+		utxoIds: number[],
+		dwalletIds: string[],
+	): Promise<void> {
 		if (utxoIds.length !== dwalletIds.length) {
 			const error = new Error(
 				`Mismatch between utxoIds (${utxoIds.length}) and dwalletIds (${dwalletIds.length})`,
@@ -204,10 +208,10 @@ export class IndexerStorage {
 				},
 				error,
 			);
-			return Promise.reject(error);
+			throw error;
 		}
 
-		if (utxoIds.length === 0) return Promise.resolve();
+		if (utxoIds.length === 0) return;
 		const now = Date.now();
 		const stmt = this.db.prepare(
 			`INSERT INTO nbtc_redeem_solutions (redeem_id, utxo_id, input_index, dwallet_id, created_at, verified)
@@ -221,22 +225,19 @@ export class IndexerStorage {
 			return stmt.bind(redeemId, utxoId, i, dwalletIds[i]!, now);
 		});
 
-		return this.db
-			.batch(batch)
-			.then(() => {
-				return;
-			})
-			.catch((error) => {
-				logError(
-					{
-						msg: "Failed to batch upsert redeem inputs in D1",
-						method: "upsertRedeemInputs",
-						redeemId,
-					},
-					error,
-				);
-				throw error;
-			});
+		try {
+			await this.db.batch(batch);
+		} catch (error) {
+			logError(
+				{
+					msg: "Failed to batch upsert redeem inputs in D1",
+					method: "upsertRedeemInputs",
+					redeemId,
+				},
+				error,
+			);
+			throw error;
+		}
 	}
 
 	markRedeemInputVerified(redeemId: number, utxoId: number): Promise<void> {

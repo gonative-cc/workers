@@ -1,5 +1,5 @@
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
-import { BtcNet } from "@gonative-cc/lib/nbtc";
+import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";
 import {
 	UtxoStatus,
 	RedeemRequestStatus,
@@ -8,7 +8,7 @@ import {
 	type Utxo,
 	type RedeemRequestIngestData,
 } from "@gonative-cc/sui-indexer/models";
-import type { RedeemInput, RedeemRequestWithInputs } from "./models";
+import type { RedeemInput, RedeemRequestWithInputs, RedeemRequestWithNetwork } from "./models";
 import { logError } from "@gonative-cc/lib/logger";
 
 export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
@@ -62,7 +62,7 @@ export interface Storage {
 	getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]>;
 	getRedeemsByAddrAndNetwork(redeemer: string, btcNetwork: BtcNet): Promise<RedeemRequestResp[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
-	getSignedRedeems(): Promise<(RedeemRequest & { btc_network: string })[]>;
+	getSignedRedeems(): Promise<RedeemRequestWithNetwork[]>;
 	getBroadcastedBtcTxIds(): Promise<string[]>;
 	markRedeemBroadcasted(redeemId: number, txId: string): Promise<void>;
 	confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void>;
@@ -402,7 +402,7 @@ export class D1Storage implements Storage {
 		return result.results.map((r) => toSuiNet(r.sui_network));
 	}
 
-	async getSignedRedeems(): Promise<(RedeemRequest & { btc_network: string })[]> {
+	async getSignedRedeems(): Promise<RedeemRequestWithNetwork[]> {
 		const query = `
             SELECT
                 r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
@@ -430,6 +430,7 @@ export class D1Storage implements Storage {
 			...r,
 			recipient_script: new Uint8Array(r.recipient_script),
 			sui_network: toSuiNet(r.sui_network),
+			btc_network: btcNetFromString(r.btc_network),
 		}));
 	}
 }

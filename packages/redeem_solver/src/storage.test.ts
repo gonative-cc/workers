@@ -9,7 +9,7 @@ import {
 } from "@gonative-cc/sui-indexer/models";
 import { IndexerStorage } from "@gonative-cc/sui-indexer/storage";
 import { initDb } from "./db.test";
-import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
+import { toSuiNet } from "@gonative-cc/lib/nsui";
 import { payments, networks } from "bitcoinjs-lib";
 
 let mf: Miniflare;
@@ -57,8 +57,7 @@ async function insertRedeemRequest(
 	amount: number,
 	createdAt: number,
 	suiTx: string,
-	nbtcPkg = "0xPkg1",
-	suiNetwork: SuiNet = "devnet",
+	setupId = 1,
 ) {
 	const redeemData: RedeemRequestIngestData = {
 		redeem_id: redeemId,
@@ -66,8 +65,7 @@ async function insertRedeemRequest(
 		recipient_script: recipientScript,
 		amount: amount,
 		created_at: createdAt,
-		nbtc_pkg: nbtcPkg,
-		sui_network: suiNetwork,
+		setup_id: setupId,
 		sui_tx: suiTx,
 	};
 	await indexerStorage.insertRedeemRequest(redeemData);
@@ -84,8 +82,7 @@ async function insertUtxo(
 	amount: number,
 	status: UtxoStatus,
 	lockedUntil: number | null,
-	nbtcPkg = "0xPkg1",
-	suiNetwork: SuiNet = "devnet",
+	setupId = 1,
 ) {
 	const utxoData: UtxoIngestData = {
 		nbtc_utxo_id: utxoId,
@@ -94,8 +91,7 @@ async function insertUtxo(
 		vout: vout,
 		amount: amount,
 		script_pubkey: scriptPubkey,
-		nbtc_pkg: nbtcPkg,
-		sui_network: suiNetwork,
+		setup_id: setupId,
 		status: status,
 		locked_until: lockedUntil,
 	};
@@ -334,8 +330,7 @@ describe("D1Storage", () => {
 			3000,
 			UtxoStatus.Available,
 			null,
-			"0xPkg2",
-			"testnet",
+			2,
 		);
 
 		const utxos1 = await storage.getAvailableUtxos(1);

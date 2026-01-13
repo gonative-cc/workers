@@ -4,6 +4,9 @@ import type { Storage } from "./storage";
 import type { SuiClient } from "./sui_client";
 import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } from "./sighash";
+
+const MAXIMUM_NUMBER_UTXO = 100;
 
 export class RedeemService {
 	constructor(
@@ -92,12 +95,50 @@ export class RedeemService {
 			inputIdx: input.input_index,
 		});
 
-		const message = await client.getSigHash(
-			req.redeem_id,
-			input.input_index,
-			req.nbtc_pkg,
-			req.nbtc_contract,
-		);
+		const utxos = await this.storage.getRedeemUtxosWithDetails(req.redeem_id);
+		const redeemData = await this.storage.getRedeemRequestData(req.redeem_id);
+
+		if (!redeemData) {
+			throw new Error(`Redeem request ${req.redeem_id} not found`);
+		}
+
+		const inputs: UtxoInput[] = utxos.map((u) => ({
+			txid: u.txid,
+			vout: u.vout,
+			amount: u.amount,
+			script_pubkey: u.script_pubkey,
+		}));
+
+		const totalInput = inputs.reduce((sum, inp) => sum + inp.amount, 0);
+
+		if (redeemData.amount < DEFAULT_FEE_SATS) {
+			throw new Error(
+				`Redeem amount ${redeemData.amount} is less than minimum fee ${DEFAULT_FEE_SATS}`,
+			);
+		}
+
+		const userReceiveAmount = redeemData.amount - DEFAULT_FEE_SATS;
+		const remainAmount = totalInput - redeemData.amount;
+
+		const outputs: TxOutput[] = [
+			{
+				amount: userReceiveAmount,
+				script: redeemData.recipient_script,
+			},
+		];
+
+		if (remainAmount > 0) {
+			const firstUtxo = utxos[0];
+			if (!firstUtxo) {
+				throw new Error("No UTXOs available for change output");
+			}
+			outputs.push({
+				amount: remainAmount,
+				script: firstUtxo.script_pubkey,
+			});
+		}
+
+		const message = computeBtcSighash(inputs, outputs, input.input_index);
 
 		const presignId = await client.createGlobalPresign();
 		const nbtcPublicSignature = await client.createUserSigMessage(
@@ -258,6 +299,9 @@ function selectUtxos(available: Utxo[], targetAmount: number): Utxo[] | null {
 	const selected: Utxo[] = [];
 
 	for (const utxo of available) {
+		if (selected.length >= MAXIMUM_NUMBER_UTXO) {
+			break;
+		}
 		sum += utxo.amount;
 		selected.push(utxo);
 		if (sum >= targetAmount) {

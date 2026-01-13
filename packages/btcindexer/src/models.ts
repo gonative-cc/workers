@@ -1,5 +1,5 @@
 import { Transaction } from "bitcoinjs-lib";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { BitcoinTxStatus, BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { NbtcPkg, SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface NbtcDeposit {
@@ -65,28 +65,23 @@ export interface GroupedFinalizedTx {
 }
 
 /**
- * Represents the lifecycle status of an nBTC minting tx.
- * - **broadcasting**: The deposit transaction has been broadcast to the Bitcoin network, but has not yet been included in a block.
- * - **confirming**: The deposit tx has been found in a Bitcoin block but does not yet have enough confirmations.
- * - **finalized**: The tx has reached the required confirmation depth and is ready to be minted.
+ * Represents the lifecycle status of an nBTC minting tx, extending BitcoinTxStatus.
  * - **minted**: The nBTC has been successfully minted on the SUI network.
  * - **mint-failed**: An attempt to mint a finalized tx failed. Mint should be retried.
  * - **reorg**: A blockchain reorg detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
- * - **finalized-reorg**: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
  * - **minted-reorg**: An edge-case where a tx was successfully minted on Sui, but the Bitcoin deposit was later reorged. Tracked for monitoring purposes for now.
  * - **finalized-non-active**: The deposit has been finalized, however the minting will not be attempted because the deposit address is a non-active one. There will be a redemption mechanism for these cases.
  */
-export const enum MintTxStatus {
-	Broadcasting = "broadcasting",
-	Confirming = "confirming",
-	Reorg = "reorg",
-	Finalized = "finalized",
-	FinalizedReorg = "finalized-reorg",
+enum MintTxStatusEnum {
 	Minted = "minted",
 	MintedReorg = "minted-reorg",
 	MintFailed = "mint-failed",
 	FinalizedNonActive = "finalized-non-active",
 }
+
+export type MintTxStatus = MintTxStatusEnum | BitcoinTxStatus;
+// NOTE: In case of key conflicts, BitcoinTxStatus takes precedence because it is spread last.
+export const MintTxStatus = { ...MintTxStatusEnum, ...BitcoinTxStatus };
 
 export interface NbtcTxResp extends Omit<NbtcTxRow, "tx_id"> {
 	btcTxId: string;

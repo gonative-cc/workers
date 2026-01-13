@@ -1,4 +1,5 @@
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
+import { BtcNet } from "@gonative-cc/lib/nbtc";
 import {
 	UtxoStatus,
 	RedeemRequestStatus,
@@ -59,9 +60,10 @@ export interface Storage {
 	markRedeemInputVerified(redeemId: number, utxoId: number): Promise<void>;
 	getRedeemInputs(redeemId: number): Promise<RedeemInput[]>;
 	getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]>;
-	getRedeemsByAddrAndNetwork(redeemer: string, btcNetwork: string): Promise<RedeemRequestResp[]>;
+	getRedeemsByAddrAndNetwork(redeemer: string, btcNetwork: BtcNet): Promise<RedeemRequestResp[]>;
 	getActiveNetworks(): Promise<SuiNet[]>;
 	getSignedRedeems(): Promise<(RedeemRequest & { btc_network: string })[]>;
+	getBroadcastedBtcTxIds(): Promise<string[]>;
 	markRedeemBroadcasted(redeemId: number, txId: string): Promise<void>;
 	confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void>;
 	insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null>;
@@ -69,6 +71,16 @@ export interface Storage {
 
 export class D1Storage implements Storage {
 	constructor(private db: D1Database) {}
+
+	async getBroadcastedBtcTxIds(): Promise<string[]> {
+		const { results } = await this.db
+			.prepare(
+				`SELECT btc_tx FROM nbtc_redeem_requests WHERE status = ? AND btc_tx IS NOT NULL`,
+			)
+			.bind(RedeemRequestStatus.Broadcasted)
+			.all<{ btc_tx: string }>();
+		return results.map((r) => r.btc_tx);
+	}
 
 	async markRedeemBroadcasted(redeemId: number, txId: string): Promise<void> {
 		const now = Date.now();
@@ -193,7 +205,7 @@ export class D1Storage implements Storage {
 
 	async getRedeemsByAddrAndNetwork(
 		redeemer: string,
-		btcNetwork: string,
+		btcNetwork: BtcNet,
 	): Promise<RedeemRequestResp[]> {
 		const query = `
             SELECT

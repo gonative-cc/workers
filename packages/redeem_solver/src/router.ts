@@ -44,9 +44,9 @@ export default class HttpRouter {
 		}
 
 		try {
-			btcNetFromString(networkStr);
+			const btcNetwork = btcNetFromString(networkStr);
 			const storage = new D1Storage(env.DB);
-			const redeems = await storage.getRedeemsByAddrAndNetwork(params.address, networkStr);
+			const redeems = await storage.getRedeemsByAddrAndNetwork(params.address, btcNetwork);
 			return redeems;
 		} catch (e: unknown) {
 			logError({ msg: "Failed to fetch redeems", method: "getRedeemsBySuiAddr" }, e);

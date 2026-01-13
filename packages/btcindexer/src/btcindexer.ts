@@ -162,7 +162,10 @@ export class Indexer {
 
 	// - extracts and processes nBTC deposit transactions in the block
 	// - handles reorgs
-	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
+	async processBlock(
+		blockInfo: BlockQueueRecord,
+		broadcastedRedeemTxIds?: Set<string>,
+	): Promise<void> {
 		const network = btcNetworkCfg[blockInfo.network];
 		if (!network) {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
@@ -249,7 +252,17 @@ export class Indexer {
 		}
 
 		if (txIds.length > 0) {
-			await this.#redeemStorage.confirmRedeem(txIds, blockInfo.height, blockInfo.hash);
+			const potentialRedeems = broadcastedRedeemTxIds
+				? txIds.filter((id) => broadcastedRedeemTxIds.has(id))
+				: txIds;
+
+			if (potentialRedeems.length > 0) {
+				await this.#redeemStorage.confirmRedeem(
+					potentialRedeems,
+					blockInfo.height,
+					blockInfo.hash,
+				);
+			}
 		}
 
 		if (nbtcTxs.length > 0) {
@@ -908,6 +921,10 @@ export class Indexer {
 		});
 
 		return { tx_id: txId };
+	}
+
+	async getBroadcastedRedeemTxIds(): Promise<string[]> {
+		return this.#redeemStorage.getBroadcastedBtcTxIds();
 	}
 
 	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {

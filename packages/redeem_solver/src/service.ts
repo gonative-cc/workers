@@ -8,6 +8,8 @@ import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
 
+const MAXIMUM_NUMBER_UTXO = 100;
+
 export class RedeemService {
 	constructor(
 		private storage: Storage,
@@ -308,6 +310,9 @@ function selectUtxos(available: Utxo[], targetAmount: number): Utxo[] | null {
 	const selected: Utxo[] = [];
 
 	for (const utxo of available) {
+		if (selected.length >= MAXIMUM_NUMBER_UTXO) {
+			break;
+		}
 		sum += utxo.amount;
 		selected.push(utxo);
 		if (sum >= targetAmount) {

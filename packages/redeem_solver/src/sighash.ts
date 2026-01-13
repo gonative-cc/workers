@@ -111,7 +111,8 @@ export function computeBtcSighash(
 }
 
 /**
- * Builds the BIP341 Taproot signature message (similar structure to bitcoinjs-lib's hashForWitnessV1)
+ * Builds BIP341 Taproot signature message per specification.
+ * Reference: https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#common-signature-message
  */
 function buildTaprootSigMsg(
 	tx: Transaction,

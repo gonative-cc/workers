@@ -8,7 +8,7 @@ import {
 	type Utxo,
 	type RedeemRequestIngestData,
 } from "@gonative-cc/sui-indexer/models";
-import { insertRedeemRequestFn } from "@gonative-cc/sui-indexer/storage";
+import { insertRedeemRequest } from "@gonative-cc/sui-indexer/storage";
 import type { RedeemInput, RedeemRequestWithInputs, RedeemRequestWithNetwork } from "./models";
 
 export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
@@ -131,7 +131,7 @@ export class D1Storage implements Storage {
 
 	// returns 1 if the insert happened, null otherwise.
 	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null> {
-		return insertRedeemRequestFn(this.db, r);
+		return insertRedeemRequest(this.db, r);
 	}
 
 	async getPendingRedeems(): Promise<RedeemRequest[]> {
@@ -352,12 +352,25 @@ export class D1Storage implements Storage {
 	}
 
 	async markRedeemInputVerified(redeemId: number, utxoId: number): Promise<void> {
-		await this.db
+		const updateSolution = this.db
 			.prepare(
 				`UPDATE nbtc_redeem_solutions SET verified = 1 WHERE redeem_id = ? AND utxo_id = ?`,
 			)
-			.bind(redeemId, utxoId)
-			.run();
+			.bind(redeemId, utxoId);
+
+		const updateRequest = this.db
+			.prepare(
+				`UPDATE nbtc_redeem_requests
+                 SET status = ?
+                 WHERE redeem_id = ?
+                 AND NOT EXISTS (
+                    SELECT 1 FROM nbtc_redeem_solutions
+                    WHERE redeem_id = ? AND verified = 0
+                 )`,
+			)
+			.bind(RedeemRequestStatus.Signed, redeemId, redeemId);
+
+		await this.db.batch([updateSolution, updateRequest]);
 	}
 
 	async getRedeemInputs(redeemId: number): Promise<RedeemInput[]> {
@@ -430,20 +443,12 @@ export class D1Storage implements Storage {
             FROM nbtc_redeem_requests r
             JOIN setups p ON r.setup_id = p.id
             WHERE r.status = ?
-            AND NOT EXISTS (
-                SELECT 1 FROM nbtc_redeem_solutions s
-                WHERE s.redeem_id = r.redeem_id AND s.verified = 0
-            )
-            AND EXISTS (
-                SELECT 1 FROM nbtc_redeem_solutions s
-                WHERE s.redeem_id = r.redeem_id
-            )
             ORDER BY r.created_at ASC
             LIMIT 50;
         `;
 		const { results } = await this.db
 			.prepare(query)
-			.bind(RedeemRequestStatus.Solved)
+			.bind(RedeemRequestStatus.Signed)
 			.all<RedeemRequestRow & { btc_network: string }>();
 
 		return results.map((r) => ({

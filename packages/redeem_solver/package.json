@@ -21,7 +21,7 @@
 		"@ika.xyz/sdk": "^0.2.7",
 		"@mysten/bcs": "^1.9.2",
 		"@mysten/sui": "^1.45.2",
-		"itty-router": "^5.0.22"
+		"itty-router": "^5.0.22",
 		"bitcoinjs-lib": "^6.1.7"
 	},
 	"devDependencies": {

@@ -130,7 +130,7 @@ export class IndexerStorage {
 
 	// returns 1 if the insert happened, null otherwise.
 	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null> {
-		return insertRedeemRequestFn(this.db, r);
+		return insertRedeemRequest(this.db, r);
 	}
 
 	async getActiveNbtcPkgs(networkName: string): Promise<PkgCfg[]> {
@@ -229,7 +229,7 @@ export class IndexerStorage {
 	}
 }
 
-export async function insertRedeemRequestFn(
+export async function insertRedeemRequest(
 	db: D1Database,
 	r: RedeemRequestIngestData,
 ): Promise<number | null> {
@@ -266,7 +266,7 @@ export async function insertRedeemRequestFn(
 		logError(
 			{
 				msg: "Failed to insert Redeem Request",
-				method: "insertRedeemRequestFn",
+				method: "insertRedeemRequest",
 				redeem_id: r.redeem_id,
 				redeemer: r.redeemer,
 				sui_network: r.sui_network,

@@ -264,7 +264,7 @@ export class SuiClientImp implements SuiClient {
 		const sessionIdentifier = this.ikaClient.createSessionIdentifier(tx);
 
 		tx.moveCall({
-			target: `${nbtcPkg}::nbtc::request_signature_for_input`,
+			target: `${nbtcPkg}::nbtc::request_utxo_sig`,
 			arguments: [
 				tx.object(nbtcContract),
 				tx.object(coordinatorId),

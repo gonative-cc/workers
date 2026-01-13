@@ -77,7 +77,7 @@ export class D1Storage implements Storage {
 			.prepare(
 				`SELECT btc_tx FROM nbtc_redeem_requests WHERE status = ? AND btc_tx IS NOT NULL`,
 			)
-			.bind(RedeemRequestStatus.Broadcasted)
+			.bind(RedeemRequestStatus.Broadcasting)
 			.all<{ btc_tx: string }>();
 		return results.map((r) => r.btc_tx);
 	}
@@ -90,7 +90,7 @@ export class D1Storage implements Storage {
                  SET status = ?, btc_tx = ?, btc_broadcasted_at = ?
                  WHERE redeem_id = ?`,
 			)
-			.bind(RedeemRequestStatus.Broadcasted, txId, now, redeemId)
+			.bind(RedeemRequestStatus.Broadcasting, txId, now, redeemId)
 			.run();
 	}
 
@@ -104,10 +104,10 @@ export class D1Storage implements Storage {
                  WHERE status = ? AND btc_tx IN (${placeholders})`,
 			)
 			.bind(
-				RedeemRequestStatus.Confirmed,
+				RedeemRequestStatus.Confirming,
 				blockHeight,
 				blockHash,
-				RedeemRequestStatus.Broadcasted,
+				RedeemRequestStatus.Broadcasting,
 				...txIds,
 			)
 			.run();

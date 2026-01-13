@@ -5,7 +5,6 @@ import type { RedeemRequestEventRaw } from "@gonative-cc/sui-indexer/models";
 import { IndexerStorage } from "@gonative-cc/sui-indexer/storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface RedeemSolverRpc {
 	finalizeRedeem: () => Promise<void>;
@@ -46,15 +45,6 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
 			const storage = new IndexerStorage(this.env.DB);
-			const setupRow = await this.env.DB.prepare(
-				"SELECT sui_network, nbtc_pkg FROM setups WHERE id = ?",
-			)
-				.bind(setupId)
-				.first<{ sui_network: SuiNet; nbtc_pkg: string }>();
-
-			if (!setupRow) {
-				throw new Error(`No setup found with id: ${setupId}`);
-			}
 
 			const ok = await this.env.DB.prepare(
 				"SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?",
@@ -73,8 +63,7 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 				recipient_script: fromBase64(e.recipient_script),
 				amount: Number(e.amount),
 				created_at: Number(e.created_at),
-				nbtc_pkg: setupRow.nbtc_pkg,
-				sui_network: setupRow.sui_network,
+				setup_id: setupId,
 				sui_tx: suiTxId,
 			});
 			logger.info({

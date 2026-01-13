@@ -43,14 +43,12 @@ export class IndexerStorage {
 
 	async insertUtxo(u: UtxoIngestData): Promise<void> {
 		const setupRow = await this.db
-			.prepare("SELECT id, btc_network FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
-			.bind(u.nbtc_pkg, u.sui_network)
-			.first<{ id: number; btc_network: string }>();
+			.prepare("SELECT btc_network FROM setups WHERE id = ?")
+			.bind(u.setup_id)
+			.first<{ btc_network: string }>();
 
 		if (!setupRow) {
-			throw new Error(
-				`Package not found for nbtc_pkg=${u.nbtc_pkg}, sui_network=${u.sui_network}`,
-			);
+			throw new Error(`Setup not found for setup_id=${u.setup_id}`);
 		}
 
 		const network = btcNetworks[setupRow.btc_network];
@@ -68,12 +66,12 @@ export class IndexerStorage {
 			.prepare(
 				"SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ? AND deposit_address = ?",
 			)
-			.bind(setupRow.id, depositAddress)
+			.bind(u.setup_id, depositAddress)
 			.first<{ id: number }>();
 
 		if (!addrRow) {
 			throw new Error(
-				`Deposit address not found for setup_id=${setupRow.id}, address=${depositAddress}`,
+				`Deposit address not found for setup_id=${u.setup_id}, address=${depositAddress}`,
 			);
 		}
 
@@ -130,16 +128,6 @@ export class IndexerStorage {
 
 	// returns 1 if the insert happened, null otherwise.
 	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null> {
-		const pkgRow = await this.db
-			.prepare("SELECT id FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
-			.bind(r.nbtc_pkg, r.sui_network)
-			.first<{ id: number }>();
-
-		if (!pkgRow) {
-			throw new Error(
-				`Package not found for nbtc_pkg=${r.nbtc_pkg}, sui_network=${r.sui_network}`,
-			);
-		}
 		try {
 			const result = await this.db
 				.prepare(
@@ -149,7 +137,7 @@ export class IndexerStorage {
 				)
 				.bind(
 					r.redeem_id,
-					pkgRow.id,
+					r.setup_id,
 					r.redeemer,
 					r.recipient_script,
 					r.amount,
@@ -166,7 +154,7 @@ export class IndexerStorage {
 					method: "insertRedeemRequest",
 					redeem_id: r.redeem_id,
 					redeemer: r.redeemer,
-					sui_network: r.sui_network,
+					setup_id: r.setup_id,
 				},
 				error,
 			);

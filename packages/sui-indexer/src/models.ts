@@ -132,3 +132,18 @@ export interface PkgCfg {
 	id: number;
 	nbtc_pkg: string;
 }
+
+// Arguments for the contract call
+export interface ProposeRedeemCall {
+	redeemId: number;
+	utxoIds: number[];
+	dwalletIds: string[];
+	nbtcPkg: string;
+	nbtcContract: string;
+}
+
+export interface SolveRedeemCall {
+	redeemId: number;
+	nbtcPkg: string;
+	nbtcContract: string;
+}

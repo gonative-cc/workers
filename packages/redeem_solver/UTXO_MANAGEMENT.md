@@ -25,7 +25,7 @@ When a user requests to redeem nBTC for BTC:
 2.  **Locking:** The solver updates the UTXO status to `LOCKED` and sets a `locked_until` timestamp.
 3.  **On-Chain Proposal:** The solver submits a `ProposeUtxo` transaction to Sui.
 4.  **Confirmation:** The `SuiIndexer` listens for the `ProposeUtxoEvent` and confirms the lock in the database (ensuring consistency if multiple workers are running).
-NOTE: if there is another `ProposeUtxoEvent` for the same redeem request (redeem_id), it means our previous proposal has been bested and overwriten, so we can `UNLOCK` those UTXOs.
+NOTE: if there is another `ProposeUtxoEvent` for the same redeem request (redeem_id), it means our previous proposal has been bested and overwritten, so we can `UNLOCK` those UTXOs.
 
 ### D. Spending (Redemption)
 1.  **Signing:** Ika network signs the Bitcoin transaction spending these UTXOs.
@@ -57,4 +57,4 @@ The `RedeemSolver` is responsible for choosing which UTXOs to spend.
 
 **Current Strategy**
 For testnet we are using a very simple version of the algorithm, the production algorithm will be more sophisticated.
-TODO: update this once we udpate the algorithm
+TODO: update this once we update the algorithm

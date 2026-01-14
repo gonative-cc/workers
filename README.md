@@ -26,9 +26,9 @@ Workers are based on the Cloudflare Workers framework.
 
 #### 3. [Redeem Solver](./packages/redeem_solver/)
 
+- Handles UTXO management.
 - Handles nBTC redemption requests from users
-- Tracks available UTXOs for redemptions
-- Proposes appropriate UTXO sets for withdrawal transactions
+- Resolves UTXO proposals for redemption requests
 - Coordinates with BTCIndexer for consistent state
 
 #### 4. [Sui Indexer](./packages/sui-indexer/)
@@ -39,7 +39,7 @@ Workers are based on the Cloudflare Workers framework.
 
 #### 5. [Shared Library](./packages/lib/) (`lib`)
 
-- Provides common utilities, types, and configurations
+- Provides shared functions, types, and configurations
 - Offers logging infrastructure used across packages
 - Ensures consistent implementation across all workers
 

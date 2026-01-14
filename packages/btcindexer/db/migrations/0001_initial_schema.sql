@@ -54,8 +54,8 @@ CREATE INDEX IF NOT EXISTS nbtc_withdraw_sender ON nbtc_withdrawal (sender, reci
 -- 2 = burn
 -- 3 = signing -- Ika signature
 -- 4 = signed
--- 5 = broadcasted to bitcoin
--- 6 = confirmations (here user technically already has the funds)
+-- 5 = broadcasting
+-- 6 = confirming (here user technically already has the funds)
 
 -- This table holds the config for nBTC setups.
 CREATE TABLE IF NOT EXISTS setups (
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
 	created_at INTEGER NOT NULL,
 	sui_tx TEXT NOT NULL,
 	btc_tx TEXT, -- null if not broadcasted
-	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'solved', 'signed', 'broadcasted', 'confirmed'
+	status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'proposed', 'solved', 'signed', 'broadcasting', 'confirming'
 	btc_block_height INTEGER,
 	btc_block_hash TEXT,
 	btc_broadcasted_at INTEGER,

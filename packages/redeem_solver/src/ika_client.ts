@@ -11,7 +11,7 @@ import {
 	createUserSignMessageWithPublicOutput,
 } from "@ika.xyz/sdk";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import type { SuiClient as MystenClient } from "@mysten/sui/client";
+import type { CoinStruct, SuiClient as MystenClient } from "@mysten/sui/client";
 import {
 	Transaction,
 	type TransactionArgument,
@@ -24,6 +24,11 @@ export interface IkaClient {
 	getLatestNetworkEncryptionKeyId(): Promise<string>;
 	getCoordinatorId(): string;
 	getPresignCapId(presignId: string): Promise<string>;
+	prepareIkaCoin(
+		tx: Transaction,
+		owner: string,
+		maxCoins?: number,
+	): Promise<TransactionObjectArgument>;
 
 	createUserSigMessage(
 		dwalletId: string,
@@ -79,36 +84,100 @@ export class IkaClientImp implements IkaClient {
 		return this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
 	}
 
-	async selectIkaCoin(owner: string): Promise<string> {
-		const coins = await this.mystenClient.getCoins({
-			owner: owner,
-			coinType: `${this.ikaConfig.packages.ikaPackage}::ika::IKA`,
-			limit: 50,
-		});
+	private async fetchAllIkaCoins(owner: string): Promise<CoinStruct[]> {
+		const allCoins: CoinStruct[] = [];
+		let cursor: string | null | undefined = null;
 
-		if (coins.data.length === 0) {
+		do {
+			const result = await this.mystenClient.getCoins({
+				owner: owner,
+				coinType: `${this.ikaConfig.packages.ikaPackage}::ika::IKA`,
+				cursor: cursor,
+			});
+			allCoins.push(...result.data);
+			cursor = result.hasNextPage ? result.nextCursor : null;
+		} while (cursor);
+
+		if (allCoins.length === 0) {
 			throw new Error(`No IKA coins found for address ${owner}`);
 		}
 
-		const sortedCoins = coins.data.sort((a, b) => {
+		return allCoins;
+	}
+
+	private sortCoinsByBalance(coins: CoinStruct[]): CoinStruct[] {
+		return coins.sort((a, b) => {
 			const aBalance = BigInt(a.balance);
 			const bBalance = BigInt(b.balance);
-			if (aBalance === bBalance) {
-				return 0;
-			}
-			return bBalance > aBalance ? 1 : -1;
+			return Number(bBalance - aBalance);
 		});
+	}
+	async prepareIkaCoin(
+		tx: Transaction,
+		owner: string,
+		upperLimit = 100,
+	): Promise<TransactionObjectArgument> {
+		const allCoins = await this.fetchAllIkaCoins(owner);
+		const targetBalance = BigInt(upperLimit);
 
-		const largestCoin = sortedCoins[0];
-		if (!largestCoin) {
-			throw new Error(`Failed to select IKA coin for address ${owner}`);
+		const selectedCoins: CoinStruct[] = [];
+		let totalBalance = BigInt(0);
+
+		for (const coin of allCoins) {
+			if (selectedCoins.length >= upperLimit) {
+				break;
+			}
+			selectedCoins.push(coin);
+			totalBalance += BigInt(coin.balance);
+			if (totalBalance >= targetBalance) {
+				break;
+			}
 		}
 
-		// TODO: Handle case where largest coin has insufficient balance
-		// Should select multiple coins and merge them using PTB if needed.
-		// Function should return multiple coin IDs or a result indicating success/failure.
-		// If multiple coins are returned, caller needs to merge them before use.
-		// Requires determining minimum required balance (dynamic in IKA pricing).
+		if (totalBalance < targetBalance && allCoins.length > selectedCoins.length) {
+			const remainingCoins = allCoins.slice(selectedCoins.length);
+			const sortedRemainingCoins = this.sortCoinsByBalance(remainingCoins);
+
+			for (const coin of sortedRemainingCoins) {
+				selectedCoins.push(coin);
+				totalBalance += BigInt(coin.balance);
+				if (totalBalance >= targetBalance) {
+					break;
+				}
+			}
+		}
+
+		if (totalBalance < targetBalance) {
+			throw new Error(
+				`Total balance ${totalBalance} is less than target balance ${targetBalance}`,
+			);
+		}
+
+		if (selectedCoins.length === 1) {
+			const singleCoin = selectedCoins[0];
+			if (!singleCoin) {
+				throw new Error("No coin selected");
+			}
+			return tx.object(singleCoin.coinObjectId);
+		}
+
+		const [primaryCoin, ...coinsToMerge] = selectedCoins;
+		if (!primaryCoin) {
+			throw new Error("No primary coin available");
+		}
+		const primaryCoinArg = tx.object(primaryCoin.coinObjectId);
+		const coinToMergeArgs = coinsToMerge.map((c) => tx.object(c.coinObjectId));
+
+		tx.mergeCoins(primaryCoinArg, coinToMergeArgs);
+		return primaryCoinArg;
+	}
+	async selectIkaCoin(owner: string): Promise<string> {
+		const allCoins = await this.fetchAllIkaCoins(owner);
+		const sortedCoins = this.sortCoinsByBalance(allCoins);
+		const largestCoin = sortedCoins[0];
+		if (!largestCoin) {
+			throw new Error("No coins available");
+		}
 		return largestCoin.coinObjectId;
 	}
 

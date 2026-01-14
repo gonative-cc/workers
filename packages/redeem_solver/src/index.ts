@@ -31,7 +31,7 @@ export default {
 		}
 		const storage = new D1Storage(env.DB);
 		const activeNetworks = await storage.getActiveNetworks();
-		const clients = await createSuiClients(activeNetworks, mnemonic);
+		const clients = await createSuiClients(activeNetworks, mnemonic, env.IKA_UPPER_LIMIT);
 		const service = new RedeemService(
 			storage,
 			clients,

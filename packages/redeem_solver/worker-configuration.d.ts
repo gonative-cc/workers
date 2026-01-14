@@ -8,6 +8,7 @@ declare namespace Cloudflare {
 	interface Env {
 		UTXO_LOCK_TIME: 3600000;
 		REDEEM_DURATION_MS: 300000;
+		IKA_UPPER_LIMIT: 100;
 		DB: D1Database;
 		NBTC_MINTING_SIGNER_MNEMONIC: SecretsStoreSecret;
 	}

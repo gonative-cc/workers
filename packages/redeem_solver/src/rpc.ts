@@ -49,16 +49,6 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
 			const storage = new D1Storage(this.env.DB);
-			const setupRow = await this.env.DB.prepare(
-				"SELECT sui_network, nbtc_pkg FROM setups WHERE id = ?",
-			)
-				.bind(setupId)
-				.first<{ sui_network: SuiNet; nbtc_pkg: string }>();
-
-			if (!setupRow) {
-				throw new Error(`No setup found with id: ${setupId}`);
-			}
-
 			const ok = await this.env.DB.prepare(
 				"SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?",
 			)

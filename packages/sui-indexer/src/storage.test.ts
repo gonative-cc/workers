@@ -36,6 +36,9 @@ export async function initDb(db: D1Database) {
 			sui_network TEXT NOT NULL,
 			nbtc_pkg TEXT NOT NULL,
 			nbtc_contract TEXT NOT NULL,
+			lc_pkg TEXT,
+			lc_contract TEXT,
+			sui_fallback_address TEXT,
 			is_active INTEGER NOT NULL DEFAULT 1
 		);
 
@@ -92,21 +95,6 @@ export async function initDb(db: D1Database) {
 		);
 	`);
 }
-
-let mf: Miniflare;
-
-beforeAll(async () => {
-	mf = new Miniflare({
-		script: "",
-		modules: true,
-		d1Databases: ["DB"],
-		d1Persist: false,
-	});
-});
-
-afterAll(async () => {
-	await mf.dispose();
-});
 
 const p2wpkh1 = payments.p2wpkh({
 	pubkey: Buffer.from(
@@ -215,14 +203,14 @@ async function insertDepositAddress(
 	id: number,
 	setupId: number,
 	depositAddress: string,
-	isActive = 1,
+	suiAddress: string,
 ) {
 	await database
 		.prepare(
-			`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
+			`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, sui_address)
                  VALUES (?, ?, ?, ?)`,
 		)
-		.bind(id, setupId, depositAddress, isActive)
+		.bind(id, setupId, depositAddress, suiAddress)
 		.run();
 }
 
@@ -249,7 +237,7 @@ describe("IndexerStorage", () => {
 			"0xLCC1",
 			"0xFallback1",
 		);
-		await insertDepositAddress(db, 1, 1, depositAddress1);
+		await insertDepositAddress(db, 1, 1, depositAddress1, "0xSuiAddr1");
 	});
 
 	afterEach(async () => {
@@ -374,7 +362,7 @@ describe("IndexerStorage", () => {
 			"0xLCC2",
 			"0xFallback2",
 		);
-		await insertDepositAddress(db, 2, 2, depositAddress2);
+		await insertDepositAddress(db, 2, 2, depositAddress2, "0xSuiAddr2");
 
 		await insertUtxo(
 			indexerStorage,

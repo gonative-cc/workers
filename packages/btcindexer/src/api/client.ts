@@ -5,6 +5,7 @@ export const enum RestPath {
 	latestHeight = "/height",
 	nbtcTx = "/tx",
 	depositsBySender = "/deposits/sender", // ?sender=address
+	redeems = "/redeems", // /redeems/:address?network=...
 }
 
 export class BtcIndexerClient {

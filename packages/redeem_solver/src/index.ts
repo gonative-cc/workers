@@ -9,13 +9,22 @@
 import { D1Storage } from "./storage";
 import { RedeemService } from "./service";
 import { createSuiClients } from "./sui_client";
+import type { Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
+import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
 import { logger, logError } from "@gonative-cc/lib/logger";
+import HttpRouter from "./router";
+
+const router = new HttpRouter();
 
 // Export RPC entrypoints for service bindings
 export { RPC } from "./rpc";
 export { RPCMock } from "./rpc-mock";
 
 export default {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		return router.fetch(request, env, ctx);
+	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		logger.info({ msg: "Running scheduled redeem solver task..." });
 		let mnemonic: string;
@@ -35,6 +44,7 @@ export default {
 		const service = new RedeemService(
 			storage,
 			clients,
+			env.BTCINDEXER as unknown as Service<BtcIndexerRpcI & WorkerEntrypoint>,
 			env.UTXO_LOCK_TIME,
 			env.REDEEM_DURATION_MS,
 		);
@@ -43,20 +53,22 @@ export default {
 			service.processPendingRedeems(), // propose a solution
 			service
 				.solveReadyRedeems() // trigger status change
-				.then(service.processSolvedRedeems), // request signatures
+				.then(() => service.processSolvedRedeems()), // request signatures
+			service.broadcastReadyRedeems(), // broadcast fully signed txs
 		]);
 
 		// Check for any rejected promises and log errors
 		results.forEach((result, index) => {
 			if (result.status === "rejected") {
+				let taskName = "unknown";
+				if (index === 0) taskName = "processPendingRedeems";
+				else if (index === 1) taskName = "solveReadyRedeems/processSolvedRedeems";
+				else if (index === 2) taskName = "broadcastReadyRedeems";
 				logError(
 					{
 						msg: "Processing redeems error",
 						method: "redeem-solver scheduler",
-						task:
-							index === 0
-								? "processPendingRedeems"
-								: "solveReadyRedeems/processSolvedRedeems",
+						task: taskName,
 					},
 					result.reason,
 				);

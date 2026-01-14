@@ -1,4 +1,5 @@
 import type { RedeemRequestResp, RedeemRequest, Utxo } from "@gonative-cc/sui-indexer/models";
+import type { BtcNet } from "@gonative-cc/lib/nbtc";
 
 export type { RedeemRequestResp, Utxo };
 
@@ -29,4 +30,8 @@ export interface RedeemInput {
 
 export interface RedeemRequestWithInputs extends RedeemRequest {
 	inputs: RedeemInput[];
+}
+
+export interface RedeemRequestWithNetwork extends RedeemRequest {
+	btc_network: BtcNet;
 }

@@ -1,4 +1,5 @@
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import { BitcoinTxStatus } from "@gonative-cc/lib/nbtc";
 
 export enum UtxoStatus {
 	Available = "available",
@@ -18,13 +19,16 @@ export interface Utxo {
 	locked_until: number | null;
 }
 
-export enum RedeemRequestStatus {
+export enum RedeemStatusEnum {
 	Pending = "pending",
 	Proposed = "proposed",
 	Solved = "solved",
 	Signed = "signed",
-	Broadcasted = "broadcasted",
 }
+
+export type RedeemRequestStatus = RedeemStatusEnum | BitcoinTxStatus;
+// NOTE: In case of key conflicts, BitcoinTxStatus takes precedence because it is spread last.
+export const RedeemRequestStatus = { ...RedeemStatusEnum, ...BitcoinTxStatus };
 
 export interface RedeemRequest {
 	redeem_id: number; // redeem ID created by the smart contract index (u64)
@@ -103,6 +107,12 @@ export interface SolvedEventRaw {
 	redeem_id: string;
 	utxo_ids: string[];
 	dwallet_ids: string[];
+}
+
+export interface SignatureRecordedEventRaw {
+	redeem_id: string;
+	utxo_id: string;
+	sign_id: string;
 }
 
 export interface SuiEventNode {

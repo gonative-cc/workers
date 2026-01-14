@@ -24,6 +24,9 @@ import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
+import type { RedeemSolverRpc } from "@gonative-cc/redeem_solver/rpc";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
@@ -70,6 +73,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 			confirmationDepth,
 			maxNbtcMintTxRetries,
 			electrsClients,
+			env.REDEEM_SOLVER as unknown as Service<RedeemSolverRpc & WorkerEntrypoint>,
 		);
 	} catch (err) {
 		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
@@ -85,6 +89,7 @@ export class Indexer {
 	#packageConfigs: Map<number, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	#suiClients: Map<SuiNet, SuiClientI>;
 	#electrsClients: Map<BtcNet, Electrs>;
+	redeemSolver: Service<RedeemSolverRpc & WorkerEntrypoint>;
 
 	constructor(
 		storage: Storage,
@@ -94,6 +99,7 @@ export class Indexer {
 		confirmationDepth: number,
 		maxRetries: number,
 		electrsClients: Map<BtcNet, Electrs>,
+		redeemSolver: Service<RedeemSolverRpc & WorkerEntrypoint>,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
@@ -124,6 +130,7 @@ export class Indexer {
 		this.#electrsClients = electrsClients;
 		this.#packageConfigs = pkgCfgMap;
 		this.#suiClients = suiClients;
+		this.redeemSolver = redeemSolver;
 	}
 
 	async hasNbtcMintTx(txId: string): Promise<boolean> {
@@ -154,7 +161,10 @@ export class Indexer {
 
 	// - extracts and processes nBTC deposit transactions in the block
 	// - handles reorgs
-	async processBlock(blockInfo: BlockQueueRecord): Promise<void> {
+	async processBlock(
+		blockInfo: BlockQueueRecord,
+		broadcastedRedeemTxIds?: Set<string>,
+	): Promise<void> {
 		const network = btcNetworkCfg[blockInfo.network];
 		if (!network) {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
@@ -194,7 +204,10 @@ export class Indexer {
 		}
 
 		const nbtcTxs: NbtcTxInsertion[] = [];
+		const txIds: string[] = [];
+
 		for (const tx of block.transactions ?? []) {
+			txIds.push(tx.getId());
 			const deposits = this.findNbtcDeposits(tx, network);
 			if (deposits.length > 0) {
 				const txSenders = await this.getSenderAddresses(tx, blockInfo.network);
@@ -234,6 +247,20 @@ export class Indexer {
 						sender,
 					});
 				}
+			}
+		}
+
+		if (txIds.length > 0) {
+			const potentialRedeems = broadcastedRedeemTxIds
+				? txIds.filter((id) => broadcastedRedeemTxIds.has(id))
+				: txIds;
+
+			if (potentialRedeems.length > 0) {
+				await this.redeemSolver.confirmRedeem(
+					potentialRedeems,
+					blockInfo.height,
+					blockInfo.hash,
+				);
 			}
 		}
 
@@ -860,6 +887,43 @@ export class Indexer {
 			registeredCount: deposits.length,
 		});
 		return { tx_id: txId, registered_deposits: deposits.length };
+	}
+
+	async broadcastRedeemTx(
+		txHex: string,
+		network: BtcNet,
+		redeemId: number,
+	): Promise<{ tx_id: string }> {
+		const electrs = this.getElectrsClient(network);
+		const response = await electrs.broadcastTx(txHex);
+
+		if (!response.ok) {
+			const error = await response.text();
+			logError(
+				{
+					msg: "Failed to broadcast redeem transaction",
+					method: "broadcastRedeemTx",
+					redeemId,
+					network,
+				},
+				new Error(error),
+			);
+			throw new Error(`Broadcast failed: ${error}`);
+		}
+
+		const txId = await response.text();
+		logger.info({
+			msg: "Redeem transaction broadcasted",
+			redeemId,
+			txId,
+			network,
+		});
+
+		return { tx_id: txId };
+	}
+
+	async getBroadcastedRedeemTxIds(): Promise<string[]> {
+		return this.redeemSolver.getBroadcastedRedeemTxIds();
 	}
 
 	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {

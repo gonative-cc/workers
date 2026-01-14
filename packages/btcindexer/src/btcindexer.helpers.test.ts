@@ -1,7 +1,8 @@
 import { Miniflare } from "miniflare";
 import { Block, type Transaction } from "bitcoinjs-lib";
 import { expect } from "bun:test";
-import type { D1Database, KVNamespace } from "@cloudflare/workers-types";
+import type { D1Database, KVNamespace, Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
 
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
@@ -14,6 +15,8 @@ import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
+import { D1Storage } from "@gonative-cc/redeem_solver/storage";
+import type { RedeemSolverRpc } from "@gonative-cc/redeem_solver/rpc";
 
 export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
@@ -166,6 +169,16 @@ export async function setupTestIndexerSuite(
 	const mockElectrs = mkElectrsServiceMock();
 	electrsClients.set(BtcNet.REGTEST, mockElectrs);
 
+	const redeemStorage = new D1Storage(db);
+
+	const mockRedeemSolverService = {
+		getBroadcastedRedeemTxIds: () => redeemStorage.getBroadcastedBtcTxIds(),
+		confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) =>
+			redeemStorage.confirmRedeem(txIds, blockHeight, blockHash),
+		finalizeRedeem: () => Promise.resolve(),
+		putRedeemTx: () => Promise.resolve(),
+	} as unknown as Service<RedeemSolverRpc & WorkerEntrypoint>;
+
 	const indexer = new Indexer(
 		storage,
 		[packageConfig],
@@ -174,6 +187,7 @@ export async function setupTestIndexerSuite(
 		options.confirmationDepth || 8,
 		options.maxRetries || 2,
 		electrsClients,
+		mockRedeemSolverService,
 	);
 
 	const setupBlock = async (height: number): Promise<void> => {

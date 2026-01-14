@@ -41,6 +41,22 @@ export class BtcIndexerRpc extends WorkerEntrypoint<Env> implements BtcIndexerRp
 	}
 
 	/**
+	 * Broadcast a raw Bitcoin redemption transaction.
+	 * @param txHex - The raw transaction hex
+	 * @param network - The Bitcoin network
+	 * @param redeemId - The ID of the redeem request
+	 * @returns The transaction ID
+	 */
+	async broadcastRedeemTx(
+		txHex: string,
+		network: BtcNet,
+		redeemId: number,
+	): Promise<{ tx_id: string }> {
+		const indexer = await this.getIndexer();
+		return indexer.broadcastRedeemTx(txHex, network, redeemId);
+	}
+
+	/**
 	 * Get nBTC transaction status by Bitcoin transaction ID.
 	 * @param txid - Bitcoin transaction ID
 	 * @returns Transaction status or null if not found

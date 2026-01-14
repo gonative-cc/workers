@@ -36,6 +36,7 @@ export interface SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void>;
+	getRedeemBtcTx(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<string>;
 }
 
 export class SuiClientImp implements SuiClient {
@@ -50,6 +51,42 @@ export class SuiClientImp implements SuiClient {
 		this.signer = Ed25519Keypair.deriveKeypair(cfg.signerMnemonic);
 		this.network = cfg.network;
 		this.ikaClient = cfg.ikaClient;
+	}
+
+	async getRedeemBtcTx(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<string> {
+		const tx = new Transaction();
+
+		const redeem = tx.moveCall({
+			target: `${nbtcPkg}::nbtc::redeem_request`,
+			arguments: [tx.object(nbtcContract), tx.pure.u64(redeemId)],
+		});
+
+		const storage = tx.moveCall({
+			target: `${nbtcPkg}::nbtc::storage`,
+			arguments: [tx.object(nbtcContract)],
+		});
+
+		tx.moveCall({
+			target: `${nbtcPkg}::redeem_request::raw_signed_tx`,
+			arguments: [redeem, storage],
+		});
+
+		const result = await this.client.devInspectTransactionBlock({
+			transactionBlock: tx,
+			sender: this.signer.toSuiAddress(),
+		});
+
+		if (result.error) {
+			throw new Error(`DevInspect failed: ${result.error}`);
+		}
+
+		// results[0] = redeem_request, results[1] = storage, results[2] = raw_signed_tx
+		const rawTxResult = result.results?.[2]?.returnValues?.[0]?.[0];
+		if (!rawTxResult) {
+			throw new Error("Failed to get raw_signed_tx result");
+		}
+		const decoded = Uint8Array.from(rawTxResult);
+		return Buffer.from(decoded).toString("hex");
 	}
 
 	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {

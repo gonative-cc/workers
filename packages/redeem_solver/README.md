@@ -18,7 +18,6 @@ flowchart
     RS -- 4 propose UTXO set --> ReedemRequest
 ```
 
-
 ## Documentation
 
 - [API Reference](./API.md)

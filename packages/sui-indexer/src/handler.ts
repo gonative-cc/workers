@@ -9,18 +9,15 @@ import {
 	UtxoStatus,
 } from "./models";
 import { logger } from "@gonative-cc/lib/logger";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { fromBase64 } from "@mysten/sui/utils";
 
 export class SuiEventHandler {
 	private storage: IndexerStorage;
-	private nbtcPkg: string;
-	private suiNetwork: SuiNet;
+	private setupId: number;
 
-	constructor(storage: IndexerStorage, nbtcPkg: string, suiNetwork: SuiNet) {
+	constructor(storage: IndexerStorage, setupId: number) {
 		this.storage = storage;
-		this.nbtcPkg = nbtcPkg;
-		this.suiNetwork = suiNetwork;
+		this.setupId = setupId;
 	}
 
 	public async handleEvents(events: SuiEventNode[]) {
@@ -54,8 +51,7 @@ export class SuiEventHandler {
 			vout: e.btc_vout,
 			amount: Number(e.btc_amount),
 			script_pubkey: fromBase64(e.btc_script_publickey),
-			nbtc_pkg: this.nbtcPkg,
-			sui_network: this.suiNetwork,
+			setup_id: this.setupId,
 			status: UtxoStatus.Available,
 			locked_until: null,
 		});
@@ -70,8 +66,7 @@ export class SuiEventHandler {
 			recipient_script: fromBase64(e.recipient_script),
 			amount: Number(e.amount),
 			created_at: Number(e.created_at),
-			nbtc_pkg: this.nbtcPkg,
-			sui_network: this.suiNetwork,
+			setup_id: this.setupId,
 			sui_tx: txDigest,
 		});
 		logger.info({ msg: "Indexed Redeem Request", id: e.redeem_id });

@@ -53,7 +53,7 @@ export default {
 			service.processPendingRedeems(), // propose a solution
 			service
 				.solveReadyRedeems() // trigger status change
-				.then(service.processSolvedRedeems), // request signatures
+				.then(() => service.processSolvedRedeems()), // request signatures
 			service.broadcastReadyRedeems(), // broadcast fully signed txs
 		]);
 

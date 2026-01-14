@@ -43,14 +43,12 @@ export class IndexerStorage {
 
 	async insertUtxo(u: UtxoIngestData): Promise<void> {
 		const setupRow = await this.db
-			.prepare("SELECT id, btc_network FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
-			.bind(u.nbtc_pkg, u.sui_network)
+			.prepare("SELECT btc_network FROM setups WHERE id = ?")
+			.bind(u.setup_id)
 			.first<{ id: number; btc_network: string }>();
 
 		if (!setupRow) {
-			throw new Error(
-				`Package not found for nbtc_pkg=${u.nbtc_pkg}, sui_network=${u.sui_network}`,
-			);
+			throw new Error(`Setup not found for setup_id=${u.setup_id}`);
 		}
 
 		const network = btcNetworks[setupRow.btc_network];
@@ -233,16 +231,6 @@ export async function insertRedeemRequest(
 	db: D1Database,
 	r: RedeemRequestIngestData,
 ): Promise<number | null> {
-	const pkgRow = await db
-		.prepare("SELECT id FROM setups WHERE nbtc_pkg = ? AND sui_network = ?")
-		.bind(r.nbtc_pkg, r.sui_network)
-		.first<{ id: number }>();
-
-	if (!pkgRow) {
-		throw new Error(
-			`Package not found for nbtc_pkg=${r.nbtc_pkg}, sui_network=${r.sui_network}`,
-		);
-	}
 	try {
 		const result = await db
 			.prepare(
@@ -252,7 +240,7 @@ export async function insertRedeemRequest(
 			)
 			.bind(
 				r.redeem_id,
-				pkgRow.id,
+				r.setup_id,
 				r.redeemer,
 				r.recipient_script,
 				r.amount,
@@ -269,7 +257,7 @@ export async function insertRedeemRequest(
 				method: "insertRedeemRequest",
 				redeem_id: r.redeem_id,
 				redeemer: r.redeemer,
-				sui_network: r.sui_network,
+				setup_id: r.setup_id,
 			},
 			error,
 		);

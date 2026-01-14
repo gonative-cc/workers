@@ -62,8 +62,7 @@ export interface UtxoIngestData {
 	vout: number;
 	amount: number;
 	script_pubkey: Uint8Array;
-	nbtc_pkg: string;
-	sui_network: SuiNet;
+	setup_id: number;
 	status: UtxoStatus;
 	locked_until: number | null;
 }
@@ -74,8 +73,7 @@ export interface RedeemRequestIngestData {
 	recipient_script: Uint8Array;
 	amount: number;
 	created_at: number;
-	nbtc_pkg: string;
-	sui_network: SuiNet;
+	setup_id: number;
 	sui_tx: string;
 }
 

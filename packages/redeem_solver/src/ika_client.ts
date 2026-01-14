@@ -27,7 +27,7 @@ export interface IkaClient {
 	prepareIkaCoin(
 		tx: Transaction,
 		owner: string,
-		minBalance?: bigint,
+		maxCoins?: number,
 	): Promise<TransactionObjectArgument>;
 
 	createUserSigMessage(
@@ -84,7 +84,7 @@ export class IkaClientImp implements IkaClient {
 		return this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
 	}
 
-	private async fetchSortedIkaCoins(owner: string): Promise<CoinStruct[]> {
+	private async fetchAllIkaCoins(owner: string): Promise<CoinStruct[]> {
 		const allCoins: CoinStruct[] = [];
 		let cursor: string | null | undefined = null;
 
@@ -102,66 +102,78 @@ export class IkaClientImp implements IkaClient {
 			throw new Error(`No IKA coins found for address ${owner}`);
 		}
 
-		return allCoins.sort((a, b) => {
+		return allCoins;
+	}
+
+	private sortCoinsByBalance(coins: CoinStruct[]): CoinStruct[] {
+		return coins.sort((a, b) => {
 			const aBalance = BigInt(a.balance);
 			const bBalance = BigInt(b.balance);
-			if (aBalance === bBalance) {
-				return 0;
-			}
-			return bBalance > aBalance ? 1 : -1;
+			return Number(bBalance - aBalance);
 		});
 	}
 	async prepareIkaCoin(
 		tx: Transaction,
 		owner: string,
-		minBalance?: bigint,
+		upperLimit = 100,
 	): Promise<TransactionObjectArgument> {
-		const sortedCoins = await this.fetchSortedIkaCoins(owner);
+		const allCoins = await this.fetchAllIkaCoins(owner);
+		const targetBalance = BigInt(upperLimit);
 
-		if (minBalance == undefined) {
-			const largestCoin = sortedCoins[0];
-			if (!largestCoin) {
-				throw new Error("No coins available");
-			}
-			return tx.object(largestCoin.coinObjectId);
-		}
-		const selectedCoin: CoinStruct[] = [];
+		const selectedCoins: CoinStruct[] = [];
 		let totalBalance = BigInt(0);
 
-		for (const coin of sortedCoins) {
-			selectedCoin.push(coin);
+		for (const coin of allCoins) {
+			if (selectedCoins.length >= upperLimit) {
+				break;
+			}
+			selectedCoins.push(coin);
 			totalBalance += BigInt(coin.balance);
-			if (totalBalance >= minBalance) {
+			if (totalBalance >= targetBalance) {
 				break;
 			}
 		}
 
-		if (totalBalance < minBalance) {
+		if (totalBalance < targetBalance && allCoins.length > selectedCoins.length) {
+			const remainingCoins = allCoins.slice(selectedCoins.length);
+			const sortedRemainingCoins = this.sortCoinsByBalance(remainingCoins);
+
+			for (const coin of sortedRemainingCoins) {
+				selectedCoins.push(coin);
+				totalBalance += BigInt(coin.balance);
+				if (totalBalance >= targetBalance) {
+					break;
+				}
+			}
+		}
+
+		if (totalBalance < targetBalance) {
 			throw new Error(
-				`Total balance ${totalBalance} is less than minimum balance ${minBalance}`,
+				`Total balance ${totalBalance} is less than target balance ${targetBalance}`,
 			);
 		}
 
-		if (selectedCoin.length === 1) {
-			const singleCoin = selectedCoin[0];
+		if (selectedCoins.length === 1) {
+			const singleCoin = selectedCoins[0];
 			if (!singleCoin) {
 				throw new Error("No coin selected");
 			}
 			return tx.object(singleCoin.coinObjectId);
 		}
 
-		const [primaryCoin, ...coinToMerge] = selectedCoin;
+		const [primaryCoin, ...coinsToMerge] = selectedCoins;
 		if (!primaryCoin) {
 			throw new Error("No primary coin available");
 		}
 		const primaryCoinArg = tx.object(primaryCoin.coinObjectId);
-		const coinToMergeArgs = coinToMerge.map((c) => tx.object(c.coinObjectId));
+		const coinToMergeArgs = coinsToMerge.map((c) => tx.object(c.coinObjectId));
 
 		tx.mergeCoins(primaryCoinArg, coinToMergeArgs);
 		return primaryCoinArg;
 	}
 	async selectIkaCoin(owner: string): Promise<string> {
-		const sortedCoins = await this.fetchSortedIkaCoins(owner);
+		const allCoins = await this.fetchAllIkaCoins(owner);
+		const sortedCoins = this.sortCoinsByBalance(allCoins);
 		const largestCoin = sortedCoins[0];
 		if (!largestCoin) {
 			throw new Error("No coins available");

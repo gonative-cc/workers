@@ -113,12 +113,12 @@ describe("IkaClient - prepareIkaCoin", () => {
 		ikaClient = new IkaClientImp(testNetwork, mockMystenClient);
 	});
 
-	it("should return largest coin when no minBalance specified", async () => {
+	it("should merge coins up to upperLimit", async () => {
 		const mockCoins = createCoins(["1000", "5000", "3000"]);
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 
 		const tx = new Transaction();
-		const result = await ikaClient.prepareIkaCoin(tx, testOwner);
+		const result = await ikaClient.prepareIkaCoin(tx, testOwner, 100);
 
 		expect(result).toBeDefined();
 	});
@@ -128,7 +128,7 @@ describe("IkaClient - prepareIkaCoin", () => {
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 
 		const tx = new Transaction();
-		const result = await ikaClient.prepareIkaCoin(tx, testOwner, BigInt(8000));
+		const result = await ikaClient.prepareIkaCoin(tx, testOwner, 8000);
 
 		expect(result).toBeDefined();
 	});
@@ -138,7 +138,7 @@ describe("IkaClient - prepareIkaCoin", () => {
 		mockMystenClient.getCoins = mock(async () => mockCoins);
 
 		const tx = new Transaction();
-		const result = await ikaClient.prepareIkaCoin(tx, testOwner, BigInt(5000));
+		const result = await ikaClient.prepareIkaCoin(tx, testOwner, 5000);
 
 		expect(result).toBeDefined();
 	});
@@ -149,7 +149,7 @@ describe("IkaClient - prepareIkaCoin", () => {
 
 		const tx = new Transaction();
 
-		await expect(ikaClient.prepareIkaCoin(tx, testOwner, BigInt(10000))).rejects.toThrow(
+		await expect(ikaClient.prepareIkaCoin(tx, testOwner, 10000)).rejects.toThrow(
 			"Total balance",
 		);
 	});

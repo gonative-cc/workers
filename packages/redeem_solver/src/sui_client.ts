@@ -5,14 +5,12 @@ import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { type IkaClient, IkaClientImp } from "./ika_client";
 
-// Not sure what the minimum balance is, can be adapted later
-const MIN_IKA_BALANCE = BigInt(100);
-
 export interface SuiClientCfg {
 	network: SuiNet;
 	signerMnemonic: string;
 	ikaClient: IkaClient;
 	client: Client;
+	ikaUpperLimit: number;
 }
 
 export interface SuiClient {
@@ -47,12 +45,14 @@ export class SuiClientImp implements SuiClient {
 	private ikaClient: IkaClient;
 	private network: SuiNet;
 	private encryptionKeyId: string | null = null;
+	private ikaUpperLimit: number;
 
 	constructor(cfg: SuiClientCfg) {
 		this.client = cfg.client;
 		this.signer = Ed25519Keypair.deriveKeypair(cfg.signerMnemonic);
 		this.network = cfg.network;
 		this.ikaClient = cfg.ikaClient;
+		this.ikaUpperLimit = cfg.ikaUpperLimit;
 	}
 
 	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {
@@ -121,7 +121,7 @@ export class SuiClientImp implements SuiClient {
 		const ikaCoin = await this.ikaClient.prepareIkaCoin(
 			tx,
 			this.signer.toSuiAddress(),
-			MIN_IKA_BALANCE,
+			this.ikaUpperLimit,
 		);
 
 		if (!this.encryptionKeyId) {
@@ -181,7 +181,7 @@ export class SuiClientImp implements SuiClient {
 		const ikaCoin = await this.ikaClient.prepareIkaCoin(
 			tx,
 			this.signer.toSuiAddress(),
-			MIN_IKA_BALANCE,
+			this.ikaUpperLimit,
 		);
 		const coordinatorId = this.ikaClient.getCoordinatorId();
 
@@ -260,6 +260,7 @@ export class SuiClientImp implements SuiClient {
 export async function createSuiClients(
 	activeNetworks: SuiNet[],
 	mnemonic: string,
+	ikaUpperLimit: number,
 ): Promise<Map<SuiNet, SuiClient>> {
 	const clients = new Map<SuiNet, SuiClient>();
 	for (const net of activeNetworks) {
@@ -273,6 +274,7 @@ export async function createSuiClients(
 				signerMnemonic: mnemonic,
 				ikaClient: ikaClient,
 				client: mystenClient,
+				ikaUpperLimit: ikaUpperLimit,
 			}),
 		);
 	}

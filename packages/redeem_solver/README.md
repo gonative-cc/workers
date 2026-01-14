@@ -18,8 +18,8 @@ flowchart
     RS -- 4 propose UTXO set --> ReedemRequest
 ```
 
-TODO: link full redeem documentation.
 
-## API
+## Documentation
 
-See [API.md](./API.md)
+- [API Reference](./API.md)
+- [UTXO Management & Lifecycle](./UTXO_MANAGEMENT.md)

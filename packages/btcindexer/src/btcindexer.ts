@@ -26,7 +26,7 @@ import type { PutNbtcTxResponse } from "./rpc-interface";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
-import type { RedeemSolverRpc } from "@gonative-cc/redeem_solver/rpc";
+import type { RedeemSolverRpc } from "@gonative-cc/sui-indexer/redeem-rpc";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,

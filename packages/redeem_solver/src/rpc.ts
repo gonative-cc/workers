@@ -3,7 +3,6 @@ import { D1Storage } from "./storage";
 import type { RedeemRequestEventRaw } from "@gonative-cc/sui-indexer/models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface RedeemSolverRpc {
 	finalizeRedeem: () => Promise<void>;
@@ -77,8 +76,7 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 				recipient_script: fromBase64(e.recipient_script),
 				amount: Number(e.amount),
 				created_at: Number(e.created_at),
-				nbtc_pkg: setupRow.nbtc_pkg,
-				sui_network: setupRow.sui_network,
+				setup_id: setupId,
 				sui_tx: suiTxId,
 			});
 			logger.info({

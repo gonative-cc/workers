@@ -66,12 +66,12 @@ export class IndexerStorage {
 			.prepare(
 				"SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ? AND deposit_address = ?",
 			)
-			.bind(setupRow.id, depositAddress)
+			.bind(u.setup_id, depositAddress)
 			.first<{ id: number }>();
 
 		if (!addrRow) {
 			throw new Error(
-				`Deposit address not found for setup_id=${setupRow.id}, address=${depositAddress}`,
+				`Deposit address not found for setup_id=${u.setup_id}, address=${depositAddress}`,
 			);
 		}
 

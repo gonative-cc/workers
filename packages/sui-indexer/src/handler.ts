@@ -59,7 +59,6 @@ export class SuiEventHandler {
 	}
 
 	private async handleRedeemRequest(txDigest: string, e: RedeemRequestEventRaw) {
-		// TODO: we should use setup_id here rather sui_network + nbtc_pkg
 		await this.storage.insertRedeemRequest({
 			redeem_id: Number(e.redeem_id),
 			redeemer: e.redeemer,

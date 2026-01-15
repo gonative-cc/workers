@@ -60,5 +60,5 @@ async function poolAndProcessEvents(netCfg: NetworkConfig, storage: IndexerStora
 		packageCount: packages.length,
 	});
 	const p = new Processor(netCfg, storage, client);
-	await p.pollAllNbtcEvents(packages);
+	await p.pollAllEvents(packages);
 }

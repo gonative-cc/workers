@@ -13,7 +13,7 @@ export interface EventsBatch {
 
 export interface EventFetcher {
 	fetchEvents: (
-		packages: { id: string; cursor: string | null }[],
+		packages: { id: string; module: string; cursor: string | null }[],
 	) => Promise<Record<string, EventsBatch>>;
 }
 
@@ -77,7 +77,7 @@ export class SuiGraphQLClient implements EventFetcher {
 	}
 
 	async fetchEvents(
-		packages: { id: string; cursor: string | null }[],
+		packages: { id: string; module: string; cursor: string | null }[],
 	): Promise<Record<string, EventsBatch>> {
 		if (packages.length === 0) return {};
 
@@ -85,7 +85,7 @@ export class SuiGraphQLClient implements EventFetcher {
 		const variables: Record<string, string | null> = {};
 
 		packages.forEach((pkg, i) => {
-			variables[`filter${i}`] = `${pkg.id}::nbtc`;
+			variables[`filter${i}`] = `${pkg.id}::${pkg.module}`;
 			variables[`cursor${i}`] = pkg.cursor;
 		});
 
@@ -105,7 +105,9 @@ export class SuiGraphQLClient implements EventFetcher {
 					txDigest: node.transaction.digest,
 				}));
 
-				result[pkg.id] = {
+				// Use composite key: packageId::module for unique identification
+				const key = `${pkg.id}::${pkg.module}`;
+				result[key] = {
 					events,
 					endCursor: eventsData.pageInfo.endCursor,
 					hasNextPage: eventsData.pageInfo.hasNextPage,

@@ -179,6 +179,16 @@ export interface NbtcDepositAddrVal {
 // Maps Bitcoin deposit address to NbtcDepositAddrMapping
 export type NbtcDepositAddrsMap = Map<string, NbtcDepositAddrVal>;
 
+export interface ProcessedKey {
+	tx_id: string;
+	vout: number;
+}
+
+export interface PreparedMintBatches {
+	mintBatchArgsByPkg: Map<string, MintBatchArg[]>;
+	processedKeysByPkg: Map<string, ProcessedKey[]>;
+}
+
 export const enum InsertBlockStatus {
 	Inserted = "inserted",
 	Updated = "updated",

@@ -171,7 +171,7 @@ export async function setupTestIndexerSuite(
 
 	const redeemStorage = new IndexerStorage(db);
 
-	const mockRedeemSolverService = {
+	const mockSuiIndexerService = {
 		getBroadcastedRedeemTxIds: () => redeemStorage.getBroadcastedBtcTxIds(),
 		confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) =>
 			redeemStorage.confirmRedeem(txIds, blockHeight, blockHash),
@@ -187,7 +187,7 @@ export async function setupTestIndexerSuite(
 		options.confirmationDepth || 8,
 		options.maxRetries || 2,
 		electrsClients,
-		mockRedeemSolverService,
+		mockSuiIndexerService,
 	);
 
 	const setupBlock = async (height: number): Promise<void> => {

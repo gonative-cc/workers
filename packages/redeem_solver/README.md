@@ -33,9 +33,10 @@ flowchart
 
 ## UTXO management
 
-In Bitcoin all BTC is stored and modelled as UTXO. 
+In Bitcoin all BTC is stored and modelled as UTXO.
 Whenever a user makes a deposit to mint nBTC, we receive UTXO that we need to manage.
 Whenever a user wants to redeem nBTC for BTC - we need to find best matching UTXO set to satisfy the redeem request. This is a complex problem because:
+
 - @e need to optimize for on chain computation (transactions are composed and signed on chain, hence they can't be too big).
 - Protocol has to be stable to avoid future updates (if possible).
 - Protocol must not have a single point of failure: multiple parties should be able to trigger every step and propose a solution. The best solution should be trustlessly selected and executed.
@@ -50,11 +51,11 @@ We are using a simple strategy: first valid proposal will be served. The smart c
 
 Scoring Logic. Let:
 
-* inputs = number of UTXOs in the proposal
-* sum = total satoshis of inputs
-* change = sum - (withdraw + fee)
-* inactive_bonus = bonus per input whose spend_key is in inactive_spend_keys
-* exact_spend_bonus = we add a bonus for exact pay and penalties for dust or regular change.
+- inputs = number of UTXOs in the proposal
+- sum = total satoshis of inputs
+- change = sum - (withdraw + fee)
+- inactive_bonus = bonus per input whose spend_key is in inactive_spend_keys
+- exact_spend_bonus = we add a bonus for exact pay and penalties for dust or regular change.
 
 We optimise for: minimizing the change and add bonuses.
 
@@ -114,4 +115,3 @@ UTXOs are stored in the `nbtc_utxos` table in the D1 database.
 | `locked_until`  | Epoch timestamp (ms). If `current_time > locked_until`, the lock is expired. |
 
 **Key Concept:** The database acts as a cache of the on-chain state. The `SuiIndexer` ensures this cache stays synchronized with the canonical state on the Sui blockchain.
-

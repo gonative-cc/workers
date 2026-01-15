@@ -420,6 +420,15 @@ export class Indexer {
 					}
 
 					const pkgKey = txRow.nbtc_pkg;
+					const suiNetwork = txRow.sui_network;
+					if (!pkgKey || !suiNetwork) {
+						logger.warn({
+							msg: "Minting: Skipping transaction with missing nbtc_pkg or sui_network, likely old or malformed data.",
+							txId,
+						});
+						continue;
+					}
+
 					if (!mintBatchArgsByPkg.has(pkgKey)) {
 						mintBatchArgsByPkg.set(pkgKey, []);
 						processedKeysByPkg.set(pkgKey, []);
@@ -437,8 +446,8 @@ export class Indexer {
 								proofPath: proof,
 								merkleRoot: calculatedRoot.toString("hex"),
 							},
-							nbtcPkg: txRow.nbtc_pkg,
-							suiNetwork: txRow.sui_network,
+							nbtcPkg: pkgKey,
+							suiNetwork: suiNetwork,
 							setupId: txRow.setup_id,
 						});
 						processedKeys.push({

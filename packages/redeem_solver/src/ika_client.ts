@@ -83,15 +83,33 @@ export class IkaClientImp implements IkaClient {
 		const coins = await this.mystenClient.getCoins({
 			owner: owner,
 			coinType: `${this.ikaConfig.packages.ikaPackage}::ika::IKA`,
-			limit: 5,
+			limit: 50,
 		});
-		// TODO: for now lets just take the first one
-		const firstCoin = coins.data[0];
-		if (!firstCoin) {
+
+		if (coins.data.length === 0) {
 			throw new Error(`No IKA coins found for address ${owner}`);
 		}
 
-		return firstCoin.coinObjectId;
+		const sortedCoins = coins.data.sort((a, b) => {
+			const aBalance = BigInt(a.balance);
+			const bBalance = BigInt(b.balance);
+			if (aBalance === bBalance) {
+				return 0;
+			}
+			return bBalance > aBalance ? 1 : -1;
+		});
+
+		const largestCoin = sortedCoins[0];
+		if (!largestCoin) {
+			throw new Error(`Failed to select IKA coin for address ${owner}`);
+		}
+
+		// TODO: Handle case where largest coin has insufficient balance
+		// Should select multiple coins and merge them using PTB if needed.
+		// Function should return multiple coin IDs or a result indicating success/failure.
+		// If multiple coins are returned, caller needs to merge them before use.
+		// Requires determining minimum required balance (dynamic in IKA pricing).
+		return largestCoin.coinObjectId;
 	}
 
 	async getLatestNetworkEncryptionKeyId(): Promise<string> {

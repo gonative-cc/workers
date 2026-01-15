@@ -9,7 +9,6 @@ import {
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet } from "@gonative-cc/lib/nbtc";
-import { IKA_COORDINATOR_PACKAGES } from "./config";
 
 const btcNetworks: Record<string, networks.Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
@@ -167,13 +166,7 @@ export class IndexerStorage {
 			.bind(networkName)
 			.all<PkgCfg>();
 
-		// TODO: Remove this fallback once coordinator_pkg is populated in the database
-		// Use config fallback for coordinator_pkg if not set in database
-		const fallbackCoordinatorPkg = IKA_COORDINATOR_PACKAGES[networkName as SuiNet];
-		return result.results.map((pkg) => ({
-			...pkg,
-			coordinator_pkg: pkg.coordinator_pkg || fallbackCoordinatorPkg,
-		}));
+		return result.results;
 	}
 
 	async getActiveNetworks(): Promise<SuiNet[]> {

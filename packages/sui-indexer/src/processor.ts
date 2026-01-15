@@ -77,6 +77,7 @@ export class Processor {
 						eventsLength: result.events.length,
 					});
 
+					let processingSucceeded = true;
 					if (result.events.length > 0) {
 						try {
 							const handler = new SuiEventHandler(this.storage, p.setupId);
@@ -86,6 +87,7 @@ export class Processor {
 								await handler.handleEvents(result.events);
 							}
 						} catch (error) {
+							processingSucceeded = false;
 							logError(
 								{
 									msg: "Failed to process events",
@@ -98,7 +100,12 @@ export class Processor {
 						}
 					}
 
-					if (result.endCursor && result.endCursor !== cursors[p.cursorId]) {
+					// Only advance cursor if processing succeeded or there were no events to process
+					if (
+						processingSucceeded &&
+						result.endCursor &&
+						result.endCursor !== cursors[p.cursorId]
+					) {
 						cursorsToSave.push({ setupId: p.cursorId, cursor: result.endCursor });
 						cursors[p.cursorId] = result.endCursor;
 					}

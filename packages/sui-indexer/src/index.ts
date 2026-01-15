@@ -10,6 +10,7 @@ import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
 import HttpRouter from "./redeem-router";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 const router = new HttpRouter();
 
@@ -23,11 +24,12 @@ export default {
 	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new IndexerStorage(env.DB);
-		
+		const activeNetworks = await storage.getActiveNetworks();
+
 		// Run both indexer and redeem solver tasks in parallel
 		const results = await Promise.allSettled([
-			runSuiIndexer(storage, env),
-			runRedeemSolver(storage, env),
+			runSuiIndexer(storage, env, activeNetworks),
+			runRedeemSolver(storage, env, activeNetworks),
 		]);
 
 		// Check for any rejected promises and log errors
@@ -47,16 +49,14 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-async function runSuiIndexer(storage: IndexerStorage, env: Env) {
-	const dbNetworks = await storage.getActiveNetworks();
-
-	if (dbNetworks.length === 0) {
+async function runSuiIndexer(storage: IndexerStorage, env: Env, activeNetworks: SuiNet[]) {
+	if (activeNetworks.length === 0) {
 		logger.info({ msg: "No active packages/networks found in database." });
 		return;
 	}
 
 	const networksToProcess: NetworkConfig[] = [];
-	for (const netName of dbNetworks) {
+	for (const netName of activeNetworks) {
 		const url = SUI_NETWORK_URLS[netName];
 		if (url) {
 			networksToProcess.push({ name: netName, url });
@@ -73,9 +73,7 @@ async function runSuiIndexer(storage: IndexerStorage, env: Env) {
 		networks: networksToProcess.map((n) => n.name),
 	});
 
-	const networkJobs = networksToProcess.map((netCfg) =>
-		poolAndProcessEvents(netCfg, storage),
-	);
+	const networkJobs = networksToProcess.map((netCfg) => poolAndProcessEvents(netCfg, storage));
 	const results = await Promise.allSettled(networkJobs);
 	results.forEach((result, idx) => {
 		if (result.status === "rejected") {
@@ -104,7 +102,7 @@ async function poolAndProcessEvents(netCfg: NetworkConfig, storage: IndexerStora
 	await Promise.allSettled(jobs);
 }
 
-async function runRedeemSolver(storage: IndexerStorage, env: Env) {
+async function runRedeemSolver(storage: IndexerStorage, env: Env, activeNetworks: SuiNet[]) {
 	logger.info({ msg: "Running scheduled redeem solver task..." });
 	let mnemonic: string;
 	try {
@@ -117,7 +115,6 @@ async function runRedeemSolver(storage: IndexerStorage, env: Env) {
 		logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
 		return;
 	}
-	const activeNetworks = await storage.getActiveNetworks();
 	const clients = await createSuiClients(activeNetworks, mnemonic);
 	const service = new RedeemService(
 		storage,

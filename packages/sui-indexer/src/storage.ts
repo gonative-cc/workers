@@ -207,11 +207,11 @@ export class IndexerStorage {
 	}
 
 	async getActiveNetworks(): Promise<SuiNet[]> {
-		const result = await this.db
+		const { results } = await this.db
 			.prepare("SELECT DISTINCT sui_network FROM setups WHERE is_active = 1")
 			.all<{ sui_network: string }>();
 
-		return result.results.map((r) => r.sui_network as SuiNet);
+		return results.map((r) => toSuiNet(r.sui_network));
 	}
 
 	async upsertRedeemInputs(

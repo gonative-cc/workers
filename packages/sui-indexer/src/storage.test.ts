@@ -9,6 +9,7 @@ import {
 } from "./models";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
 import { payments, networks } from "bitcoinjs-lib";
+import { initDb } from "./db.test";
 
 export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
 
@@ -26,75 +27,6 @@ beforeAll(async () => {
 afterAll(async () => {
 	await mf.dispose();
 });
-
-export async function initDb(db: D1Database) {
-	// Initialize database schema
-	await db.exec(`
-		CREATE TABLE IF NOT EXISTS setups (
-			id INTEGER PRIMARY KEY,
-			btc_network TEXT NOT NULL,
-			sui_network TEXT NOT NULL,
-			nbtc_pkg TEXT NOT NULL,
-			nbtc_contract TEXT NOT NULL,
-			lc_pkg TEXT,
-			lc_contract TEXT,
-			sui_fallback_address TEXT,
-			is_active INTEGER NOT NULL DEFAULT 1
-		);
-
-		CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			setup_id INTEGER NOT NULL,
-			deposit_address TEXT NOT NULL,
-			sui_address TEXT NOT NULL,
-			UNIQUE(setup_id, deposit_address),
-			FOREIGN KEY (setup_id) REFERENCES setups(id)
-		);
-
-		CREATE TABLE IF NOT EXISTS nbtc_utxos (
-			nbtc_utxo_id INTEGER PRIMARY KEY,
-			address_id INTEGER NOT NULL,
-			dwallet_id TEXT NOT NULL,
-			txid TEXT NOT NULL,
-			vout INTEGER NOT NULL,
-			amount INTEGER NOT NULL,
-			script_pubkey BLOB NOT NULL,
-			status TEXT NOT NULL,
-			locked_until INTEGER,
-			UNIQUE(txid, vout),
-			FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(id)
-		);
-
-		CREATE TABLE IF NOT EXISTS nbtc_redeem_requests (
-			redeem_id INTEGER PRIMARY KEY,
-			setup_id INTEGER NOT NULL,
-			redeemer TEXT NOT NULL,
-			recipient_script BLOB NOT NULL,
-			amount INTEGER NOT NULL,
-			status TEXT NOT NULL,
-			created_at INTEGER NOT NULL,
-			sui_tx TEXT NOT NULL,
-			btc_tx TEXT,
-			btc_broadcasted_at INTEGER,
-			btc_block_height INTEGER,
-			btc_block_hash TEXT,
-			FOREIGN KEY (setup_id) REFERENCES setups(id)
-		);
-
-		CREATE TABLE IF NOT EXISTS nbtc_redeem_solutions (
-			redeem_id INTEGER NOT NULL,
-			utxo_id INTEGER NOT NULL,
-			input_index INTEGER NOT NULL,
-			dwallet_id TEXT NOT NULL,
-			sign_id TEXT,
-			verified INTEGER NOT NULL DEFAULT 0,
-			created_at INTEGER NOT NULL,
-			PRIMARY KEY (redeem_id, utxo_id),
-			FOREIGN KEY (redeem_id) REFERENCES nbtc_redeem_requests(redeem_id),
-			FOREIGN KEY (utxo_id) REFERENCES nbtc_utxos(nbtc_utxo_id)
-		);
-	`);
-}
 
 const p2wpkh1 = payments.p2wpkh({
 	pubkey: Buffer.from(
@@ -203,14 +135,14 @@ async function insertDepositAddress(
 	id: number,
 	setupId: number,
 	depositAddress: string,
-	suiAddress: string,
+	isActive = 1,
 ) {
 	await database
 		.prepare(
-			`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, sui_address)
+			`INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
                  VALUES (?, ?, ?, ?)`,
 		)
-		.bind(id, setupId, depositAddress, suiAddress)
+		.bind(id, setupId, depositAddress, isActive)
 		.run();
 }
 
@@ -237,7 +169,7 @@ describe("IndexerStorage", () => {
 			"0xLCC1",
 			"0xFallback1",
 		);
-		await insertDepositAddress(db, 1, 1, depositAddress1, "0xSuiAddr1");
+		await insertDepositAddress(db, 1, 1, depositAddress1);
 	});
 
 	afterEach(async () => {
@@ -362,7 +294,7 @@ describe("IndexerStorage", () => {
 			"0xLCC2",
 			"0xFallback2",
 		);
-		await insertDepositAddress(db, 2, 2, depositAddress2, "0xSuiAddr2");
+		await insertDepositAddress(db, 2, 2, depositAddress2);
 
 		await insertUtxo(
 			indexerStorage,

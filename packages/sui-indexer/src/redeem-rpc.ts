@@ -49,14 +49,11 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
 			const storage = new IndexerStorage(this.env.DB);
-			const ok = await this.env.DB.prepare(
-				"SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?",
-			)
-				.bind(e.redeem_id)
-				.first();
-
-			if (ok) {
-				logger.info({ msg: `Redeem id: ${e.redeem_id} already exists in the table` });
+			if (await storage.hasRedeemRequest(e.redeem_id)) {
+				logger.info({
+					msg: "Redeem request already processed",
+					redeemId: e.redeem_id,
+				});
 				return;
 			}
 

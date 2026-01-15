@@ -241,6 +241,14 @@ export class IndexerStorage {
 		return results.map((r) => toSuiNet(r.sui_network));
 	}
 
+	async hasRedeemRequest(redeemId: number): Promise<boolean> {
+		const ok = await this.db
+			.prepare("SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(redeemId)
+			.first();
+		return !!ok;
+	}
+
 	async upsertRedeemInputs(
 		redeemId: number,
 		utxoIds: number[],

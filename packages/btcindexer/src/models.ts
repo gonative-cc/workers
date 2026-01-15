@@ -58,12 +58,6 @@ export interface ConfirmingBlockInfo {
 	network: string;
 }
 
-export interface GroupedFinalizedTx {
-	blockHash: string;
-	blockHeight: number;
-	deposits: FinalizedTxRow[];
-}
-
 /**
  * Represents the lifecycle status of an nBTC minting tx, extending BitcoinTxStatus.
  * - **minted**: The nBTC has been successfully minted on the SUI network.

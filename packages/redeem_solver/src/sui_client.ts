@@ -29,10 +29,9 @@ export interface SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<string>;
-	validateSignature(
+	validateSignatures(
 		redeemId: number,
-		inputIdx: number,
-		signId: string,
+		inputs: { inputIdx: number; signId: string }[],
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void>;
@@ -248,26 +247,28 @@ export class SuiClientImp implements SuiClient {
 		return decoded.sign_id;
 	}
 
-	async validateSignature(
+	async validateSignatures(
 		redeemId: number,
-		inputIdx: number,
-		signId: string,
+		inputs: { inputIdx: number; signId: string }[],
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void> {
+		if (inputs.length === 0) return;
 		const tx = new Transaction();
 		const coordinatorId = this.ikaClient.getCoordinatorId();
 
-		tx.moveCall({
-			target: `${nbtcPkg}::nbtc::record_signature`,
-			arguments: [
-				tx.object(nbtcContract),
-				tx.object(coordinatorId),
-				tx.pure.u64(redeemId),
-				tx.pure.u64(inputIdx),
-				tx.object(signId),
-			],
-		});
+		for (const input of inputs) {
+			tx.moveCall({
+				target: `${nbtcPkg}::nbtc::record_signature`,
+				arguments: [
+					tx.object(nbtcContract),
+					tx.object(coordinatorId),
+					tx.pure.u64(redeemId),
+					tx.pure.u64(input.inputIdx),
+					tx.object(input.signId),
+				],
+			});
+		}
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,

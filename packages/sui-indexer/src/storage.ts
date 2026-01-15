@@ -86,25 +86,52 @@ const btcNetworks: Record<string, networks.Network> = {
 export class IndexerStorage {
 	constructor(private db: D1Database) {}
 
-	// returns the latest cursor position for querying Sui events.
-	// @setupId: setups row ID
-	async getSuiGqlCursor(setupId: number): Promise<string | null> {
+	// returns the latest cursor positions for multiple setups for querying Sui events.
+	async getMultipleSuiGqlCursors(setupIds: number[]): Promise<Record<number, string | null>> {
+		if (setupIds.length === 0) return {};
+
+		const placeholders = setupIds.map(() => "?").join(",");
 		const res = await this.db
-			.prepare("SELECT nbtc_cursor FROM indexer_state WHERE setup_id = ?")
-			.bind(setupId)
-			.first<{ nbtc_cursor: string }>();
-		return res?.nbtc_cursor || null;
+			.prepare(
+				`SELECT setup_id, nbtc_cursor FROM indexer_state WHERE setup_id IN (${placeholders})`,
+			)
+			.bind(...setupIds)
+			.all<{ setup_id: number; nbtc_cursor: string }>();
+
+		const result: Record<number, string | null> = {};
+		setupIds.forEach((id) => {
+			result[id] = null;
+		});
+
+		res.results.forEach((row) => {
+			result[row.setup_id] = row.nbtc_cursor;
+		});
+
+		return result;
 	}
 
-	// Saves the cursor position for querying Sui events.
-	async saveSuiGqlCursor(setupId: number, nbtcCursor: string): Promise<void> {
-		await this.db
-			.prepare(
-				`INSERT INTO indexer_state (setup_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
+	// Saves multiple cursor positions for querying Sui events.
+	async saveMultipleSuiGqlCursors(cursors: { setupId: number; cursor: string }[]): Promise<void> {
+		if (cursors.length === 0) return;
+
+		const stmt = this.db.prepare(
+			`INSERT INTO indexer_state (setup_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)
              ON CONFLICT(setup_id) DO UPDATE SET nbtc_cursor = excluded.nbtc_cursor, updated_at = excluded.updated_at`,
-			)
-			.bind(setupId, nbtcCursor, Date.now())
-			.run();
+		);
+
+		const now = Date.now();
+		const batch = cursors.map(({ setupId, cursor }) => stmt.bind(setupId, cursor, now));
+
+		await this.db.batch(batch);
+	}
+
+	async getSuiGqlCursor(setupId: number): Promise<string | null> {
+		const result = await this.getMultipleSuiGqlCursors([setupId]);
+		return result[setupId] || null;
+	}
+
+	async saveSuiGqlCursor(setupId: number, nbtcCursor: string): Promise<void> {
+		await this.saveMultipleSuiGqlCursors([{ setupId, cursor: nbtcCursor }]);
 	}
 
 	async insertUtxo(u: UtxoIngestData): Promise<void> {

@@ -36,7 +36,7 @@ Workers are based on the Cloudflare Workers framework.
 
 #### [Shared Library](./packages/lib/) (`lib`)
 
-- Provides common utilities, types, and configurations
+- Provides shared functions, types, and configurations
 - Offers logging infrastructure used across packages
 - Ensures consistent implementation across all workers
 

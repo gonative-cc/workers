@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS nbtc_minting_status ON nbtc_minting (address_id, stat
 CREATE INDEX IF NOT EXISTS nbtc_minting_sui_recipient ON nbtc_minting (sui_recipient, created_at);
 CREATE INDEX IF NOT EXISTS nbtc_minting_sender ON nbtc_minting (sender);
 
--- nbtc_withdrawal table tracks nBTC withdraw transactions from SUI
+-- nbtc_withdrawal table tracks BTC withdraw transactions for nBTC redeems on Sui
 CREATE TABLE IF NOT EXISTS nbtc_withdrawal (
 	sui_tx_id TEXT PRIMARY KEY,
 	sender TEXT NOT NULL, -- Sui sender

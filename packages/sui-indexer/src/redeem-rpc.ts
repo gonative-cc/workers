@@ -49,7 +49,7 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
 			const storage = new IndexerStorage(this.env.DB);
-			if (await storage.hasRedeemRequest(e.redeem_id)) {
+			if (await storage.hasRedeemRequest(Number(e.redeem_id))) {
 				logger.info({
 					msg: "Redeem request already processed",
 					redeemId: e.redeem_id,

@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS setups (
 	lc_pkg TEXT NOT NULL,
 	lc_contract TEXT NOT NULL,
 	sui_fallback_address TEXT NOT NULL,
+	coordinator_pkg TEXT, -- Ika dWallet coordinator package ID
 	is_active INTEGER NOT NULL DEFAULT TRUE,
 	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;

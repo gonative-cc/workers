@@ -6,9 +6,11 @@ import {
 	type SolvedEventRaw,
 	type SignatureRecordedEventRaw,
 	type SuiEventNode,
+	type IkaCompletedSignEventRaw,
+	type IkaRejectedSignEventRaw,
 	UtxoStatus,
 } from "./models";
-import { logger } from "@gonative-cc/lib/logger";
+import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 
 export class SuiEventHandler {
@@ -104,5 +106,57 @@ export class SuiEventHandler {
 			redeemId: e.redeem_id,
 			utxoId: e.utxo_id,
 		});
+	}
+
+	public async handleIkaEvents(events: SuiEventNode[]) {
+		for (const e of events) {
+			try {
+				if (e.type.includes("::coordinator_inner::CompletedSignEvent")) {
+					await this.handleCompletedSign(e);
+				} else if (e.type.includes("::coordinator_inner::RejectedSignEvent")) {
+					await this.handleRejectedSign(e);
+				}
+			} catch (error) {
+				logError(
+					{
+						msg: "Failed to handle Ika event",
+						method: "handleIkaEvents",
+						eventType: e.type,
+						txDigest: e.txDigest,
+						setupId: this.setupId,
+					},
+					error,
+				);
+			}
+		}
+	}
+
+	private async handleCompletedSign(e: SuiEventNode) {
+		const data = e.json as IkaCompletedSignEventRaw;
+
+		logger.info({
+			msg: "Ika signature completed",
+			sign_id: data.sign_id,
+			is_future_sign: data.is_future_sign,
+			signature_length: data.signature.length,
+			txDigest: e.txDigest,
+			setupId: this.setupId,
+		});
+
+		// TODO: Call redeem_solver service binding to record signature
+	}
+
+	private async handleRejectedSign(e: SuiEventNode) {
+		const data = e.json as IkaRejectedSignEventRaw;
+
+		logger.warn({
+			msg: "Ika signature rejected",
+			sign_id: data.sign_id,
+			is_future_sign: data.is_future_sign,
+			txDigest: e.txDigest,
+			setupId: this.setupId,
+		});
+
+		// TODO: Call redeem_solver service binding to mark signature as rejected
 	}
 }

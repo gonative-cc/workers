@@ -160,7 +160,9 @@ export class IndexerStorage {
 
 	async getActiveNbtcPkgs(networkName: string): Promise<PkgCfg[]> {
 		const result = await this.db
-			.prepare("SELECT id, nbtc_pkg FROM setups WHERE sui_network = ? AND is_active = 1")
+			.prepare(
+				"SELECT id, nbtc_pkg, coordinator_pkg FROM setups WHERE sui_network = ? AND is_active = 1",
+			)
 			.bind(networkName)
 			.all<PkgCfg>();
 

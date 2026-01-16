@@ -8,7 +8,7 @@ import { RedeemService } from "./redeem-service";
 import { createSuiClients } from "./redeem-sui-client";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
-import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
+import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import HttpRouter from "./redeem-router";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
@@ -102,7 +102,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 	const service = new RedeemService(
 		storage,
 		clients,
-		env.BTCINDEXER as unknown as Service<BtcIndexerRpcI & WorkerEntrypoint>,
+		env.BtcIndexer as unknown as Service<BtcIndexerRpc & WorkerEntrypoint>,
 		env.UTXO_LOCK_TIME,
 		env.REDEEM_DURATION_MS,
 	);

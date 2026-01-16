@@ -8,9 +8,7 @@ import type {
 import type { SuiClient } from "./redeem-sui-client";
 import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import type { Service } from "@cloudflare/workers-types";
-import type { WorkerEntrypoint } from "cloudflare:workers";
-import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
+import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } from "./sighash";
 
 const MAXIMUM_NUMBER_UTXO = 100;
@@ -19,7 +17,7 @@ export class RedeemService {
 	constructor(
 		private storage: D1Storage,
 		private clients: Map<SuiNet, SuiClient>,
-		private btcIndexer: Service<BtcIndexerRpcI & WorkerEntrypoint>,
+		private btcIndexer: BtcIndexerRpc,
 		private utxoLockTimeMs: number,
 		private redeemDurationMs: number,
 	) {

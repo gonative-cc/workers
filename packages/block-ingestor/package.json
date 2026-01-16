@@ -1,19 +1,19 @@
 {
-  "name": "block-ingestor",
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit",
-    "cf-typegen": "wrangler types",
-    "test": "bun test"
-  },
-  "dependencies": {
-    "@gonative-cc/btcindexer": "workspace:*",
-    "@gonative-cc/lib": "workspace:*",
-    "bitcoinjs-lib": "^6.1.7",
-    "itty-router": "^5.0.22",
-    "msgpackr": "^1.11.8"
-  }
+	"name": "block-ingestor",
+	"version": "0.0.0",
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy",
+		"typecheck": "tsc --noEmit",
+		"cf-typegen": "wrangler types",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@gonative-cc/btcindexer": "workspace:*",
+		"@gonative-cc/lib": "workspace:*",
+		"bitcoinjs-lib": "^6.1.7",
+		"itty-router": "^5.0.22",
+		"msgpackr": "^1.11.8"
+	}
 }

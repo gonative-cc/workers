@@ -12,6 +12,10 @@ import HttpRouter from "./router";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { processBlockBatch } from "./queue-handler";
 
+// Export RPC entrypoints for service bindings
+export { RPC } from "./rpc";
+export { RPCMock } from "./rpc-mock";
+
 const router = new HttpRouter(undefined);
 
 export default {
@@ -70,7 +74,3 @@ export default {
 		}
 	},
 } satisfies ExportedHandler<Env, BlockQueueRecord>;
-
-// Export RPC entrypoints for service bindings
-export { BtcIndexerRpc } from "./rpc";
-export { BtcIndexerRpcMock } from "./rpc-mock";

@@ -3,7 +3,7 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 
 import { D1Storage } from "./storage";
-import type { RedeemRequestEventRaw } from "./models";
+import type { RedeemRequestEventRaw, RedeemRequestResp } from "./models";
 import type { SuiIndexerRpc } from "./rpc-interface";
 
 /**
@@ -79,5 +79,10 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 			);
 			throw error;
 		}
+	}
+
+	async redeemsBySuiAddr(setupId: number, suiAddr: string): Promise<RedeemRequestResp[]> {
+		const storage = new D1Storage(this.env.DB);
+		return storage.getRedeemsBySuiAddr(setupId, suiAddr);
 	}
 }

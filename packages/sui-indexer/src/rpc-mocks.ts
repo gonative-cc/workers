@@ -1,6 +1,6 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 
-import type { SuiIndexerRpc } from "./rpc";
+import type { SuiIndexerRpc } from "./rpc-interface";
 import type { RedeemRequestResp } from "./models";
 import { RedeemRequestStatus, type RedeemRequestEventRaw } from "./models";
 

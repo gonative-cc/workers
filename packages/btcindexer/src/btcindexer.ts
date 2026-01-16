@@ -1,5 +1,10 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
 import { BtcNet, type BlockQueueRecord, calculateConfirmations } from "@gonative-cc/lib/nbtc";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { Service } from "@cloudflare/workers-types";
+import type { WorkerEntrypoint } from "cloudflare:workers";
+import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc-interface";
+import { logError, logger } from "@gonative-cc/lib/logger";
 
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
@@ -19,16 +24,11 @@ import type {
 	NbtcDepositAddrsMap,
 } from "./models";
 import { MintTxStatus, InsertBlockStatus } from "./models";
-import { logError, logger } from "@gonative-cc/lib/logger";
 import type { Electrs } from "./electrs";
 import { ElectrsService, ELECTRS_URLS_BY_NETWORK } from "./electrs";
 import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
-import type { Service } from "@cloudflare/workers-types";
-import type { WorkerEntrypoint } from "cloudflare:workers";
-import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,

@@ -1,15 +1,10 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { D1Storage } from "./storage";
-import type { RedeemRequestEventRaw } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 
-export interface SuiIndexerRpc {
-	finalizeRedeem: () => Promise<void>;
-	putRedeemTx: (setupId: number, suiTxId: string, e: RedeemRequestEventRaw) => Promise<void>;
-	getBroadcastedRedeemTxIds: () => Promise<string[]>;
-	confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) => Promise<void>;
-}
+import { D1Storage } from "./storage";
+import type { RedeemRequestEventRaw } from "./models";
+import type { SuiIndexerRpc } from "./rpc-interface";
 
 /**
  * RPC entrypoint for the worker.

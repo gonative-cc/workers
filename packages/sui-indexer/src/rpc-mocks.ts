@@ -42,4 +42,8 @@ export class RPCMock extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 			else txs.push(r);
 		}
 	}
+
+	async redeemsBySuiAddr(setupId: number, suiAddr: string): Promise<RedeemRequestResp[]> {
+		return this.redeemRequests[setupId]?.[suiAddr] ?? [];
+	}
 }

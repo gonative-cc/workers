@@ -514,7 +514,7 @@ describe("IndexerStorage", () => {
 			"0xSuiTx2",
 		);
 
-		const redeems = await storage.getRedeemsBySuiAddr("redeemer1", 1);
+		const redeems = await storage.getRedeemsBySuiAddr(1, "redeemer1");
 
 		expect(redeems.length).toBe(1);
 		expect(redeems[0]!.redeem_id).toBe(1);

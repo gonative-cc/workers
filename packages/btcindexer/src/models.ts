@@ -179,8 +179,13 @@ export interface ProcessedKey {
 }
 
 export interface PreparedMintBatches {
-	mintBatchArgsByPkg: Map<string, MintBatchArg[]>;
-	processedKeysByPkg: Map<string, ProcessedKey[]>;
+	batches: Map<
+		number,
+		{
+			mintArgs: MintBatchArg[];
+			processedKeys: ProcessedKey[];
+		}
+	>;
 }
 
 export const enum InsertBlockStatus {

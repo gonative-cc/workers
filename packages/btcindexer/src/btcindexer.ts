@@ -355,16 +355,20 @@ export class Indexer {
 		});
 
 		const txsByBlock = this.groupTransactionsByBlock(finalizedTxs);
-		const { mintBatchArgsByPkg, processedKeysByPkg } =
-			await this.prepareMintBatches(txsByBlock);
-		await this.executeMintBatches(mintBatchArgsByPkg, processedKeysByPkg);
+		const { batches } = await this.prepareMintBatches(txsByBlock);
+		await this.executeMintBatches(batches);
 	}
 
-	// Groups transactions by block to optimize fetching and parsing.
-	private groupTransactionsByBlock(
-		transactions: FinalizedTxRow[],
-	): Map<string, FinalizedTxRow[]> {
-		const txsByBlock = new Map<string, FinalizedTxRow[]>();
+	/**
+	 * Groups a list of blockchain transactions (or any object containing a block_hash) by their block hash.
+	 * This optimization allows fetching and parsing the block data once for all related transactions.
+	 * @param transactions - A list of objects that must include a block_hash.
+	 * @returns A map where each key is a block hash and the value is an array of transactions belonging to that block.
+	 */
+	private groupTransactionsByBlock<T extends { block_hash: string }>(
+		transactions: T[],
+	): Map<string, T[]> {
+		const txsByBlock = new Map<string, T[]>();
 		for (const tx of transactions) {
 			const blockHash = tx.block_hash;
 			const list = txsByBlock.get(blockHash);
@@ -381,8 +385,10 @@ export class Indexer {
 	private async prepareMintBatches(
 		txsByBlock: Map<string, FinalizedTxRow[]>,
 	): Promise<PreparedMintBatches> {
-		const mintBatchArgsByPkg = new Map<string, MintBatchArg[]>();
-		const processedKeysByPkg = new Map<string, ProcessedKey[]>();
+		const batches = new Map<
+			number,
+			{ mintArgs: MintBatchArg[]; processedKeys: ProcessedKey[] }
+		>();
 
 		for (const [blockHash, txs] of txsByBlock) {
 			try {
@@ -398,47 +404,35 @@ export class Indexer {
 				const { block, merkleTree, calculatedRoot } = blockData;
 
 				for (const txRow of txs) {
-					const txId = txRow.tx_id;
-					const transactions = block.transactions;
-					const txIndex = transactions?.findIndex((t) => t.getId() === txId) ?? -1;
+					try {
+						const txId = txRow.tx_id;
+						const transactions = block.transactions;
+						const txIndex = transactions?.findIndex((t) => t.getId() === txId) ?? -1;
 
-					if (txIndex === -1 || !transactions) {
-						await this.handleMissingTxInBlock(txId);
-						continue;
-					}
+						if (txIndex < 0 || !transactions) {
+							await this.handleMissingFinalizedMintingTx(txId);
+							continue;
+						}
+						const targetTx = transactions[txIndex];
+						if (!targetTx) {
+							continue;
+						}
 
-					const targetTx = transactions[txIndex];
-					if (!targetTx) continue;
+						const proof = this.getTxProof(merkleTree, targetTx);
+						if (!proof) {
+							throw new Error("Proof generation failed (returned null or undefined)");
+						}
 
-					const proof = this.getTxProof(merkleTree, targetTx);
-					if (!proof) {
-						logger.error({
-							msg: "Failed to generate merkle proof for tx",
-							txId,
-						});
-						continue;
-					}
+						const setupId = txRow.setup_id;
+						const config = this.getPackageConfig(setupId);
 
-					const pkgKey = txRow.nbtc_pkg;
-					const suiNetwork = txRow.sui_network;
-					if (!pkgKey || !suiNetwork) {
-						logger.warn({
-							msg: "Minting: Skipping transaction with missing nbtc_pkg or sui_network, likely old or malformed data.",
-							txId,
-						});
-						continue;
-					}
+						let batch = batches.get(setupId);
+						if (!batch) {
+							batch = { mintArgs: [], processedKeys: [] };
+							batches.set(setupId, batch);
+						}
 
-					if (!mintBatchArgsByPkg.has(pkgKey)) {
-						mintBatchArgsByPkg.set(pkgKey, []);
-						processedKeysByPkg.set(pkgKey, []);
-					}
-
-					const mintBatchArgs = mintBatchArgsByPkg.get(pkgKey);
-					const processedKeys = processedKeysByPkg.get(pkgKey);
-
-					if (mintBatchArgs && processedKeys) {
-						mintBatchArgs.push({
+						batch.mintArgs.push({
 							tx: targetTx,
 							blockHeight: txRow.block_height,
 							txIndex: txIndex,
@@ -446,14 +440,23 @@ export class Indexer {
 								proofPath: proof,
 								merkleRoot: calculatedRoot.toString("hex"),
 							},
-							nbtcPkg: pkgKey,
-							suiNetwork: suiNetwork,
-							setupId: txRow.setup_id,
+							nbtcPkg: config.nbtc_pkg,
+							suiNetwork: config.sui_network,
+							setupId: setupId,
 						});
-						processedKeys.push({
+						batch.processedKeys.push({
 							tx_id: txRow.tx_id,
 							vout: txRow.vout,
 						});
+					} catch (e) {
+						logError(
+							{
+								msg: "Error preparing mint batch for transaction",
+								method: "prepareMintBatches",
+								txId: txRow.tx_id,
+							},
+							e,
+						);
 					}
 				}
 			} catch (e) {
@@ -468,7 +471,7 @@ export class Indexer {
 			}
 		}
 
-		return { mintBatchArgsByPkg, processedKeysByPkg };
+		return { batches };
 	}
 
 	// Fetches block from storage and verifies its Merkle root.
@@ -504,10 +507,10 @@ export class Indexer {
 	}
 
 	// Marks a transaction as reorged if it is missing from its expected block.
-	private async handleMissingTxInBlock(txId: string): Promise<void> {
+	private async handleMissingFinalizedMintingTx(txId: string): Promise<void> {
 		logger.error({
 			msg: "Minting: Could not find TX within its block. Detecting reorg.",
-			method: "handleMissingTxInBlock",
+			method: "handleMissingFinalizedMintingTx",
 			txId,
 		});
 		try {
@@ -518,7 +521,7 @@ export class Indexer {
 			) {
 				logger.error({
 					msg: "Minting: Unexpected status during reorg detection, skipping",
-					method: "handleMissingTxInBlock",
+					method: "handleMissingFinalizedMintingTx",
 					txId,
 					currentStatus,
 				});
@@ -528,7 +531,7 @@ export class Indexer {
 			await this.storage.updateNbtcTxsStatus([txId], MintTxStatus.FinalizedReorg);
 			logger.warn({
 				msg: "Minting: Transaction reorged",
-				method: "handleMissingTxInBlock",
+				method: "handleMissingFinalizedMintingTx",
 				txId,
 				previousStatus: currentStatus,
 				newStatus: MintTxStatus.FinalizedReorg,
@@ -537,7 +540,7 @@ export class Indexer {
 			logError(
 				{
 					msg: "Minting: Failed to update reorg status",
-					method: "handleMissingTxInBlock",
+					method: "handleMissingFinalizedMintingTx",
 					txId,
 				},
 				e,
@@ -547,41 +550,35 @@ export class Indexer {
 	}
 
 	// Submits minting batches to Sui and updates database.
-	private async executeMintBatches(
-		mintBatchArgsByPkg: Map<string, MintBatchArg[]>,
-		processedKeysByPkg: Map<string, ProcessedKey[]>,
-	): Promise<void> {
-		if (mintBatchArgsByPkg.size === 0) return;
+	private async executeMintBatches(batches: PreparedMintBatches["batches"]): Promise<void> {
+		if (batches.size === 0) return;
 
-		for (const [pkgKey, mintBatchArgs] of mintBatchArgsByPkg.entries()) {
-			const processedPrimaryKeys = processedKeysByPkg.get(pkgKey);
-			if (!processedPrimaryKeys || processedPrimaryKeys.length === 0) {
-				continue;
-			}
+		for (const [setupId, batch] of batches) {
+			const { mintArgs, processedKeys } = batch;
+			if (mintArgs.length === 0) continue;
 
-			const firstBatchArg = mintBatchArgs[0];
-			if (!firstBatchArg) continue;
-
-			const config = this.getPackageConfig(firstBatchArg.setupId);
+			const config = this.getPackageConfig(setupId);
 			const client = this.getSuiClient(config.sui_network);
+			const pkgKey = config.nbtc_pkg;
 
 			logger.info({
 				msg: "Minting: Sending batch of mints to Sui",
-				count: mintBatchArgs.length,
-				pkgKey: pkgKey,
+				count: mintArgs.length,
+				setupId,
+				pkgKey,
 			});
 
-			const result = await client.tryMintNbtcBatch(mintBatchArgs);
-
+			const result = await client.tryMintNbtcBatch(mintArgs);
 			if (!result) {
 				// Pre-submission error (network failure, validation error, etc.)
 				logger.error({
 					msg: "Sui batch mint transaction failed (pre-submission error)",
 					method: "executeMintBatches",
+					setupId,
 					pkgKey,
 				});
-				await this.storage.batchUpdateNbtcTxs(
-					processedPrimaryKeys.map((p) => ({
+				await this.storage.batchUpdateNbtcMintTxs(
+					processedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.MintFailed,
@@ -591,15 +588,15 @@ export class Indexer {
 			}
 
 			const [success, suiTxDigest] = result;
-
 			if (success) {
 				logger.info({
 					msg: "Sui batch mint transaction successful",
 					suiTxDigest,
+					setupId,
 					pkgKey,
 				});
-				await this.storage.batchUpdateNbtcTxs(
-					processedPrimaryKeys.map((p) => ({
+				await this.storage.batchUpdateNbtcMintTxs(
+					processedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.Minted,
@@ -611,11 +608,12 @@ export class Indexer {
 				logger.error({
 					msg: "Sui batch mint transaction failed (on-chain failure)",
 					method: "executeMintBatches",
+					setupId,
 					pkgKey,
 					suiTxDigest,
 				});
-				await this.storage.batchUpdateNbtcTxs(
-					processedPrimaryKeys.map((p) => ({
+				await this.storage.batchUpdateNbtcMintTxs(
+					processedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.MintFailed,
@@ -658,15 +656,7 @@ export class Indexer {
 	}
 
 	getTxProof(tree: BitcoinMerkleTree, targetTx: Transaction): Buffer[] | null {
-		try {
-			return tree.getProof(targetTx);
-		} catch (e) {
-			logError(
-				{ msg: "Failed to get merkle proof", method: "getTxProof", txId: targetTx.getId() },
-				e,
-			);
-			return null;
-		}
+		return tree.getProof(targetTx);
 	}
 
 	// Queries the light client to verify that blocks containing

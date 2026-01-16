@@ -28,7 +28,7 @@ import type { PutNbtcTxResponse } from "./rpc-interface";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
-import type { RedeemSolverRpc } from "@gonative-cc/redeem_solver/rpc";
+import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc";
 
 const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.MAINNET]: networks.bitcoin,
@@ -75,7 +75,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 			confirmationDepth,
 			maxNbtcMintTxRetries,
 			electrsClients,
-			env.REDEEM_SOLVER as unknown as Service<RedeemSolverRpc & WorkerEntrypoint>,
+			env.SuiIndexer as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>,
 		);
 	} catch (err) {
 		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
@@ -91,7 +91,7 @@ export class Indexer {
 	#packageConfigs: Map<number, NbtcPkgCfg>; // nbtc pkg id -> pkg config
 	#suiClients: Map<SuiNet, SuiClientI>;
 	#electrsClients: Map<BtcNet, Electrs>;
-	redeemSolver: Service<RedeemSolverRpc & WorkerEntrypoint>;
+	suiIndexer: Service<SuiIndexerRpc & WorkerEntrypoint>;
 
 	constructor(
 		storage: Storage,
@@ -101,7 +101,7 @@ export class Indexer {
 		confirmationDepth: number,
 		maxRetries: number,
 		electrsClients: Map<BtcNet, Electrs>,
-		redeemSolver: Service<RedeemSolverRpc & WorkerEntrypoint>,
+		suiIndexer: Service<SuiIndexerRpc & WorkerEntrypoint>,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
@@ -132,7 +132,7 @@ export class Indexer {
 		this.#electrsClients = electrsClients;
 		this.#packageConfigs = pkgCfgMap;
 		this.#suiClients = suiClients;
-		this.redeemSolver = redeemSolver;
+		this.suiIndexer = suiIndexer;
 	}
 
 	async hasNbtcMintTx(txId: string): Promise<boolean> {
@@ -258,7 +258,7 @@ export class Indexer {
 				: txIds;
 
 			if (potentialRedeems.length > 0) {
-				await this.redeemSolver.confirmRedeem(
+				await this.suiIndexer.confirmRedeem(
 					potentialRedeems,
 					blockInfo.height,
 					blockInfo.hash,
@@ -927,7 +927,7 @@ export class Indexer {
 	}
 
 	async getBroadcastedRedeemTxIds(): Promise<string[]> {
-		return this.redeemSolver.getBroadcastedRedeemTxIds();
+		return this.suiIndexer.getBroadcastedRedeemTxIds();
 	}
 
 	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {

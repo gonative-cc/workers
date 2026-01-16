@@ -1,7 +1,11 @@
-import type { Utxo, RedeemRequest } from "@gonative-cc/sui-indexer/models";
-import type { RedeemRequestWithInputs, RedeemInput, RedeemRequestWithNetwork } from "./models";
-import type { Storage } from "./storage";
-import type { SuiClient } from "./sui_client";
+import type { Utxo, RedeemRequest } from "./models";
+import type {
+	RedeemRequestWithInputs,
+	RedeemInput,
+	RedeemRequestWithNetwork,
+	D1Storage,
+} from "./storage";
+import type { SuiClient } from "./redeem-sui-client";
 import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import type { Service } from "@cloudflare/workers-types";
@@ -13,7 +17,7 @@ const MAXIMUM_NUMBER_UTXO = 100;
 
 export class RedeemService {
 	constructor(
-		private storage: Storage,
+		private storage: D1Storage,
 		private clients: Map<SuiNet, SuiClient>,
 		private btcIndexer: Service<BtcIndexerRpcI & WorkerEntrypoint>,
 		private utxoLockTimeMs: number,

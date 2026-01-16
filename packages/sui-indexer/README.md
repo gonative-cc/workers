@@ -1,17 +1,21 @@
-# Redeem Solver
+# Sui Indexer
+
+The Sui Indexer worker is responsible for monitoring the Sui blockchain for nBTC-related events and handling the nBTC redemption process (formerly handled by the Redeem Solver).
 
 ## Objectives
 
-- Observing nBTC Redeem transactions.
-- Tracking nBTC UTXOs (NOTE: we can use electrs for that).
-- Propose spend UTXOs for redeem transactions.
+- **Event Indexing:** Monitors Sui blockchain for nBTC-related events and polls active packages.
+- **Redemption Management:** Handles nBTC redemption requests from users.
+- **UTXO Tracking:** Tracks available Bitcoin UTXOs for redemptions.
+- **Proposal Generation:** Proposes appropriate UTXO sets for withdrawal transactions.
+- **Consistency:** Coordinates with BTCIndexer for consistent state.
 
-## Flow
+## Redemption Flow
 
 ```mermaid
 flowchart
     User([User])
-    RS[[RedeemSolver]]
+    SI[[SuiIndexer]]
     Ika[[Ika]]
     Bitcoin[[Bitcoin]]
     subgraph nBTCPkg [nBTCPkg]
@@ -20,34 +24,30 @@ flowchart
     end
     User -- 1. send nBTC request to request redemption --> nBTCCtr
     nBTCCtr -- 2. creates --> ReedemRequest
-    RS -- 3. listen --> nBTCCtr
-    RS -- 4. propose UTXO set --> ReedemRequest
-    RS -- 5 trigger signing --> nBTCCtr
+    SI -- 3. listen --> nBTCCtr
+    SI -- 4. propose UTXO set --> ReedemRequest
+    SI -- 5 trigger signing --> nBTCCtr
     nBTCCtr -- 6. query signatures --> Ika
     nBTCCtr -- 7. compose the withdraw tx --> Bitcoin
 ```
 
-## API
+## UTXO Management
 
-- [API Reference](./API.md)
-
-## UTXO management
-
-In Bitcoin all BTC is stored and modelled as UTXO.
+In Bitcoin all BTC is stored and modeled as UTXO.
 Whenever a user makes a deposit to mint nBTC, we receive UTXO that we need to manage.
 Whenever a user wants to redeem nBTC for BTC - we need to find best matching UTXO set to satisfy the redeem request. This is a complex problem because:
 
-- @e need to optimize for on chain computation (transactions are composed and signed on chain, hence they can't be too big).
+- We need to optimize for on chain computation (transactions are composed and signed on chain, hence they can't be too big).
 - Protocol has to be stable to avoid future updates (if possible).
 - Protocol must not have a single point of failure: multiple parties should be able to trigger every step and propose a solution. The best solution should be trustlessly selected and executed.
 
 ### Redeem Request UTXO Selection Algorithm
 
-### v0.1 (current strategy)
+#### v0.1 (current strategy)
 
 We are using a simple strategy: first valid proposal will be served. The smart contracts validates the proposal (check the UTXO limit, amount and validity of the UTXOs).
 
-### v1.0 (testnet-v3)
+#### v1.0 (testnet-v3)
 
 Scoring Logic. Let:
 
@@ -77,22 +77,22 @@ UTXOs are NOT inserted directly by the Bitcoin Indexer. Instead, they are ingest
 Once inserted, the UTXO is in the `AVAILABLE` state.
 
 - It belongs to a specific `dwallet_id`
-- It is eligible for selection by the `RedeemSolver` to fulfill redemption requests.
+- It is eligible for selection by the `RedeemSolver` logic (within Sui Indexer) to fulfill redemption requests.
 
 #### C. Locking (Proposed)
 
 When a user requests to redeem nBTC for BTC:
 
-1.  **Selection:** The `RedeemSolver` selects `AVAILABLE` UTXOs to cover the requested amount.
-2.  **Locking:** The solver updates the UTXO status to `LOCKED` and sets a `locked_until` timestamp.
-3.  **On-Chain Proposal:** The solver submits a `ProposeUtxo` transaction to Sui.
+1.  **Selection:** The `SuiIndexer` selects `AVAILABLE` UTXOs to cover the requested amount.
+2.  **Locking:** The indexer updates the UTXO status to `LOCKED` and sets a `locked_until` timestamp.
+3.  **On-Chain Proposal:** The indexer submits a `ProposeUtxo` transaction to Sui.
 4.  **Confirmation:** The `SuiIndexer` listens for the `ProposeUtxoEvent` and confirms the lock in the database (ensuring consistency if multiple workers are running).
     NOTE: if there is another `ProposeUtxoEvent` for the same redeem request (redeem_id), it means our previous proposal has been bested and overwritten, so we can `UNLOCK` those UTXOs.
 
 #### D. Spending (Redemption)
 
 1.  **Signing:** Ika network signs the Bitcoin transaction spending these UTXOs.
-2.  **Broadcast:** The `RedeemSolver` broadcasts the transaction to the Bitcoin network.
+2.  **Broadcast:** The `SuiIndexer` (or broadcaster component) broadcasts the transaction to the Bitcoin network.
 3.  **Completion:** Once broadcast/confirmed, the UTXOs are `SPENT`.
 
 #### E. Unlocking (Expiry)
@@ -115,3 +115,24 @@ UTXOs are stored in the `nbtc_utxos` table in the D1 database.
 | `locked_until`  | Epoch timestamp (ms). If `current_time > locked_until`, the lock is expired. |
 
 **Key Concept:** The database acts as a cache of the on-chain state. The `SuiIndexer` ensures this cache stays synchronized with the canonical state on the Sui blockchain.
+
+## API
+
+This package exposes [Cloudflare RPC](../../README.md#cloudflare-rpc).
+
+### Setting up Service Binding
+
+To use the RPC interface from another worker, you need to set up a service binding in your `wrangler.jsonc`.
+The RPC entrypoint class is `RPC` (implementing `SuiIndexerRpc`).
+
+```jsonc
+{
+  "services": [
+    {
+      "binding": "SUIINDEXER", // or REDEEM_SOLVER depending on env setup
+      "service": "sui-indexer",
+      "entrypoint": "RPC",
+    },
+  ],
+}
+```

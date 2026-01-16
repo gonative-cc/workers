@@ -3,7 +3,7 @@ import type {
 	RedeemRequestWithInputs,
 	RedeemInput,
 	RedeemRequestWithNetwork,
-	IndexerStorage,
+	D1Storage,
 } from "./storage";
 import type { SuiClient } from "./redeem-sui-client";
 import { logger, logError } from "@gonative-cc/lib/logger";
@@ -17,7 +17,7 @@ const MAXIMUM_NUMBER_UTXO = 100;
 
 export class RedeemService {
 	constructor(
-		private storage: IndexerStorage,
+		private storage: D1Storage,
 		private clients: Map<SuiNet, SuiClient>,
 		private btcIndexer: Service<BtcIndexerRpcI & WorkerEntrypoint>,
 		private utxoLockTimeMs: number,

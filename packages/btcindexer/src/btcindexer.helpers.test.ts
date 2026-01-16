@@ -15,8 +15,8 @@ import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
-import { IndexerStorage } from "@gonative-cc/sui-indexer/storage";
-import type { RedeemSolverRpc } from "@gonative-cc/sui-indexer/redeem-rpc";
+import { D1Storage } from "@gonative-cc/sui-indexer/storage";
+import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc";
 
 export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
@@ -169,15 +169,15 @@ export async function setupTestIndexerSuite(
 	const mockElectrs = mkElectrsServiceMock();
 	electrsClients.set(BtcNet.REGTEST, mockElectrs);
 
-	const redeemStorage = new IndexerStorage(db);
+	const indexerStorage = new D1Storage(db);
 
 	const mockSuiIndexerService = {
-		getBroadcastedRedeemTxIds: () => redeemStorage.getBroadcastedBtcTxIds(),
+		getBroadcastedRedeemTxIds: () => indexerStorage.getBroadcastedBtcTxIds(),
 		confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) =>
-			redeemStorage.confirmRedeem(txIds, blockHeight, blockHash),
+			indexerStorage.confirmRedeem(txIds, blockHeight, blockHash),
 		finalizeRedeem: () => Promise.resolve(),
 		putRedeemTx: () => Promise.resolve(),
-	} as unknown as Service<RedeemSolverRpc & WorkerEntrypoint>;
+	} as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>;
 
 	const indexer = new Indexer(
 		storage,

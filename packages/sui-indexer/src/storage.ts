@@ -83,7 +83,7 @@ const btcNetworks: Record<string, networks.Network> = {
 	[BtcNet.SIGNET]: networks.testnet,
 };
 
-export class IndexerStorage {
+export class D1Storage {
 	constructor(private db: D1Database) {}
 
 	// returns the latest cursor positions for multiple setups for querying Sui events.

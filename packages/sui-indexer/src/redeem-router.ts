@@ -2,7 +2,7 @@ import { Router, error, json, type IRequest } from "itty-router";
 import type { AppRouter, CFArgs } from "./redeem-routertype";
 import { isValidSuiAddress } from "@mysten/sui/utils";
 import { btcNetFromString } from "@gonative-cc/lib/nbtc";
-import { IndexerStorage } from "./storage";
+import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 
 export default class HttpRouter {
@@ -45,7 +45,7 @@ export default class HttpRouter {
 
 		try {
 			const btcNetwork = btcNetFromString(networkStr);
-			const storage = new IndexerStorage(env.DB);
+			const storage = new D1Storage(env.DB);
 			const redeems = await storage.getRedeemsByAddrAndNetwork(params.address, btcNetwork);
 			return redeems;
 		} catch (e: unknown) {

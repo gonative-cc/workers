@@ -1,4 +1,4 @@
-import { IndexerStorage } from "./storage";
+import { D1Storage } from "./storage";
 import {
 	type MintEventRaw,
 	type ProposeUtxoEventRaw,
@@ -12,10 +12,10 @@ import { logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 
 export class SuiEventHandler {
-	private storage: IndexerStorage;
+	private storage: D1Storage;
 	private setupId: number;
 
-	constructor(storage: IndexerStorage, setupId: number) {
+	constructor(storage: D1Storage, setupId: number) {
 		this.storage = storage;
 		this.setupId = setupId;
 	}

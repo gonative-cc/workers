@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
-import { IndexerStorage } from "./storage";
+import { D1Storage } from "./storage";
 import {
 	RedeemRequestStatus,
 	UtxoStatus,
@@ -51,7 +51,7 @@ const scriptPubkey2 = new Uint8Array(p2wpkh2.output!);
 const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
 
 async function insertRedeemRequest(
-	indexerStorage: IndexerStorage,
+	indexerStorage: D1Storage,
 	redeemId: number,
 	redeemer: string,
 	recipientScript: Uint8Array,
@@ -73,7 +73,7 @@ async function insertRedeemRequest(
 }
 
 async function insertUtxo(
-	indexerStorage: IndexerStorage,
+	indexerStorage: D1Storage,
 	utxoId: number,
 	depositAddress: string,
 	scriptPubkey: Uint8Array,
@@ -147,16 +147,16 @@ async function insertDepositAddress(
 }
 
 describe("IndexerStorage", () => {
-	let storage: IndexerStorage;
-	let indexerStorage: IndexerStorage;
+	let storage: D1Storage;
+	let indexerStorage: D1Storage;
 	let db: D1Database;
 
 	beforeEach(async () => {
 		db = await mf.getD1Database("DB");
 		await initDb(db);
 
-		storage = new IndexerStorage(db);
-		indexerStorage = new IndexerStorage(db);
+		storage = new D1Storage(db);
+		indexerStorage = new D1Storage(db);
 
 		await insertSetup(
 			db,

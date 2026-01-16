@@ -35,7 +35,7 @@ export interface Storage {
 	getTxStatus(txId: string): Promise<MintTxStatus | null>;
 	getReorgedMintedTxs(blockHeight: number): Promise<ReorgedMintedTx[]>;
 	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
-	batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void>;
+	batchUpdateNbtcMintTxs(updates: NbtcTxUpdate[]): Promise<void>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;
 	getConfirmingTxs(): Promise<PendingTx[]>;
 	finalizeNbtcTxs(txIds: string[]): Promise<void>;

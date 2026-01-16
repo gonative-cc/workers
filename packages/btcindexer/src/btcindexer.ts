@@ -163,10 +163,7 @@ export class Indexer {
 
 	// - extracts and processes nBTC deposit transactions in the block
 	// - handles reorgs
-	async processBlock(
-		blockInfo: BlockQueueRecord,
-		broadcastedRedeemTxIds?: Set<string>,
-	): Promise<void> {
+	async processBlock(blockInfo: BlockQueueRecord, trackedRedeemTxs?: Set<string>): Promise<void> {
 		const network = btcNetworkCfg[blockInfo.network];
 		if (!network) {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
@@ -253,8 +250,12 @@ export class Indexer {
 		}
 
 		if (txIds.length > 0) {
-			const potentialRedeems = broadcastedRedeemTxIds
-				? txIds.filter((id) => broadcastedRedeemTxIds.has(id))
+			// FIXME: this is wrong! We should not send all txs from a block to confirmRedeem.
+			// 1. inspect the transaction if it's a redeem redeem transaction (check withdraw address)
+			// 2. handle a case when a redeem tx was broadcasted by someone else
+			// 3. probably we can remove getBroadcastedBtcTxIds
+			const potentialRedeems = trackedRedeemTxs
+				? txIds.filter((id) => trackedRedeemTxs.has(id))
 				: txIds;
 
 			if (potentialRedeems.length > 0) {

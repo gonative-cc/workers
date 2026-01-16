@@ -20,9 +20,9 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 		return;
 	}
 
-	async getBroadcastedRedeemTxIds(): Promise<string[]> {
+	async getBroadcastedRedeemTxIds(setupId: number): Promise<string[]> {
 		const storage = new D1Storage(this.env.DB);
-		return storage.getBroadcastedBtcTxIds();
+		return storage.getBroadcastedBtcRedeemTxIds(setupId);
 	}
 
 	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {

@@ -123,7 +123,7 @@ This package exposes [Cloudflare RPC](../../README.md#cloudflare-rpc).
 ### Setting up Service Binding
 
 To use the RPC interface from another worker, you need to set up a service binding in your `wrangler.jsonc`.
-The RPC entrypoint class is `RPC` (implementing `RedeemSolverRpc`).
+The RPC entrypoint class is `RPC` (implementing `SuiIndexerRpc`).
 
 ```jsonc
 {

@@ -29,10 +29,11 @@ Workers are based on the Cloudflare Workers framework.
 - Monitors Sui blockchain for nBTC-related events
 - Polls active packages for nBTC operations
 - Provides indexing capabilities for cross-chain activities
-- **Handles nBTC redemption requests from users** (merged from Redeem Solver)
-- **Tracks available UTXOs for redemptions** (merged from Redeem Solver)
-- **Proposes appropriate UTXO sets for withdrawal transactions** (merged from Redeem Solver)
-- **Coordinates with BTCIndexer for consistent state** (merged from Redeem Solver)
+- Implements RedeemSolver:
+  - Handles nBTC redemption requests from users
+  - Tracks available UTXOs for redemptions
+  - Proposes appropriate UTXO sets for withdrawal transactions
+  - Coordinates with BTCIndexer for consistent state
 
 #### [Shared Library](./packages/lib/) (`lib`)
 

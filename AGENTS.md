@@ -16,9 +16,8 @@ Check @README.md for more details.
 
 - `./packages/lib` : a library package where we put common functions to be shared with other packages.
 - `./packages/btcindexer` : a Bitcoin indexer (btcindexer) for the nBTC project. The project is designed to monitor the Bitcoin blockchain, parse Bitcoin blocks, identify nBTC deposits, and facilitate their minting on the Sui blockchain.
-- `./packages/sui-indexer` : Polls Sui events for all active packages listed in the `nbtc_packages` database. The events are handled by the `SuiEventHandler`.
+- `./packages/sui-indexer` : Polls Sui events for all active packages listed in the `nbtc_packages` database. The events are handled by the `SuiEventHandler`. Provides RPC for Redeem Solver.
 - `./packages/block-ingestor` : a new worker that exposes REST API to receive new blocks and queue them for processing.
-- `./packages/redeem_solver` : a new worker to propose UTXOs for withdrawals.
 
 Details about each package is in described in the sections below.
 
@@ -179,9 +178,9 @@ A shared library package containing common utilities and types used across other
 - Utility functions for key generation and management
 - Delay function for async operations
 
-## Redeem Solver
+## Sui Indexer
 
-The package is in `./packages/redeem_solver`. See @packages/redeem_solver/README.md for information about key features and architecture.
+The package is in `./packages/sui-indexer`. See @packages/sui-indexer/README.md for information about key features and architecture.
 
 ### Architecture
 
@@ -190,10 +189,8 @@ The project consists of:
 1. A main worker (`src/index.ts`) that serves as the entry point
 2. An RPC module (`src/rpc.ts`) that exposes service binding interface
 3. A Sui client (`src/sui_client.ts`) for blockchain interactions
-4. A storage module (`src/storage.ts`) for data persistence
-5. Model definitions (`src/models.ts`) for data structures
 
-#### 2. Service Bindings Implementation
+#### Service Bindings Implementation
 
 - Exposes Cloudflare RPC interface for inter-worker communication
 - Follows Cloudflare's recommended approach for worker-to-worker communication

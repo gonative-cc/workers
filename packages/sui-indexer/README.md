@@ -1,6 +1,6 @@
 # Sui Indexer
 
-The Sui Indexer worker is responsible for monitoring the Sui blockchain for nBTC-related events and handling the nBTC redemption process (formerly handled by the Redeem Solver).
+The Sui Indexer worker is responsible for monitoring the Sui blockchain for nBTC-related events and handling the nBTC redemption process through the Redeem Solver.
 
 ## Objectives
 
@@ -129,7 +129,7 @@ The RPC entrypoint class is `RPC` (implementing `SuiIndexerRpc`).
 {
   "services": [
     {
-      "binding": "SUIINDEXER", // or REDEEM_SOLVER depending on env setup
+      "binding": "SuiIndexer",
       "service": "sui-indexer",
       "entrypoint": "RPC",
     },

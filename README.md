@@ -140,7 +140,7 @@ flowchart TB
 
 ### Dependencies
 
-- bun >= 1.20.0
+- bun >= 1.3
 - proper editorconfig mode setup in your editor!
 - Go (for Go API Client for the workers)
 

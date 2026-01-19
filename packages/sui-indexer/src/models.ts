@@ -145,3 +145,18 @@ export interface IkaRejectedSignEventRaw {
 	sign_id: string;
 	is_future_sign: boolean;
 }
+
+// Arguments for the contract call
+export interface ProposeRedeemCall {
+	redeemId: number;
+	utxoIds: number[];
+	dwalletIds: string[];
+	nbtcPkg: string;
+	nbtcContract: string;
+}
+
+export interface SolveRedeemCall {
+	redeemId: number;
+	nbtcPkg: string;
+	nbtcContract: string;
+}

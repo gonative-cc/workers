@@ -300,7 +300,7 @@ export class CFStorage implements Storage {
 		await updateStmt.run();
 	}
 
-	async batchUpdateNbtcTxs(updates: NbtcTxUpdate[]): Promise<void> {
+	async batchUpdateNbtcMintTxs(updates: NbtcTxUpdate[]): Promise<void> {
 		const now = Date.now();
 		const setMintedStmt = this.d1.prepare(
 			`UPDATE nbtc_minting SET status = ?, sui_tx_id = ?, updated_at = ? WHERE tx_id = ? AND vout = ?`,

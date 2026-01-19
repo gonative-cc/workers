@@ -1,15 +1,15 @@
 import type { NetworkConfig, PkgCfg } from "./models";
-import { IndexerStorage } from "./storage";
+import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
 
 export class Processor {
 	netCfg: NetworkConfig;
-	storage: IndexerStorage;
+	storage: D1Storage;
 	eventFetcher: EventFetcher;
 
-	constructor(netCfg: NetworkConfig, storage: IndexerStorage, eventFetcher: EventFetcher) {
+	constructor(netCfg: NetworkConfig, storage: D1Storage, eventFetcher: EventFetcher) {
 		this.netCfg = netCfg;
 		this.storage = storage;
 		this.eventFetcher = eventFetcher;

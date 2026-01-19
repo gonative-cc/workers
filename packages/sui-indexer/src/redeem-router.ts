@@ -38,7 +38,7 @@ export default class HttpRouter {
 		if (!isValidSuiAddress(params.address)) {
 			errs.push("Invalid SUI address format.");
 		}
-		if (!Number.isInteger(setupId)) {
+		if (!Number.isInteger(setupId) || setupId < 0) {
 			errs.push("Missing or invalid setup_id query parameter.");
 		}
 		if (errs.length !== 0) {

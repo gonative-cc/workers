@@ -1,4 +1,5 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import type { SuiIndexerRpc } from "./rpc-interface";
 import type { RedeemRequestResp } from "./models";
@@ -31,6 +32,10 @@ export class RPCMock extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 			btc_tx: null,
 			confirmations: 0,
 		};
+		if (!isValidSuiAddress(e.redeemer)) {
+			throw new Error("impossible error: event with invalid redeemer address in a Sui event");
+		}
+
 		let bySetup = this.redeemRequests[setupId];
 		if (bySetup === undefined) {
 			bySetup = {};

@@ -2,7 +2,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import type { NbtcTxResp } from "./models";
 import { MintTxStatus } from "./models";
 import { Transaction } from "bitcoinjs-lib";
-import type { BtcIndexerRpcI, PutNbtcTxResponse } from "./rpc-interface";
+import type { BtcIndexerRpc, PutNbtcTxResponse } from "./rpc-interface";
 import { BtcNet } from "@gonative-cc/lib/nbtc";
 
 interface MockTxData {
@@ -58,7 +58,7 @@ function buildTxStatusResp(txid: string, data: MockTxData): NbtcTxResp {
 	};
 }
 
-export class BtcIndexerRpcMock extends WorkerEntrypoint<Env> implements BtcIndexerRpcI {
+export class RPCMock extends WorkerEntrypoint<Env> implements BtcIndexerRpc {
 	private get txStatuses() {
 		return txData;
 	}

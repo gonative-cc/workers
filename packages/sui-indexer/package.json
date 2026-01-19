@@ -1,22 +1,31 @@
 {
-  "name": "@gonative-cc/sui-indexer",
-  "version": "0.0.1",
-  "exports": {
-    "./*": "./src/*.ts"
-  },
-  "type": "module",
-  "scripts": {
-    "dev": "wrangler dev --test-scheduled",
-    "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit",
-    "cf-typegen": "wrangler types",
-    "test": "echo no tests"
-  },
-  "dependencies": {
-    "@gonative-cc/lib": "workspace:*",
-    "@mysten/sui": "^1.45.2",
-    "bitcoinjs-lib": "^6.1.7",
-    "graphql": "^16.12.0",
-    "graphql-request": "^7.4.0"
-  }
+	"name": "@gonative-cc/sui-indexer",
+	"version": "0.0.1",
+	"exports": {
+		"./*": "./src/*.ts"
+	},
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev --test-scheduled",
+		"deploy": "wrangler deploy",
+		"typecheck": "tsc --noEmit",
+		"cf-typegen": "wrangler types",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@gonative-cc/btcindexer": "workspace:*",
+		"@gonative-cc/lib": "workspace:*",
+		"@ika.xyz/sdk": "^0.2.7",
+		"@mysten/bcs": "^1.9.2",
+		"@mysten/sui": "^1.45.2",
+		"bitcoinjs-lib": "^6.1.7",
+		"graphql": "^16.12.0",
+		"graphql-request": "^7.4.0",
+		"itty-router": "^5.0.22"
+	},
+	"devDependencies": {
+		"@types/crypto-js": "^4.2.2",
+		"bitcoinjs-lib": "^7.0.1",
+		"miniflare": "4.20251008.0"
+	}
 }

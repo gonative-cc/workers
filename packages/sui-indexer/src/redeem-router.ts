@@ -1,5 +1,5 @@
 import { Router, error, json, type IRequest } from "itty-router";
-import type { AppRouter, CFArgs } from "./routertype";
+import type { AppRouter, CFArgs } from "./redeem-routertype";
 import { isValidSuiAddress } from "@mysten/sui/utils";
 import { btcNetFromString } from "@gonative-cc/lib/nbtc";
 import { D1Storage } from "./storage";

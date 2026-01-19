@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
-import { D1Storage, UTXO_LOCK_TIME_MS } from "./storage";
+import { D1Storage } from "./storage";
 import {
 	RedeemRequestStatus,
 	UtxoStatus,
 	type UtxoIngestData,
 	type RedeemRequestIngestData,
-} from "@gonative-cc/sui-indexer/models";
-import { IndexerStorage } from "@gonative-cc/sui-indexer/storage";
-import { initDb } from "./db.test";
+} from "./models";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
 import { payments, networks } from "bitcoinjs-lib";
+import { initDb } from "./db.test";
+
+export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
 
 let mf: Miniflare;
 
@@ -50,7 +51,7 @@ const scriptPubkey2 = new Uint8Array(p2wpkh2.output!);
 const recipientScript = new Uint8Array([0x76, 0xa9, 0x14]);
 
 async function insertRedeemRequest(
-	indexerStorage: IndexerStorage,
+	indexerStorage: D1Storage,
 	redeemId: number,
 	redeemer: string,
 	recipientScript: Uint8Array,
@@ -72,7 +73,7 @@ async function insertRedeemRequest(
 }
 
 async function insertUtxo(
-	indexerStorage: IndexerStorage,
+	indexerStorage: D1Storage,
 	utxoId: number,
 	depositAddress: string,
 	scriptPubkey: Uint8Array,
@@ -145,9 +146,9 @@ async function insertDepositAddress(
 		.run();
 }
 
-describe("D1Storage", () => {
+describe("IndexerStorage", () => {
 	let storage: D1Storage;
-	let indexerStorage: IndexerStorage;
+	let indexerStorage: D1Storage;
 	let db: D1Database;
 
 	beforeEach(async () => {
@@ -155,7 +156,7 @@ describe("D1Storage", () => {
 		await initDb(db);
 
 		storage = new D1Storage(db);
-		indexerStorage = new IndexerStorage(db);
+		indexerStorage = new D1Storage(db);
 
 		await insertSetup(
 			db,

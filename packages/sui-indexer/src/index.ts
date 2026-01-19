@@ -98,7 +98,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 		logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
 		return;
 	}
-	const clients = await createSuiClients(activeNetworks, mnemonic);
+	const clients = await createSuiClients(activeNetworks, mnemonic, env.IKA_UPPER_LIMIT);
 	const service = new RedeemService(
 		storage,
 		clients,

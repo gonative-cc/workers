@@ -12,12 +12,13 @@ export class MockSuiClient implements SuiClientI {
 		return [true, `fake-sui-tx-digest-batch-${mintArgs.length}`];
 	});
 
+	getMintedTxsTableId = jest.fn(async (): Promise<string> => {
+		return "0xMOCK_TABLE_ID";
+	});
+
 	tryMintNbtcBatch = jest.fn(
 		async (mintArgs: MintBatchArg[]): Promise<[boolean, SuiTxDigest] | null> => {
-			if (mintArgs.length > 0) {
-				return [true, `fake-sui-tx-digest-batch-${mintArgs.length}`];
-			}
-			return null;
+			return [true, `fake-sui-tx-digest-batch-${mintArgs.length}`];
 		},
 	);
 }

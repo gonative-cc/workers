@@ -50,7 +50,7 @@ Workers are based on the Cloudflare Workers framework.
 ### Architecture Diagram
 
 ```mermaid
-flowchart TB
+flowchart-elk TB
   %% ================
   %% External systems
   %% ================

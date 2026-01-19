@@ -31,6 +31,7 @@
    * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
    */
   "vars": {
+    "SETUP_ENV": "dev",
     "CONFIRMATION_DEPTH": "4",
     "MAX_NBTC_MINT_TX_RETRIES": "1",
     "BTC_BLOCK_PROCESSING_BATCH_SIZE": "100",

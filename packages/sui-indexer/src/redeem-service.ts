@@ -1,17 +1,23 @@
-import type { Utxo, RedeemRequest } from "@gonative-cc/sui-indexer/models";
-import type { RedeemRequestWithInputs, RedeemInput } from "./models";
-import type { Storage } from "./storage";
-import type { SuiClient } from "./sui_client";
+import type { Utxo, RedeemRequest } from "./models";
+import type {
+	RedeemRequestWithInputs,
+	RedeemInput,
+	RedeemRequestWithNetwork,
+	D1Storage,
+} from "./storage";
+import type { SuiClient } from "./redeem-sui-client";
 import { logger, logError } from "@gonative-cc/lib/logger";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } from "./sighash";
 
 const MAXIMUM_NUMBER_UTXO = 100;
 
 export class RedeemService {
 	constructor(
-		private storage: Storage,
+		private storage: D1Storage,
 		private clients: Map<SuiNet, SuiClient>,
+		private btcIndexer: BtcIndexerRpc,
 		private utxoLockTimeMs: number,
 		private redeemDurationMs: number,
 	) {
@@ -54,6 +60,52 @@ export class RedeemService {
 
 		for (const req of solved) {
 			await this.processSolvedRedeem(req);
+		}
+	}
+
+	async broadcastReadyRedeems() {
+		const readyRedeems = await this.storage.getSignedRedeems();
+		if (readyRedeems.length === 0) return;
+
+		for (const req of readyRedeems) {
+			await this.broadcastRedeem(req);
+		}
+	}
+
+	private async broadcastRedeem(req: RedeemRequestWithNetwork) {
+		logger.info({
+			msg: "Broadcasting redeem transaction",
+			redeemId: req.redeem_id,
+		});
+
+		try {
+			const client = this.getSuiClient(req.sui_network);
+			const rawTxHex = await client.getRedeemBtcTx(
+				req.redeem_id,
+				req.nbtc_pkg,
+				req.nbtc_contract,
+			);
+
+			const { tx_id } = await this.btcIndexer.broadcastRedeemTx(
+				rawTxHex,
+				req.btc_network,
+				req.redeem_id,
+			);
+			await this.storage.markRedeemBroadcasted(req.redeem_id, tx_id);
+
+			logger.info({
+				msg: "Successfully broadcasted redeem transaction",
+				redeemId: req.redeem_id,
+			});
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to broadcast redeem transaction",
+					method: "broadcastRedeem",
+					redeemId: req.redeem_id,
+				},
+				e,
+			);
 		}
 	}
 

@@ -1,10 +1,10 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 
-import type { RedeemSolverRpc } from "./rpc";
+import type { SuiIndexerRpc } from "./rpc-interface";
 import type { RedeemRequestResp } from "./models";
-import { RedeemRequestStatus, type RedeemRequestEventRaw } from "@gonative-cc/sui-indexer/models";
+import { RedeemRequestStatus, type RedeemRequestEventRaw } from "./models";
 
-export class RPCMock extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
+export class RPCMock extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	// map setup_id -> redeemer (sui addr) -> redeem req
 	redeemRequests: Record<number, Record<string, RedeemRequestResp[]>> = {};
 
@@ -12,8 +12,12 @@ export class RPCMock extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 		return;
 	}
 
-	async redeemsBySuiAddr(suiAddress: string, setupId: number): Promise<RedeemRequestResp[]> {
-		return this.redeemRequests[setupId]?.[suiAddress] || [];
+	async getBroadcastedRedeemTxIds(): Promise<string[]> {
+		return [];
+	}
+
+	async confirmRedeem(_txIds: string[], _blockHeight: number, _blockHash: string): Promise<void> {
+		return;
 	}
 
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {

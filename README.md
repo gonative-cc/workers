@@ -24,29 +24,27 @@ Workers are based on the Cloudflare Workers framework.
 - Provides status tracking for nBTC transactions
 - Runs scheduled cron jobs for continuous processing
 
-#### 3. [Redeem Solver](./packages/redeem_solver/)
-
-- Handles nBTC redemption requests from users
-- Tracks available UTXOs for redemptions
-- Proposes appropriate UTXO sets for withdrawal transactions
-- Coordinates with BTCIndexer for consistent state
-
-#### 4. [Sui Indexer](./packages/sui-indexer/)
+#### [Sui Indexer](./packages/sui-indexer/)
 
 - Monitors Sui blockchain for nBTC-related events
 - Polls active packages for nBTC operations
 - Provides indexing capabilities for cross-chain activities
+- Implements RedeemSolver:
+  - Handles nBTC redemption requests from users
+  - Tracks available UTXOs for redemptions
+  - Proposes appropriate UTXO sets for withdrawal transactions
+  - Coordinates with BTCIndexer for consistent state
 
-#### 5. [Shared Library](./packages/lib/) (`lib`)
+#### [Shared Library](./packages/lib/) (`lib`)
 
-- Provides common utilities, types, and configurations
+- Provides shared functions, types, and configurations
 - Offers logging infrastructure used across packages
 - Ensures consistent implementation across all workers
 
 ### Functional Flows
 
 1. **nBTC Minting Flow**: Bitcoin deposits → Block-Ingestor → BTC-Indexer → Sui minting
-2. **Redemption Flow**: nBTC burn on Sui → Sui-Indexer → Redeem-Solver → UTXO proposal
+2. **Redemption Flow**: nBTC burn on Sui → Sui-Indexer → UTXO proposal & redemption coordination
 3. **Status Tracking Flow**: UI requests → BTC-Indexer → Status updates
 
 ### Architecture Diagram
@@ -63,7 +61,6 @@ graph TB
     subgraph "Native Workers Infrastructure"
         BI[(BTCIndexer)]
         BL[(Block-Ingestor)]
-        RS[(Redeem Solver)]
         SI[(Sui Indexer)]
     end
 
@@ -71,7 +68,7 @@ graph TB
     Bitcoin -->|sends blocks| Relayer
     Relayer -->|submits blocks| BL
     UI -->|queries status| BI
-    UI -->|requests redemption| RS
+    UI -->|requests redemption| SI
 
     %% Block ingestion flow
     BL -->|forwards blocks| BI
@@ -84,17 +81,14 @@ graph TB
     %% Redemption flow
     UI -->|initiates redemption| Sui
     Sui -->|emits redemption events| SI
-    SI -->|monitors events| RS
-    RS -->|proposes UTXOs| Sui
+    SI -->|monitors events & proposes UTXOs| Sui
 
     %% Cross-component communication
     BI -.-> BL
-    RS -.-> BI
-    SI -.-> Sui
+    SI -.-> BI
 
     style BI fill:#e1f5fe
     style BL fill:#f3e5f5
-    style RS fill:#e8f5e8
     style SI fill:#fff3e0
 ```
 

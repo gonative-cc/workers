@@ -1,9 +1,10 @@
-import { IndexerStorage } from "./storage";
+import { D1Storage } from "./storage";
 import {
 	type MintEventRaw,
 	type ProposeUtxoEventRaw,
 	type RedeemRequestEventRaw,
 	type SolvedEventRaw,
+	type SignatureRecordedEventRaw,
 	type SuiEventNode,
 	UtxoStatus,
 } from "./models";
@@ -11,10 +12,10 @@ import { logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 
 export class SuiEventHandler {
-	private storage: IndexerStorage;
+	private storage: D1Storage;
 	private setupId: number;
 
-	constructor(storage: IndexerStorage, setupId: number) {
+	constructor(storage: D1Storage, setupId: number) {
 		this.storage = storage;
 		this.setupId = setupId;
 	}
@@ -31,6 +32,8 @@ export class SuiEventHandler {
 				await this.handleProposeUtxo(json as ProposeUtxoEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SolvedEvent")) {
 				await this.handleSolved(json as SolvedEventRaw);
+			} else if (e.type.includes("::nbtc::redeem_request::SignatureRecordedEvent")) {
+				await this.handleIkaSignatureRecorded(json as SignatureRecordedEventRaw);
 			}
 		}
 	}
@@ -91,6 +94,15 @@ export class SuiEventHandler {
 			msg: "Marked redeem as solved and added inputs",
 			redeemId: e.redeem_id,
 			utxos: e.utxo_ids.length,
+		});
+	}
+
+	private async handleIkaSignatureRecorded(e: SignatureRecordedEventRaw) {
+		await this.storage.markRedeemInputVerified(Number(e.redeem_id), Number(e.utxo_id));
+		logger.info({
+			msg: "Marked redeem input as verified",
+			redeemId: e.redeem_id,
+			utxoId: e.utxo_id,
 		});
 	}
 }

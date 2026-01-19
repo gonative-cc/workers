@@ -261,7 +261,7 @@ describe("CFStorage", () => {
 		it("batchUpdateNbtcTxs should update statuses", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
 
-			await storage.batchUpdateNbtcTxs([
+			await storage.batchUpdateNbtcMintTxs([
 				{
 					txId: "tx1",
 					vout: 0,
@@ -277,7 +277,7 @@ describe("CFStorage", () => {
 
 		it("getReorgedMintedTxs should detect reorg", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
-			await storage.batchUpdateNbtcTxs([
+			await storage.batchUpdateNbtcMintTxs([
 				{
 					txId: "tx1",
 					vout: 0,

@@ -15,6 +15,12 @@
     // every one minute
     "crons": ["* * * * *"],
   },
+  "vars": {
+    "UTXO_LOCK_TIME": 3600000, // 1 Hour
+    "REDEEM_DURATION_MS": 300000, // 5 min
+    "IKA_UPPER_LIMIT": 100,
+  },
+  "services": [{ "binding": "BtcIndexer", "service": "btcindexer" }],
   "d1_databases": [
     {
       "binding": "DB",
@@ -22,10 +28,11 @@
       "database_id": "3a43879e-0799-442c-aed5-a3298df1c3bb",
     },
   ],
-  // "kv_namespaces": [
-  //   {
-  //     "binding": "BtcBlocks",
-  //     "id": "f8bc94f1f427436ab0797535fbc30cb7"
-  //   }
-  // ]
+  "secrets_store_secrets": [
+    {
+      "binding": "NBTC_MINTING_SIGNER_MNEMONIC",
+      "store_id": "75adbc6657de4f4cb739f63eb4d0cd7a",
+      "secret_name": "NBTC_MINTING_SIGNER_MNEMONIC",
+    },
+  ],
 }

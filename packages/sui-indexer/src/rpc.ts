@@ -1,23 +1,17 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { D1Storage } from "./storage";
-import type { RedeemRequestResp } from "./models";
-import type { RedeemRequestEventRaw } from "@gonative-cc/sui-indexer/models";
-import { IndexerStorage } from "@gonative-cc/sui-indexer/storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 
-export interface RedeemSolverRpc {
-	finalizeRedeem: () => Promise<void>;
-	redeemsBySuiAddr: (suiAddress: string, setupId: number) => Promise<RedeemRequestResp[]>;
-	putRedeemTx: (setupId: number, suiTxId: string, e: RedeemRequestEventRaw) => Promise<void>;
-}
+import { D1Storage } from "./storage";
+import type { RedeemRequestEventRaw } from "./models";
+import type { SuiIndexerRpc } from "./rpc-interface";
 
 /**
  * RPC entrypoint for the worker.
  *
  * @see https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/
  */
-export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
+export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	/**
 	 * Once BTC withdraw for the Redeem Request is confirmed and finalzed, this method
 	 * will update the DB state and remove related UTXOs.
@@ -26,9 +20,14 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 		return;
 	}
 
-	async redeemsBySuiAddr(suiAddress: string, setupId: number): Promise<RedeemRequestResp[]> {
+	async getBroadcastedRedeemTxIds(): Promise<string[]> {
 		const storage = new D1Storage(this.env.DB);
-		return storage.getRedeemsBySuiAddr(suiAddress, setupId);
+		return storage.getBroadcastedBtcTxIds();
+	}
+
+	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {
+		const storage = new D1Storage(this.env.DB);
+		return storage.confirmRedeem(txIds, blockHeight, blockHash);
 	}
 
 	/**
@@ -44,16 +43,12 @@ export class RPC extends WorkerEntrypoint<Env> implements RedeemSolverRpc {
 	 */
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
-			const storage = new IndexerStorage(this.env.DB);
-
-			const ok = await this.env.DB.prepare(
-				"SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?",
-			)
-				.bind(e.redeem_id)
-				.first();
-
-			if (ok) {
-				logger.info({ msg: `Redeem id: ${e.redeem_id} already exists in the table` });
+			const storage = new D1Storage(this.env.DB);
+			if (await storage.hasRedeemRequest(Number(e.redeem_id))) {
+				logger.info({
+					msg: "Redeem request already processed",
+					redeemId: e.redeem_id,
+				});
 				return;
 			}
 

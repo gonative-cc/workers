@@ -1,16 +1,9 @@
 import { Router } from "itty-router";
 import { PutBlocksReq } from "./api/put-blocks";
 import { handleIngestBlocks } from "./ingest";
-import type { BtcIndexerRpcI } from "@gonative-cc/btcindexer/rpc-interface";
+import { type BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { logError } from "@gonative-cc/lib/logger";
-import { WorkerEntrypoint } from "cloudflare:workers";
 import { btcNetFromString } from "@gonative-cc/lib/nbtc";
-
-interface Env {
-	BtcBlocks: KVNamespace;
-	BlockQueue: Queue;
-	BtcIndexer: Service<BtcIndexerRpcI & WorkerEntrypoint<Env>>;
-}
 
 const router = Router();
 
@@ -35,7 +28,8 @@ router.get("/bitcoin/latest-height", async (request, env: Env) => {
 
 	try {
 		const btcNet = btcNetFromString(network);
-		const result = await env.BtcIndexer.latestHeight(btcNet);
+		const btcindexer = envBtcIndexer(env);
+		const result = await btcindexer.latestHeight(btcNet);
 		return Response.json(result);
 	} catch (e) {
 		logError({ msg: "Failed to get latest height", method: "GET /bitcoin/latest-height" }, e);
@@ -44,6 +38,10 @@ router.get("/bitcoin/latest-height", async (request, env: Env) => {
 });
 
 router.all("*", () => new Response("Not Found", { status: 404 }));
+
+function envBtcIndexer(env: Env): BtcIndexerRpc {
+	return env.BtcIndexer as unknown as BtcIndexerRpc;
+}
 
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {

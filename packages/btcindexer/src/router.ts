@@ -78,7 +78,7 @@ export default class HttpRouter {
 		}
 		try {
 			return btcNetFromString(network);
-		} catch (e) {
+		} catch {
 			throw new Error("Invalid network parameter.");
 		}
 	}

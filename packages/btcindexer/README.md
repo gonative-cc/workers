@@ -2,8 +2,8 @@
 
 ## Objectives
 
-- Tracking nbtc transactions
-- Creating merkle proofs and triggering the mint on Sui
+- Tracking nBTC transactions
+- Creating Merkle Proofs and submitting to related Sui objects to handle the Bitcoin transaction effects.
 
 ## Architecture Overview
 
@@ -36,6 +36,7 @@ graph TD
 
     SuiClient -- "3. Verifies blocks" --> Sui
     SuiClient -- "4. Mints nBTC" --> Sui
+    SuiClient -- "6. Finalizes nBTC redeems" --> Sui
 ```
 
 ## API
@@ -66,7 +67,7 @@ To populate the `nbtc_addresses` you can use the `seed:addresses` script. This s
 
 The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bitcoin blockchain for nBTC deposits, processing them, and coordinating the minting of nBTC tokens on the Sui blockchain.
 
-## 2. Componets
+## 2. Components
 
 - **Main Worker (`src/index.ts`):** The entry point for all incoming requests. It handles HTTP requests, and scheduled cron jobs, and delegates tasks to the appropriate modules.
 - **Indexer (`src/btcindexer.ts`):** The core logic for processing Bitcoin blocks and transactions. It identifies nBTC deposits, tracks their confirmation status, and manages the minting process.
@@ -74,19 +75,39 @@ The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bi
 - **Sui Client (`src/sui_client.ts`):** Interacts with the Sui blockchain to mint nBTC tokens.
 - **Storage (`src/storage.ts`, `src/cf-storage.ts`):** Manages data persistence using Cloudflare D1 and KV stores.
 
-## 3. State Machine
+## 3. Tracking Bitcoin transactions
 
-The `btcindexer` tracks the state of nBTC minting transactions as they progress through the system. The state is stored in the `nbtc_minting` table in the D1 database.
+The `btcindexer` tracks the state of nBTC related transactions as they progress through the system.
 
-The `status` field of a transaction can have one of the following values:
+The state is stored in the `nbtc_minting` and `nbtc_withdrawal` tables in the SQL (D1) database.
+
+Bitcoin transaction can have one of the following status:
 
 - `broadcasting`: The deposit transaction has been broadcast to the Bitcoin network, but has not yet been included in a block.
 - `confirming`: The deposit tx has been found in a Bitcoin block but does not yet have enough confirmations.
 - `finalized`: The tx has reached the required confirmation depth and is ready to be minted.
-- `minting`: The minting process on the Sui blockchain has been initiated.
-- `minted`: The nBTC has been successfully minted on the SUI network.
 - `reorg`: A blockchain reorg was detected while the tx was in the 'confirming' state. The tx block is no longer part of the canonical chain.
 - `finalized-reorg`: An edge-case status indicating that a tx was marked 'finalized', but was later discovered to be on an orphaned (re-org deeper than the confirmation depth).
+
+State machine:
+
+```mermaid
+stateDiagram-v2
+  [*] --> broadcasting
+  broadcasting --> confirming
+  confirming --> finalized
+  confirming --> reorg
+
+  finalized --> finalized_failed
+
+  finalized --> finalized_reorg
+  reorg --> confirming
+```
+
+Moreover, the minting transaction can have one of the following extra status:
+
+- `minting`: The minting process on the Sui blockchain has been initiated.
+- `minted`: The nBTC has been successfully minted on the SUI network.
 - `finalized-failed`: An attempt to mint a finalized tx failed, but it may be retried.
 
 ## 4. Cron Handler

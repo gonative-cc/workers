@@ -8,11 +8,12 @@ export async function processBlockBatch(
 	batch: MessageBatch<BlockQueueRecord>,
 	indexer: Indexer,
 ): Promise<void> {
+	const broadcastedRedeemTxIds = new Set(await indexer.getBroadcastedRedeemTxIds());
 	const toRetry = [];
 	for (const m of batch.messages) {
 		const blockInfo = m.body;
 		try {
-			await indexer.processBlock(blockInfo);
+			await indexer.processBlock(blockInfo, broadcastedRedeemTxIds);
 			m.ack();
 		} catch (e) {
 			logError(

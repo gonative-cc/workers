@@ -13,7 +13,7 @@ export class SuiGraphQLClient {
 		if (txIds.length === 0) return new Set();
 
 		const mintedTxIds = new Set<string>();
-		const BATCH_SIZE = 100;
+		const BATCH_SIZE = 50;
 		for (let i = 0; i < txIds.length; i += BATCH_SIZE) {
 			const batch = txIds.slice(i, i + BATCH_SIZE);
 			const query = this.buildMintedCheckQuery(batch);
@@ -54,7 +54,7 @@ export class SuiGraphQLClient {
 	private buildMintedCheckQuery(txIds: string[]): string {
 		const queries = txIds.map((_, i) => {
 			return `
-        tx${i}: owner(address: $tableId) {
+        tx${i}: object(address: $tableId) {
           dynamicField(name: { type: "vector<u8>", bcs: $bcs${i} }) {
             name { json }
           }

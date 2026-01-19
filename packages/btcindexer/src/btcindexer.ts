@@ -368,7 +368,7 @@ export class Indexer {
 		await this.executeMintBatches(batches);
 	}
 
-	// Filters out txs that have already been minted on-chain and updates the database (fron-run detection).
+	// Filters out txs that have already been minted on-chain and updates the database (front-run detection).
 	private async filterAlreadyMinted(finalizedTxs: FinalizedTxRow[]): Promise<FinalizedTxRow[]> {
 		const txsBySetupId = new Map<number, FinalizedTxRow[]>();
 		for (const tx of finalizedTxs) {

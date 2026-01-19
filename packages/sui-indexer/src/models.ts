@@ -131,10 +131,8 @@ export interface NetworkConfig {
 export interface PkgCfg {
 	id: number;
 	nbtc_pkg: string;
-	coordinator_pkg?: string; // dWallet coordinator package
 }
 
-// Ika coordinator event interfaces
 export interface IkaCompletedSignEventRaw {
 	sign_id: string;
 	signature: number[]; // vector<u8>

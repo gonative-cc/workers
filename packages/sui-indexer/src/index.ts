@@ -82,7 +82,7 @@ async function poolAndProcessEvents(netCfg: NetworkConfig, storage: D1Storage) {
 		packageCount: packages.length,
 	});
 	const p = new Processor(netCfg, storage, client);
-	await p.pollAllEvents(packages);
+	await p.pollEvents(packages);
 }
 
 async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: SuiNet[]) {

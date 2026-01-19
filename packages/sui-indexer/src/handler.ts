@@ -109,26 +109,31 @@ export class SuiEventHandler {
 	}
 
 	public async handleIkaEvents(events: SuiEventNode[]) {
-		for (const e of events) {
-			try {
+		const results = await Promise.allSettled(
+			events.map((e) => {
 				if (e.type.includes("::coordinator_inner::CompletedSignEvent")) {
-					await this.handleCompletedSign(e);
+					return this.handleCompletedSign(e);
 				} else if (e.type.includes("::coordinator_inner::RejectedSignEvent")) {
-					await this.handleRejectedSign(e);
+					return this.handleRejectedSign(e);
 				}
-			} catch (error) {
+				return Promise.resolve();
+			}),
+		);
+
+		results.forEach((result, i) => {
+			if (result.status === "rejected") {
+				const e = events[i];
 				logError(
 					{
 						msg: "Failed to handle Ika event",
 						method: "handleIkaEvents",
-						eventType: e.type,
-						txDigest: e.txDigest,
-						setupId: this.setupId,
+						eventType: e?.type,
+						txDigest: e?.txDigest,
 					},
-					error,
+					result.reason,
 				);
 			}
-		}
+		});
 	}
 
 	private async handleCompletedSign(e: SuiEventNode) {

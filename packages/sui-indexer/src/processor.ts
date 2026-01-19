@@ -3,6 +3,7 @@ import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
+import { getNetworkConfig } from "@ika.xyz/sdk";
 
 export class Processor {
 	netCfg: NetworkConfig;
@@ -15,12 +16,19 @@ export class Processor {
 		this.eventFetcher = eventFetcher;
 	}
 
-	// Poll all events (nBTC + Ika coordinator) from multiple packages
-	async pollAllEvents(nbtcPkgs: PkgCfg[]) {
+	// Polls events (nBTC + Ika coordinator) from multiple packages
+	async pollEvents(nbtcPkgs: PkgCfg[]) {
 		try {
 			if (nbtcPkgs.length === 0) return;
 
-			const allPackages: {
+			// Get coordinator package from Ika SDK
+			const network = this.netCfg.name;
+			const coordinatorPkg =
+				network === "mainnet" || network === "testnet"
+					? getNetworkConfig(network).packages.ikaSystemPackage
+					: null;
+
+			const packages: {
 				cursorId: number;
 				setupId: number;
 				pkg: string;
@@ -29,42 +37,42 @@ export class Processor {
 			}[] = [];
 
 			for (const pkg of nbtcPkgs) {
-				allPackages.push({
+				packages.push({
 					cursorId: pkg.id,
 					setupId: pkg.id,
 					pkg: pkg.nbtc_pkg,
 					module: "nbtc",
 					isCoordinator: false,
 				});
+			}
 
-				if (pkg.coordinator_pkg) {
-					allPackages.push({
-						cursorId: -pkg.id, // negative to keep cursors separate from nbtc cursors
-						setupId: pkg.id,
-						pkg: pkg.coordinator_pkg,
-						module: "coordinator_inner",
-						isCoordinator: true,
-					});
-				}
+			if (coordinatorPkg) {
+				packages.push({
+					cursorId: -1,
+					setupId: -1,
+					pkg: coordinatorPkg,
+					module: "coordinator_inner",
+					isCoordinator: true,
+				});
 			}
 
 			const cursors = await this.storage.getMultipleSuiGqlCursors(
-				allPackages.map((p) => p.cursorId),
+				packages.map((p) => p.cursorId),
 			);
 
 			let hasAnyNextPage = true;
 			while (hasAnyNextPage) {
-				const packages = allPackages.map((p) => ({
+				const fetchRequests = packages.map((p) => ({
 					id: p.pkg,
 					module: p.module,
 					cursor: cursors[p.cursorId] || null,
 				}));
 
-				const results = await this.eventFetcher.fetchEvents(packages);
+				const results = await this.eventFetcher.fetchEvents(fetchRequests);
 				const cursorsToSave: { setupId: number; cursor: string }[] = [];
 				hasAnyNextPage = false;
 
-				for (const p of allPackages) {
+				for (const p of packages) {
 					const key = `${p.pkg}::${p.module}`;
 					const result = results[key];
 					if (!result) continue;
@@ -91,7 +99,7 @@ export class Processor {
 							logError(
 								{
 									msg: "Failed to process events",
-									method: "pollAllEvents",
+									method: "pollEvents",
 									setupId: p.setupId,
 									module: p.module,
 								},
@@ -123,7 +131,7 @@ export class Processor {
 			logError(
 				{
 					msg: "Failed to index packages",
-					method: "pollAllEvents",
+					method: "pollEvents",
 					network: this.netCfg,
 				},
 				e,

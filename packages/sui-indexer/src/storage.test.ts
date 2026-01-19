@@ -108,7 +108,7 @@ async function insertSetup(
 	nbtcContract: string,
 	lcPkg: string,
 	lcContract: string,
-	suiFallbackAddress: string,
+	nbtcFallbackAddr: string,
 	isActive = 1,
 ) {
 	await database
@@ -124,7 +124,7 @@ async function insertSetup(
 			nbtcContract,
 			lcPkg,
 			lcContract,
-			suiFallbackAddress,
+			nbtcFallbackAddr,
 			isActive,
 		)
 		.run();

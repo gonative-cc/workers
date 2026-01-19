@@ -44,7 +44,7 @@ async function main() {
 			!entry.nbtc_contract ||
 			!entry.lc_pkg ||
 			!entry.lc_contract ||
-			!entry.sui_fallback_address ||
+			!entry.nbtc_fallback_addr ||
 			!entry.btc_address
 		) {
 			console.error("Invalid entry (missing fields)");
@@ -55,8 +55,8 @@ async function main() {
 		let setupId = await executeQuery<number>(checkSetupRowQuery, DB_NAME, local, "id");
 		if (!setupId) {
 			const insertPkgQuery = `
-				INSERT INTO setups (btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address)
-				VALUES ('${entry.btc_network}', '${entry.sui_network}', '${entry.nbtc_pkg}', '${entry.nbtc_contract}', '${entry.lc_pkg}', '${entry.lc_contract}', '${entry.sui_fallback_address}')
+				INSERT INTO setups (btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr)
+				VALUES ('${entry.btc_network}', '${entry.sui_network}', '${entry.nbtc_pkg}', '${entry.nbtc_contract}', '${entry.lc_pkg}', '${entry.lc_contract}', '${entry.nbtc_fallback_addr}')
 				RETURNING id
 			`;
 			setupId = await executeQuery<number>(insertPkgQuery, DB_NAME, local, "id");

@@ -60,7 +60,7 @@ flowchart-elk TB
     SGQL["Sui GraphQL"]
     USER["Sui wallet"]
   end
-    
+
   %% ==========
   %% BYield app
   %% ==========

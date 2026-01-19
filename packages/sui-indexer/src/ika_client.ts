@@ -19,8 +19,6 @@ import {
 } from "@mysten/sui/transactions";
 
 export interface IkaClient {
-	/** Returns the coin object ID for an IKA coin owned by the address */
-	selectIkaCoin(owner: string): Promise<string>;
 	getLatestNetworkEncryptionKeyId(): Promise<string>;
 	getCoordinatorId(): string;
 	getPresignCapId(presignId: string): Promise<string>;
@@ -106,11 +104,30 @@ export class IkaClientImp implements IkaClient {
 	}
 
 	private sortCoinsByBalance(coins: CoinStruct[]): CoinStruct[] {
-		return coins.sort((a, b) => {
+		return [...coins].sort((a, b) => {
 			const aBalance = BigInt(a.balance);
 			const bBalance = BigInt(b.balance);
 			return Number(bBalance - aBalance);
 		});
+	}
+
+	private selectBiggestCoins(
+		targetBalance: bigint,
+		coins: CoinStruct[],
+	): { selected: CoinStruct[]; ok: boolean } {
+		const sortedCoins = this.sortCoinsByBalance(coins);
+		const selected: CoinStruct[] = [];
+		let total = BigInt(0);
+
+		for (const coin of sortedCoins) {
+			selected.push(coin);
+			total += BigInt(coin.balance);
+			if (total >= targetBalance) {
+				return { selected, ok: true };
+			}
+		}
+
+		return { selected, ok: total >= targetBalance };
 	}
 	async prepareIkaCoin(
 		tx: Transaction,
@@ -135,30 +152,27 @@ export class IkaClientImp implements IkaClient {
 		}
 
 		if (totalBalance < targetBalance && allCoins.length > selectedCoins.length) {
-			const remainingCoins = allCoins.slice(selectedCoins.length);
-			const sortedRemainingCoins = this.sortCoinsByBalance(remainingCoins);
-
-			for (const coin of sortedRemainingCoins) {
-				selectedCoins.push(coin);
-				totalBalance += BigInt(coin.balance);
-				if (totalBalance >= targetBalance) {
-					break;
-				}
+			const { selected, ok } = this.selectBiggestCoins(
+				targetBalance - totalBalance,
+				allCoins.slice(selectedCoins.length),
+			);
+			if (!ok) {
+				throw new Error(
+					`Insufficient IKA balance. Required: ${targetBalance}, available: ${totalBalance}`,
+				);
 			}
-		}
-
-		if (totalBalance < targetBalance) {
+			selectedCoins.push(...selected);
+		} else if (totalBalance < targetBalance) {
 			throw new Error(
-				`Total balance ${totalBalance} is less than target balance ${targetBalance}`,
+				`Insufficient IKA balance. Required: ${targetBalance}, available: ${totalBalance}`,
 			);
 		}
 
 		if (selectedCoins.length === 1) {
-			const singleCoin = selectedCoins[0];
-			if (!singleCoin) {
-				throw new Error("No coin selected");
+			const coin = selectedCoins[0];
+			if (coin) {
+				return tx.object(coin.coinObjectId);
 			}
-			return tx.object(singleCoin.coinObjectId);
 		}
 
 		const [primaryCoin, ...coinsToMerge] = selectedCoins;
@@ -170,15 +184,6 @@ export class IkaClientImp implements IkaClient {
 
 		tx.mergeCoins(primaryCoinArg, coinToMergeArgs);
 		return primaryCoinArg;
-	}
-	async selectIkaCoin(owner: string): Promise<string> {
-		const allCoins = await this.fetchAllIkaCoins(owner);
-		const sortedCoins = this.sortCoinsByBalance(allCoins);
-		const largestCoin = sortedCoins[0];
-		if (!largestCoin) {
-			throw new Error("No coins available");
-		}
-		return largestCoin.coinObjectId;
 	}
 
 	async getLatestNetworkEncryptionKeyId(): Promise<string> {

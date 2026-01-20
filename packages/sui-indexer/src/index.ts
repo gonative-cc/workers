@@ -23,12 +23,12 @@ export default {
 		return router.fetch(request, env, ctx);
 	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-		const storage = new D1Storage(env.DB);
-		const activeNetworks = await storage.getActiveNetworks();
+		const storage = new D1Storage(env.DB, env.SETUP_ENV);
+		const activeNetworks = storage.getActiveNetworks();
 
 		// Run both indexer and redeem solver tasks in parallel
 		const results = await Promise.allSettled([
-			runSuiIndexer(storage, env, activeNetworks),
+			runSuiIndexer(storage, activeNetworks),
 			runRedeemSolver(storage, env, activeNetworks),
 		]);
 
@@ -37,7 +37,7 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-async function runSuiIndexer(storage: D1Storage, env: Env, activeNetworks: SuiNet[]) {
+async function runSuiIndexer(storage: D1Storage, activeNetworks: SuiNet[]) {
 	if (activeNetworks.length === 0) {
 		logger.info({ msg: "No active packages/networks found in database." });
 		return;
@@ -74,7 +74,7 @@ async function runSuiIndexer(storage: D1Storage, env: Env, activeNetworks: SuiNe
 
 async function poolAndProcessEvents(netCfg: NetworkConfig, storage: D1Storage) {
 	const client = new SuiGraphQLClient(netCfg.url);
-	const packages = await storage.getActiveNbtcPkgs(netCfg.name);
+	const packages = storage.getActiveNbtcPkgs(netCfg.name);
 	if (packages.length === 0) return;
 	logger.info({
 		msg: `Processing network`,
@@ -123,9 +123,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 	]);
 }
 
-/**
- * Helper function to report errors from `Promise.allSettled` results.
- */
+// Helper function to report errors from `Promise.allSettled` results.
 function reportErrors(
 	results: PromiseSettledResult<unknown>[],
 	method: string,

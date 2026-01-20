@@ -4,18 +4,19 @@ import { logger } from "@gonative-cc/lib/logger";
 
 export class SuiGraphQLClient {
 	private client: Client;
+	private readonly batchSize: number;
 
-	constructor(endpoint: string) {
+	constructor(endpoint: string, batchSize = 50) {
 		this.client = new Client({ url: endpoint });
+		this.batchSize = batchSize;
 	}
 
 	async checkMintedStatus(tableId: string, txIds: string[]): Promise<Set<string>> {
 		if (txIds.length === 0) return new Set();
 
 		const mintedTxIds = new Set<string>();
-		const BATCH_SIZE = 50;
-		for (let i = 0; i < txIds.length; i += BATCH_SIZE) {
-			const batch = txIds.slice(i, i + BATCH_SIZE);
+		for (let i = 0; i < txIds.length; i += this.batchSize) {
+			const batch = txIds.slice(i, i + this.batchSize);
 			const query = this.buildMintedCheckQuery(batch);
 			const variables = this.buildVariables(tableId, batch);
 

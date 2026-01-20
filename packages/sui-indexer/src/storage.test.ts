@@ -108,12 +108,12 @@ async function insertSetup(
 	nbtcContract: string,
 	lcPkg: string,
 	lcContract: string,
-	suiFallbackAddress: string,
+	nbtcFallbackAddr: string,
 	isActive = 1,
 ) {
 	await database
 		.prepare(
-			`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+			`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		.bind(
@@ -124,7 +124,7 @@ async function insertSetup(
 			nbtcContract,
 			lcPkg,
 			lcContract,
-			suiFallbackAddress,
+			nbtcFallbackAddr,
 			isActive,
 		)
 		.run();
@@ -432,13 +432,13 @@ describe("IndexerStorage", () => {
 	it("getActiveNetworks should return distinct active networks", async () => {
 		await db
 			.prepare(
-				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
                  VALUES (2, 'mainnet', 'mainnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 1)`,
 			)
 			.run();
 		await db
 			.prepare(
-				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+				`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
                  VALUES (3, 'testnet', 'testnet', '0xPkg3', '0xContract3', '0xLC3', '0xLCC3', '0xFallback3', 0)`,
 			)
 			.run();

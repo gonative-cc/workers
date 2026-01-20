@@ -316,7 +316,7 @@ export class Indexer {
 				});
 				let finalRecipient = suiRecipient;
 				if (!finalRecipient) {
-					finalRecipient = config.sui_fallback_address;
+					finalRecipient = config.nbtc_fallback_addr;
 				}
 
 				deposits.push({

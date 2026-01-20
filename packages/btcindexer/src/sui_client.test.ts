@@ -34,7 +34,7 @@ describe.skip("SuiClient: verifyBlocks Integration Test", () => {
 			lc_contract: LC_OBJECT_ID,
 			nbtc_pkg: "0x1",
 			nbtc_contract: "0x2",
-			sui_fallback_address: SUI_FALLBACK_ADDRESS,
+			nbtc_fallback_addr: SUI_FALLBACK_ADDRESS,
 			is_active: true,
 		};
 

@@ -160,7 +160,7 @@ export interface NbtcPkgCfg {
 	nbtc_contract: string;
 	lc_pkg: string;
 	lc_contract: string;
-	sui_fallback_address: string;
+	nbtc_fallback_addr: string;
 	// TODO: this is not needed. We should filter through DB and return only active pkgs.
 	is_active: boolean;
 }

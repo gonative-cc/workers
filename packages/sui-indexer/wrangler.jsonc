@@ -18,6 +18,7 @@
   "vars": {
     "UTXO_LOCK_TIME": 3600000, // 1 Hour
     "REDEEM_DURATION_MS": 300000, // 5 min
+    "IKA_UPPER_LIMIT": 100,
   },
   "services": [{ "binding": "BtcIndexer", "service": "btcindexer" }],
   "d1_databases": [

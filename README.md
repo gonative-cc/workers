@@ -50,53 +50,97 @@ Workers are based on the Cloudflare Workers framework.
 ### Architecture Diagram
 
 ```mermaid
-graph TB
-    subgraph "External Systems"
-        Bitcoin[Bitcoin Network]
-        Sui[Sui Network]
-        Relayer[Bitcoin Relayer]
-        UI[bYield UI]
-    end
+flowchart-elk TB
+  %% ================
+  %% External systems
+  %% ================
+  subgraph EXT["External systems"]
+    BTC["Bitcoin network"]
+    BTCI["Bitcoin  Electrs<br>(indexer)"]
+    SGQL["Sui GraphQL"]
+    USER["Sui wallet"]
+  end
 
-    subgraph "Native Workers Infrastructure"
-        BI[(BTCIndexer)]
-        BL[(Block-Ingestor)]
-        SI[(Sui Indexer)]
-    end
+  %% ==========
+  %% BYield app
+  %% ==========
+  subgraph BYIELD["BYield (gonative-cc/byield)"]
+    UI["BYield UI<br>(React Router app/)"]
+    APPW["BYield Edge backend<br>(Cloudflare Workers)"]
+    BYDB["BYield DB<br>(SQL + KV)"]
+  end
 
-    %% External to Workers flows
-    Bitcoin -->|sends blocks| Relayer
-    Relayer -->|submits blocks| BL
-    UI -->|queries status| BI
-    UI -->|requests redemption| SI
+  %% =======================
+  %% Native backend services
+  %% =======================
+  subgraph CF["Native Workers (gonative-cc/workers)"]
+    REL["Relayer"]
+    BL["Block-Ingestor<br>REST ingress"]
+    IDX["BTCIndexer<br>state machine + cron"]
+    SI["Sui-Indexer<br>poll/index Sui events"]
+    RS["Redeem-Solver<br>UTXO proposal engine"]
 
-    %% Block ingestion flow
-    BL -->|forwards blocks| BI
+    Q[("Cloudflare Queue")]
+    KV[("Cloudflare KV<br>(raw blocks)")]
+    D1[("Cloudflare D1<br>(state, config)")]
+  end
 
-    %% Bitcoin indexing flow
-    BI -->|detects nBTC deposits| BI
-    BI -->|mints nBTC| Sui
-    BI -->|verifies blocks| Sui
+  %% ==============
+  %% Sui on-chain
+  %% ==============
+  subgraph SUI["Native on Sui (gonative-cc/sui-native)"]
+    SPV["bitcoin_spv<br>(light client / verify headers)"]
+    NBTC["nBTC"]
+    SWAP["nbtc_swap<br>(nBTC<->SUI)"]
+    EXEC["bitcoin_executor<br>(mirroring + script execution)"]
+    NBTC --> SPV
+    EXEC --> SPV
+  end
 
-    %% Redemption flow
-    UI -->|initiates redemption| Sui
-    Sui -->|emits redemption events| SI
-    SI -->|monitors events & proposes UTXOs| Sui
+  %% =================
+  %% User / app access
+  %% =================
+  USER --> UI
+  UI <--> APPW
+  APPW <--> BYDB
 
-    %% Cross-component communication
-    BI -.-> BL
-    SI -.-> BI
+  USER -->|sign/submit tx| NBTC
+  USER -->|optional swap| SWAP
+  UI -->|read chain state| SGQL
 
-    style BI fill:#e1f5fe
-    style BL fill:#f3e5f5
-    style SI fill:#fff3e0
+  %% =================
+  %% Minting (BTC->Sui)
+  %% =================
+  BTC --> REL
+  REL -->|submits blocks| BL
+  BL -->|store raw blocks| KV
+  BL -->|enqueue heights/batches| Q
+  Q --> IDX
+
+  IDX -->|read blocks| KV
+
+  IDX -->|verify canonical chain| SPV
+  IDX -->|mint nBTC on Sui| NBTC
+
+  %% ====================
+  %% Redemption (Sui->BTC)
+  %% ====================
+  SI -->|poll events| SGQL
+  SI --> RS
+  RS -->|track tx confirmations| IDX
+
+  %% =========================
+  %% UI queries / observability
+  %% =========================
+  UI -->|status queries| IDX
+  UI -->|redeem assistance| RS
 ```
 
 ## Setup
 
 ### Dependencies
 
-- bun >= 1.20.0
+- bun >= 1.3
 - proper editorconfig mode setup in your editor!
 - Go (for Go API Client for the workers)
 

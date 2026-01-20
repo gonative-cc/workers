@@ -13,6 +13,7 @@ export interface SuiClientI {
 	verifyBlocks: (blockHashes: string[]) => Promise<boolean[]>;
 	mintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest]>;
 	tryMintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest] | null>;
+	getMintedTxsTableId: () => Promise<string>;
 }
 
 export type SuiClientConstructor = (config: NbtcPkgCfg) => SuiClientI;
@@ -78,6 +79,34 @@ export class SuiClient implements SuiClientI {
 			throw new Error("No return values from devInspectTransactionBlock");
 		}
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
+	}
+
+	async getMintedTxsTableId(): Promise<string> {
+		const result = await this.client.getObject({
+			id: this.config.nbtc_contract,
+			options: { showContent: true },
+		});
+		if (result.error || !result.data) {
+			throw new Error(`Failed to fetch NbtcContract object: ${result.error?.code}`);
+		}
+
+		const content = result.data.content;
+		if (!content || content.dataType !== "moveObject") {
+			throw new Error("NbtcContract object content is missing or not a moveObject");
+		}
+
+		const fields = content.fields as Record<string, unknown>;
+		const txIdsTable = fields.tx_ids as { fields?: { id?: { id?: string } } } | undefined;
+		if (
+			!txIdsTable ||
+			!txIdsTable.fields ||
+			!txIdsTable.fields.id ||
+			!txIdsTable.fields.id.id
+		) {
+			throw new Error("Failed to extract tx_ids table ID from NbtcContract object");
+		}
+
+		return txIdsTable.fields.id.id;
 	}
 
 	/**

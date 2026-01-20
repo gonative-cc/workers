@@ -191,14 +191,16 @@ export class RedeemService {
 		}
 
 		const message = computeBtcSighash(inputs, outputs, input.input_index);
+		const ika = client.ikaClient();
 
+		// TODO: in DB we should save completed presign objects, not IDs
 		let presignId = await this.storage.popPresignObject(req.sui_network);
 		if (!presignId) {
 			logger.debug({
 				msg: "No presign object in pool, creating new one",
 				redeemId: req.redeem_id,
 			});
-			presignId = await client.createGlobalPresign();
+			presignId = await client.requestIkaPresign();
 		} else {
 			logger.debug({
 				msg: "Using existing presign object from pool",
@@ -209,9 +211,10 @@ export class RedeemService {
 
 		let signId: string;
 		try {
-			const nbtcPublicSignature = await client.createUserSigMessage(
+			const presign = await ika.getCompletedPresign(presignId);
+			const nbtcPublicSignature = await ika.createUserSigMessage(
 				input.dwallet_id,
-				presignId,
+				presign,
 				message,
 			);
 

@@ -3,7 +3,7 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import { type IkaClient, IkaClientImp } from "./ika_client";
+import { type IkaClient, createIkaClient } from "./ika_client";
 import { nBTCContractModule, RedeemRequestModule } from "@gonative-cc/nbtc";
 
 export interface SuiClientCfg {
@@ -15,14 +15,10 @@ export interface SuiClientCfg {
 }
 
 export interface SuiClient {
+	ikaClient(): IkaClient;
 	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
-	createGlobalPresign(): Promise<string>;
-	createUserSigMessage(
-		dwalletId: string,
-		presignId: string,
-		message: Uint8Array,
-	): Promise<Uint8Array>;
+	requestIkaPresign(): Promise<string>;
 	requestInputSignature(
 		redeemId: number,
 		inputIdx: number,
@@ -41,20 +37,22 @@ export interface SuiClient {
 	getRedeemBtcTx(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<string>;
 }
 
-export class SuiClientImp implements SuiClient {
-	private client: Client;
+class SuiClientImp implements SuiClient {
+	#sui: Client;
+	#ika: IkaClient;
 	private signer: Ed25519Keypair;
-	private ikaClient: IkaClient;
-	private network: SuiNet;
 	private encryptionKeyId: string | null = null;
 	private ikaUpperLimit: number;
 
 	constructor(cfg: SuiClientCfg) {
-		this.client = cfg.client;
+		this.#sui = cfg.client;
 		this.signer = Ed25519Keypair.deriveKeypair(cfg.signerMnemonic);
-		this.network = cfg.network;
-		this.ikaClient = cfg.ikaClient;
+		this.#ika = cfg.ikaClient;
 		this.ikaUpperLimit = cfg.ikaUpperLimit;
+	}
+
+	ikaClient() {
+		return this.#ika;
 	}
 
 	async getRedeemBtcTx(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<string> {
@@ -89,7 +87,7 @@ export class SuiClientImp implements SuiClient {
 			}),
 		);
 
-		const result = await this.client.devInspectTransactionBlock({
+		const result = await this.#sui.devInspectTransactionBlock({
 			transactionBlock: tx,
 			sender: this.signer.toSuiAddress(),
 		});
@@ -123,7 +121,7 @@ export class SuiClientImp implements SuiClient {
 
 		tx.setGasBudget(100000000); // TODO: Move to config
 
-		const result = await this.client.signAndExecuteTransaction({
+		const result = await this.#sui.signAndExecuteTransaction({
 			signer: this.signer,
 			transaction: tx,
 			options: {
@@ -153,7 +151,7 @@ export class SuiClientImp implements SuiClient {
 
 		tx.setGasBudget(100000000); // TODO: Move to config
 
-		const result = await this.client.signAndExecuteTransaction({
+		const result = await this.#sui.signAndExecuteTransaction({
 			signer: this.signer,
 			transaction: tx,
 			options: {
@@ -168,24 +166,23 @@ export class SuiClientImp implements SuiClient {
 		return result.digest;
 	}
 
-	async createGlobalPresign(): Promise<string> {
+	async requestIkaPresign(): Promise<string> {
 		const tx = new Transaction();
-
-		const ikaCoin = await this.ikaClient.prepareIkaCoin(
+		const ikaCoin = await this.#ika.prepareIkaCoin(
 			tx,
 			this.signer.toSuiAddress(),
 			this.ikaUpperLimit,
 		);
 
 		if (!this.encryptionKeyId) {
-			const dWalletEncryptionKey = await this.ikaClient.getLatestNetworkEncryptionKeyId();
+			const dWalletEncryptionKey = await this.#ika.getLatestNetworkEncryptionKeyId();
 			this.encryptionKeyId = dWalletEncryptionKey;
 		}
 
 		// TODO: Implement recovery for unused presign objects.
 		// If the worker crashes after creating a presign but before using it, the presign object
 		// remains in the wallet, to be used. We should scan for it or save it in a db
-		const presignCap = this.ikaClient.requestGlobalPresign(
+		const presignCap = this.#ika.requestGlobalPresign(
 			tx,
 			ikaCoin,
 			tx.gas,
@@ -193,8 +190,7 @@ export class SuiClientImp implements SuiClient {
 		);
 
 		tx.transferObjects([presignCap], this.signer.toSuiAddress());
-
-		const result = await this.client.signAndExecuteTransaction({
+		const result = await this.#sui.signAndExecuteTransaction({
 			signer: this.signer,
 			transaction: tx,
 			options: { showEvents: true },
@@ -209,16 +205,8 @@ export class SuiClientImp implements SuiClient {
 			throw new Error("PresignRequestEvent not found");
 		}
 
-		const decoded = this.ikaClient.decodePresignRequestEvent(event.bcs as string);
+		const decoded = this.#ika.decodePresignRequestEvent(event.bcs as string);
 		return decoded.presign_id;
-	}
-
-	async createUserSigMessage(
-		dwalletId: string,
-		presignId: string,
-		message: Uint8Array,
-	): Promise<Uint8Array> {
-		return await this.ikaClient.createUserSigMessage(dwalletId, presignId, message);
 	}
 
 	async requestInputSignature(
@@ -231,15 +219,13 @@ export class SuiClientImp implements SuiClient {
 	): Promise<string> {
 		const tx = new Transaction();
 
-		const ikaCoin = await this.ikaClient.prepareIkaCoin(
+		const ikaCoin = await this.#ika.prepareIkaCoin(
 			tx,
 			this.signer.toSuiAddress(),
 			this.ikaUpperLimit,
 		);
-		const coordinatorId = this.ikaClient.getCoordinatorId();
-
-		const unverifiedPresignCap = await this.ikaClient.getPresignCapId(presignId);
-
+		const coordinatorId = this.#ika.getCoordinatorId();
+		const presign = await this.#ika.getCompletedPresign(presignId);
 		tx.add(
 			nBTCContractModule.requestUtxoSig({
 				package: nbtcPkg,
@@ -248,7 +234,7 @@ export class SuiClientImp implements SuiClient {
 					dwalletCoordinator: coordinatorId,
 					redeemId: redeemId,
 					inputId: inputIdx,
-					presign: unverifiedPresignCap,
+					presign: presign.cap_id,
 					paymentIka: ikaCoin,
 					msgCentralSig: Array.from(nbtcPublicSignature),
 					paymentSui: tx.gas,
@@ -256,7 +242,7 @@ export class SuiClientImp implements SuiClient {
 			}),
 		);
 
-		const result = await this.client.signAndExecuteTransaction({
+		const result = await this.#sui.signAndExecuteTransaction({
 			signer: this.signer,
 			transaction: tx,
 			options: { showEvents: true },
@@ -271,7 +257,7 @@ export class SuiClientImp implements SuiClient {
 			throw new Error("SignRequestEvent not found");
 		}
 
-		const decoded = this.ikaClient.decodeSignRequestEvent(event.bcs as string);
+		const decoded = this.#ika.decodeSignRequestEvent(event.bcs as string);
 		return decoded.sign_id;
 	}
 
@@ -283,7 +269,7 @@ export class SuiClientImp implements SuiClient {
 		nbtcContract: string,
 	): Promise<void> {
 		const tx = new Transaction();
-		const coordinatorId = this.ikaClient.getCoordinatorId();
+		const coordinatorId = this.#ika.getCoordinatorId();
 
 		tx.add(
 			nBTCContractModule.recordSignature({
@@ -298,7 +284,7 @@ export class SuiClientImp implements SuiClient {
 			}),
 		);
 
-		const result = await this.client.signAndExecuteTransaction({
+		const result = await this.#sui.signAndExecuteTransaction({
 			signer: this.signer,
 			transaction: tx,
 			options: {
@@ -321,7 +307,7 @@ export async function createSuiClients(
 	for (const net of activeNetworks) {
 		const url = getFullnodeUrl(net);
 		const mystenClient = new Client({ url });
-		const ikaClient = await IkaClientImp.create(net, mystenClient);
+		const ikaClient = await createIkaClient(net, mystenClient);
 		clients.set(
 			net,
 			new SuiClientImp({

@@ -1,5 +1,5 @@
 import {
-	IkaClient as SdkIkaClient,
+	IkaClient as IkaSdkClient,
 	IkaTransaction,
 	getNetworkConfig,
 	Curve,
@@ -9,6 +9,7 @@ import {
 	CoordinatorInnerModule,
 	type IkaConfig,
 	createUserSignMessageWithPublicOutput,
+	type PresignWithState,
 } from "@ika.xyz/sdk";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import type { CoinStruct, SuiClient as MystenClient } from "@mysten/sui/client";
@@ -21,16 +22,17 @@ import {
 export interface IkaClient {
 	getLatestNetworkEncryptionKeyId(): Promise<string>;
 	getCoordinatorId(): string;
-	getPresignCapId(presignId: string): Promise<string>;
 	prepareIkaCoin(
 		tx: Transaction,
 		owner: string,
 		maxCoins?: number,
 	): Promise<TransactionObjectArgument>;
 
+	// This function uses potentially unverified presignId, but in ikaClient.createUserSigMessage
+	// the SDK waits for completing the presign process.
 	createUserSigMessage(
 		dwalletId: string,
-		presignId: string,
+		presign: PresignWithState<"Completed">,
 		message: Uint8Array,
 	): Promise<Uint8Array>;
 
@@ -40,15 +42,23 @@ export interface IkaClient {
 		suiCoin: TransactionObjectArgument,
 		dwalletNetworkEncryptionKeyId: string,
 	): TransactionObjectArgument;
-
+	// getPresignInParticularState: IkaSdkClient["getPresignInParticularState"];
+	// waits until presign MPC is competed and returns the Presign object.
+	getCompletedPresign(presignId: string): Promise<PresignWithState<"Completed">>;
 	createSessionIdentifier(tx: Transaction): TransactionArgument;
 
 	decodePresignRequestEvent(bcs: string): { presign_id: string };
 	decodeSignRequestEvent(bcs: string): { sign_id: string };
 }
 
+export async function createIkaClient(network: SuiNet, client: MystenClient): Promise<IkaClient> {
+	const ika = new IkaClientImp(network, client);
+	await ika.initialize();
+	return ika;
+}
+
 export class IkaClientImp implements IkaClient {
-	private ikaClient: SdkIkaClient;
+	private ikaSdk: IkaSdkClient;
 	private ikaConfig: IkaConfig;
 
 	constructor(
@@ -60,21 +70,18 @@ export class IkaClientImp implements IkaClient {
 		}
 		this.ikaConfig = getNetworkConfig(network);
 
-		this.ikaClient = new SdkIkaClient({
+		this.ikaSdk = new IkaSdkClient({
 			suiClient: this.mystenClient,
 			config: this.ikaConfig,
 		});
+		// this.getPresignInParticularState = this.ikaSdk.getPresignInParticularState.bind(
+		// 	this.ikaSdk,
+		// );
 	}
 
-	static async create(network: SuiNet, mystenClient: MystenClient): Promise<IkaClient> {
-		const client = new IkaClientImp(network, mystenClient);
-		await client.initialize();
-		return client;
-	}
-
-	private async initialize(): Promise<void> {
-		if (this.ikaClient.initialize) {
-			await this.ikaClient.initialize();
+	async initialize(): Promise<void> {
+		if (this.ikaSdk.initialize) {
+			await this.ikaSdk.initialize();
 		}
 	}
 
@@ -187,28 +194,17 @@ export class IkaClientImp implements IkaClient {
 	}
 
 	async getLatestNetworkEncryptionKeyId(): Promise<string> {
-		const dWalletEncryptionKey = await this.ikaClient.getLatestNetworkEncryptionKey();
+		const dWalletEncryptionKey = await this.ikaSdk.getLatestNetworkEncryptionKey();
 		return dWalletEncryptionKey.id;
-	}
-
-	async getPresignCapId(presignId: string): Promise<string> {
-		const presign = await this.ikaClient.getPresignInParticularState(presignId, "Completed");
-		return presign.cap_id;
 	}
 
 	async createUserSigMessage(
 		dwalletId: string,
-		presignId: string,
+		presign: PresignWithState<"Completed">,
 		message: Uint8Array,
 	): Promise<Uint8Array> {
-		const dWallet = await this.ikaClient.getDWalletInParticularState(dwalletId, "Active");
-		// TODO: create presign objects upfront and use them
-		const presign = await this.ikaClient.getPresignInParticularState(presignId, "Completed", {
-			timeout: 60000,
-			interval: 1000,
-		});
-
-		const protocolPublicParameters = await this.ikaClient.getProtocolPublicParameters(
+		const dWallet = await this.ikaSdk.getDWalletInParticularState(dwalletId, "Active");
+		const protocolPublicParameters = await this.ikaSdk.getProtocolPublicParameters(
 			dWallet,
 			Curve.SECP256K1,
 		);
@@ -238,7 +234,7 @@ export class IkaClientImp implements IkaClient {
 		dwalletNetworkEncryptionKeyId: string,
 	): TransactionObjectArgument {
 		const ikaTx = new IkaTransaction({
-			ikaClient: this.ikaClient,
+			ikaClient: this.ikaSdk,
 			transaction: tx,
 		});
 
@@ -251,9 +247,16 @@ export class IkaClientImp implements IkaClient {
 		});
 	}
 
+	getCompletedPresign(presignId: string): Promise<PresignWithState<"Completed">> {
+		return this.ikaSdk.getPresignInParticularState(presignId, "Completed", {
+			timeout: 60000,
+			interval: 1000,
+		});
+	}
+
 	createSessionIdentifier(tx: Transaction): TransactionArgument {
 		const ikaTx = new IkaTransaction({
-			ikaClient: this.ikaClient,
+			ikaClient: this.ikaSdk,
 			transaction: tx,
 		});
 		return ikaTx.createSessionIdentifier();

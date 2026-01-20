@@ -652,6 +652,40 @@ export class D1Storage {
 		};
 	}
 
+	async getRedeemInfoBySignId(signId: string): Promise<{
+		redeem_id: number;
+		utxo_id: number;
+		input_index: number;
+		nbtc_pkg: string;
+		nbtc_contract: string;
+		sui_network: SuiNet;
+	} | null> {
+		const query = `
+			SELECT s.redeem_id, s.utxo_id, s.input_index,p.nbtc_pkg, p.nbtc_contract, p.sui_network
+			FROM nbtc_redeem_solutions s
+			JOIN nbtc_redeem_requests r ON s.redeem_id = r.redeem_id
+			JOIN setups p ON r.setup_id = p.id
+			WHERE s.sign_id = ?
+		`;
+		const result = await this.db.prepare(query).bind(signId).first<{
+			redeem_id: number;
+			utxo_id: number;
+			input_index: number;
+			nbtc_pkg: string;
+			nbtc_contract: string;
+			sui_network: string;
+		}>();
+
+		if (!result) {
+			return null;
+		}
+
+		return {
+			...result,
+			sui_network: result.sui_network as SuiNet,
+		};
+	}
+
 	async getSignedRedeems(): Promise<RedeemRequestWithNetwork[]> {
 		const query = `
             SELECT

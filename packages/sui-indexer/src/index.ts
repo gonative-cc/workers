@@ -5,7 +5,7 @@ import { Processor } from "./processor";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { RedeemService } from "./redeem-service";
-import { createSuiClients } from "./redeem-sui-client";
+import { createSuiClients, type SuiClient } from "./redeem-sui-client";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
@@ -26,18 +26,34 @@ export default {
 		const storage = new D1Storage(env.DB);
 		const activeNetworks = await storage.getActiveNetworks();
 
-		// Run both indexer and redeem solver tasks in parallel
+		let suiClients: Map<SuiNet, SuiClient> | undefined;
+		try {
+			const mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
+			if (mnemonic) {
+				suiClients = await createSuiClients(activeNetworks, mnemonic, env.IKA_UPPER_LIMIT);
+			}
+		} catch (error) {
+			logger.warn({
+				msg: "Failed to create SuiClients, indexer will skip signature recording",
+				error,
+			});
+		}
+
 		const results = await Promise.allSettled([
-			runSuiIndexer(storage, env, activeNetworks),
-			runRedeemSolver(storage, env, activeNetworks),
+			runSuiIndexer(storage, env, activeNetworks, suiClients),
+			runRedeemSolver(storage, env, activeNetworks, suiClients),
 		]);
 
-		// Check for any rejected promises and log errors
 		reportErrors(results, "scheduled", "Scheduled task error", ["SuiIndexer", "RedeemSolver"]);
 	},
 } satisfies ExportedHandler<Env>;
 
-async function runSuiIndexer(storage: D1Storage, env: Env, activeNetworks: SuiNet[]) {
+async function runSuiIndexer(
+	storage: D1Storage,
+	_env: Env,
+	activeNetworks: SuiNet[],
+	suiClients?: Map<SuiNet, SuiClient>,
+) {
 	if (activeNetworks.length === 0) {
 		logger.info({ msg: "No active packages/networks found in database." });
 		return;
@@ -61,7 +77,9 @@ async function runSuiIndexer(storage: D1Storage, env: Env, activeNetworks: SuiNe
 		networks: networksToProcess.map((n) => n.name),
 	});
 
-	const networkJobs = networksToProcess.map((netCfg) => poolAndProcessEvents(netCfg, storage));
+	const networkJobs = networksToProcess.map((netCfg) =>
+		poolAndProcessEvents(netCfg, storage, suiClients),
+	);
 	const results = await Promise.allSettled(networkJobs);
 	reportErrors(
 		results,
@@ -72,7 +90,11 @@ async function runSuiIndexer(storage: D1Storage, env: Env, activeNetworks: SuiNe
 	);
 }
 
-async function poolAndProcessEvents(netCfg: NetworkConfig, storage: D1Storage) {
+async function poolAndProcessEvents(
+	netCfg: NetworkConfig,
+	storage: D1Storage,
+	suiClients?: Map<SuiNet, SuiClient>,
+) {
 	const client = new SuiGraphQLClient(netCfg.url);
 	const packages = await storage.getActiveNbtcPkgs(netCfg.name);
 	if (packages.length === 0) return;
@@ -81,41 +103,37 @@ async function poolAndProcessEvents(netCfg: NetworkConfig, storage: D1Storage) {
 		network: netCfg.name,
 		packageCount: packages.length,
 	});
-	const p = new Processor(netCfg, storage, client);
+	const p = new Processor(netCfg, storage, client, suiClients);
 	await p.pollEvents(packages);
 }
 
-async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: SuiNet[]) {
+async function runRedeemSolver(
+	storage: D1Storage,
+	env: Env,
+	_activeNetworks: SuiNet[],
+	suiClients?: Map<SuiNet, SuiClient>,
+) {
 	logger.info({ msg: "Running scheduled redeem solver task..." });
-	let mnemonic: string;
-	try {
-		mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
-	} catch (error) {
-		logger.error({ msg: "Failed to retrieve NBTC_MINTING_SIGNER_MNEMONIC", error });
+
+	if (!suiClients || suiClients.size === 0) {
+		logger.warn({ msg: "No SuiClients available, skipping redeem solver" });
 		return;
 	}
-	if (!mnemonic) {
-		logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
-		return;
-	}
-	const clients = await createSuiClients(activeNetworks, mnemonic, env.IKA_UPPER_LIMIT);
+
 	const service = new RedeemService(
 		storage,
-		clients,
+		suiClients,
 		env.BtcIndexer as unknown as Service<BtcIndexerRpc & WorkerEntrypoint>,
 		env.UTXO_LOCK_TIME,
 		env.REDEEM_DURATION_MS,
 	);
 
 	const results = await Promise.allSettled([
-		service.processPendingRedeems(), // propose a solution
-		service
-			.solveReadyRedeems() // trigger status change
-			.then(() => service.processSolvedRedeems()), // request signatures
-		service.broadcastReadyRedeems(), // broadcast fully signed txs
+		service.processPendingRedeems(),
+		service.solveReadyRedeems().then(() => service.processSolvedRedeems()),
+		service.broadcastReadyRedeems(),
 	]);
 
-	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
 		"processPendingRedeems",
 		"solveReadyRedeems/processSolvedRedeems",

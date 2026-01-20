@@ -4,16 +4,25 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
 import { getNetworkConfig } from "@ika.xyz/sdk";
+import type { SuiClient } from "./redeem-sui-client";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class Processor {
 	netCfg: NetworkConfig;
 	storage: D1Storage;
 	eventFetcher: EventFetcher;
+	suiClients?: Map<SuiNet, SuiClient>;
 
-	constructor(netCfg: NetworkConfig, storage: D1Storage, eventFetcher: EventFetcher) {
+	constructor(
+		netCfg: NetworkConfig,
+		storage: D1Storage,
+		eventFetcher: EventFetcher,
+		suiClients?: Map<SuiNet, SuiClient>,
+	) {
 		this.netCfg = netCfg;
 		this.storage = storage;
 		this.eventFetcher = eventFetcher;
+		this.suiClients = suiClients;
 	}
 
 	// Polls events (nBTC + Ika coordinator) from multiple packages
@@ -88,7 +97,11 @@ export class Processor {
 					let processingSucceeded = true;
 					if (result.events.length > 0) {
 						try {
-							const handler = new SuiEventHandler(this.storage, p.setupId);
+							const handler = new SuiEventHandler(
+								this.storage,
+								p.setupId,
+								this.suiClients,
+							);
 							if (p.isCoordinator) {
 								await handler.handleIkaEvents(result.events);
 							} else {

@@ -12,14 +12,18 @@ import {
 } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
+import type { SuiClient } from "./redeem-sui-client";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class SuiEventHandler {
 	private storage: D1Storage;
 	private setupId: number;
+	private suiClients?: Map<SuiNet, SuiClient>;
 
-	constructor(storage: D1Storage, setupId: number) {
+	constructor(storage: D1Storage, setupId: number, suiClients?: Map<SuiNet, SuiClient>) {
 		this.storage = storage;
 		this.setupId = setupId;
+		this.suiClients = suiClients;
 	}
 
 	public async handleEvents(events: SuiEventNode[]) {
@@ -145,23 +149,74 @@ export class SuiEventHandler {
 			is_future_sign: data.is_future_sign,
 			signature_length: data.signature.length,
 			txDigest: e.txDigest,
-			setupId: this.setupId,
 		});
 
-		// TODO: Call redeem_solver service binding to record signature
+		const redeemInfo = await this.storage.getRedeemInfoBySignId(data.sign_id);
+		if (!redeemInfo) {
+			logger.debug({
+				msg: "Sign ID not found in our redeems, ignoring",
+				sign_id: data.sign_id,
+			});
+			return;
+		}
+
+		if (!this.suiClients) {
+			logger.warn({
+				msg: "No SuiClients available to record signature",
+				sign_id: data.sign_id,
+				redeem_id: redeemInfo.redeem_id,
+			});
+			return;
+		}
+
+		const client = this.suiClients.get(redeemInfo.sui_network);
+		if (!client) {
+			logger.warn({
+				msg: "No SuiClient for network",
+				network: redeemInfo.sui_network,
+				sign_id: data.sign_id,
+			});
+			return;
+		}
+
+		// Record the signature on-chain (moved from redeem-service.ts recordIkaSig)
+		await client.validateSignature(
+			redeemInfo.redeem_id,
+			redeemInfo.input_index,
+			data.sign_id,
+			redeemInfo.nbtc_pkg,
+			redeemInfo.nbtc_contract,
+		);
+
+		await this.storage.markRedeemInputVerified(redeemInfo.redeem_id, redeemInfo.utxo_id);
+
+		logger.info({
+			msg: "Recorded Ika signature",
+			redeem_id: redeemInfo.redeem_id,
+			utxo_id: redeemInfo.utxo_id,
+			sign_id: data.sign_id,
+		});
 	}
 
 	private async handleRejectedSign(e: SuiEventNode) {
 		const data = e.json as IkaRejectedSignEventRaw;
 
+		const redeemInfo = await this.storage.getRedeemInfoBySignId(data.sign_id);
+		if (!redeemInfo) {
+			logger.debug({
+				msg: "Rejected sign ID not found in our redeems, ignoring",
+				sign_id: data.sign_id,
+			});
+			return;
+		}
+
 		logger.warn({
 			msg: "Ika signature rejected",
 			sign_id: data.sign_id,
 			is_future_sign: data.is_future_sign,
+			redeem_id: redeemInfo.redeem_id,
+			utxo_id: redeemInfo.utxo_id,
 			txDigest: e.txDigest,
-			setupId: this.setupId,
 		});
-
-		// TODO: Call redeem_solver service binding to mark signature as rejected
 	}
 }

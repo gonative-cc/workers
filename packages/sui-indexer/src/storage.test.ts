@@ -693,4 +693,48 @@ describe("IndexerStorage", () => {
 		expect(inputs[0]!.input_index).toBe(0);
 		expect(inputs[1]!.input_index).toBe(1);
 	});
+
+	it("getRedeemInfoBySignId should return redeem info when sign_id exists", async () => {
+		await insertRedeemRequest(
+			indexerStorage,
+			1,
+			"redeemer1",
+			recipientScript,
+			3000,
+			1000,
+			"0xSuiTx1",
+		);
+		await insertUtxo(
+			indexerStorage,
+			1,
+			depositAddress1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		await storage.updateRedeemInputSig(1, 1, "signId123");
+
+		const result = await storage.getRedeemInfoBySignId("signId123");
+
+		expect(result).not.toBeNull();
+		expect(result!.redeem_id).toBe(1);
+		expect(result!.utxo_id).toBe(1);
+		expect(result!.input_index).toBe(0);
+		expect(result!.nbtc_pkg).toBe("0xPkg1");
+		expect(result!.nbtc_contract).toBe("0xContract1");
+		expect(result!.sui_network).toBe(toSuiNet("devnet"));
+	});
 });

@@ -268,18 +268,22 @@ export class SuiClientImp implements SuiClient {
 		const tx = new Transaction();
 		const coordinatorId = this.ikaClient.getCoordinatorId();
 
-		for (const input of inputs) {
-			tx.moveCall({
-				target: `${nbtcPkg}::nbtc::record_signature`,
-				arguments: [
-					tx.object(nbtcContract),
-					tx.object(coordinatorId),
-					tx.pure.u64(redeemId),
-					tx.pure.u64(input.inputIdx),
-					tx.object(input.signId),
-				],
-			});
-		}
+		tx.moveCall({
+			target: `${nbtcPkg}::nbtc::record_signature`,
+			arguments: [
+				tx.object(nbtcContract),
+				tx.object(coordinatorId),
+				tx.pure.u64(redeemId),
+				tx.pure.vector(
+					"u64",
+					inputs.map((i) => i.inputIdx),
+				),
+				tx.pure.vector(
+					"address",
+					inputs.map((i) => i.signId),
+				),
+			],
+		});
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,

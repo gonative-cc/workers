@@ -111,31 +111,45 @@ export class RedeemService {
 
 	private async processSolvedRedeem(req: RedeemRequestWithInputs) {
 		const client = this.getSuiClient(req.sui_network);
+		const inputsToVerify: RedeemInput[] = [];
 
 		for (const input of req.inputs) {
-			if (!input.sign_id) {
-				try {
+			try {
+				if (!input.sign_id) {
 					await this.requestIkaSig(client, req, input);
-				} catch (e) {
-					logError(
-						{
-							msg: "Failed to request signature",
-							method: "processSolvedRedeem",
-							redeemId: req.redeem_id,
-							utxoId: input.utxo_id,
-						},
-						e,
-					);
+				} else if (input.sign_id && !input.verified) {
+					inputsToVerify.push(input);
 				}
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to process input",
+						method: "processSolvedRedeem",
+						redeemId: req.redeem_id,
+						utxoId: input.utxo_id,
+						step: !input.sign_id ? "request_signature" : "verify_signature",
+					},
+					e,
+				);
 			}
 		}
-		const inputsToValidate = req.inputs.filter((input) => input.sign_id && !input.verified);
 
-		if (inputsToValidate.length > 0) {
-			await this.recordBatchIkaSig(client, req, inputsToValidate);
+		if (inputsToVerify.length > 0) {
+			try {
+				await this.recordBatchIkaSig(client, req, inputsToVerify);
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to batch verify signatures",
+						method: "processSolvedRedeem",
+						redeemId: req.redeem_id,
+						count: inputsToVerify.length,
+					},
+					e,
+				);
+			}
 		}
 	}
-
 	// TODO: handle front runs
 	private async requestIkaSig(
 		client: SuiClient,
@@ -218,6 +232,7 @@ export class RedeemService {
 			signId: signId,
 		});
 	}
+
 	private async recordBatchIkaSig(
 		client: SuiClient,
 		req: RedeemRequestWithInputs,
@@ -226,38 +241,27 @@ export class RedeemService {
 		const inputsData = inputs.map((input) => ({
 			inputIdx: input.input_index,
 			signId: input.sign_id as string,
-			utxoId: input.utxo_id,
 		}));
 
-		try {
-			await client.validateSignatures(
-				req.redeem_id,
-				inputsData,
-				req.nbtc_pkg,
-				req.nbtc_contract,
-			);
-			for (const input of inputsData) {
-				await this.storage.markRedeemInputVerified(req.redeem_id, input.utxoId);
-			}
+		logger.info({
+			msg: "Batch verifying signatures",
+			redeemId: req.redeem_id,
+			count: inputs.length,
+		});
 
-			logger.info({
-				msg: "Batch validated signatures",
-				redeemId: req.redeem_id,
-				count: inputsData.length,
-			});
-		} catch (e) {
-			logError(
-				{
-					msg: "Failed to batch validate signatures",
-					method: "recordBatchIkaSig",
-					redeemId: req.redeem_id,
-					count: inputsData.length,
-				},
-				e,
-			);
-			throw e;
+		await client.validateSignatures(req.redeem_id, inputsData, req.nbtc_pkg, req.nbtc_contract);
+
+		for (const input of inputs) {
+			await this.storage.markRedeemInputVerified(req.redeem_id, input.utxo_id);
 		}
+
+		logger.info({
+			msg: "Signatures verified",
+			redeemId: req.redeem_id,
+			count: inputs.length,
+		});
 	}
+
 	private getSuiClient(suiNet: SuiNet): SuiClient {
 		const c = this.clients.get(suiNet);
 		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);

@@ -197,8 +197,8 @@ describe("IndexerStorage", () => {
 		const net1 = "testnet";
 		const net2 = "mainnet";
 
-		await storage.savePresignObject(presignId1, net1);
-		await storage.savePresignObject(presignId2, net2);
+		await storage.insertPresignObject(presignId1, net1);
+		await storage.insertPresignObject(presignId2, net2);
 
 		const popped1 = await storage.popPresignObject(net1);
 		expect(popped1).toBe(presignId1);

@@ -252,7 +252,7 @@ export class D1Storage {
 		return result?.presign_id || null;
 	}
 
-	async savePresignObject(presignId: string, network: SuiNet): Promise<void> {
+	async insertPresignObject(presignId: string, network: SuiNet): Promise<void> {
 		await this.db
 			.prepare(
 				"INSERT INTO presign_objects (presign_id, sui_network, created_at) VALUES (?, ?, ?)",

@@ -194,13 +194,13 @@ export class RedeemService {
 
 		let presignId = await this.storage.popPresignObject(req.sui_network);
 		if (!presignId) {
-			logger.info({
+			logger.debug({
 				msg: "No presign object in pool, creating new one",
 				redeemId: req.redeem_id,
 			});
 			presignId = await client.createGlobalPresign();
 		} else {
-			logger.info({
+			logger.debug({
 				msg: "Using existing presign object from pool",
 				redeemId: req.redeem_id,
 				presignId,
@@ -230,13 +230,13 @@ export class RedeemService {
 				presignId,
 				error: e,
 			});
-			await this.storage.savePresignObject(presignId, req.sui_network);
+			await this.storage.insertPresignObject(presignId, req.sui_network);
 			throw e;
 		}
 
 		try {
 			await this.storage.updateRedeemInputSig(req.redeem_id, input.utxo_id, signId);
-			logger.info({
+			logger.debug({
 				msg: "Requested signature",
 				redeemId: req.redeem_id,
 				utxoId: input.utxo_id,

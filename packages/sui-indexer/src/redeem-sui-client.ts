@@ -4,6 +4,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { type IkaClient, IkaClientImp } from "./ika_client";
+import { nBTCContractModule, RedeemRequestModule } from "@gonative-cc/nbtc";
 
 export interface SuiClientCfg {
 	network: SuiNet;
@@ -59,20 +60,34 @@ export class SuiClientImp implements SuiClient {
 	async getRedeemBtcTx(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<string> {
 		const tx = new Transaction();
 
-		const redeem = tx.moveCall({
-			target: `${nbtcPkg}::nbtc::redeem_request`,
-			arguments: [tx.object(nbtcContract), tx.pure.u64(redeemId)],
-		});
+		const redeem = tx.add(
+			nBTCContractModule.redeemRequest({
+				package: nbtcPkg,
+				arguments: {
+					contract: nbtcContract,
+					redeemId: redeemId,
+				},
+			}),
+		);
 
-		const storage = tx.moveCall({
-			target: `${nbtcPkg}::nbtc::storage`,
-			arguments: [tx.object(nbtcContract)],
-		});
+		const storage = tx.add(
+			nBTCContractModule.storage({
+				package: nbtcPkg,
+				arguments: {
+					contract: nbtcContract,
+				},
+			}),
+		);
 
-		tx.moveCall({
-			target: `${nbtcPkg}::redeem_request::raw_signed_tx`,
-			arguments: [redeem, storage],
-		});
+		tx.add(
+			RedeemRequestModule.composeTx({
+				package: nbtcPkg,
+				arguments: {
+					r: redeem,
+					storage: storage,
+				},
+			}),
+		);
 
 		const result = await this.client.devInspectTransactionBlock({
 			transactionBlock: tx,
@@ -94,17 +109,17 @@ export class SuiClientImp implements SuiClient {
 
 	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {
 		const tx = new Transaction();
-		const target = `${args.nbtcPkg}::nbtc::propose_utxos`;
-		tx.moveCall({
-			target: target,
-			arguments: [
-				tx.object(args.nbtcContract),
-				tx.pure.u64(args.redeemId),
-				tx.pure.vector("u64", args.utxoIds), // utxo_ids
-				tx.pure.vector("address", args.dwalletIds), // dwallet_ids
-				tx.object("0x6"), // clock
-			],
-		});
+
+		tx.add(
+			nBTCContractModule.proposeUtxos({
+				package: args.nbtcPkg,
+				arguments: {
+					contract: args.nbtcContract,
+					redeemId: args.redeemId,
+					utxoIds: args.utxoIds.map((u) => BigInt(u)),
+				},
+			}),
+		);
 
 		tx.setGasBudget(100000000); // TODO: Move to config
 
@@ -125,15 +140,16 @@ export class SuiClientImp implements SuiClient {
 
 	async solveRedeemRequest(args: SolveRedeemCall): Promise<string> {
 		const tx = new Transaction();
-		const target = `${args.nbtcPkg}::nbtc::finalize_redeem_request`; // TODO: for the next deployment change to solve_redeem_request
-		tx.moveCall({
-			target: target,
-			arguments: [
-				tx.object(args.nbtcContract),
-				tx.pure.u64(args.redeemId),
-				tx.object("0x6"), // clock
-			],
-		});
+
+		tx.add(
+			nBTCContractModule.solveRedeemRequest({
+				package: args.nbtcPkg,
+				arguments: {
+					contract: args.nbtcContract,
+					redeemId: args.redeemId,
+				},
+			}),
+		);
 
 		tx.setGasBudget(100000000); // TODO: Move to config
 
@@ -223,22 +239,22 @@ export class SuiClientImp implements SuiClient {
 		const coordinatorId = this.ikaClient.getCoordinatorId();
 
 		const unverifiedPresignCap = await this.ikaClient.getPresignCapId(presignId);
-		const sessionIdentifier = this.ikaClient.createSessionIdentifier(tx);
 
-		tx.moveCall({
-			target: `${nbtcPkg}::nbtc::request_utxo_sig`,
-			arguments: [
-				tx.object(nbtcContract),
-				tx.object(coordinatorId),
-				tx.pure.u64(redeemId),
-				tx.pure.u64(inputIdx),
-				tx.pure.vector("u8", nbtcPublicSignature),
-				tx.object(unverifiedPresignCap),
-				sessionIdentifier,
-				ikaCoin,
-				tx.gas,
-			],
-		});
+		tx.add(
+			nBTCContractModule.requestUtxoSig({
+				package: nbtcPkg,
+				arguments: {
+					contract: nbtcContract,
+					dwalletCoordinator: coordinatorId,
+					redeemId: redeemId,
+					inputId: inputIdx,
+					presign: unverifiedPresignCap,
+					paymentIka: ikaCoin,
+					msgCentralSig: Array.from(nbtcPublicSignature),
+					paymentSui: tx.gas,
+				},
+			}),
+		);
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,
@@ -269,16 +285,18 @@ export class SuiClientImp implements SuiClient {
 		const tx = new Transaction();
 		const coordinatorId = this.ikaClient.getCoordinatorId();
 
-		tx.moveCall({
-			target: `${nbtcPkg}::nbtc::record_signature`,
-			arguments: [
-				tx.object(nbtcContract),
-				tx.object(coordinatorId),
-				tx.pure.u64(redeemId),
-				tx.pure.u64(inputIdx),
-				tx.object(signId),
-			],
-		});
+		tx.add(
+			nBTCContractModule.recordSignature({
+				package: nbtcPkg,
+				arguments: {
+					contract: nbtcContract,
+					dwalletCoordinator: coordinatorId,
+					redeemId: redeemId,
+					inputIds: inputIdx,
+					signIds: [signId],
+				},
+			}),
+		);
 
 		const result = await this.client.signAndExecuteTransaction({
 			signer: this.signer,

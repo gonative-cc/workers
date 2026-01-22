@@ -192,29 +192,69 @@ export class RedeemService {
 
 		const message = computeBtcSighash(inputs, outputs, input.input_index);
 
-		const presignId = await client.createGlobalPresign();
-		const nbtcPublicSignature = await client.createUserSigMessage(
-			input.dwallet_id,
-			presignId,
-			message,
-		);
+		let presignId = await this.storage.popPresignObject(req.sui_network);
+		if (!presignId) {
+			logger.debug({
+				msg: "No presign object in pool, creating new one",
+				redeemId: req.redeem_id,
+			});
+			presignId = await client.createGlobalPresign();
+		} else {
+			logger.debug({
+				msg: "Using existing presign object from pool",
+				redeemId: req.redeem_id,
+				presignId,
+			});
+		}
 
-		const signId = await client.requestInputSignature(
-			req.redeem_id,
-			input.input_index,
-			nbtcPublicSignature,
-			presignId,
-			req.nbtc_pkg,
-			req.nbtc_contract,
-		);
+		let signId: string;
+		try {
+			const nbtcPublicSignature = await client.createUserSigMessage(
+				input.dwallet_id,
+				presignId,
+				message,
+			);
 
-		await this.storage.updateRedeemInputSig(req.redeem_id, input.utxo_id, signId);
-		logger.info({
-			msg: "Requested signature",
-			redeemId: req.redeem_id,
-			utxoId: input.utxo_id,
-			signId: signId,
-		});
+			signId = await client.requestInputSignature(
+				req.redeem_id,
+				input.input_index,
+				nbtcPublicSignature,
+				presignId,
+				req.nbtc_pkg,
+				req.nbtc_contract,
+			);
+		} catch (e) {
+			logger.warn({
+				msg: "Failed to request signature, returning presign object to pool",
+				redeemId: req.redeem_id,
+				presignId,
+				error: e,
+			});
+			await this.storage.insertPresignObject(presignId, req.sui_network);
+			throw e;
+		}
+
+		try {
+			await this.storage.updateRedeemInputSig(req.redeem_id, input.utxo_id, signId);
+			logger.debug({
+				msg: "Requested signature",
+				redeemId: req.redeem_id,
+				utxoId: input.utxo_id,
+				signId: signId,
+			});
+		} catch (e) {
+			// Here the presign is already consumed so we should not attempt to save it back to the DB.
+			logError(
+				{
+					msg: "Failed to record signature ID in DB",
+					method: "requestIkaSig",
+					redeemId: req.redeem_id,
+					signId,
+				},
+				e,
+			);
+			throw e;
+		}
 	}
 
 	private async recordIkaSig(

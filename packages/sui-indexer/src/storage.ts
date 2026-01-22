@@ -241,6 +241,26 @@ export class D1Storage {
 		return results.map((r) => toSuiNet(r.sui_network));
 	}
 
+	async popPresignObject(network: SuiNet): Promise<string | null> {
+		const result = await this.db
+			.prepare(
+				"DELETE FROM presign_objects WHERE presign_id = (SELECT presign_id FROM presign_objects WHERE sui_network = ? ORDER BY created_at ASC LIMIT 1) RETURNING presign_id",
+			)
+			.bind(network)
+			.first<{ presign_id: string }>();
+
+		return result?.presign_id || null;
+	}
+
+	async savePresignObject(presignId: string, network: SuiNet): Promise<void> {
+		await this.db
+			.prepare(
+				"INSERT INTO presign_objects (presign_id, sui_network, created_at) VALUES (?, ?, ?)",
+			)
+			.bind(presignId, network, Date.now())
+			.run();
+	}
+
 	async hasRedeemRequest(redeemId: number): Promise<boolean> {
 		const ok = await this.db
 			.prepare("SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?")

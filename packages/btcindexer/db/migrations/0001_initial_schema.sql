@@ -138,3 +138,11 @@ CREATE TABLE IF NOT EXISTS indexer_state (
 	updated_at INTEGER, -- epoch time in ms
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;
+
+CREATE TABLE IF NOT EXISTS presign_objects (
+	presign_id TEXT NOT NULL PRIMARY KEY,
+	sui_network TEXT NOT NULL,
+	created_at INTEGER NOT NULL
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS presign_objects_sui_network_created_at ON presign_objects(sui_network, created_at);

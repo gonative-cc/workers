@@ -172,7 +172,8 @@ export async function setupTestIndexerSuite(
 	const indexerStorage = new D1Storage(db);
 
 	const mockSuiIndexerService = {
-		getBroadcastedRedeemTxIds: () => indexerStorage.getBroadcastedBtcTxIds(),
+		getBroadcastedRedeemTxIds: (network: string) =>
+			indexerStorage.getBroadcastedBtcRedeemTxIds(network),
 		confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) =>
 			indexerStorage.confirmRedeem(txIds, blockHeight, blockHash),
 		finalizeRedeem: () => Promise.resolve(),

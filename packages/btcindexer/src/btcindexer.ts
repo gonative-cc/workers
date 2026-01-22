@@ -1,14 +1,15 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
 import { BtcNet, type BlockQueueRecord, calculateConfirmations } from "@gonative-cc/lib/nbtc";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
-
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import { SuiClient, type SuiClientI } from "./sui_client";
+import { SuiGraphQLClient } from "./graphql-client";
 import type {
 	Deposit,
 	PendingTx,
@@ -349,14 +350,83 @@ export class Indexer {
 		if (!finalizedTxs || finalizedTxs.length === 0) {
 			return;
 		}
+
+		const txsToProcess = await this.filterAlreadyMinted(finalizedTxs);
+
+		if (txsToProcess.length === 0) {
+			logger.info({ msg: "No new deposits to process after front-run check" });
+			return;
+		}
+
 		logger.info({
 			msg: "Minting: Found deposits to process",
-			count: finalizedTxs.length,
+			count: txsToProcess.length,
 		});
 
-		const txsByBlock = this.groupTransactionsByBlock(finalizedTxs);
+		const txsByBlock = this.groupTransactionsByBlock(txsToProcess);
 		const { batches } = await this.prepareMintBatches(txsByBlock);
 		await this.executeMintBatches(batches);
+	}
+
+	// Filters out txs that have already been minted on-chain and updates the database (front-run detection).
+	private async filterAlreadyMinted(finalizedTxs: FinalizedTxRow[]): Promise<FinalizedTxRow[]> {
+		const txsBySetupId = new Map<number, FinalizedTxRow[]>();
+		for (const tx of finalizedTxs) {
+			const list = txsBySetupId.get(tx.setup_id) || [];
+			list.push(tx);
+			txsBySetupId.set(tx.setup_id, list);
+		}
+
+		const txsToProcess: FinalizedTxRow[] = [];
+
+		for (const [setupId, txs] of txsBySetupId) {
+			try {
+				const config = this.getPackageConfig(setupId);
+				const suiClient = this.getSuiClient(config.sui_network);
+				const tableId = await suiClient.getMintedTxsTableId();
+
+				const graphqlUrl = SUI_GRAPHQL_URLS[config.sui_network];
+				if (!graphqlUrl) {
+					logger.warn({ msg: "No GraphQL URL for network", network: config.sui_network });
+					txsToProcess.push(...txs);
+					continue;
+				}
+
+				const graphqlClient = new SuiGraphQLClient(graphqlUrl);
+				const txIds = txs.map((t) => t.tx_id);
+				const mintedTxIds = await graphqlClient.checkMintedStatus(tableId, txIds);
+
+				for (const tx of txs) {
+					if (mintedTxIds.has(tx.tx_id)) {
+						logger.info({
+							msg: "Front-run detected: Transaction already minted",
+							txId: tx.tx_id,
+						});
+						await this.storage.batchUpdateNbtcMintTxs([
+							{
+								txId: tx.tx_id,
+								vout: tx.vout,
+								status: MintTxStatus.Minted,
+							},
+						]);
+					} else {
+						txsToProcess.push(tx);
+					}
+				}
+			} catch (e) {
+				logError(
+					{
+						msg: "Error checking pre-mint status via GraphQL",
+						method: "filterAlreadyMinted",
+						setupId,
+					},
+					e,
+				);
+				txsToProcess.push(...txs);
+			}
+		}
+
+		return txsToProcess;
 	}
 
 	/**
@@ -741,12 +811,10 @@ export class Indexer {
 				msg: "Finalization: Updating reorged transactions",
 				count: reorgedTxIds.length,
 			});
-			// This requires a new method in the Storage interface like:
-			// updateTxsStatus(txIds: string[], status: TxStatus): Promise<void>
 			await this.storage.updateNbtcTxsStatus(reorgedTxIds, MintTxStatus.Reorg);
 		}
 
-		// TODO: add a unit test for it so we make sure we do not finalize reorrged tx.
+		// TODO: add a unit test for it so we make sure we do not finalize reorged tx.
 		const validPendingTxs = pendingTxs.filter((tx) => !reorgedTxIds.includes(tx.tx_id));
 		const { activeTxIds, inactiveTxIds } = this.selectFinalizedNbtcTxs(
 			validPendingTxs,

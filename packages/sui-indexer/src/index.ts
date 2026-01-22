@@ -1,4 +1,4 @@
-import { SUI_NETWORK_URLS } from "./config";
+import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import { SuiGraphQLClient } from "./graphql-client";
 import type { NetworkConfig } from "./models";
 import { Processor } from "./processor";
@@ -45,7 +45,7 @@ async function runSuiIndexer(storage: D1Storage, activeNetworks: SuiNet[]) {
 
 	const networksToProcess: NetworkConfig[] = [];
 	for (const netName of activeNetworks) {
-		const url = SUI_NETWORK_URLS[netName];
+		const url = SUI_GRAPHQL_URLS[netName];
 		if (url) {
 			networksToProcess.push({ name: netName, url });
 		} else {
@@ -98,7 +98,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 		logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
 		return;
 	}
-	const clients = await createSuiClients(activeNetworks, mnemonic, env.IKA_UPPER_LIMIT);
+	const clients = await createSuiClients(activeNetworks, mnemonic);
 	const service = new RedeemService(
 		storage,
 		clients,

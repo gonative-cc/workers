@@ -244,6 +244,7 @@ export class RedeemService {
 			});
 		} catch (e) {
 			// Here the presign is already consumed so we should not attempt to save it back to the DB
+			// TODO: should we have any recovery logic here?
 			logError(
 				{
 					msg: "Failed to record signature ID in DB",

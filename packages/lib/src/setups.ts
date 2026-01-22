@@ -51,20 +51,21 @@ const staging: Setup[] = [
 	},
 ];
 
-export const orgSetups: Record<string, Setup[]> = {
+export const setupEnvs: Record<string, Setup[]> = {
 	dev,
 	staging,
 };
 
 const setupsById: Record<string, Setup> = {};
-for (const [_envName, setups] of Object.entries(orgSetups)) {
+for (const [_envName, setups] of Object.entries(setupEnvs)) {
 	for (const s of setups) {
 		setupsById[s.id] = s;
 	}
 }
 
 export function getActiveSetups(envName: string): Setup[] {
-	return orgSetups[envName] || [];
+	// TODO: filter the active ones only
+	return setupEnvs[envName] || [];
 }
 
 export function getSetup(id: number): Setup | undefined {

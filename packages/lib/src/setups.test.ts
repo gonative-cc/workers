@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
-import { orgSetups, validateAllSetups } from "./setups";
+import { setupEnvs, validateAllSetups } from "./setups";
 
 test("orgSetups", () => {
-	expect(validateAllSetups(orgSetups)).toBeNull();
+	expect(validateAllSetups(setupEnvs)).toBeNull();
 });

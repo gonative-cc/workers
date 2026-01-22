@@ -57,6 +57,7 @@ CREATE INDEX IF NOT EXISTS nbtc_withdraw_sender ON nbtc_withdrawal (sender, reci
 -- 5 = broadcasting
 -- 6 = confirming (here user technically already has the funds)
 
+-- TODO: keep only ID
 -- This table holds the config for nBTC setups.
 CREATE TABLE IF NOT EXISTS setups (
 	id INTEGER PRIMARY KEY,

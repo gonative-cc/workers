@@ -12,6 +12,7 @@ import {
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";
+import { getActiveSetups, getSetup } from "@gonative-cc/lib/setups";
 
 // Types for redeem operations
 export interface RedeemInput {
@@ -84,7 +85,10 @@ const btcNetworks: Record<string, networks.Network> = {
 };
 
 export class D1Storage {
-	constructor(private db: D1Database) {}
+	constructor(
+		private db: D1Database,
+		private setupEnv: string,
+	) {}
 
 	// returns the latest cursor positions for multiple setups for querying Sui events.
 	async getMultipleSuiGqlCursors(setupIds: number[]): Promise<Record<number, string | null>> {
@@ -135,18 +139,14 @@ export class D1Storage {
 	}
 
 	async insertUtxo(u: UtxoIngestData): Promise<void> {
-		const setupRow = await this.db
-			.prepare("SELECT btc_network FROM setups WHERE id = ?")
-			.bind(u.setup_id)
-			.first<{ id: number; btc_network: string }>();
-
-		if (!setupRow) {
+		const setup = getSetup(u.setup_id);
+		if (!setup) {
 			throw new Error(`Setup not found for setup_id=${u.setup_id}`);
 		}
 
-		const network = btcNetworks[setupRow.btc_network];
+		const network = btcNetworks[setup.btc_network];
 		if (!network) {
-			throw new Error(`Unknown BTC network: ${setupRow.btc_network}`);
+			throw new Error(`Unknown BTC network=${setup.btc_network} for setup=${setup.id}`);
 		}
 		let depositAddress: string;
 		try {

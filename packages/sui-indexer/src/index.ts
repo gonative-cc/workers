@@ -1,4 +1,4 @@
-import { SUI_NETWORK_URLS } from "./config";
+import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import { SuiGraphQLClient } from "./graphql-client";
 import type { NetworkConfig } from "./models";
 import { Processor } from "./processor";
@@ -45,7 +45,7 @@ async function runSuiIndexer(storage: D1Storage, env: Env, activeNetworks: SuiNe
 
 	const networksToProcess: NetworkConfig[] = [];
 	for (const netName of activeNetworks) {
-		const url = SUI_NETWORK_URLS[netName];
+		const url = SUI_GRAPHQL_URLS[netName];
 		if (url) {
 			networksToProcess.push({ name: netName, url });
 		} else {

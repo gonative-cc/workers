@@ -49,7 +49,7 @@ describe("Storage Helper Functions", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
             VALUES
             (1, 'regtest', 'devnet', '0xPkg1', '0xContract1', '0xLC1', '0xLCC1', '0xFallback1', 1),
             (2, 'regtest', 'devnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 0)
@@ -67,7 +67,7 @@ describe("Storage Helper Functions", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
             VALUES (1, 'regtest', 'devnet', '0xPkg1', '0xContract1', '0xLC1', '0xLCC1', '0xFallback1', 1)
         `,
 			)
@@ -103,7 +103,7 @@ describe("CFStorage", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, sui_fallback_address, is_active)
+            INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
             VALUES (1, 'regtest', 'devnet', '0xPkg1', '0xContract1', '0xLC1', '0xLCC1', '0xFallback1', 1)
         `,
 			)

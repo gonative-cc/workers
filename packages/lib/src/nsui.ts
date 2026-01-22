@@ -26,3 +26,10 @@ export function toSuiNet(value: string): SuiNet {
 			throw new Error("Invalid SuiNet");
 	}
 }
+
+export const SUI_GRAPHQL_URLS: Record<SuiNet, string> = {
+	mainnet: "https://graphql.mainnet.sui.io/graphql",
+	testnet: "https://graphql.testnet.sui.io/graphql",
+	devnet: "https://graphql.devnet.sui.io/graphql",
+	localnet: "TODO",
+};

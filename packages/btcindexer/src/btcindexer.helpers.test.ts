@@ -28,7 +28,7 @@ export const TEST_PACKAGE_CONFIG: NbtcPkgCfg = {
 	nbtc_contract: "0xNBTC",
 	lc_contract: "0xLIGHTCLIENT",
 	lc_pkg: "0xLC_PKG",
-	sui_fallback_address: SUI_FALLBACK_ADDRESS,
+	nbtc_fallback_addr: SUI_FALLBACK_ADDRESS,
 	is_active: true,
 };
 
@@ -127,7 +127,7 @@ export async function setupTestIndexerSuite(
 			`INSERT INTO setups (
 				id, btc_network, sui_network, nbtc_pkg, nbtc_contract,
 				lc_pkg, lc_contract,
-				sui_fallback_address, is_active
+				nbtc_fallback_addr, is_active
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		.bind(
@@ -138,7 +138,7 @@ export async function setupTestIndexerSuite(
 			packageConfig.nbtc_contract,
 			packageConfig.lc_pkg,
 			packageConfig.lc_contract,
-			packageConfig.sui_fallback_address,
+			packageConfig.nbtc_fallback_addr,
 			packageConfig.is_active,
 		)
 		.run();

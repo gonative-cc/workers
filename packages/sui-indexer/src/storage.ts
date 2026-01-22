@@ -415,7 +415,7 @@ export class D1Storage {
 		}));
 	}
 
-	async getRedeemsBySuiAddr(redeemer: string, setupId: number): Promise<RedeemRequestResp[]> {
+	async getRedeemsBySuiAddr(setupId: number, redeemer: string): Promise<RedeemRequestResp[]> {
 		const query = `
             SELECT
                 r.redeem_id, r.recipient_script, r.amount, r.status, r.created_at, r.sui_tx, r.btc_tx

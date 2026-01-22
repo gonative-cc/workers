@@ -15,6 +15,7 @@ export interface SuiClientCfg {
 	ikaClient: IkaClient;
 	client: Client;
 	ikaSignCost: number;
+	ikaPresignCost: number;
 }
 
 export interface SuiClient {
@@ -46,12 +47,14 @@ class SuiClientImp implements SuiClient {
 	private signer: Ed25519Keypair;
 	private encryptionKeyId: string | null = null;
 	private ikaSignCost: number;
+	private ikaPresignCost: number;
 
 	constructor(cfg: SuiClientCfg) {
 		this.#sui = cfg.client;
 		this.signer = Ed25519Keypair.deriveKeypair(cfg.signerMnemonic);
 		this.#ika = cfg.ikaClient;
 		this.ikaSignCost = cfg.ikaSignCost;
+		this.ikaPresignCost = cfg.ikaPresignCost;
 	}
 
 	ikaClient() {
@@ -173,7 +176,7 @@ class SuiClientImp implements SuiClient {
 		const tx = new Transaction();
 		const signer = this.signer.toSuiAddress();
 		const ikaCoins = await this.#ika.fetchAllIkaCoins(signer);
-		const { preparedCoin: paymentIka } = prepareCoin(ikaCoins, BigInt(this.ikaSignCost), tx);
+		const { preparedCoin: paymentIka } = prepareCoin(ikaCoins, BigInt(this.ikaPresignCost), tx);
 
 		if (!this.encryptionKeyId) {
 			const dWalletEncryptionKey = await this.#ika.getLatestNetworkEncryptionKeyId();
@@ -221,7 +224,6 @@ class SuiClientImp implements SuiClient {
 		const tx = new Transaction();
 		const signer = this.signer.toSuiAddress();
 		const ikaCoins = await this.#ika.fetchAllIkaCoins(signer);
-		// TODO: add Ika signIka const
 		const { preparedCoin: paymentIka } = prepareCoin(ikaCoins, BigInt(this.ikaSignCost), tx);
 		const coordinatorId = this.#ika.getCoordinatorId();
 		const presign = await this.#ika.getCompletedPresign(presignId);
@@ -297,10 +299,12 @@ class SuiClientImp implements SuiClient {
 	}
 }
 
+// NOTE: ika decimals=9. 1 IKA = 1e3 miniIKA
+const miniIka = 1e6;
+
 export async function createSuiClients(
 	activeNetworks: SuiNet[],
 	mnemonic: string,
-	ikaUpperLimit: number,
 ): Promise<Map<SuiNet, SuiClient>> {
 	const clients = new Map<SuiNet, SuiClient>();
 	for (const net of activeNetworks) {
@@ -314,7 +318,9 @@ export async function createSuiClients(
 				signerMnemonic: mnemonic,
 				ikaClient: ikaClient,
 				client: mystenClient,
-				ikaSignCost: ikaUpperLimit,
+				// TODO: set correct values here.
+				ikaSignCost: 400 * miniIka,
+				ikaPresignCost: 250 * miniIka,
 			}),
 		);
 	}

@@ -5,8 +5,8 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import type { MintBatchArg, NbtcPkgCfg, SuiTxDigest } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { nBTCContractModule } from "@vuvoth/nbtc";
 
-const NBTC_MODULE = "nbtc";
 const LC_MODULE = "light_client";
 
 export interface SuiClientI {
@@ -124,25 +124,26 @@ export class SuiClient implements SuiClientI {
 		if (!firstArg) throw new Error("Mint arguments cannot be empty.");
 
 		const tx = new SuiTransaction();
-		const target = `${this.config.nbtc_pkg}::${NBTC_MODULE}::mint` as const; // Use nbtcPkg from arg
 
 		for (const args of mintArgs) {
 			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));
 			const txBytes = Array.from(args.tx.toBuffer());
 
-			tx.moveCall({
-				target: target,
-				arguments: [
-					tx.object(this.config.nbtc_contract),
-					tx.object(this.config.lc_contract),
-					tx.pure.vector("u8", txBytes),
-					tx.pure.vector("vector<u8>", proofLittleEndian),
-					tx.pure.u64(args.blockHeight),
-					tx.pure.u64(args.txIndex),
-					tx.pure.vector("u8", []),
-					tx.pure.u32(1),
-				],
-			});
+			tx.add(
+				nBTCContractModule.mint({
+					package: this.config.nbtc_pkg,
+					arguments: {
+						contract: this.config.nbtc_contract,
+						lightClient: this.config.lc_contract,
+						txBytes: txBytes,
+						proof: proofLittleEndian,
+						height: args.blockHeight,
+						txIndex: args.txIndex,
+						payload: [],
+						opsArg: 1,
+					},
+				}),
+			);
 		}
 
 		tx.setGasBudget(1000000000);

@@ -1,17 +1,20 @@
 import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
-import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
+
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import { type IkaClient, createIkaClient } from "./ika_client";
+import { prepareCoin } from "@gonative-cc/lib/coin-ops";
 import { nBTCContractModule, RedeemRequestModule } from "@gonative-cc/nbtc";
+
+import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
+import { type IkaClient, createIkaClient } from "./ika_client";
 
 export interface SuiClientCfg {
 	network: SuiNet;
 	signerMnemonic: string;
 	ikaClient: IkaClient;
 	client: Client;
-	ikaUpperLimit: number;
+	ikaSignCost: number;
 }
 
 export interface SuiClient {
@@ -42,13 +45,13 @@ class SuiClientImp implements SuiClient {
 	#ika: IkaClient;
 	private signer: Ed25519Keypair;
 	private encryptionKeyId: string | null = null;
-	private ikaUpperLimit: number;
+	private ikaSignCost: number;
 
 	constructor(cfg: SuiClientCfg) {
 		this.#sui = cfg.client;
 		this.signer = Ed25519Keypair.deriveKeypair(cfg.signerMnemonic);
 		this.#ika = cfg.ikaClient;
-		this.ikaUpperLimit = cfg.ikaUpperLimit;
+		this.ikaSignCost = cfg.ikaSignCost;
 	}
 
 	ikaClient() {
@@ -168,11 +171,9 @@ class SuiClientImp implements SuiClient {
 
 	async requestIkaPresign(): Promise<string> {
 		const tx = new Transaction();
-		const ikaCoin = await this.#ika.prepareIkaCoin(
-			tx,
-			this.signer.toSuiAddress(),
-			this.ikaUpperLimit,
-		);
+		const signer = this.signer.toSuiAddress();
+		const ikaCoins = await this.#ika.fetchAllIkaCoins(signer);
+		const { preparedCoin: paymentIka } = prepareCoin(ikaCoins, BigInt(this.ikaSignCost), tx);
 
 		if (!this.encryptionKeyId) {
 			const dWalletEncryptionKey = await this.#ika.getLatestNetworkEncryptionKeyId();
@@ -184,7 +185,7 @@ class SuiClientImp implements SuiClient {
 		// remains in the wallet, to be used. We should scan for it or save it in a db
 		const presignCap = this.#ika.requestGlobalPresign(
 			tx,
-			ikaCoin,
+			paymentIka,
 			tx.gas,
 			this.encryptionKeyId,
 		);
@@ -218,12 +219,10 @@ class SuiClientImp implements SuiClient {
 		nbtcContract: string,
 	): Promise<string> {
 		const tx = new Transaction();
-
-		const ikaCoin = await this.#ika.prepareIkaCoin(
-			tx,
-			this.signer.toSuiAddress(),
-			this.ikaUpperLimit,
-		);
+		const signer = this.signer.toSuiAddress();
+		const ikaCoins = await this.#ika.fetchAllIkaCoins(signer);
+		// TODO: add Ika signIka const
+		const { preparedCoin: paymentIka } = prepareCoin(ikaCoins, BigInt(this.ikaSignCost), tx);
 		const coordinatorId = this.#ika.getCoordinatorId();
 		const presign = await this.#ika.getCompletedPresign(presignId);
 		tx.add(
@@ -235,7 +234,7 @@ class SuiClientImp implements SuiClient {
 					redeemId: redeemId,
 					inputId: inputIdx,
 					presign: presign.cap_id,
-					paymentIka: ikaCoin,
+					paymentIka,
 					msgCentralSig: Array.from(nbtcPublicSignature),
 					paymentSui: tx.gas,
 				},
@@ -315,7 +314,7 @@ export async function createSuiClients(
 				signerMnemonic: mnemonic,
 				ikaClient: ikaClient,
 				client: mystenClient,
-				ikaUpperLimit: ikaUpperLimit,
+				ikaSignCost: ikaUpperLimit,
 			}),
 		);
 	}

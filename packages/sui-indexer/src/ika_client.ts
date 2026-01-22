@@ -85,7 +85,7 @@ export class IkaClientImp implements IkaClient {
 		return this.ikaConfig.objects.ikaDWalletCoordinator.objectID;
 	}
 
-	// TODO: we should have max length!
+	// TODO: we should have maxCoins?: number limit
 	async fetchAllIkaCoins(owner: string): Promise<CoinStruct[]> {
 		const allCoins: CoinStruct[] = [];
 		let cursor: string | null | undefined = null;

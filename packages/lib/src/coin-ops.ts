@@ -21,7 +21,7 @@ export function sortCoinsByBalance(coins: CoinStruct[]) {
 export function selectBiggestCoins(
 	coins: CoinStruct[],
 	target: bigint,
-): { selected: CoinStruct[]; ok: boolean } {
+): { selected: CoinStruct[]; total: bigint; ok: boolean } {
 	const selected: CoinStruct[] = [];
 	let total = BigInt(0);
 	sortCoinsByBalance(coins);
@@ -30,14 +30,17 @@ export function selectBiggestCoins(
 		selected.push(coin);
 		total += BigInt(coin.balance);
 		if (total >= target) {
-			return { selected, ok: true };
+			return { selected, total, ok: true };
 		}
 	}
 
-	return { selected, ok: total >= target };
+	return { selected, total, ok: total >= target };
 }
 
 // Select coins from provided coins, such that we can merge them to obtain a target balance.
+// @firstLimit: limit the number of coins to select without sorting allCoins. If the target is
+//    not reached while picking allCoins[:firstLimit], we sort the remaining coins and keep
+//    from the biggest ones until the target is reached.
 // Returns coins to merge and remaining coins.
 // Throws an error if the provided coins are empty, or if in total there is no sufficient balance.
 // TODO: implement return for the remaing coins.
@@ -51,29 +54,30 @@ export function selectCoins(
 	}
 
 	let selected: CoinStruct[] = [];
-	let totalBalance = BigInt(0);
+	let selectedTotal = BigInt(0);
 	for (const coin of allCoins) {
-		if (selected.length == firstLimit) break;
+		if (selected.length === firstLimit) break;
 
 		selected.push(coin);
-		totalBalance += BigInt(coin.balance);
-		if (totalBalance >= target) break;
+		selectedTotal += BigInt(coin.balance);
+		if (selectedTotal >= target) break;
 	}
 
-	if (totalBalance < target && allCoins.length > selected.length) {
+	if (selectedTotal < target && allCoins.length > selected.length) {
 		const selected2 = selectBiggestCoins(
 			allCoins.slice(selected.length),
-			target - totalBalance,
+			target - selectedTotal,
 		);
 		if (!selected2.ok) {
+			const available = selectedTotal + selected2.total;
 			throw new Error(
-				`Insufficient coins balance. Required: ${target}, available: ${totalBalance}`,
+				`Insufficient coins balance. Required: ${target}, available: ${available}`,
 			);
 		}
 		selected = selected.concat(selected2.selected);
-	} else if (totalBalance < target) {
+	} else if (selectedTotal < target) {
 		throw new Error(
-			`Insufficient coins balance. Required: ${target}, available: ${totalBalance}`,
+			`Insufficient coins balance. Required: ${target}, available: ${selectedTotal}`,
 		);
 	}
 	return [selected, []];
@@ -96,11 +100,9 @@ export function prepareCoin(
 		return { preparedCoin: tx.object(coin.coinObjectId), remaining };
 	}
 
+	// we know that length >=2 because selectCoins which throws an error for empty arrays.
 	const [firstCoin, ...coinsToMerge] = selected;
-	if (!firstCoin) {
-		throw new Error("No primary coin available");
-	}
-	const preparedCoin = tx.object(firstCoin.coinObjectId);
+	const preparedCoin = tx.object(firstCoin!.coinObjectId);
 	const coinToMergeArgs = coinsToMerge.map((c) => tx.object(c.coinObjectId));
 
 	tx.mergeCoins(preparedCoin, coinToMergeArgs);

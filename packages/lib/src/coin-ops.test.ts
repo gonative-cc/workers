@@ -15,7 +15,7 @@ const createMockCoin = (coinObjectId: string, balance: number): CoinStruct => ({
 const createCoins = (amounts: number[]) =>
 	amounts.map((amount, index) => createMockCoin(`coin${index}`, amount));
 
-describe("prepareCoin", () => {
+describe("selectCoins", () => {
 	const createTestCoins = () => createCoins([1000, 5000, 3000]);
 	const verify = (result: [CoinStruct[], CoinStruct[]], target: bigint) => {
 		expect(result).toBeArrayOfSize(2);

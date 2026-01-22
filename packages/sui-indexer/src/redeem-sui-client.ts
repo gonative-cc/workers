@@ -4,7 +4,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { type IkaClient, IkaClientImp } from "./ika_client";
-import { nBTCContractModule, RedeemRequestModule } from "@vuvoth/nbtc";
+import { nBTCContractModule, RedeemRequestModule } from "@gonative-cc/nbtc";
 
 export interface SuiClientCfg {
 	network: SuiNet;

@@ -28,7 +28,7 @@
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.49.0",
 		"wrangler": "^4.54.0",
-		"@vuvoth/nbtc": "^0.0.1"
+		"@gonative-cc/nbtc": "^0.1.0"
 	},
 	"lint-staged": {
 		"*.{js,cjs,mjs,jsx,ts,tsx}": [

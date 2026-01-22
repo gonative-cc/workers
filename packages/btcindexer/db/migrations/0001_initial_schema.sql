@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS indexer_state (
 
 CREATE TABLE IF NOT EXISTS presign_objects (
 	presign_id TEXT NOT NULL PRIMARY KEY,
-	sui_network TEXT NOT NULL,
+	sui_network TEXT NOT NULL, -- for simplicity, we can reuse the presigns between the setups in the same network
 	created_at INTEGER NOT NULL
 ) STRICT;
 

@@ -244,7 +244,9 @@ export class D1Storage {
 	async popPresignObject(network: SuiNet): Promise<string | null> {
 		const result = await this.db
 			.prepare(
-				"DELETE FROM presign_objects WHERE presign_id = (SELECT presign_id FROM presign_objects WHERE sui_network = ? ORDER BY created_at ASC LIMIT 1) RETURNING presign_id",
+				`DELETE FROM presign_objects 
+				  WHERE presign_id = (SELECT presign_id FROM presign_objects WHERE sui_network = ? ORDER BY created_at ASC LIMIT 1) 
+				  RETURNING presign_id`,
 			)
 			.bind(network)
 			.first<{ presign_id: string }>();

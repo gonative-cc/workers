@@ -207,7 +207,7 @@ export class RedeemService {
 			});
 		}
 
-		let signId: string | undefined;
+		let signId: string;
 		try {
 			const nbtcPublicSignature = await client.createUserSigMessage(
 				input.dwallet_id,

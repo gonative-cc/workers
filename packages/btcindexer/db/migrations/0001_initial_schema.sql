@@ -118,10 +118,11 @@ CREATE TABLE IF NOT EXISTS indexer_state (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS indexer_ika_state(
-	sui_network TEXT NOT NULL, -- for simplicity, we can reuse the presigns between the setups in the same network
-	coordinator_pkg_id TEXT NOT NULL PRIMARY KEY,
+	sui_network TEXT NOT NULL,
+	coordinator_pkg_id TEXT NOT NULL,
 	ika_cursor TEXT NOT NULL, -- last processed cursor state
-	updated_at INTEGER -- epoch time in ms
+	updated_at INTEGER, -- epoch time in ms
+	PRIMARY KEY (sui_network, coordinator_pkg_id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS presign_objects (

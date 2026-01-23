@@ -139,7 +139,7 @@ export class D1Storage {
 		const stmt = this.db.prepare(
 			`INSERT INTO indexer_ika_state (coordinator_pkg_id, sui_network, ika_cursor, updated_at)
 			 VALUES (?, ?, ?, ?)
-			 ON CONFLICT(coordinator_pkg_id) DO UPDATE SET ika_cursor = excluded.ika_cursor, updated_at = excluded.updated_at`,
+			 ON CONFLICT(sui_network, coordinator_pkg_id) DO UPDATE SET ika_cursor = excluded.ika_cursor, updated_at = excluded.updated_at`,
 		);
 
 		const now = Date.now();

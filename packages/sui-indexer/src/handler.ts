@@ -36,10 +36,10 @@ export class SuiEventHandler {
 				await this.handleSolved(json as SolvedEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SignatureRecordedEvent")) {
 				await this.handleIkaSignatureRecorded(json as SignatureRecordedEventRaw);
-			} else if (e.type.includes("CompletedSignEvent")) {
-				await this.handleCompletedSign(e.json as CompletedSignEventRaw);
-			} else if (e.type.includes("RejectedSignEvent")) {
-				await this.handleRejectedSign(e.json as RejectedSignEventRaw);
+			} else if (e.type.includes("::coordinator_inner::CompletedSignEvent")) {
+				await this.handleCompletedSign(e);
+			} else if (e.type.includes("::coordinator_inner::RejectedSignEvent")) {
+				await this.handleRejectedSign(e);
 			}
 		}
 	}
@@ -119,13 +119,15 @@ export class SuiEventHandler {
 		});
 	}
 
-	private async handleCompletedSign(e: CompletedSignEventRaw) {
-		logger.info({ msg: "IKA sign completed", signId: e.sign_id });
+	private async handleCompletedSign(e: SuiEventNode) {
+		const { sign_id } = e.json as CompletedSignEventRaw;
+		logger.info({ msg: "IKA sign completed", type: e.type, signId: sign_id });
 		//TODO: will handle the sign in the redeem-service in next PR
 	}
 
-	private async handleRejectedSign(e: RejectedSignEventRaw) {
-		logger.warn({ msg: "IKA sign rejected", signId: e.sign_id });
+	private async handleRejectedSign(e: SuiEventNode) {
+		const { sign_id } = e.json as RejectedSignEventRaw;
+		logger.warn({ msg: "IKA sign rejected", type: e.type, signId: sign_id });
 		//TODO: will handle the sign in the redeem-service in next PR
 	}
 }

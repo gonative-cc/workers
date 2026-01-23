@@ -81,7 +81,7 @@ The `btcindexer` tracks the state of nBTC related transactions as they progress 
 
 The state is stored in the `nbtc_minting` and `nbtc_redeem_requests` tables in the SQL (D1) database.
 
-Bitcoin transaction can have one of the following status:
+Bitcoin transactions can have one of the following statuses:
 
 - `broadcasting`: The deposit transaction has been broadcast to the Bitcoin network, but has not yet been included in a block.
 - `confirming`: The deposit tx has been found in a Bitcoin block but does not yet have enough confirmations.

@@ -97,6 +97,7 @@ beforeEach(async () => {
 afterEach(async () => {
 	// restores all spies after each test
 	jest.restoreAllMocks();
+	await suite.cleanupDB();
 });
 
 function checkTxProof(proofResult: ProofResult | null, block: Block) {

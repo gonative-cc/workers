@@ -360,18 +360,26 @@ export class D1Storage {
 		}
 	}
 
-	// Additional methods from redeem_solver
+	// Returns transactions that have been broadcasted or are confirming in order to update the
+	// confirmation status
+	async getBroadcastedBtcRedeemTxIds(network: string): Promise<string[]> {
+		// TODO: should we include Reorg here?
+		const statuses = [RedeemRequestStatus.Broadcasting, RedeemRequestStatus.Confirming];
+		const placeholders = statuses.map(() => "?").join(",");
 
-	async getBroadcastedBtcTxIds(): Promise<string[]> {
 		const { results } = await this.db
 			.prepare(
-				`SELECT btc_tx FROM nbtc_redeem_requests WHERE status = ? AND btc_tx IS NOT NULL`,
+				`SELECT r.btc_tx
+	                 FROM nbtc_redeem_requests r
+	                 JOIN setups s ON r.setup_id = s.id
+	                 WHERE s.btc_network = ?
+	                 AND r.status IN (${placeholders})
+	                 AND r.btc_tx IS NOT NULL`,
 			)
-			.bind(RedeemRequestStatus.Broadcasting)
+			.bind(network, ...statuses)
 			.all<{ btc_tx: string }>();
 		return results.map((r) => r.btc_tx);
 	}
-
 	async markRedeemBroadcasted(redeemId: number, txId: string): Promise<void> {
 		const now = Date.now();
 		await this.db

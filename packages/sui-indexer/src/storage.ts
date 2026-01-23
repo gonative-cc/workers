@@ -302,7 +302,7 @@ export class D1Storage {
 
 		const batch = utxoIds.map((utxoId, i) => {
 			// dwalletIds[i] is guaranteed to exist due to length check
-			 
+
 			return stmt.bind(redeemId, utxoId, i, dwalletIds[i]!, now);
 		});
 

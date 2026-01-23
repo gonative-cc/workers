@@ -75,7 +75,6 @@ async function insertRedeemRequest(
 async function insertUtxo(
 	indexerStorage: D1Storage,
 	utxoId: number,
-	depositAddress: string,
 	scriptPubkey: Uint8Array,
 	dwalletId: string,
 	txid: string,
@@ -256,7 +255,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			1,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx1",
@@ -268,7 +266,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			2,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx2",
@@ -302,7 +299,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			1,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx1",
@@ -314,7 +310,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			3,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx_locked",
@@ -326,7 +321,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			2,
-			depositAddress2,
 			scriptPubkey2,
 			"dwallet2",
 			"tx2",
@@ -359,7 +353,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			1,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx1",
@@ -467,7 +460,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			1,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx1",
@@ -537,7 +529,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			1,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx1",
@@ -577,7 +568,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			1,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx1",
@@ -615,7 +605,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			1,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx1",
@@ -653,7 +642,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			1,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx1",
@@ -665,7 +653,6 @@ describe("IndexerStorage", () => {
 		await insertUtxo(
 			indexerStorage,
 			2,
-			depositAddress1,
 			scriptPubkey1,
 			"dwallet1",
 			"tx2",

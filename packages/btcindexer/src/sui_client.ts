@@ -5,14 +5,15 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
 import type { MintBatchArg, NbtcPkgCfg, SuiTxDigest } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { nBTCContractModule } from "@gonative-cc/nbtc";
 
-const NBTC_MODULE = "nbtc";
 const LC_MODULE = "light_client";
 
 export interface SuiClientI {
 	verifyBlocks: (blockHashes: string[]) => Promise<boolean[]>;
 	mintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest]>;
 	tryMintNbtcBatch: (mintArgs: MintBatchArg[]) => Promise<[boolean, SuiTxDigest] | null>;
+	getMintedTxsTableId: () => Promise<string>;
 }
 
 export type SuiClientConstructor = (config: NbtcPkgCfg) => SuiClientI;
@@ -80,6 +81,34 @@ export class SuiClient implements SuiClientI {
 		return bcs.vector(bcs.bool()).parse(Uint8Array.from(bytes));
 	}
 
+	async getMintedTxsTableId(): Promise<string> {
+		const result = await this.client.getObject({
+			id: this.config.nbtc_contract,
+			options: { showContent: true },
+		});
+		if (result.error || !result.data) {
+			throw new Error(`Failed to fetch NbtcContract object: ${result.error?.code}`);
+		}
+
+		const content = result.data.content;
+		if (!content || content.dataType !== "moveObject") {
+			throw new Error("NbtcContract object content is missing or not a moveObject");
+		}
+
+		const fields = content.fields as Record<string, unknown>;
+		const txIdsTable = fields.tx_ids as { fields?: { id?: { id?: string } } } | undefined;
+		if (
+			!txIdsTable ||
+			!txIdsTable.fields ||
+			!txIdsTable.fields.id ||
+			!txIdsTable.fields.id.id
+		) {
+			throw new Error("Failed to extract tx_ids table ID from NbtcContract object");
+		}
+
+		return txIdsTable.fields.id.id;
+	}
+
 	/**
 	 * Executes a batch mint transaction on Sui.
 	 * Returns [success, digest] tuple:
@@ -95,25 +124,26 @@ export class SuiClient implements SuiClientI {
 		if (!firstArg) throw new Error("Mint arguments cannot be empty.");
 
 		const tx = new SuiTransaction();
-		const target = `${this.config.nbtc_pkg}::${NBTC_MODULE}::mint` as const; // Use nbtcPkg from arg
 
 		for (const args of mintArgs) {
 			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));
 			const txBytes = Array.from(args.tx.toBuffer());
 
-			tx.moveCall({
-				target: target,
-				arguments: [
-					tx.object(this.config.nbtc_contract),
-					tx.object(this.config.lc_contract),
-					tx.pure.vector("u8", txBytes),
-					tx.pure.vector("vector<u8>", proofLittleEndian),
-					tx.pure.u64(args.blockHeight),
-					tx.pure.u64(args.txIndex),
-					tx.pure.vector("u8", []),
-					tx.pure.u32(1),
-				],
-			});
+			tx.add(
+				nBTCContractModule.mint({
+					package: this.config.nbtc_pkg,
+					arguments: {
+						contract: this.config.nbtc_contract,
+						lightClient: this.config.lc_contract,
+						txBytes: txBytes,
+						proof: proofLittleEndian,
+						height: args.blockHeight,
+						txIndex: args.txIndex,
+						payload: [],
+						opsArg: 1,
+					},
+				}),
+			);
 		}
 
 		tx.setGasBudget(1000000000);

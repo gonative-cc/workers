@@ -211,12 +211,14 @@ export class SuiEventHandler {
 		}
 
 		logger.warn({
-			msg: "Ika signature rejected",
+			msg: "Ika signature rejected, clearing sign_id for retry",
 			sign_id: data.sign_id,
 			is_future_sign: data.is_future_sign,
 			redeem_id: redeemInfo.redeem_id,
 			utxo_id: redeemInfo.utxo_id,
 			txDigest: e.txDigest,
 		});
+
+		await this.storage.clearRedeemInputSignId(redeemInfo.redeem_id, redeemInfo.utxo_id);
 	}
 }

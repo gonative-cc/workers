@@ -7,6 +7,14 @@ import { getNetworkConfig } from "@ika.xyz/sdk";
 import type { SuiClient } from "./redeem-sui-client";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
+interface EventSource {
+	cursorId: number;
+	setupId: number;
+	pkg: string;
+	module: string;
+	isCoordinator: boolean;
+}
+
 export class Processor {
 	netCfg: NetworkConfig;
 	storage: D1Storage;
@@ -25,53 +33,48 @@ export class Processor {
 		this.suiClients = suiClients;
 	}
 
-	// Polls events (nBTC + Ika coordinator) from multiple packages
 	async pollEvents(nbtcPkgs: PkgCfg[]) {
+		if (nbtcPkgs.length === 0) return;
+
+		const nbtcSources: EventSource[] = nbtcPkgs.map((pkg) => ({
+			cursorId: pkg.id,
+			setupId: pkg.id,
+			pkg: pkg.nbtc_pkg,
+			module: "nbtc",
+			isCoordinator: false,
+		}));
+		await this.pollEventSources(nbtcSources);
+		await this.pollIkaEvents();
+	}
+
+	// Ika SDK only provides package addresses for mainnet and testnet
+	private async pollIkaEvents() {
+		const network = this.netCfg.name;
+		if (network !== "mainnet" && network !== "testnet") return;
+
+		const coordinatorPkg = getNetworkConfig(network).packages.ikaSystemPackage;
+		// cursorId -1 to avoid collisions with nBTC cursor IDs (positive)
+		const sources: EventSource[] = [
+			{
+				cursorId: -1,
+				setupId: -1,
+				pkg: coordinatorPkg,
+				module: "coordinator_inner",
+				isCoordinator: true,
+			},
+		];
+		await this.pollEventSources(sources);
+	}
+
+	private async pollEventSources(sources: EventSource[]) {
 		try {
-			if (nbtcPkgs.length === 0) return;
-
-			// Get coordinator package from Ika SDK
-			const network = this.netCfg.name;
-			const coordinatorPkg =
-				network === "mainnet" || network === "testnet"
-					? getNetworkConfig(network).packages.ikaSystemPackage
-					: null;
-
-			const packages: {
-				cursorId: number;
-				setupId: number;
-				pkg: string;
-				module: string;
-				isCoordinator: boolean;
-			}[] = [];
-
-			for (const pkg of nbtcPkgs) {
-				packages.push({
-					cursorId: pkg.id,
-					setupId: pkg.id,
-					pkg: pkg.nbtc_pkg,
-					module: "nbtc",
-					isCoordinator: false,
-				});
-			}
-
-			if (coordinatorPkg) {
-				packages.push({
-					cursorId: -1,
-					setupId: -1,
-					pkg: coordinatorPkg,
-					module: "coordinator_inner",
-					isCoordinator: true,
-				});
-			}
-
 			const cursors = await this.storage.getMultipleSuiGqlCursors(
-				packages.map((p) => p.cursorId),
+				sources.map((p) => p.cursorId),
 			);
 
 			let hasAnyNextPage = true;
 			while (hasAnyNextPage) {
-				const fetchRequests = packages.map((p) => ({
+				const fetchRequests = sources.map((p) => ({
 					id: p.pkg,
 					module: p.module,
 					cursor: cursors[p.cursorId] || null,
@@ -81,7 +84,7 @@ export class Processor {
 				const cursorsToSave: { setupId: number; cursor: string }[] = [];
 				hasAnyNextPage = false;
 
-				for (const p of packages) {
+				for (const p of sources) {
 					const key = `${p.pkg}::${p.module}`;
 					const result = results[key];
 					if (!result) continue;
@@ -112,7 +115,7 @@ export class Processor {
 							logError(
 								{
 									msg: "Failed to process events",
-									method: "pollEvents",
+									method: "pollEventSources",
 									setupId: p.setupId,
 									module: p.module,
 								},
@@ -121,7 +124,7 @@ export class Processor {
 						}
 					}
 
-					// Only advance cursor if processing succeeded or there were no events to process
+					// Only advance cursor if processing succeeded
 					if (
 						processingSucceeded &&
 						result.endCursor &&
@@ -143,9 +146,9 @@ export class Processor {
 		} catch (e) {
 			logError(
 				{
-					msg: "Failed to index packages",
-					method: "pollEvents",
-					network: this.netCfg,
+					msg: "Failed to poll event sources",
+					method: "pollEventSources",
+					network: this.netCfg.name,
 				},
 				e,
 			);

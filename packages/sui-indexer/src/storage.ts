@@ -7,6 +7,7 @@ import {
 	type PkgCfg,
 	type RedeemRequest,
 	type RedeemRequestResp,
+	type RedeemSignInfo,
 	type Utxo,
 } from "./models";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
@@ -241,6 +242,28 @@ export class D1Storage {
 		return results.map((r) => toSuiNet(r.sui_network));
 	}
 
+	async popPresignObject(network: SuiNet): Promise<string | null> {
+		const result = await this.db
+			.prepare(
+				`DELETE FROM presign_objects 
+				  WHERE presign_id = (SELECT presign_id FROM presign_objects WHERE sui_network = ? ORDER BY created_at ASC LIMIT 1) 
+				  RETURNING presign_id`,
+			)
+			.bind(network)
+			.first<{ presign_id: string }>();
+
+		return result?.presign_id || null;
+	}
+
+	async insertPresignObject(presignId: string, network: SuiNet): Promise<void> {
+		await this.db
+			.prepare(
+				"INSERT INTO presign_objects (presign_id, sui_network, created_at) VALUES (?, ?, ?)",
+			)
+			.bind(presignId, network, Date.now())
+			.run();
+	}
+
 	async hasRedeemRequest(redeemId: number): Promise<boolean> {
 		const ok = await this.db
 			.prepare("SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?")
@@ -279,7 +302,7 @@ export class D1Storage {
 
 		const batch = utxoIds.map((utxoId, i) => {
 			// dwalletIds[i] is guaranteed to exist due to length check
-			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			 
 			return stmt.bind(redeemId, utxoId, i, dwalletIds[i]!, now);
 		});
 
@@ -318,6 +341,15 @@ export class D1Storage {
 			.bind(RedeemRequestStatus.Signed, redeemId, redeemId);
 
 		await this.db.batch([updateSolution, updateRequest]);
+	}
+
+	async clearRedeemInputSignId(redeemId: number, utxoId: number): Promise<void> {
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_solutions SET sign_id = NULL WHERE redeem_id = ? AND utxo_id = ?`,
+			)
+			.bind(redeemId, utxoId)
+			.run();
 	}
 
 	async markRedeemSolved(redeemId: number): Promise<void> {
@@ -652,14 +684,7 @@ export class D1Storage {
 		};
 	}
 
-	async getRedeemInfoBySignId(signId: string): Promise<{
-		redeem_id: number;
-		utxo_id: number;
-		input_index: number;
-		nbtc_pkg: string;
-		nbtc_contract: string;
-		sui_network: SuiNet;
-	} | null> {
+	async getRedeemInfoBySignId(signId: string): Promise<RedeemSignInfo | null> {
 		const query = `
 			SELECT s.redeem_id, s.utxo_id, s.input_index,p.nbtc_pkg, p.nbtc_contract, p.sui_network
 			FROM nbtc_redeem_solutions s

@@ -1,4 +1,4 @@
-import { SUI_NETWORK_URLS } from "./config";
+import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import { SuiGraphQLClient } from "./graphql-client";
 import type { NetworkConfig } from "./models";
 import { Processor } from "./processor";
@@ -30,7 +30,7 @@ export default {
 		try {
 			const mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
 			if (mnemonic) {
-				suiClients = await createSuiClients(activeNetworks, mnemonic, env.IKA_UPPER_LIMIT);
+				suiClients = await createSuiClients(activeNetworks, mnemonic);
 			}
 		} catch (error) {
 			logger.warn({
@@ -61,7 +61,7 @@ async function runSuiIndexer(
 
 	const networksToProcess: NetworkConfig[] = [];
 	for (const netName of activeNetworks) {
-		const url = SUI_NETWORK_URLS[netName];
+		const url = SUI_GRAPHQL_URLS[netName];
 		if (url) {
 			networksToProcess.push({ name: netName, url });
 		} else {
@@ -129,9 +129,11 @@ async function runRedeemSolver(
 	);
 
 	const results = await Promise.allSettled([
-		service.processPendingRedeems(),
-		service.solveReadyRedeems().then(() => service.processSolvedRedeems()),
-		service.broadcastReadyRedeems(),
+		service.processPendingRedeems(), // propose a solution
+		service
+			.solveReadyRedeems() // trigger status change
+			.then(() => service.processSolvedRedeems()), // request signatures
+		service.broadcastReadyRedeems(), // broadcast fully signed txs
 	]);
 
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [

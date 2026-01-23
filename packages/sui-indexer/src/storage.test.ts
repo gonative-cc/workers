@@ -184,10 +184,30 @@ describe("IndexerStorage", () => {
 			"nbtc_deposit_addresses",
 			"btc_blocks",
 			"indexer_state",
+			"presign_objects",
 			"setups",
 		];
 		const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
 		await db.exec(dropStms);
+	});
+
+	it("should manage presign objects", async () => {
+		const presignId1 = "presign1";
+		const presignId2 = "presign2";
+		const net1 = "testnet";
+		const net2 = "mainnet";
+
+		await storage.insertPresignObject(presignId1, net1);
+		await storage.insertPresignObject(presignId2, net2);
+
+		const popped1 = await storage.popPresignObject(net1);
+		expect(popped1).toBe(presignId1);
+
+		const popped2 = await storage.popPresignObject(net2);
+		expect(popped2).toBe(presignId2);
+
+		const popped3 = await storage.popPresignObject(net1);
+		expect(popped3).toBeNull();
 	});
 
 	it("getPendingRedeems should return pending redeems ordered by created_at", async () => {

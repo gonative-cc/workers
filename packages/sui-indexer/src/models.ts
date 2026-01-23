@@ -144,6 +144,15 @@ export interface IkaRejectedSignEventRaw {
 	is_future_sign: boolean;
 }
 
+export interface RedeemSignInfo {
+	redeem_id: number;
+	utxo_id: number;
+	input_index: number;
+	nbtc_pkg: string;
+	nbtc_contract: string;
+	sui_network: SuiNet;
+}
+
 // Arguments for the contract call
 export interface ProposeRedeemCall {
 	redeemId: number;

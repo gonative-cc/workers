@@ -13,7 +13,9 @@ const mf = new Miniflare({
 
 async function selectTables(db: D1Database) {
 	const { results } = await db
-		.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+		.prepare(
+			"SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_%METADATA'",
+		)
 		.all();
 	return results;
 }

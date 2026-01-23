@@ -16,7 +16,7 @@ Check @README.md for more details.
 
 - `./packages/lib` : a library package where we put common functions to be shared with other packages.
 - `./packages/btcindexer` : a Bitcoin indexer (btcindexer) for the nBTC project. The project is designed to monitor the Bitcoin blockchain, parse Bitcoin blocks, identify nBTC deposits, and facilitate their minting on the Sui blockchain.
-- `./packages/sui-indexer` : Polls Sui events for all active packages listed in the `nbtc_packages` database. The events are handled by the `SuiEventHandler`. Provides RPC for Redeem Solver.
+- `./packages/sui-indexer` : Polls Sui events for all active packages listed in the `nbtc_packages` database. The events are handled by the `SuiEventHandler`. Provides Redeem Solver and RPC.
 - `./packages/block-ingestor` : a new worker that exposes REST API to receive new blocks and queue them for processing.
 
 Details about each package is in described in the sections below.
@@ -132,6 +132,8 @@ The project consists of:
 - Uses KV namespaces for block storage and nBTC transaction caching
 - Implements proper data persistence and querying
 
+Database access layer implemented `cf-storage.ts`. The D1 database tables are defined in SQL files in `packages/btcindexer/db/migrations/*` (follow the migration files to reconstruct the DB scheme).
+
 ## Block Ingestor
 
 The package is in `./packages/block-ingestor`.
@@ -188,7 +190,11 @@ The project consists of:
 
 1. A main worker (`src/index.ts`) that serves as the entry point
 2. An RPC module (`src/rpc.ts`) that exposes service binding interface
-3. A Sui client (`src/sui_client.ts`) for blockchain interactions
+3. A Sui (`src/redeem_sui_client.ts`) for blockchain interactions
+4. Ika client for blockchain integrations related to MPC.
+
+Database access layer implemented `storage.ts`. The D1 database tables are defined in SQL files in `packages/btcindexer/db/migrations/*` (follow the migration files to reconstruct the DB scheme).
+
 
 #### Service Bindings Implementation
 

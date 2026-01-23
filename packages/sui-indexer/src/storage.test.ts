@@ -147,8 +147,6 @@ async function insertDepositAddress(
 
 describe("IndexerStorage", () => {
 	let storage: D1Storage;
-	// TODO: duplicate - remove this
-	let indexerStorage: D1Storage;
 	let db: D1Database;
 
 	beforeEach(async () => {
@@ -156,7 +154,6 @@ describe("IndexerStorage", () => {
 		await initDb(db);
 
 		storage = new D1Storage(db);
-		indexerStorage = new D1Storage(db);
 
 		await insertSetup(
 			db,
@@ -194,24 +191,8 @@ describe("IndexerStorage", () => {
 	});
 
 	it("getPendingRedeems should return pending redeems ordered by created_at", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			2,
-			"redeemer1",
-			recipientScript,
-			5000,
-			2000,
-			"0xSuiTx2",
-		);
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 2, "redeemer1", recipientScript, 5000, 2000, "0xSuiTx2");
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 
 		const redeems = await storage.getPendingRedeems();
 
@@ -224,7 +205,7 @@ describe("IndexerStorage", () => {
 	it("getRedeemsReadyForSolving should filter by status and created_at", async () => {
 		const now = Date.now();
 		await insertRedeemRequest(
-			indexerStorage,
+			storage,
 			1,
 			"redeemer1",
 			recipientScript,
@@ -233,7 +214,7 @@ describe("IndexerStorage", () => {
 			"0xSuiTx1",
 		);
 		await insertRedeemRequest(
-			indexerStorage,
+			storage,
 			2,
 			"redeemer1",
 			recipientScript,
@@ -254,7 +235,7 @@ describe("IndexerStorage", () => {
 
 	it("getAvailableUtxos should return utxos ordered by amount DESC", async () => {
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			1,
 			scriptPubkey1,
 			"dwallet1",
@@ -265,7 +246,7 @@ describe("IndexerStorage", () => {
 			null,
 		);
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			2,
 			scriptPubkey1,
 			"dwallet1",
@@ -298,7 +279,7 @@ describe("IndexerStorage", () => {
 		await insertDepositAddress(db, 2, 2, depositAddress2);
 
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			1,
 			scriptPubkey1,
 			"dwallet1",
@@ -309,7 +290,7 @@ describe("IndexerStorage", () => {
 			null,
 		);
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			3,
 			scriptPubkey1,
 			"dwallet1",
@@ -320,7 +301,7 @@ describe("IndexerStorage", () => {
 			Date.now() + 10000,
 		);
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			2,
 			scriptPubkey2,
 			"dwallet2",
@@ -342,17 +323,9 @@ describe("IndexerStorage", () => {
 	});
 
 	it("markRedeemProposed should update redeem status and lock utxos", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			1,
 			scriptPubkey1,
 			"dwallet1",
@@ -383,15 +356,7 @@ describe("IndexerStorage", () => {
 	});
 
 	it("markRedeemProposed should handle empty utxo array", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 
 		await storage.markRedeemProposed(1, [], UTXO_LOCK_TIME_MS);
 
@@ -403,15 +368,7 @@ describe("IndexerStorage", () => {
 	});
 
 	it("markRedeemSolved should update redeem status", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await db
 			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
 			.bind(RedeemRequestStatus.Proposed, 1)
@@ -449,17 +406,9 @@ describe("IndexerStorage", () => {
 	});
 
 	it("getSolvedRedeems should return solved redeems with inputs", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			1,
 			scriptPubkey1,
 			"dwallet1",
@@ -491,24 +440,8 @@ describe("IndexerStorage", () => {
 	});
 
 	it("getRedeemsBySuiAddr should return redeems for a specific address", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
-		await insertRedeemRequest(
-			indexerStorage,
-			2,
-			"redeemer2",
-			recipientScript,
-			5000,
-			2000,
-			"0xSuiTx2",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertRedeemRequest(storage, 2, "redeemer2", recipientScript, 5000, 2000, "0xSuiTx2");
 
 		const redeems = await storage.getRedeemsBySuiAddr(1, "redeemer1");
 
@@ -518,17 +451,9 @@ describe("IndexerStorage", () => {
 	});
 
 	it("saveRedeemInputs should save redeem solutions", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			1,
 			scriptPubkey1,
 			"dwallet1",
@@ -557,17 +482,9 @@ describe("IndexerStorage", () => {
 	});
 
 	it("updateRedeemInputSig should update signature", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			1,
 			scriptPubkey1,
 			"dwallet1",
@@ -594,17 +511,9 @@ describe("IndexerStorage", () => {
 	});
 
 	it("markRedeemInputVerified should mark input as verified", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			3000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			1,
 			scriptPubkey1,
 			"dwallet1",
@@ -631,17 +540,9 @@ describe("IndexerStorage", () => {
 	});
 
 	it("getRedeemInputs should return inputs ordered by input_index", async () => {
-		await insertRedeemRequest(
-			indexerStorage,
-			1,
-			"redeemer1",
-			recipientScript,
-			5000,
-			1000,
-			"0xSuiTx1",
-		);
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 5000, 1000, "0xSuiTx1");
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			1,
 			scriptPubkey1,
 			"dwallet1",
@@ -652,7 +553,7 @@ describe("IndexerStorage", () => {
 			null,
 		);
 		await insertUtxo(
-			indexerStorage,
+			storage,
 			2,
 			scriptPubkey1,
 			"dwallet1",

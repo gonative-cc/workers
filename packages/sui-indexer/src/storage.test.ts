@@ -9,7 +9,7 @@ import {
 } from "./models";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
 import { payments, networks } from "bitcoinjs-lib";
-import { initDb } from "./db.test";
+import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
 
 export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
 
@@ -172,24 +172,7 @@ describe("IndexerStorage", () => {
 		await insertDepositAddress(db, 1, 1, depositAddress1);
 	});
 
-	afterEach(async () => {
-		const db = await mf.getD1Database("DB");
-		// Drop tables in correct order: child tables first to avoid foreign key constraints
-		const tables = [
-			"nbtc_redeem_solutions",
-			"nbtc_utxos",
-			"nbtc_redeem_requests",
-			"nbtc_minting",
-			"nbtc_withdrawal",
-			"nbtc_deposit_addresses",
-			"btc_blocks",
-			"indexer_state",
-			"presign_objects",
-			"setups",
-		];
-		const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
-		await db.exec(dropStms);
-	});
+	afterEach(async () => dropTables(await mf.getD1Database("DB")));
 
 	it("should manage presign objects", async () => {
 		const presignId1 = "presign1";

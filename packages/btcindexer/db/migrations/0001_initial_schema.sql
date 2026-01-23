@@ -35,28 +35,6 @@ CREATE INDEX IF NOT EXISTS nbtc_minting_status ON nbtc_minting (address_id, stat
 CREATE INDEX IF NOT EXISTS nbtc_minting_sui_recipient ON nbtc_minting (sui_recipient, created_at);
 CREATE INDEX IF NOT EXISTS nbtc_minting_sender ON nbtc_minting (sender);
 
--- nbtc_withdrawal table tracks BTC withdraw transactions for nBTC redeems on Sui
-CREATE TABLE IF NOT EXISTS nbtc_withdrawal (
-	sui_tx_id TEXT PRIMARY KEY,
-	sender TEXT NOT NULL, -- Sui sender
-	amount INTEGER NOT NULL, -- amount of nBTC to be burn and withdraw on BTC,
-	recipient TEXT NOT NULL, -- the bitcoin address or script that will receive the BTC,
-	note TEXT, -- additional note that we can include for the user.
-	sent_at INTEGER NOT NULL, -- timestamp_ms
-	btc_tx_id TEXT, -- will be set once Bitcoin tx will be broadcasted
-	status INTEGER NOT NULL
-) STRICT;
-
-CREATE INDEX IF NOT EXISTS nbtc_withdraw_sender ON nbtc_withdrawal (sender, recipient, sent_at);
-
--- nbtc_withdrawal.status:
--- 1 = requested
--- 2 = burn
--- 3 = signing -- Ika signature
--- 4 = signed
--- 5 = broadcasting
--- 6 = confirming (here user technically already has the funds)
-
 -- This table holds the config for nBTC setups.
 CREATE TABLE IF NOT EXISTS setups (
 	id INTEGER PRIMARY KEY,

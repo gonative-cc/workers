@@ -22,3 +22,26 @@ export async function applyMigrations(db: D1Database, migrationsPath: string) {
 		}
 	}
 }
+
+const MIGRATIONS_PATH = path.resolve(__dirname, "../../btcindexer/db/migrations");
+// NOTE: Drop tables in correct order: child tables first to avoid foreign key constraints
+const tables = [
+	"nbtc_redeem_solutions",
+	"nbtc_utxos",
+	"nbtc_redeem_requests",
+	"nbtc_minting",
+	"nbtc_deposit_addresses",
+	"btc_blocks",
+	"indexer_state",
+	"presign_objects",
+	"setups",
+];
+
+export async function initDb(db: D1Database) {
+	applyMigrations(db, MIGRATIONS_PATH);
+}
+
+export function dropTables(db: D1Database) {
+	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
+	return db.exec(dropStms);
+}

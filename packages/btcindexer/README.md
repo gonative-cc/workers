@@ -79,7 +79,7 @@ The `btcindexer` worker is a Cloudflare Worker responsible for monitoring the Bi
 
 The `btcindexer` tracks the state of nBTC related transactions as they progress through the system.
 
-The state is stored in the `nbtc_minting` and `nbtc_withdrawal` tables in the SQL (D1) database.
+The state is stored in the `nbtc_minting` and `nbtc_redeem_requests` tables in the SQL (D1) database.
 
 Bitcoin transaction can have one of the following status:
 

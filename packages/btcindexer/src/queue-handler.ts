@@ -14,7 +14,7 @@ export async function processBlockBatch(
 
 	for (const net of networks) {
 		try {
-			const ids = await indexer.getBroadcastedRedeemTxIds(net);
+			const ids = await indexer.suiIndexer.getBroadcastedRedeemTxIds(net);
 			trackedRedeems.set(net, new Set(ids));
 		} catch (error) {
 			logError(
@@ -33,7 +33,7 @@ export async function processBlockBatch(
 	const toRetry = [];
 	for (const m of batch.messages) {
 		const blockInfo = m.body;
-		const tracked = trackedRedeems.get(blockInfo.network);
+		const tracked = trackedRedeems.get(blockInfo.network) ?? new Set<string>();
 		try {
 			await indexer.processBlock(blockInfo, tracked);
 			m.ack();

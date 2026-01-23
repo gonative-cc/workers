@@ -231,7 +231,8 @@ export class Indexer {
 		return true;
 	}
 
-	// iterates through block txs and checks for minting and tracked redeems
+	// iterates through block txs and checks for minting and tracked redeems.
+	// The nbtcRedeems (confirmed Redeems) is a list of detected Bitcoin tx ids.
 	private async scanBlockTransactions(
 		block: Block,
 		network: Network,
@@ -1051,10 +1052,6 @@ export class Indexer {
 		});
 
 		return { tx_id: txId };
-	}
-
-	async getBroadcastedRedeemTxIds(network: BtcNet): Promise<string[]> {
-		return this.suiIndexer.getBroadcastedRedeemTxIds(network);
 	}
 
 	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {

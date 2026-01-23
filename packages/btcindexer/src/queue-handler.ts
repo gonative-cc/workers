@@ -1,5 +1,5 @@
 import { type MessageBatch } from "@cloudflare/workers-types";
-import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { type BlockQueueRecord, type BtcNet } from "@gonative-cc/lib/nbtc";
 import { delay } from "@gonative-cc/lib/nbtc";
 import { type Indexer } from "./btcindexer";
 import { logError } from "@gonative-cc/lib/logger";
@@ -8,12 +8,34 @@ export async function processBlockBatch(
 	batch: MessageBatch<BlockQueueRecord>,
 	indexer: Indexer,
 ): Promise<void> {
-	const broadcastedRedeemTxIds = new Set(await indexer.getBroadcastedRedeemTxIds());
+	// Group by network
+	const networks = new Set(batch.messages.map((m) => m.body.network));
+	const trackedRedeems = new Map<BtcNet, Set<string>>();
+
+	for (const net of networks) {
+		try {
+			const ids = await indexer.suiIndexer.getBroadcastedRedeemTxIds(net);
+			trackedRedeems.set(net, new Set(ids));
+		} catch (error) {
+			logError(
+				{
+					msg: "Failed to fetch tracked redeems",
+					method: "processBlockBatch",
+					network: net,
+				},
+				error,
+			);
+			// in case of failure we just use an empty one
+			trackedRedeems.set(net, new Set());
+		}
+	}
+
 	const toRetry = [];
 	for (const m of batch.messages) {
 		const blockInfo = m.body;
+		const tracked = trackedRedeems.get(blockInfo.network) ?? new Set<string>();
 		try {
-			await indexer.processBlock(blockInfo, broadcastedRedeemTxIds);
+			await indexer.processBlock(blockInfo, tracked);
 			m.ack();
 		} catch (e) {
 			logError(

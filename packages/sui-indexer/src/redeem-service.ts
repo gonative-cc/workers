@@ -12,6 +12,9 @@ import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } from "./sighash";
 
 const MAXIMUM_NUMBER_UTXO = 100;
+const PRESIGN_POOL_TARGET = 50;
+const PRESIGN_POOL_MIN = 20;
+const MAX_CREATE_PER_RUN = 5;
 
 export class RedeemService {
 	constructor(
@@ -23,6 +26,45 @@ export class RedeemService {
 	) {
 		if (clients.size === 0) {
 			throw new Error("No SuiClients configured");
+		}
+	}
+	// Makes sure we have enough presigns in the queue
+	async refillPresignPool(activeNetworks: SuiNet[]) {
+		for (const network of activeNetworks) {
+			const count = await this.storage.getPresignCount(network);
+			if (count >= PRESIGN_POOL_MIN) {
+				continue;
+			}
+			const needed = PRESIGN_POOL_TARGET - count;
+			const toCreate = Math.min(needed, MAX_CREATE_PER_RUN);
+			logger.debug({
+				msg: "Filling presign pool",
+				network,
+				currentCount: count,
+				creating: toCreate,
+			});
+			const client = this.getSuiClient(network);
+			for (let i = 0; i < toCreate; i++) {
+				try {
+					const presignId = await client.requestIkaPresign();
+					await this.storage.insertPresignObject(presignId, network);
+					logger.debug({
+						msg: "Created presign object",
+						network,
+						presignId,
+					});
+				} catch (e) {
+					logError(
+						{
+							msg: "Failed to create presign object",
+							method: "maintainPresignPool",
+							network,
+						},
+						e,
+					);
+					break;
+				}
+			}
 		}
 	}
 

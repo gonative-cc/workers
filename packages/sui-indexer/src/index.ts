@@ -108,6 +108,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 	);
 
 	const results = await Promise.allSettled([
+		service.refillPresignPool(activeNetworks),
 		service.processPendingRedeems(), // propose a solution
 		service
 			.solveReadyRedeems() // trigger status change
@@ -117,6 +118,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 
 	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
+		"refillPresignPool",
 		"processPendingRedeems",
 		"solveReadyRedeems/processSolvedRedeems",
 		"broadcastReadyRedeems",

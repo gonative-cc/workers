@@ -136,6 +136,7 @@ async function runRedeemSolver(
 		service.broadcastReadyRedeems(), // broadcast fully signed txs
 	]);
 
+	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
 		"processPendingRedeems",
 		"solveReadyRedeems/processSolvedRedeems",

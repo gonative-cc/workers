@@ -166,8 +166,27 @@ export class Indexer {
 	// - handles reorgs
 	async processBlock(
 		blockInfo: BlockQueueRecord,
-		broadcastedRedeemTxIds?: Set<string>,
+		trackedRedeems: Set<string> = new Set<string>(),
 	): Promise<void> {
+		const { block, network } = await this.prepareBlock(blockInfo);
+		const shouldProcess = await this.registerBlock(blockInfo);
+		if (!shouldProcess) return;
+
+		const { deposits, nbtcRedeems } = await this.scanBlockTransactions(
+			block,
+			network,
+			blockInfo,
+			trackedRedeems,
+		);
+		await this.saveDeposits(deposits);
+		await this.confirmNbtcRedeems(nbtcRedeems, blockInfo);
+		await this.finalizeBlock(blockInfo);
+	}
+
+	// fetches raw block data and validates the network
+	private async prepareBlock(
+		blockInfo: BlockQueueRecord,
+	): Promise<{ block: Block; network: Network }> {
 		const network = btcNetworkCfg[blockInfo.network];
 		if (!network) {
 			throw new Error(`Unknown network: ${blockInfo.network}`);
@@ -183,7 +202,11 @@ export class Indexer {
 			throw new Error(`Block data not found in KV for hash: ${blockInfo.hash}`);
 		}
 		const block = Block.fromBuffer(Buffer.from(rawBlockBuffer));
+		return { block, network };
+	}
 
+	// registers a block and checks for reorgs
+	private async registerBlock(blockInfo: BlockQueueRecord): Promise<boolean> {
 		const result = await this.storage.insertBlockInfo(blockInfo);
 		if (result === InsertBlockStatus.Skipped) {
 			logger.debug({
@@ -193,7 +216,7 @@ export class Indexer {
 				hash: blockInfo.hash,
 				status: result,
 			});
-			return;
+			return false;
 		}
 
 		if (result === InsertBlockStatus.Updated) {
@@ -205,76 +228,113 @@ export class Indexer {
 			});
 			await this.detectMintedReorgs(blockInfo.height);
 		}
+		return true;
+	}
 
-		const nbtcTxs: NbtcTxInsertion[] = [];
-		const txIds: string[] = [];
+	// iterates through block txs and checks for minting and tracked redeems.
+	// The nbtcRedeems (confirmed Redeems) is a list of detected Bitcoin tx ids.
+	private async scanBlockTransactions(
+		block: Block,
+		network: Network,
+		blockInfo: BlockQueueRecord,
+		trackedRedeems: Set<string>,
+	): Promise<{ deposits: NbtcTxInsertion[]; nbtcRedeems: string[] }> {
+		const deposits: NbtcTxInsertion[] = [];
+		const nbtcRedeems: string[] = [];
 
 		for (const tx of block.transactions ?? []) {
-			txIds.push(tx.getId());
-			const deposits = this.findNbtcDeposits(tx, network);
-			if (deposits.length > 0) {
-				const txSenders = await this.getSenderAddresses(tx, blockInfo.network);
-				const sender = txSenders[0] || ""; // Use first sender or empty string if none found
-				if (txSenders.length > 1) {
-					logger.warn({
-						msg: "Multiple senders found for tx, using first one",
-						txId: tx.getId(),
-						senders: txSenders,
-					});
-				}
+			const txDeposits = await this.detectMintingTx(tx, network, blockInfo);
+			if (txDeposits.length > 0) {
+				deposits.push(...txDeposits);
+			}
 
-				for (const deposit of deposits) {
-					logger.info({
-						msg: "Found new nBTC deposit",
-						txId: tx.getId(),
-						vout: deposit.vout,
-						amount: deposit.amount,
-						suiRecipient: deposit.suiRecipient,
-						nbtcPkg: deposit.nbtcPkg,
-						suiNetwork: deposit.suiNetwork,
-						depositAddress: deposit.depositAddress,
-						sender,
-					});
-
-					nbtcTxs.push({
-						txId: tx.getId(),
-						vout: deposit.vout,
-						blockHash: blockInfo.hash,
-						blockHeight: blockInfo.height,
-						suiRecipient: deposit.suiRecipient,
-						amount: deposit.amount,
-						btcNetwork: blockInfo.network,
-						nbtcPkg: deposit.nbtcPkg,
-						suiNetwork: deposit.suiNetwork,
-						depositAddress: deposit.depositAddress,
-						sender,
-					});
-				}
+			if (this.detectRedeemTx(tx, trackedRedeems)) {
+				nbtcRedeems.push(tx.getId());
 			}
 		}
 
-		if (txIds.length > 0) {
-			const potentialRedeems = broadcastedRedeemTxIds
-				? txIds.filter((id) => broadcastedRedeemTxIds.has(id))
-				: txIds;
+		return { deposits, nbtcRedeems };
+	}
 
-			if (potentialRedeems.length > 0) {
-				await this.suiIndexer.confirmRedeem(
-					potentialRedeems,
-					blockInfo.height,
-					blockInfo.hash,
-				);
-			}
+	// checks if a transaction is a valid nBTC deposit and fetches sender information
+	private async detectMintingTx(
+		tx: Transaction,
+		network: Network,
+		blockInfo: BlockQueueRecord,
+	): Promise<NbtcTxInsertion[]> {
+		const foundDeposits = this.findNbtcDeposits(tx, network);
+		if (foundDeposits.length === 0) {
+			return [];
 		}
 
-		if (nbtcTxs.length > 0) {
-			await this.storage.insertOrUpdateNbtcTxs(nbtcTxs);
+		const txSenders = await this.getSenderAddresses(tx, blockInfo.network);
+		const sender = txSenders[0] || ""; // Use first sender or empty string if none found
+		if (txSenders.length > 1) {
+			logger.warn({
+				msg: "Multiple senders found for tx, using first one",
+				txId: tx.getId(),
+				senders: txSenders,
+			});
 		}
 
-		if (nbtcTxs.length === 0) {
+		const results: NbtcTxInsertion[] = [];
+		for (const deposit of foundDeposits) {
+			logger.info({
+				msg: "Found new nBTC deposit",
+				txId: tx.getId(),
+				vout: deposit.vout,
+				amount: deposit.amount,
+				suiRecipient: deposit.suiRecipient,
+				nbtcPkg: deposit.nbtcPkg,
+				suiNetwork: deposit.suiNetwork,
+				depositAddress: deposit.depositAddress,
+				sender,
+			});
+
+			results.push({
+				txId: tx.getId(),
+				vout: deposit.vout,
+				blockHash: blockInfo.hash,
+				blockHeight: blockInfo.height,
+				suiRecipient: deposit.suiRecipient,
+				amount: deposit.amount,
+				btcNetwork: blockInfo.network,
+				nbtcPkg: deposit.nbtcPkg,
+				suiNetwork: deposit.suiNetwork,
+				depositAddress: deposit.depositAddress,
+				sender,
+			});
+		}
+		return results;
+	}
+
+	// verifies if a transaction ID is present in the tracked redeems set
+	private detectRedeemTx(tx: Transaction, trackedRedeems: Set<string>): boolean {
+		const txId = tx.getId();
+		return trackedRedeems.has(txId);
+	}
+
+	// saves newly detected deposits to the database
+	private async saveDeposits(deposits: NbtcTxInsertion[]): Promise<void> {
+		if (deposits.length > 0) {
+			await this.storage.insertOrUpdateNbtcTxs(deposits);
+		} else {
 			logger.debug({ msg: "No new nBTC deposits found in block" });
 		}
+	}
 
+	// calls the Sui Indexer to update the status of the redeems to 'Confirming'
+	private async confirmNbtcRedeems(
+		confirmedRedeems: string[],
+		blockInfo: BlockQueueRecord,
+	): Promise<void> {
+		if (confirmedRedeems.length > 0) {
+			await this.suiIndexer.confirmRedeem(confirmedRedeems, blockInfo.height, blockInfo.hash);
+		}
+	}
+
+	// marks the block as processed and updates the local chain tip
+	private async finalizeBlock(blockInfo: BlockQueueRecord): Promise<void> {
 		await this.storage.markBlockAsProcessed(blockInfo.hash, blockInfo.network);
 		await this.storage.setChainTip(blockInfo.height, blockInfo.network);
 	}
@@ -992,10 +1052,6 @@ export class Indexer {
 		});
 
 		return { tx_id: txId };
-	}
-
-	async getBroadcastedRedeemTxIds(): Promise<string[]> {
-		return this.suiIndexer.getBroadcastedRedeemTxIds();
 	}
 
 	async getLatestHeight(network: BtcNet): Promise<{ height: number | null }> {

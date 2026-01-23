@@ -195,7 +195,6 @@ The project consists of:
 
 Database access layer implemented `storage.ts`. The D1 database tables are defined in SQL files in `packages/btcindexer/db/migrations/*` (follow the migration files to reconstruct the DB scheme).
 
-
 #### Service Bindings Implementation
 
 - Exposes Cloudflare RPC interface for inter-worker communication

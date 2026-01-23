@@ -4,19 +4,20 @@ import { expect } from "bun:test";
 import type { D1Database, KVNamespace, Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
+import { D1Storage } from "@gonative-cc/sui-indexer/storage";
+import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc-interface";
+import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
+
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import type { SuiClientI } from "./sui_client";
 import type { NbtcPkgCfg, NbtcDepositAddrsMap } from "./models";
 import { MintTxStatus } from "./models";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
-import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
-import { initDb } from "./db.test";
 import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
-import { D1Storage } from "@gonative-cc/sui-indexer/storage";
-import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc-interface";
 
 export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
@@ -65,6 +66,8 @@ export interface TestIndexerHelper {
 	storage: CFStorage;
 	mockSuiClient: MockSuiClient;
 	mockElectrs: Electrs;
+
+	cleanupDB(): Promise<D1ExecResult>;
 
 	setupBlock: (height: number) => Promise<void>;
 	getBlock: (height: number) => Block;
@@ -172,7 +175,8 @@ export async function setupTestIndexerSuite(
 	const indexerStorage = new D1Storage(db);
 
 	const mockSuiIndexerService = {
-		getBroadcastedRedeemTxIds: () => indexerStorage.getBroadcastedBtcTxIds(),
+		getBroadcastedRedeemTxIds: (network: string) =>
+			indexerStorage.getBroadcastedBtcRedeemTxIds(network),
 		confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) =>
 			indexerStorage.confirmRedeem(txIds, blockHeight, blockHash),
 		finalizeRedeem: () => Promise.resolve(),
@@ -189,6 +193,12 @@ export async function setupTestIndexerSuite(
 		electrsClients,
 		mockSuiIndexerService,
 	);
+
+	//
+	// Interface functions
+	//
+
+	const cleanupDB = () => dropTables(db);
 
 	const setupBlock = async (height: number): Promise<void> => {
 		const blockData = testData[height];
@@ -338,6 +348,8 @@ export async function setupTestIndexerSuite(
 		storage,
 		mockSuiClient,
 		mockElectrs,
+		// functions
+		cleanupDB,
 		setupBlock,
 		getBlock,
 		getTx,

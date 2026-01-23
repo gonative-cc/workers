@@ -244,8 +244,8 @@ export class D1Storage {
 	async popPresignObject(network: SuiNet): Promise<string | null> {
 		const result = await this.db
 			.prepare(
-				`DELETE FROM presign_objects 
-				  WHERE presign_id = (SELECT presign_id FROM presign_objects WHERE sui_network = ? ORDER BY created_at ASC LIMIT 1) 
+				`DELETE FROM presign_objects
+				  WHERE presign_id = (SELECT presign_id FROM presign_objects WHERE sui_network = ? ORDER BY created_at ASC LIMIT 1)
 				  RETURNING presign_id`,
 			)
 			.bind(network)
@@ -301,7 +301,6 @@ export class D1Storage {
 
 		const batch = utxoIds.map((utxoId, i) => {
 			// dwalletIds[i] is guaranteed to exist due to length check
-			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 			return stmt.bind(redeemId, utxoId, i, dwalletIds[i]!, now);
 		});
 

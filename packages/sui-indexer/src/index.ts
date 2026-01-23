@@ -74,15 +74,27 @@ async function runSuiIndexer(storage: D1Storage, env: Env, activeNetworks: SuiNe
 
 async function poolAndProcessEvents(netCfg: NetworkConfig, storage: D1Storage) {
 	const client = new SuiGraphQLClient(netCfg.url);
-	const packages = await storage.getActiveNbtcPkgs(netCfg.name);
-	if (packages.length === 0) return;
-	logger.info({
-		msg: `Processing network`,
-		network: netCfg.name,
-		packageCount: packages.length,
-	});
 	const p = new Processor(netCfg, storage, client);
-	await p.pollAllNbtcEvents(packages);
+
+	const nbtcPkgs = await storage.getActiveNbtcPkgs(netCfg.name);
+	if (nbtcPkgs.length > 0) {
+		logger.info({
+			msg: `Processing nBTC events`,
+			network: netCfg.name,
+			packageCount: nbtcPkgs.length,
+		});
+		await p.pollAllNbtcEvents(nbtcPkgs);
+	}
+
+	const ikaPkgs = await storage.getActiveCoordinatorPkgs(netCfg.name);
+	if (ikaPkgs.length > 0) {
+		logger.info({
+			msg: `Processing IKA coordinator events`,
+			network: netCfg.name,
+			packageCount: ikaPkgs.length,
+		});
+		await p.pollIkaEvents(ikaPkgs);
+	}
 }
 
 async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: SuiNet[]) {

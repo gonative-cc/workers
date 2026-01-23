@@ -5,6 +5,8 @@ import {
 	type RedeemRequestEventRaw,
 	type SolvedEventRaw,
 	type SignatureRecordedEventRaw,
+	type CompletedSignEventRaw,
+	type RejectedSignEventRaw,
 	type SuiEventNode,
 	UtxoStatus,
 } from "./models";
@@ -13,9 +15,9 @@ import { fromBase64 } from "@mysten/sui/utils";
 
 export class SuiEventHandler {
 	private storage: D1Storage;
-	private setupId: number;
+	private setupId?: number;
 
-	constructor(storage: D1Storage, setupId: number) {
+	constructor(storage: D1Storage, setupId?: number) {
 		this.storage = storage;
 		this.setupId = setupId;
 	}
@@ -34,8 +36,19 @@ export class SuiEventHandler {
 				await this.handleSolved(json as SolvedEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SignatureRecordedEvent")) {
 				await this.handleIkaSignatureRecorded(json as SignatureRecordedEventRaw);
+			} else if (e.type.includes("CompletedSignEvent")) {
+				await this.handleCompletedSign(e.json as CompletedSignEventRaw);
+			} else if (e.type.includes("RejectedSignEvent")) {
+				await this.handleRejectedSign(e.json as RejectedSignEventRaw);
 			}
 		}
+	}
+
+	private getSetupId(): number {
+		if (this.setupId == undefined) {
+			throw new Error("Setup ID is not set");
+		}
+		return this.setupId;
 	}
 
 	private async handleMint(txDigest: string, e: MintEventRaw) {
@@ -51,7 +64,7 @@ export class SuiEventHandler {
 			vout: e.btc_vout,
 			amount: Number(e.btc_amount),
 			script_pubkey: fromBase64(e.btc_script_publickey),
-			setup_id: this.setupId,
+			setup_id: this.getSetupId(),
 			status: UtxoStatus.Available,
 			locked_until: null,
 		});
@@ -65,7 +78,7 @@ export class SuiEventHandler {
 			recipient_script: fromBase64(e.recipient_script),
 			amount: Number(e.amount),
 			created_at: Number(e.created_at),
-			setup_id: this.setupId,
+			setup_id: this.getSetupId(),
 			sui_tx: txDigest,
 		});
 		logger.info({ msg: "Indexed Redeem Request", id: e.redeem_id });
@@ -104,5 +117,15 @@ export class SuiEventHandler {
 			redeemId: e.redeem_id,
 			utxoId: e.utxo_id,
 		});
+	}
+
+	private async handleCompletedSign(e: CompletedSignEventRaw) {
+		logger.info({ msg: "IKA sign completed", signId: e.sign_id });
+		//TODO: will handle the sign in the redeem-service in next PR
+	}
+
+	private async handleRejectedSign(e: RejectedSignEventRaw) {
+		logger.warn({ msg: "IKA sign rejected", signId: e.sign_id });
+		//TODO: will handle the sign in the redeem-service in next PR
 	}
 }

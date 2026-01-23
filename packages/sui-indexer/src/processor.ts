@@ -3,6 +3,7 @@ import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class Processor {
 	netCfg: NetworkConfig;
@@ -73,6 +74,77 @@ export class Processor {
 					method: "queryNewEvents",
 					network: this.netCfg,
 					setupIds,
+				},
+				e,
+			);
+		}
+	}
+
+	async pollIkaEvents(coordinatorPkgIds: string[]) {
+		try {
+			if (coordinatorPkgIds.length === 0) return;
+
+			const cursors = await this.storage.getIkaCursors(coordinatorPkgIds);
+
+			let hasAnyNextPage = true;
+			while (hasAnyNextPage) {
+				const packages = coordinatorPkgIds.map((pkgId) => ({
+					id: pkgId,
+					cursor: cursors[pkgId] || null,
+					module: "coordinator_inner",
+				}));
+
+				const results = await this.eventFetcher.fetchEvents(packages);
+
+				const cursorsToSave: {
+					coordinatorPkgId: string;
+					suiNetwork: SuiNet;
+					cursor: string;
+				}[] = [];
+				hasAnyNextPage = false;
+
+				for (const pkgId of coordinatorPkgIds) {
+					const result = results[pkgId];
+					if (!result) continue;
+
+					logger.debug({
+						msg: "Fetched IKA events",
+						network: this.netCfg.name,
+						coordinatorPkgId: pkgId,
+						eventsLength: result.events.length,
+						endCursor: result.endCursor,
+					});
+
+					if (result.events.length > 0) {
+						const handler = new SuiEventHandler(this.storage);
+						await handler.handleEvents(result.events);
+					}
+
+					if (result.endCursor && result.endCursor !== cursors[pkgId]) {
+						cursorsToSave.push({
+							coordinatorPkgId: pkgId,
+							suiNetwork: this.netCfg.name,
+							cursor: result.endCursor,
+						});
+						cursors[pkgId] = result.endCursor;
+					}
+
+					if (result.hasNextPage) {
+						hasAnyNextPage = true;
+					}
+				}
+
+				if (cursorsToSave.length > 0) {
+					await this.storage.saveIkaCursors(cursorsToSave);
+				}
+			}
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to index IKA coordinator events",
+					method: "pollIkaEvents",
+					network: this.netCfg,
+					coordinatorPkgIds,
 				},
 				e,
 			);

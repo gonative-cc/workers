@@ -110,6 +110,54 @@ export class D1Storage {
 		return result;
 	}
 
+	async getIkaCursors(coordinatorPkgIds: string[]): Promise<Record<string, string | null>> {
+		if (coordinatorPkgIds.length === 0) return {};
+
+		const placeholders = coordinatorPkgIds.map(() => "?").join(",");
+		const res = await this.db
+			.prepare(
+				`SELECT coordinator_pkg_id, ika_cursor FROM indexer_ika_state WHERE coordinator_pkg_id IN (${placeholders})`,
+			)
+			.bind(...coordinatorPkgIds)
+			.all<{ coordinator_pkg_id: string; ika_cursor: string }>();
+
+		const result: Record<string, string | null> = {};
+		coordinatorPkgIds.forEach((id) => {
+			result[id] = null;
+		});
+		res.results.forEach((row) => {
+			result[row.coordinator_pkg_id] = row.ika_cursor || null;
+		});
+		return result;
+	}
+
+	async saveIkaCursors(
+		cursors: { coordinatorPkgId: string; suiNetwork: SuiNet; cursor: string }[],
+	): Promise<void> {
+		if (cursors.length === 0) return;
+
+		const stmt = this.db.prepare(
+			`INSERT INTO indexer_ika_state (coordinator_pkg_id, sui_network, ika_cursor, updated_at)
+			 VALUES (?, ?, ?, ?)
+			 ON CONFLICT(coordinator_pkg_id) DO UPDATE SET ika_cursor = excluded.ika_cursor, updated_at = excluded.updated_at`,
+		);
+
+		const now = Date.now();
+		const batch = cursors.map(({ coordinatorPkgId, suiNetwork, cursor }) =>
+			stmt.bind(coordinatorPkgId, suiNetwork, cursor, now),
+		);
+		await this.db.batch(batch);
+	}
+
+	async getActiveCoordinatorPkgs(suiNetwork: SuiNet): Promise<string[]> {
+		const { results } = await this.db
+			.prepare("SELECT coordinator_pkg_id FROM indexer_ika_state WHERE sui_network = ?")
+			.bind(suiNetwork)
+			.all<{ coordinator_pkg_id: string }>();
+
+		return results.map((r) => r.coordinator_pkg_id);
+	}
+
 	// Saves multiple cursor positions for querying Sui events.
 	async saveMultipleSuiGqlCursors(cursors: { setupId: number; cursor: string }[]): Promise<void> {
 		if (cursors.length === 0) return;
@@ -301,7 +349,7 @@ export class D1Storage {
 
 		const batch = utxoIds.map((utxoId, i) => {
 			// dwalletIds[i] is guaranteed to exist due to length check
-			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			 
 			return stmt.bind(redeemId, utxoId, i, dwalletIds[i]!, now);
 		});
 

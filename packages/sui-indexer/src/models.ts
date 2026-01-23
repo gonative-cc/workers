@@ -1,5 +1,6 @@
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { BitcoinTxStatus } from "@gonative-cc/lib/nbtc";
+import { createInterface } from "node:readline/promises";
 
 export enum UtxoStatus {
 	Available = "available",
@@ -146,4 +147,15 @@ export interface SolveRedeemCall {
 	redeemId: number;
 	nbtcPkg: string;
 	nbtcContract: string;
+}
+
+export interface CompletedSignEventRaw {
+	sign_id: string;
+	signature: number[];
+	is_future_sign: boolean;
+}
+
+export interface RejectedSignEventRaw {
+	sign_id: string;
+	is_future_sign: boolean;
 }

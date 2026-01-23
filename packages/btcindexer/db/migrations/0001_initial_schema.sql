@@ -139,6 +139,13 @@ CREATE TABLE IF NOT EXISTS indexer_state (
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS indexer_ika_state(
+	sui_network TEXT NOT NULL, -- for simplicity, we can reuse the presigns between the setups in the same network
+	coordinator_pkg_id TEXT NOT NULL PRIMARY KEY,
+	ika_cursor TEXT NOT NULL, -- last processed cursor state
+	updated_at INTEGER -- epoch time in ms
+) STRICT;
+
 CREATE TABLE IF NOT EXISTS presign_objects (
 	presign_id TEXT NOT NULL PRIMARY KEY,
 	sui_network TEXT NOT NULL, -- for simplicity, we can reuse the presigns between the setups in the same network

@@ -318,9 +318,11 @@ export async function createSuiClients(
 				signerMnemonic: mnemonic,
 				ikaClient: ikaClient,
 				client: mystenClient,
-				// TODO: set correct values here.
-				ikaSignCost: 400 * miniIka,
-				ikaPresignCost: 250 * miniIka,
+				// TODO:: We can get the function about pricing use this endpoint:
+				// https://github.com/dwallet-labs/ika/blob/01efcabe6282164b242040f0e338de6de164ae41/deployed_contracts/testnet/ika_dwallet_2pc_mpc/sources/coordinator.move#L807
+				// cost fee here is estimated relatively
+				ikaSignCost: 320 * miniIka,
+				ikaPresignCost: 240 * miniIka,
 			}),
 		);
 	}

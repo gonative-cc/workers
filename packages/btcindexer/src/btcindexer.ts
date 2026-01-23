@@ -172,14 +172,14 @@ export class Indexer {
 		const shouldProcess = await this.registerBlock(blockInfo);
 		if (!shouldProcess) return;
 
-		const { deposits, confirmedRedeems } = await this.scanBlockTransactions(
+		const { deposits, nbtcRedeems } = await this.scanBlockTransactions(
 			block,
 			network,
 			blockInfo,
 			trackedRedeems,
 		);
-		await this.persistDeposits(deposits);
-		await this.notifyRedeems(confirmedRedeems, blockInfo);
+		await this.saveDeposits(deposits);
+		await this.confirmNbtcRedeems(nbtcRedeems, blockInfo);
 		await this.finalizeBlock(blockInfo);
 	}
 
@@ -237,9 +237,9 @@ export class Indexer {
 		network: Network,
 		blockInfo: BlockQueueRecord,
 		trackedRedeems: Set<string>,
-	): Promise<{ deposits: NbtcTxInsertion[]; confirmedRedeems: string[] }> {
+	): Promise<{ deposits: NbtcTxInsertion[]; nbtcRedeems: string[] }> {
 		const deposits: NbtcTxInsertion[] = [];
-		const confirmedRedeems: string[] = [];
+		const nbtcRedeems: string[] = [];
 
 		for (const tx of block.transactions ?? []) {
 			const txDeposits = await this.detectMintingTx(tx, network, blockInfo);
@@ -247,13 +247,12 @@ export class Indexer {
 				deposits.push(...txDeposits);
 			}
 
-			const redeemId = this.detectRedeemTx(tx, trackedRedeems);
-			if (redeemId) {
-				confirmedRedeems.push(redeemId);
+			if (this.detectRedeemTx(tx, trackedRedeems)) {
+				nbtcRedeems.push(tx.getId());
 			}
 		}
 
-		return { deposits, confirmedRedeems };
+		return { deposits, nbtcRedeems };
 	}
 
 	// checks if a transaction is a valid nBTC deposit and fetches sender information
@@ -309,16 +308,13 @@ export class Indexer {
 	}
 
 	// verifies if a transaction ID is present in the tracked redeems set
-	private detectRedeemTx(tx: Transaction, trackedRedeems: Set<string>): string | null {
+	private detectRedeemTx(tx: Transaction, trackedRedeems: Set<string>): boolean {
 		const txId = tx.getId();
-		if (trackedRedeems.has(txId)) {
-			return txId;
-		}
-		return null;
+		return trackedRedeems.has(txId);
 	}
 
 	// saves newly detected deposits to the database
-	private async persistDeposits(deposits: NbtcTxInsertion[]): Promise<void> {
+	private async saveDeposits(deposits: NbtcTxInsertion[]): Promise<void> {
 		if (deposits.length > 0) {
 			await this.storage.insertOrUpdateNbtcTxs(deposits);
 		} else {
@@ -327,7 +323,7 @@ export class Indexer {
 	}
 
 	// calls the Sui Indexer to update the status of the redeems to 'Confirming'
-	private async notifyRedeems(
+	private async confirmNbtcRedeems(
 		confirmedRedeems: string[],
 		blockInfo: BlockQueueRecord,
 	): Promise<void> {

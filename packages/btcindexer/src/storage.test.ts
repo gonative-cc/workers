@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
+
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
+import { toSuiNet } from "@gonative-cc/lib/nsui";
+import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
+
 import { fetchNbtcAddresses, fetchPackageConfigs } from "./storage";
 import { CFStorage as CFStorageImpl } from "./cf-storage";
 import { MintTxStatus, InsertBlockStatus } from "./models";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
-import { initDb } from "./db.test";
-import { toSuiNet } from "@gonative-cc/lib/nsui";
 
 let mf: Miniflare;
 
@@ -30,18 +32,7 @@ beforeEach(async () => {
 	await initDb(db);
 });
 
-afterEach(async () => {
-	const db = await mf.getD1Database("DB");
-	const tables = [
-		"btc_blocks",
-		"nbtc_minting",
-		"nbtc_withdrawal",
-		"setups",
-		"nbtc_deposit_addresses",
-	];
-	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
-	await db.exec(dropStms);
-});
+afterEach(async () => dropTables(await mf.getD1Database("DB")));
 
 describe("Storage Helper Functions", () => {
 	it("fetchPackageConfigs should return active packages", async () => {

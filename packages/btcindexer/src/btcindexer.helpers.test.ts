@@ -347,7 +347,7 @@ export async function setupTestIndexerSuite(
 		storage,
 		mockSuiClient,
 		mockElectrs,
-
+		// functions
 		cleanupDB,
 		setupBlock,
 		getBlock,

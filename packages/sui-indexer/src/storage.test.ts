@@ -147,6 +147,7 @@ async function insertDepositAddress(
 
 describe("IndexerStorage", () => {
 	let storage: D1Storage;
+	// TODO: duplicate - remove this
 	let indexerStorage: D1Storage;
 	let db: D1Database;
 

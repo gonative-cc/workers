@@ -63,8 +63,12 @@ for (const [_envName, setups] of Object.entries(setupEnvs)) {
 }
 
 export function getActiveSetups(envName: string): Setup[] {
-	// TODO: filter the active ones only
-	return setupEnvs[envName] || [];
+	const activeSetups = [];
+	for (const s of setupEnvs[envName] || []) {
+		if (s.is_active) activeSetups.push(s);
+	}
+
+	return activeSetups;
 }
 
 export function getSetup(id: number): Setup | undefined {

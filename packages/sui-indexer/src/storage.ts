@@ -241,6 +241,28 @@ export class D1Storage {
 		return results.map((r) => toSuiNet(r.sui_network));
 	}
 
+	async popPresignObject(network: SuiNet): Promise<string | null> {
+		const result = await this.db
+			.prepare(
+				`DELETE FROM presign_objects
+				  WHERE presign_id = (SELECT presign_id FROM presign_objects WHERE sui_network = ? ORDER BY created_at ASC LIMIT 1)
+				  RETURNING presign_id`,
+			)
+			.bind(network)
+			.first<{ presign_id: string }>();
+
+		return result?.presign_id || null;
+	}
+
+	async insertPresignObject(presignId: string, network: SuiNet): Promise<void> {
+		await this.db
+			.prepare(
+				"INSERT INTO presign_objects (presign_id, sui_network, created_at) VALUES (?, ?, ?)",
+			)
+			.bind(presignId, network, Date.now())
+			.run();
+	}
+
 	async hasRedeemRequest(redeemId: number): Promise<boolean> {
 		const ok = await this.db
 			.prepare("SELECT 1 FROM nbtc_redeem_requests WHERE redeem_id = ?")
@@ -279,7 +301,6 @@ export class D1Storage {
 
 		const batch = utxoIds.map((utxoId, i) => {
 			// dwalletIds[i] is guaranteed to exist due to length check
-			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 			return stmt.bind(redeemId, utxoId, i, dwalletIds[i]!, now);
 		});
 
@@ -339,18 +360,26 @@ export class D1Storage {
 		}
 	}
 
-	// Additional methods from redeem_solver
+	// Returns transactions that have been broadcasted or are confirming in order to update the
+	// confirmation status
+	async getBroadcastedBtcRedeemTxIds(network: string): Promise<string[]> {
+		// TODO: should we include Reorg here?
+		const statuses = [RedeemRequestStatus.Broadcasting, RedeemRequestStatus.Confirming];
+		const placeholders = statuses.map(() => "?").join(",");
 
-	async getBroadcastedBtcTxIds(): Promise<string[]> {
 		const { results } = await this.db
 			.prepare(
-				`SELECT btc_tx FROM nbtc_redeem_requests WHERE status = ? AND btc_tx IS NOT NULL`,
+				`SELECT r.btc_tx
+	                 FROM nbtc_redeem_requests r
+	                 JOIN setups s ON r.setup_id = s.id
+	                 WHERE s.btc_network = ?
+	                 AND r.status IN (${placeholders})
+	                 AND r.btc_tx IS NOT NULL`,
 			)
-			.bind(RedeemRequestStatus.Broadcasting)
+			.bind(network, ...statuses)
 			.all<{ btc_tx: string }>();
 		return results.map((r) => r.btc_tx);
 	}
-
 	async markRedeemBroadcasted(redeemId: number, txId: string): Promise<void> {
 		const now = Date.now();
 		await this.db

@@ -1,19 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from "bun:test";
 import { Miniflare } from "miniflare";
-
 import { join } from "path";
 import { Block, networks } from "bitcoinjs-lib";
+
+import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
 import { Indexer } from "./btcindexer";
 import type { Deposit, ProofResult } from "./models";
 import { MintTxStatus, InsertBlockStatus } from "./models";
-import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { setupTestIndexerSuite, type TestIndexerHelper } from "./btcindexer.helpers.test";
+
 interface TxInfo {
 	id: string;
 	suiAddr: string;
 	amount: number;
 }
+
 interface TestBlock {
 	depositAddr: string;
 	height: number;
@@ -93,17 +95,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-	const tables = [
-		"btc_blocks",
-		"nbtc_minting",
-		"nbtc_withdrawal",
-		"setups",
-		"nbtc_deposit_addresses",
-	];
-	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
-	await suite.db.exec(dropStms);
 	// restores all spies after each test
 	jest.restoreAllMocks();
+	await suite.cleanupDB();
 });
 
 function checkTxProof(proofResult: ProofResult | null, block: Block) {

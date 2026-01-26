@@ -321,6 +321,8 @@ export async function createSuiClients(
 				// TODO:: We can get the function about pricing use this endpoint:
 				// https://github.com/dwallet-labs/ika/blob/01efcabe6282164b242040f0e338de6de164ae41/deployed_contracts/testnet/ika_dwallet_2pc_mpc/sources/coordinator.move#L807
 				// cost fee here is estimated relatively
+				// sign cost = 0.2 ika * 60% = 0.32 ika
+				// presign cost = 0.15 * 60% = 0.24 ika
 				ikaSignCost: 320 * miniIka,
 				ikaPresignCost: 240 * miniIka,
 			}),

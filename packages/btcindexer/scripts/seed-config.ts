@@ -67,9 +67,8 @@ async function main() {
 			continue;
 		}
 
-		const checkAddrQuery = `SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ${setupId} AND deposit_address = '${entry.btc_address}'`;
+		const checkAddrQuery = `SELECT 1 FROM nbtc_deposit_addresses WHERE setup_id = ${setupId} AND deposit_address = '${entry.btc_address}'`;
 		const existingAddrId = await executeQuery<number>(checkAddrQuery, DB_NAME, local, "id");
-
 		if (existingAddrId) {
 			continue;
 		}

@@ -102,8 +102,8 @@ describe("CFStorage", () => {
 		await db
 			.prepare(
 				`
-            INSERT INTO nbtc_deposit_addresses (id, setup_id, deposit_address, is_active)
-            VALUES (10, 1, 'bcrt1qAddress1', 1)
+            INSERT INTO nbtc_deposit_addresses (setup_id, deposit_address, is_active)
+            VALUES (1, 'bcrt1qAddress1', 1)
         `,
 			)
 			.run();

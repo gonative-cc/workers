@@ -14,7 +14,7 @@ export interface Utxo {
 	vout: number;
 	amount: number;
 	script_pubkey: Uint8Array;
-	address_id: number;
+	address_id: string; // deposit Bitcoin address
 	status: UtxoStatus;
 	locked_until: number | null;
 }

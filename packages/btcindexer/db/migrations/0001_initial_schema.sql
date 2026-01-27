@@ -16,7 +16,7 @@ CREATE INDEX IF NOT EXISTS btc_blocks_is_scanned_height ON btc_blocks (is_scanne
 -- This table tracks the nBTC deposit txs (minting)
 CREATE TABLE IF NOT EXISTS nbtc_minting (
 	tx_id TEXT NOT NULL PRIMARY KEY,
-	address_id INTEGER NOT NULL,  -- nbtc pkg is linked through address_id
+	address_id TEXT NOT NULL,  -- nbtc pkg is linked through address_id
 	sender TEXT NOT NULL,
 	vout INTEGER NOT NULL,
 	block_hash TEXT,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS nbtc_minting (
 	updated_at INTEGER NOT NULL, -- timestamp_ms
 	sui_tx_id TEXT,
 	retry_count INTEGER NOT NULL DEFAULT 0,
-	FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(id)
+	FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(deposit_address)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS nbtc_minting_status ON nbtc_minting (address_id, status);
@@ -50,19 +50,17 @@ CREATE TABLE IF NOT EXISTS setups (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
-	id INTEGER PRIMARY KEY,
-	setup_id INTEGER NOT NULL,
-	deposit_address TEXT NOT NULL,
-	is_active INTEGER NOT NULL DEFAULT 1,
-	FOREIGN KEY (setup_id) REFERENCES setups(id) ON DELETE CASCADE,
 	-- make sure we don't share bitcoin deposit address between setups
-	UNIQUE(deposit_address)
+	deposit_address TEXT PRIMARY KEY,
+	setup_id INTEGER NOT NULL,
+	is_active INTEGER NOT NULL DEFAULT 1,
+	FOREIGN KEY (setup_id) REFERENCES setups(id) ON DELETE CASCADE
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (
 	nbtc_utxo_id INTEGER NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
 	-- TODO: This is an ID assigned by the smart contract. The primary key should be a combination of (setup_id, nbtc_utxo_id)
-	address_id INTEGER NOT NULL,
+	address_id TEXT NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	txid TEXT NOT NULL, -- Bitcoin transaction ID
 	vout INTEGER NOT NULL,
@@ -70,7 +68,7 @@ CREATE TABLE IF NOT EXISTS nbtc_utxos (
 	script_pubkey BLOB NOT NULL,
 	status TEXT NOT NULL DEFAULT 'available', -- 'available', 'locked', 'spent' TODO: lets remove the 'spent' utxos after some time?
 	locked_until INTEGER,
-	FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(id)
+	FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(deposit_address)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS nbtc_utxos_selection ON nbtc_utxos(address_id, status, amount);

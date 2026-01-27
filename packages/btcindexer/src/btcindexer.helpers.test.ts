@@ -278,19 +278,6 @@ export async function setupTestIndexerSuite(
 
 		const depositAddr = options.depositAddress || defaultBlock.depositAddr;
 
-		// Validate that the deposit address exists in the database
-		const addressResult = await db
-			.prepare(`SELECT id FROM nbtc_deposit_addresses WHERE deposit_address = ?`)
-			.bind(depositAddr)
-			.first<{ id: number }>();
-
-		if (!addressResult) {
-			throw new Error(
-				`Deposit address '${depositAddr}' not found in database. ` +
-					`Make sure to include it in the depositAddresses array during setupTestIndexer().`,
-			);
-		}
-
 		await db
 			.prepare(
 				`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount, status, created_at, updated_at, retry_count)
@@ -298,7 +285,7 @@ export async function setupTestIndexerSuite(
 			)
 			.bind(
 				options.txId,
-				addressResult.id,
+				depositAddr,
 				options.sender || "sender_address",
 				options.vout ?? 0,
 				options.blockHash || defaultBlock.hash,

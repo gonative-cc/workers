@@ -61,7 +61,7 @@ interface UtxoRow {
 	vout: number;
 	amount: number;
 	script_pubkey: ArrayBuffer;
-	address_id: number;
+	address_id: string;
 	status: UtxoStatus;
 	locked_until: number | null;
 }
@@ -155,19 +155,6 @@ export class D1Storage {
 			throw new Error(`Failed to derive address from script_pubkey: ${e}`);
 		}
 
-		const addrRow = await this.db
-			.prepare(
-				"SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ? AND deposit_address = ?",
-			)
-			.bind(u.setup_id, depositAddress)
-			.first<{ id: number }>();
-
-		if (!addrRow) {
-			throw new Error(
-				`Deposit address not found for setup_id=${u.setup_id}, address=${depositAddress}`,
-			);
-		}
-
 		const stmt = this.db.prepare(
 			`INSERT OR REPLACE INTO nbtc_utxos
             (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount, script_pubkey, status, locked_until)
@@ -177,7 +164,7 @@ export class D1Storage {
 			await stmt
 				.bind(
 					u.nbtc_utxo_id,
-					addrRow.id,
+					depositAddress,
 					u.dwallet_id,
 					u.txid,
 					u.vout,
@@ -560,7 +547,7 @@ export class D1Storage {
 		const query = `
 			SELECT u.nbtc_utxo_id, u.dwallet_id, u.txid, u.vout, u.amount, u.script_pubkey, u.address_id, u.status, u.locked_until
 			FROM nbtc_utxos u
-			JOIN nbtc_deposit_addresses a ON u.address_id = a.id
+			JOIN nbtc_deposit_addresses a ON u.address_id = a.deposit_address
 			WHERE a.setup_id = ?
 			AND u.status = ?
 			ORDER BY u.amount DESC;

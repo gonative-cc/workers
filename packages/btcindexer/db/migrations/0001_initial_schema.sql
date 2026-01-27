@@ -58,8 +58,8 @@ CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_utxos (
+	-- TODO: The primary key should be a combination of (setup_id, nbtc_utxo_id)
 	nbtc_utxo_id INTEGER NOT NULL PRIMARY KEY, -- Sui ID asigned to this UTXO
-	-- TODO: This is an ID assigned by the smart contract. The primary key should be a combination of (setup_id, nbtc_utxo_id)
 	address_id TEXT NOT NULL,
 	dwallet_id TEXT NOT NULL,
 	txid TEXT NOT NULL, -- Bitcoin transaction ID

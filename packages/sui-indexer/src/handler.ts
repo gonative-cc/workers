@@ -36,6 +36,7 @@ export class SuiEventHandler {
 				await this.handleSolved(json as SolvedEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SignatureRecordedEvent")) {
 				await this.handleIkaSignatureRecorded(json as SignatureRecordedEventRaw);
+				//Ika events
 			} else if (e.type.includes("::coordinator_inner::CompletedSignEvent")) {
 				await this.handleCompletedSign(e);
 			} else if (e.type.includes("::coordinator_inner::RejectedSignEvent")) {

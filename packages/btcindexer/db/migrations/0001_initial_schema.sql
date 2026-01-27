@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS indexer_state (
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS indexer_ika_state(
+CREATE TABLE IF NOT EXISTS ika_state(
 	sui_network TEXT NOT NULL,
 	coordinator_pkg_id TEXT NOT NULL,
 	ika_cursor TEXT NOT NULL, -- last processed cursor state

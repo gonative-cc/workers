@@ -8,6 +8,7 @@ import {
 	type RedeemRequest,
 	type RedeemRequestResp,
 	type Utxo,
+	type IkaCursorUpdate,
 } from "./models";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
@@ -116,7 +117,7 @@ export class D1Storage {
 		const placeholders = coordinatorPkgIds.map(() => "?").join(",");
 		const res = await this.db
 			.prepare(
-				`SELECT coordinator_pkg_id, ika_cursor FROM indexer_ika_state WHERE coordinator_pkg_id IN (${placeholders})`,
+				`SELECT coordinator_pkg_id, ika_cursor FROM ika_state WHERE coordinator_pkg_id IN (${placeholders})`,
 			)
 			.bind(...coordinatorPkgIds)
 			.all<{ coordinator_pkg_id: string; ika_cursor: string }>();
@@ -131,13 +132,11 @@ export class D1Storage {
 		return result;
 	}
 
-	async saveIkaCursors(
-		cursors: { coordinatorPkgId: string; suiNetwork: SuiNet; cursor: string }[],
-	): Promise<void> {
+	async saveIkaCursors(cursors: IkaCursorUpdate[]): Promise<void> {
 		if (cursors.length === 0) return;
 
 		const stmt = this.db.prepare(
-			`INSERT INTO indexer_ika_state (coordinator_pkg_id, sui_network, ika_cursor, updated_at)
+			`INSERT INTO ika_state (coordinator_pkg_id, sui_network, ika_cursor, updated_at)
 			 VALUES (?, ?, ?, ?)
 			 ON CONFLICT(sui_network, coordinator_pkg_id) DO UPDATE SET ika_cursor = excluded.ika_cursor, updated_at = excluded.updated_at`,
 		);
@@ -149,9 +148,9 @@ export class D1Storage {
 		await this.db.batch(batch);
 	}
 
-	async getActiveCoordinatorPkgs(suiNetwork: SuiNet): Promise<string[]> {
+	async getIkaCoordinatorPkgs(suiNetwork: SuiNet): Promise<string[]> {
 		const { results } = await this.db
-			.prepare("SELECT coordinator_pkg_id FROM indexer_ika_state WHERE sui_network = ?")
+			.prepare("SELECT coordinator_pkg_id FROM ika_state WHERE sui_network = ?")
 			.bind(suiNetwork)
 			.all<{ coordinator_pkg_id: string }>();
 

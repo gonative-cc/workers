@@ -1,6 +1,7 @@
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { BitcoinTxStatus } from "@gonative-cc/lib/nbtc";
 import { createInterface } from "node:readline/promises";
+import { CoordinatorInnerModule } from "@ika.xyz/sdk";
 
 export enum UtxoStatus {
 	Available = "available",
@@ -149,13 +150,11 @@ export interface SolveRedeemCall {
 	nbtcContract: string;
 }
 
-export interface CompletedSignEventRaw {
-	sign_id: string;
-	signature: number[];
-	is_future_sign: boolean;
+export interface IkaCursorUpdate {
+	coordinatorPkgId: string;
+	suiNetwork: SuiNet;
+	cursor: string;
 }
 
-export interface RejectedSignEventRaw {
-	sign_id: string;
-	is_future_sign: boolean;
-}
+export type CompletedSignEventRaw = typeof CoordinatorInnerModule.CompletedSignEvent.$inferInput;
+export type RejectedSignEventRaw = typeof CoordinatorInnerModule.RejectedSignEvent.$inferInput;

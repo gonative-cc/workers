@@ -86,7 +86,7 @@ async function poolAndProcessEvents(netCfg: NetworkConfig, storage: D1Storage) {
 		await p.pollAllNbtcEvents(nbtcPkgs);
 	}
 
-	const ikaPkgs = await storage.getActiveCoordinatorPkgs(netCfg.name);
+	const ikaPkgs = await storage.getIkaCoordinatorPkgs(netCfg.name);
 	if (ikaPkgs.length > 0) {
 		logger.info({
 			msg: `Processing IKA coordinator events`,

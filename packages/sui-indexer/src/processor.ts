@@ -1,9 +1,8 @@
-import type { NetworkConfig, PkgCfg } from "./models";
+import type { NetworkConfig, PkgCfg, IkaCursorUpdate } from "./models";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class Processor {
 	netCfg: NetworkConfig;
@@ -86,8 +85,8 @@ export class Processor {
 
 			const cursors = await this.storage.getIkaCursors(coordinatorPkgIds);
 
-			let hasAnyNextPage = true;
-			while (hasAnyNextPage) {
+			let hasNextPage = true;
+			while (hasNextPage) {
 				const packages = coordinatorPkgIds.map((pkgId) => ({
 					id: pkgId,
 					cursor: cursors[pkgId] || null,
@@ -96,12 +95,8 @@ export class Processor {
 
 				const results = await this.eventFetcher.fetchEvents(packages);
 
-				const cursorsToSave: {
-					coordinatorPkgId: string;
-					suiNetwork: SuiNet;
-					cursor: string;
-				}[] = [];
-				hasAnyNextPage = false;
+				const cursorsToSave: IkaCursorUpdate[] = [];
+				hasNextPage = false;
 
 				for (const pkgId of coordinatorPkgIds) {
 					const result = results[pkgId];
@@ -130,7 +125,7 @@ export class Processor {
 					}
 
 					if (result.hasNextPage) {
-						hasAnyNextPage = true;
+						hasNextPage = true;
 					}
 				}
 

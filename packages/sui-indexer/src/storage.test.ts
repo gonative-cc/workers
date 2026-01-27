@@ -397,7 +397,7 @@ describe("IndexerStorage", () => {
 			)
 			.run();
 
-		const networks = await storage.getActiveNetworks();
+		const networks = await storage.getSuiNetworks();
 
 		expect(networks.length).toBe(2);
 		expect(networks).toContain(toSuiNet("devnet"));

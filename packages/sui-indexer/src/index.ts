@@ -24,11 +24,11 @@ export default {
 	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new D1Storage(env.DB, env.SETUP_ENV);
-		const activeNetworks = storage.getActiveNetworks();
+		const activeNetworks = storage.getSuiNetworks();
 
 		// Run both indexer and redeem solver tasks in parallel
 		const results = await Promise.allSettled([
-			runSuiIndexer(storage, activeNetworks),
+			runIndexers(storage, activeNetworks),
 			runRedeemSolver(storage, env, activeNetworks),
 		]);
 
@@ -37,52 +37,40 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-async function runSuiIndexer(storage: D1Storage, activeNetworks: SuiNet[]) {
+async function runIndexers(storage: D1Storage, activeNetworks: SuiNet[]) {
 	if (activeNetworks.length === 0) {
 		logger.info({ msg: "No active packages/networks found in database." });
 		return;
 	}
 
-	const networksToProcess: NetworkConfig[] = [];
-	for (const netName of activeNetworks) {
-		const url = SUI_GRAPHQL_URLS[netName];
-		if (url) {
-			networksToProcess.push({ name: netName, url });
+	const networksToProcess: { net: SuiNet; gqlUrl: string }[] = [];
+	for (const net of activeNetworks) {
+		const gqlUrl = SUI_GRAPHQL_URLS[net];
+		if (gqlUrl) {
+			networksToProcess.push({ net, gqlUrl });
 		} else {
 			logger.warn({
-				msg: "Skipping network: No GraphQL URL configured",
-				network: netName,
+				msg: "Skipping processing network: No GraphQL URL configured",
+				network: net,
 			});
 		}
 	}
 
+	const netNames = networksToProcess.map((n) => n.net);
 	logger.debug({
 		msg: "Starting Indexer Loop",
-		networks: networksToProcess.map((n) => n.name),
+		networks: netNames,
 	});
 
-	const networkJobs = networksToProcess.map((netCfg) => poolAndProcessEvents(netCfg, storage));
+	const networkJobs = networksToProcess.map((n) => runIndexerByNetwork(storage, n.net, n.gqlUrl));
 	const results = await Promise.allSettled(networkJobs);
-	reportErrors(
-		results,
-		"runSuiIndexer",
-		"Failed to process network",
-		networksToProcess.map((n) => n.name),
-		"network",
-	);
+	reportErrors(results, "runSuiIndexer", "Failed to process network", netNames, "network");
 }
 
-async function poolAndProcessEvents(netCfg: NetworkConfig, storage: D1Storage) {
-	const client = new SuiGraphQLClient(netCfg.url);
-	const packages = storage.getActiveNbtcPkgs(netCfg.name);
-	if (packages.length === 0) return;
-	logger.info({
-		msg: `Processing network`,
-		network: netCfg.name,
-		packageCount: packages.length,
-	});
-	const p = new Processor(netCfg, storage, client);
-	await p.pollAllNbtcEvents(packages);
+async function runIndexerByNetwork(storage: D1Storage, net: SuiNet, gqlUrl: string) {
+	const client = new SuiGraphQLClient(gqlUrl);
+	const p = new Processor(storage, client, net);
+	return p.pollEvents();
 }
 
 async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: SuiNet[]) {

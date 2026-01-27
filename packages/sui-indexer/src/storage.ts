@@ -4,7 +4,7 @@ import {
 	UtxoStatus,
 	type RedeemRequestIngestData,
 	type UtxoIngestData,
-	type PkgCfg,
+	type NbtcPkg,
 	type RedeemRequest,
 	type RedeemRequestResp,
 	type Utxo,
@@ -12,7 +12,8 @@ import {
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";
-import { getActiveSetups, getSetup } from "@gonative-cc/lib/setups";
+import { getActiveSetups, getSetup, type Setup } from "@gonative-cc/lib/setups";
+import type { Cursor } from "./graphql-client";
 
 // Types for redeem operations
 export interface RedeemInput {
@@ -84,38 +85,59 @@ const btcNetworks: Record<string, networks.Network> = {
 	[BtcNet.SIGNET]: networks.testnet,
 };
 
+// Storage for the Sui Indexer.
+// The indexer operates on the Sui Network and Packages level, hence queries are usually
+// by Sui network or by Sui network and package.
 export class D1Storage {
+	activeSetups: Setup[];
+
 	constructor(
 		private db: D1Database,
-		private setupEnv: string,
-	) {}
+		setupEnv: string,
+	) {
+		this.activeSetups = getActiveSetups(setupEnv);
+	}
 
-	// returns the latest cursor positions for multiple setups for querying Sui events.
-	async getMultipleSuiGqlCursors(setupIds: number[]): Promise<Record<number, string | null>> {
+	getSuiNetworks(): SuiNet[] {
+		const l: SuiNet[] = [];
+		for (const [_, s] of this.activeSetups) {
+			if (l.indexOf(s.sui_network) < 0) l.push(s.sui_network);
+		}
+		return l;
+	}
+
+	getNbtcPkgs(net: SuiNet): NbtcPkg[] {
+		const l: NbtcPkg[] = [];
+		for (const s of this.activeSetups) {
+			if (s.sui_network == net) {
+				l.push({ setup_id: s.id, nbtc_pkg: s.nbtc_pkg });
+			}
+		}
+		return l;
+	}
+
+	// returns mapping: setup_id -> cursor state for querying Sui events.
+	async getSuiGqlCursors(net: SuiNet): Promise<Record<number, Cursor>> {
+		const setupIds = this.activeSetups.filter((s) => s.sui_network === net).map((s) => s.id);
 		if (setupIds.length === 0) return {};
 
-		const placeholders = setupIds.map(() => "?").join(",");
+		const setupIdsStr = setupIds.join(",");
 		const res = await this.db
 			.prepare(
-				`SELECT setup_id, nbtc_cursor FROM indexer_state WHERE setup_id IN (${placeholders})`,
+				`SELECT setup_id, nbtc_cursor FROM indexer_state WHERE setup_id IN (${setupIdsStr})`,
 			)
-			.bind(...setupIds)
 			.all<{ setup_id: number; nbtc_cursor: string }>();
 
-		const result: Record<number, string | null> = {};
-		setupIds.forEach((id) => {
-			result[id] = null;
-		});
-
-		res.results.forEach((row) => {
-			result[row.setup_id] = row.nbtc_cursor;
-		});
+		const result: Record<number, Cursor> = {};
+		// for new setups without cursor state we want to return null
+		for (const s of setupIds) result[id] = null;
+		for (const r of res.results) result[r.setup_id] = row.nbtc_cursor;
 
 		return result;
 	}
 
 	// Saves multiple cursor positions for querying Sui events.
-	async saveMultipleSuiGqlCursors(cursors: { setupId: number; cursor: string }[]): Promise<void> {
+	async saveNbtcGqlCursors(cursors: { setupId: number; cursor: Cursor }[]): Promise<void> {
 		if (cursors.length === 0) return;
 
 		const stmt = this.db.prepare(
@@ -124,18 +146,14 @@ export class D1Storage {
 		);
 
 		const now = Date.now();
-		const batch = cursors.map(({ setupId, cursor }) => stmt.bind(setupId, cursor, now));
+		const batch = cursors.map((c) => stmt.bind(c.setupId, c.cursor, now));
 
 		await this.db.batch(batch);
 	}
 
 	async getSuiGqlCursor(setupId: number): Promise<string | null> {
-		const result = await this.getMultipleSuiGqlCursors([setupId]);
+		const result = await this.getSuiGqlCursors([setupId]);
 		return result[setupId] || null;
-	}
-
-	async saveSuiGqlCursor(setupId: number, nbtcCursor: string): Promise<void> {
-		await this.saveMultipleSuiGqlCursors([{ setupId, cursor: nbtcCursor }]);
 	}
 
 	async insertUtxo(u: UtxoIngestData): Promise<void> {
@@ -222,23 +240,6 @@ export class D1Storage {
 	// returns 1 if the insert happened, null otherwise.
 	async insertRedeemRequest(r: RedeemRequestIngestData): Promise<number | null> {
 		return insertRedeemRequest(this.db, r);
-	}
-
-	async getActiveNbtcPkgs(networkName: string): Promise<PkgCfg[]> {
-		const result = await this.db
-			.prepare("SELECT id, nbtc_pkg FROM setups WHERE sui_network = ? AND is_active = 1")
-			.bind(networkName)
-			.all<PkgCfg>();
-
-		return result.results;
-	}
-
-	async getActiveNetworks(): Promise<SuiNet[]> {
-		const { results } = await this.db
-			.prepare("SELECT DISTINCT sui_network FROM setups WHERE is_active = 1")
-			.all<{ sui_network: string }>();
-
-		return results.map((r) => toSuiNet(r.sui_network));
 	}
 
 	async popPresignObject(network: SuiNet): Promise<string | null> {

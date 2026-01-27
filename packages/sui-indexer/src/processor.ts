@@ -1,81 +1,95 @@
-import type { NetworkConfig, PkgCfg } from "./models";
+import type { NbtcPkg } from "./models";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
-import type { EventFetcher } from "./graphql-client";
+import type { Cursor, EventFetcher, EventFetcherArg, PageInfo } from "./graphql-client";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
+
+const nbtcModule = "nbtc";
+
+type NbtcPkgWithCursors = [NbtcPkg, PageInfo];
 
 export class Processor {
-	netCfg: NetworkConfig;
-	storage: D1Storage;
-	eventFetcher: EventFetcher;
+	constructor(
+		private storage: D1Storage,
+		private eventFetcher: EventFetcher,
+		private net: SuiNet,
+	) {}
 
-	constructor(netCfg: NetworkConfig, storage: D1Storage, eventFetcher: EventFetcher) {
-		this.netCfg = netCfg;
-		this.storage = storage;
-		this.eventFetcher = eventFetcher;
-	}
+	// poll Nbtc events and process them by network
+	async run() {
+		// NOTE: with the current setup, we can only handle indexing one module per package!
+		const nbtcPkgs = this.storage.getNbtcPkgs(this.net);
+		logger.info({
+			msg: `Processing network`,
+			network: this.net,
+			nbtcPkgsCount: nbtcPkgs.length,
+		});
 
-	// poll Nbtc events by multiple package ids
-	async pollAllNbtcEvents(nbtcPkgs: PkgCfg[]) {
-		const setupIds = nbtcPkgs.map((pkg) => pkg.id);
+		if (!nbtcPkgs.length) return;
+
 		try {
-			if (nbtcPkgs.length === 0) return;
-
-			const cursors = await this.storage.getMultipleSuiGqlCursors(setupIds);
-
-			let hasAnyNextPage = true;
-			while (hasAnyNextPage) {
-				const packages = nbtcPkgs.map((pkg) => ({
-					id: pkg.nbtc_pkg,
-					cursor: cursors[pkg.id] || null,
-				}));
-
-				const results = await this.eventFetcher.fetchEvents(packages);
-
-				const cursorsToSave: { setupId: number; cursor: string }[] = [];
-				hasAnyNextPage = false;
-
-				for (const pkg of nbtcPkgs) {
-					const result = results[pkg.nbtc_pkg];
-					if (!result) continue;
-
-					logger.debug({
-						msg: `Fetched events`,
-						network: this.netCfg.name,
-						setupIds,
-						eventsLength: result.events.length,
-						endCursor: result.endCursor,
-					});
-
-					if (result.events.length > 0) {
-						const handler = new SuiEventHandler(this.storage, pkg.id);
-						await handler.handleEvents(result.events);
-					}
-
-					if (result.endCursor && result.endCursor !== cursors[pkg.id]) {
-						cursorsToSave.push({ setupId: pkg.id, cursor: result.endCursor });
-						cursors[pkg.id] = result.endCursor;
-					}
-
-					if (result.hasNextPage) {
-						hasAnyNextPage = true;
-					}
-				}
-
-				if (cursorsToSave.length > 0) {
-					await this.storage.saveMultipleSuiGqlCursors(cursorsToSave);
+			const cursors = await this.storage.getSuiGqlCursorByNet(this.net);
+			const nbtcWithCursors: NbtcPkgWithCursors[] = nbtcPkgs.map((p) => [
+				p,
+				{ hasNextPage: true, endCursor: cursors[p.setup_id] },
+			]);
+			let hasNextPage = true;
+			while (hasNextPage) {
+				await this.indexNbtc(nbtcWithCursors);
+				hasNextPage = false;
+				for (const o of nbtcWithCursors) {
+					hasNextPage = hasNextPage || o[1].hasNextPage;
 				}
 			}
+
+			const cursorsToSave = nbtcWithCursors.map(([nbtc, pageInfo]) => ({
+				setupId: nbtc.setup_id,
+				cursor: pageInfo.endCursor,
+			}));
+			await this.storage.saveNbtcGqlCursors(cursorsToSave);
 		} catch (e) {
 			logError(
 				{
 					msg: "Failed to index packages",
 					method: "queryNewEvents",
-					network: this.netCfg,
-					setupIds,
+					network: this.net,
 				},
 				e,
 			);
+		}
+	}
+
+	async indexNbtc(nbtcPkgs: NbtcPkgWithCursors[]) {
+		const fetcherArgs: EventFetcherArg[] = [];
+		for (let index = 0; index < nbtcPkgs.length; ++index) {
+			const [pkg, c] = nbtcPkgs[index]!;
+			if (c.hasNextPage)
+				fetcherArgs.push({
+					module: pkg.nbtc_pkg + "::nbtc",
+					cursor: c.endCursor,
+					index,
+				});
+		}
+
+		const results = await this.eventFetcher.fetchEvents(fetcherArgs);
+		for (const [resultIdx, result] of results.entries()) {
+			const nbtc = nbtcPkgs[resultIdx]![0];
+
+			logger.debug({
+				msg: `Fetched events`,
+				network: this.net,
+				nbtcPkg: nbtc.nbtc_pkg,
+				eventsLength: result.events.length,
+				endCursor: result.pageInfo.endCursor,
+			});
+
+			if (result.events.length > 0) {
+				const handler = new SuiEventHandler(this.storage, p.setup_id);
+				await handler.handleEvents(result.events);
+			}
+
+			nbtcPkgs[resultIdx]![1] = result.pageInfo;
 		}
 	}
 }

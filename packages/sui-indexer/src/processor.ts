@@ -29,10 +29,10 @@ export class Processor {
 		if (!nbtcPkgs.length) return;
 
 		try {
-			const cursors = await this.storage.getSuiGqlCursorByNet(this.net);
+			const cursors = await this.storage.getSuiGqlCursors(this.net);
 			const nbtcWithCursors: NbtcPkgWithCursors[] = nbtcPkgs.map((p) => [
 				p,
-				{ hasNextPage: true, endCursor: cursors[p.setup_id] },
+				{ hasNextPage: true, endCursor: cursors[p.setup_id] || null },
 			]);
 			let hasNextPage = true;
 			while (hasNextPage) {
@@ -85,7 +85,7 @@ export class Processor {
 			});
 
 			if (result.events.length > 0) {
-				const handler = new SuiEventHandler(this.storage, p.setup_id);
+				const handler = new SuiEventHandler(this.storage, nbtc.setup_id);
 				await handler.handleEvents(result.events);
 			}
 

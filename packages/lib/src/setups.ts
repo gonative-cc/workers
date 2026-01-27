@@ -55,12 +55,7 @@ export const setupEnvs: Record<string, Setup[]> = {
 	staging,
 };
 
-const setupsById: Record<string, Setup> = {};
-for (const [_envName, setups] of Object.entries(setupEnvs)) {
-	for (const s of setups) {
-		setupsById[s.id] = s;
-	}
-}
+export const TestEnvName = "TestEnv";
 
 export function getActiveSetups(envName: string): Setup[] {
 	const activeSetups = [];

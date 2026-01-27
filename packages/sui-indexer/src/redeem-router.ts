@@ -28,6 +28,10 @@ export default class HttpRouter {
 		return this.#router.fetch(req, env, ctx);
 	};
 
+	private _db(env: Env) {
+		return new D1Storage(env.DB, env.SETUP_ENV);
+	}
+
 	getRedeemsBySuiAddr = async (req: IRequest, env: Env) => {
 		const params = req.params;
 		if (!params || !params.address) {
@@ -46,7 +50,7 @@ export default class HttpRouter {
 		}
 
 		try {
-			const storage = new D1Storage(env.DB);
+			const storage = this._db(env);
 			return storage.getRedeemsBySuiAddr(setupId, params.address);
 		} catch (e: unknown) {
 			logError({ msg: "Failed to fetch redeems", method: "getRedeemsBySuiAddr" }, e);

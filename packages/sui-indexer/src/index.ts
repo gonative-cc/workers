@@ -1,6 +1,5 @@
 import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import { SuiGraphQLClient } from "./graphql-client";
-import type { NetworkConfig } from "./models";
 import { Processor } from "./processor";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -70,7 +69,7 @@ async function runIndexers(storage: D1Storage, activeNetworks: SuiNet[]) {
 async function runIndexerByNetwork(storage: D1Storage, net: SuiNet, gqlUrl: string) {
 	const client = new SuiGraphQLClient(gqlUrl);
 	const p = new Processor(storage, client, net);
-	return p.pollEvents();
+	return p.run();
 }
 
 async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: SuiNet[]) {

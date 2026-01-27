@@ -100,7 +100,7 @@ export class D1Storage {
 
 	getSuiNetworks(): SuiNet[] {
 		const l: SuiNet[] = [];
-		for (const [_, s] of this.activeSetups) {
+		for (const s of this.activeSetups) {
 			if (l.indexOf(s.sui_network) < 0) l.push(s.sui_network);
 		}
 		return l;
@@ -116,6 +116,15 @@ export class D1Storage {
 		return l;
 	}
 
+	async getSuiGqlCursor(setupId: number): Promise<Cursor> {
+		const res = await this.db
+			.prepare(`SELECT nbtc_cursor FROM indexer_state WHERE setup_id IN = ?`)
+			.bind(setupId)
+			.first<{ nbtc_cursor: Cursor }>();
+
+		return res ? res.nbtc_cursor : null;
+	}
+
 	// returns mapping: setup_id -> cursor state for querying Sui events.
 	async getSuiGqlCursors(net: SuiNet): Promise<Record<number, Cursor>> {
 		const setupIds = this.activeSetups.filter((s) => s.sui_network === net).map((s) => s.id);
@@ -126,12 +135,12 @@ export class D1Storage {
 			.prepare(
 				`SELECT setup_id, nbtc_cursor FROM indexer_state WHERE setup_id IN (${setupIdsStr})`,
 			)
-			.all<{ setup_id: number; nbtc_cursor: string }>();
+			.all<{ setup_id: number; nbtc_cursor: Cursor }>();
 
 		const result: Record<number, Cursor> = {};
 		// for new setups without cursor state we want to return null
-		for (const s of setupIds) result[id] = null;
-		for (const r of res.results) result[r.setup_id] = row.nbtc_cursor;
+		for (const s of setupIds) result[s] = null;
+		for (const r of res.results) result[r.setup_id] = r.nbtc_cursor;
 
 		return result;
 	}
@@ -149,11 +158,6 @@ export class D1Storage {
 		const batch = cursors.map((c) => stmt.bind(c.setupId, c.cursor, now));
 
 		await this.db.batch(batch);
-	}
-
-	async getSuiGqlCursor(setupId: number): Promise<string | null> {
-		const result = await this.getSuiGqlCursors([setupId]);
-		return result[setupId] || null;
 	}
 
 	async insertUtxo(u: UtxoIngestData): Promise<void> {

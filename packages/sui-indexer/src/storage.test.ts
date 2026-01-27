@@ -10,6 +10,7 @@ import {
 import { toSuiNet } from "@gonative-cc/lib/nsui";
 import { payments, networks } from "bitcoinjs-lib";
 import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
+import { TestEnvName } from "@gonative-cc/lib/setups";
 
 export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
 
@@ -153,7 +154,7 @@ describe("IndexerStorage", () => {
 		db = await mf.getD1Database("DB");
 		await initDb(db);
 
-		storage = new D1Storage(db);
+		storage = new D1Storage(db, TestEnvName);
 
 		await insertSetup(
 			db,

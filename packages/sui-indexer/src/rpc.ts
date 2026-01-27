@@ -20,14 +20,17 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 		return;
 	}
 
+	private _db() {
+		return new D1Storage(this.env.DB, this.env.SETUP_ENV);
+	}
+
+	// TODO: should be by setup_id
 	async getBroadcastedRedeemTxIds(network: string): Promise<string[]> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.getBroadcastedBtcRedeemTxIds(network);
+		return this._db().getBroadcastedBtcRedeemTxIds(network);
 	}
 
 	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.confirmRedeem(txIds, blockHeight, blockHash);
+		return this._db().confirmRedeem(txIds, blockHeight, blockHash);
 	}
 
 	/**
@@ -43,7 +46,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	 */
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
-			const storage = new D1Storage(this.env.DB);
+			const storage = this._db();
 			if (await storage.hasRedeemRequest(Number(e.redeem_id))) {
 				logger.info({
 					msg: "Redeem request already processed",
@@ -82,7 +85,6 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	}
 
 	async redeemsBySuiAddr(setupId: number, suiAddr: string): Promise<RedeemRequestResp[]> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.getRedeemsBySuiAddr(setupId, suiAddr);
+		return this._db().getRedeemsBySuiAddr(setupId, suiAddr);
 	}
 }

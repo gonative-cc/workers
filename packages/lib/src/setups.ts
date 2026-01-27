@@ -50,12 +50,37 @@ const staging: Setup[] = [
 	},
 ];
 
+export const TestEnvName = "TestEnv";
+export const TestEnv: Setup[] = [
+	{
+		id: -1,
+		btc_network: BtcNet.REGTEST,
+		sui_network: "devnet",
+		nbtc_pkg: "0xPkg1",
+		nbtc_contract: "0xContract1",
+		sui_fallback_addr: "0xFallback1",
+		lc_pkg: "0xLC1",
+		lc_contract: "0xLCC1",
+		is_active: 1,
+	},
+	{
+		id: -2,
+		btc_network: "testnet", // BtcNet.REGTEST,
+		sui_network: "testnet",
+		nbtc_pkg: "0xPkg2",
+		nbtc_contract: "0xContract2",
+		sui_fallback_addr: "0xFallback2",
+		lc_pkg: "0xLC1",
+		lc_contract: "0xLCC1",
+		is_active: 1,
+	},
+];
+
 export const setupEnvs: Record<string, Setup[]> = {
+	TestEnv,
 	dev,
 	staging,
 };
-
-export const TestEnvName = "TestEnv";
 
 const setupsById: Record<string, Setup> = {};
 for (const [_envName, setups] of Object.entries(setupEnvs)) {

@@ -539,7 +539,7 @@ export class D1Storage {
 	async getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]> {
 		const query = `
 		SELECT
-		  r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
+		  r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at
 		FROM nbtc_redeem_requests r
 		WHERE r.status = ? AND r.created_at <= ?
 		ORDER BY r.created_at DESC
@@ -691,7 +691,7 @@ export class D1Storage {
 	async getSignedRedeems(): Promise<RedeemRequestWithNetwork[]> {
 		const query = `
 		SELECT
-		  r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
+		  r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at
 		FROM nbtc_redeem_requests r
 		WHERE r.status = '${RedeemRequestStatus.Signed}'
 		ORDER BY r.created_at ASC

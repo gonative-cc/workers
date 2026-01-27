@@ -29,7 +29,7 @@ export class Processor {
 		if (!nbtcPkgs.length) return;
 
 		try {
-			const cursors = await this.storage.getSuiGqlCursors(this.net);
+			const cursors = await this.storage.getNbtcGqlCursors(this.net);
 			const nbtcWithCursors: NbtcPkgWithCursors[] = nbtcPkgs.map((p) => [
 				p,
 				{ hasNextPage: true, endCursor: cursors[p.setup_id] || null },

@@ -57,6 +57,17 @@ export const setupEnvs: Record<string, Setup[]> = {
 
 export const TestEnvName = "TestEnv";
 
+const setupsById: Record<string, Setup> = {};
+for (const [_envName, setups] of Object.entries(setupEnvs)) {
+	for (const s of setups) {
+		setupsById[s.id] = s;
+	}
+}
+
+export function getSetup(id: number): Setup | undefined {
+	return setupsById[id];
+}
+
 export function getActiveSetups(envName: string): Setup[] {
 	const activeSetups = [];
 	for (const s of setupEnvs[envName] || []) {
@@ -64,8 +75,4 @@ export function getActiveSetups(envName: string): Setup[] {
 	}
 
 	return activeSetups;
-}
-
-export function getSetup(id: number): Setup | undefined {
-	return setupsById[id];
 }

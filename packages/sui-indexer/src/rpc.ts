@@ -5,6 +5,7 @@ import { fromBase64 } from "@mysten/sui/utils";
 import { D1Storage } from "./storage";
 import type { RedeemRequestEventRaw, RedeemRequestResp } from "./models";
 import type { SuiIndexerRpc } from "./rpc-interface";
+import { btcNetFromString } from "@gonative-cc/lib/nbtc";
 
 /**
  * RPC entrypoint for the worker.
@@ -25,8 +26,8 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	}
 
 	// TODO: should be by setup_id
-	async getBroadcastedRedeemTxIds(network: string): Promise<string[]> {
-		return this._db().getBroadcastedBtcRedeemTxIds(network);
+	async getBroadcastedRedeemTxIds(btcNet: string): Promise<string[]> {
+		return this._db().getBroadcastedBtcRedeemTxIds(btcNetFromString(btcNet));
 	}
 
 	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {

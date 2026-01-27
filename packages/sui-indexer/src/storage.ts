@@ -51,9 +51,6 @@ interface RedeemRequestRow {
 	amount: number;
 	status: RedeemRequestStatus;
 	created_at: number;
-	nbtc_pkg: string;
-	nbtc_contract: string;
-	sui_network: string;
 }
 
 interface UtxoRow {
@@ -116,7 +113,7 @@ export class D1Storage {
 		return l;
 	}
 
-	async getSuiGqlCursor(setupId: number): Promise<Cursor> {
+	async getNbtcGqlCursor(setupId: number): Promise<Cursor> {
 		const res = await this.db
 			.prepare(`SELECT nbtc_cursor FROM indexer_state WHERE setup_id IN = ?`)
 			.bind(setupId)
@@ -126,7 +123,7 @@ export class D1Storage {
 	}
 
 	// returns mapping: setup_id -> cursor state for querying Sui events.
-	async getSuiGqlCursors(net: SuiNet): Promise<Record<number, Cursor>> {
+	async getNbtcGqlCursors(net: SuiNet): Promise<Record<number, Cursor>> {
 		const setupIds = this.activeSetups.filter((s) => s.sui_network === net).map((s) => s.id);
 		if (setupIds.length === 0) return {};
 
@@ -223,11 +220,14 @@ export class D1Storage {
 
 	async lockUtxos(utxoIds: number[]): Promise<void> {
 		if (utxoIds.length === 0) return;
+		// TODO: verify numbers and list length instead of creating binding
 		const placeholders = utxoIds.map(() => "?").join(",");
 		try {
 			await this.db
-				.prepare(`UPDATE nbtc_utxos SET status = ? WHERE nbtc_utxo_id IN (${placeholders})`)
-				.bind(UtxoStatus.Locked, ...utxoIds)
+				.prepare(
+					`UPDATE nbtc_utxos SET status = '${UtxoStatus.Locked}' WHERE nbtc_utxo_id IN (${placeholders});`,
+				)
+				.bind(...utxoIds)
 				.run();
 		} catch (error) {
 			logError(
@@ -365,23 +365,24 @@ export class D1Storage {
 		}
 	}
 
-	// Returns transactions that have been broadcasted or are confirming in order to update the
-	// confirmation status
-	async getBroadcastedBtcRedeemTxIds(network: string): Promise<string[]> {
-		// TODO: should we include Reorg here?
-		const statuses = [RedeemRequestStatus.Broadcasting, RedeemRequestStatus.Confirming];
-		const placeholders = statuses.map(() => "?").join(",");
+	// Returns transaction IDs that have been broadcasted or are confirming in order to update
+	// the confirmation status.
+	async getBroadcastedBtcRedeemTxIds(net: BtcNet): Promise<string[]> {
+		const setupIds = this.activeSetups.filter((s) => s.btc_network === net).map((s) => s.id);
+		if (setupIds.length === 0) return [];
 
+		// TODO: should we include Reorg here?
+		const statuses = strListToSqlInContent([
+			RedeemRequestStatus.Broadcasting,
+			RedeemRequestStatus.Confirming,
+		]);
 		const { results } = await this.db
 			.prepare(
 				`SELECT r.btc_tx
-	                 FROM nbtc_redeem_requests r
-	                 JOIN setups s ON r.setup_id = s.id
-	                 WHERE s.btc_network = ?
-	                 AND r.status IN (${placeholders})
-	                 AND r.btc_tx IS NOT NULL`,
+				 FROM nbtc_redeem_requests r
+				 WHERE r.setup_id IN (${setupIds.join(",")})
+				 AND r.status IN (${statuses}) AND r.btc_tx IS NOT NULL`,
 			)
-			.bind(network, ...statuses)
 			.all<{ btc_tx: string }>();
 		return results.map((r) => r.btc_tx);
 	}
@@ -421,37 +422,36 @@ export class D1Storage {
 		}
 	}
 
+	// TODO: add pagination
 	async getPendingRedeems(): Promise<RedeemRequest[]> {
 		const query = `
-            SELECT
-                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
-                p.nbtc_pkg, p.nbtc_contract, p.sui_network
-            FROM nbtc_redeem_requests r
-            JOIN setups p ON r.setup_id = p.id
-            WHERE r.status = ?
-            ORDER BY r.created_at ASC
-            LIMIT 50;
-        `;
-		const { results } = await this.db
-			.prepare(query)
-			.bind(RedeemRequestStatus.Pending)
-			.all<RedeemRequestRow>();
+		SELECT r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at
+		FROM nbtc_redeem_requests r
+		WHERE r.status = '${RedeemRequestStatus.Pending}'
+		ORDER BY r.created_at DESC
+		LIMIT 80;`;
+		const { results } = await this.db.prepare(query).all<RedeemRequestRow>();
 
-		return results.map((r) => ({
-			...r,
-			recipient_script: new Uint8Array(r.recipient_script),
-			sui_network: toSuiNet(r.sui_network),
-		}));
+		// TODO: frontend should have info about setup, so the setup content should not be needed
+		return results.map((r) => {
+			const s = getSetup(r.setup_id)!;
+			return {
+				...r,
+				recipient_script: new Uint8Array(r.recipient_script),
+				sui_network: toSuiNet(s.sui_network),
+				nbtc_pkg: s.nbtc_pkg,
+				nbtc_contract: s.nbtc_contract,
+			};
+		});
 	}
 
 	async getRedeemsBySuiAddr(setupId: number, redeemer: string): Promise<RedeemRequestResp[]> {
 		const query = `
-            SELECT
-                r.redeem_id, r.recipient_script, r.amount, r.status, r.created_at, r.sui_tx, r.btc_tx
-            FROM nbtc_redeem_requests r
-            WHERE r.redeemer = ? AND r.setup_id = ?
-            ORDER BY r.created_at DESC
-        `;
+		SELECT
+		  r.redeem_id, r.recipient_script, r.amount, r.status, r.created_at, r.sui_tx, r.btc_tx
+		FROM nbtc_redeem_requests r
+		WHERE r.redeemer = ? AND r.setup_id = ?
+		ORDER BY r.created_at DESC; `;
 		const { results } = await this.db
 			.prepare(query)
 			.bind(redeemer, setupId)
@@ -467,20 +467,19 @@ export class D1Storage {
 
 	async getRedeemsByAddrAndNetwork(
 		redeemer: string,
-		btcNetwork: BtcNet,
+		btcNet: BtcNet,
 	): Promise<RedeemRequestResp[]> {
+		const setupIds = this.activeSetups.filter((s) => s.btc_network === btcNet).map((s) => s.id);
+		if (setupIds.length === 0) return [];
+
 		const query = `
-            SELECT
-                r.redeem_id, r.recipient_script, r.amount, r.status, r.created_at, r.sui_tx, r.btc_tx
-            FROM nbtc_redeem_requests r
-            JOIN setups p ON r.setup_id = p.id
-            WHERE r.redeemer = ? AND p.btc_network = ?
-            ORDER BY r.created_at DESC
+		SELECT
+		  r.redeem_id, r.recipient_script, r.amount, r.status, r.created_at, r.sui_tx, r.btc_tx
+		FROM nbtc_redeem_requests r
+		WHERE r.redeemer = ? AND r.setup_id IN (${setupIds.join(",")})
+		ORDER BY r.created_at DESC
         `;
-		const { results } = await this.db
-			.prepare(query)
-			.bind(redeemer, btcNetwork)
-			.all<RedeemRequestResp>();
+		const { results } = await this.db.prepare(query).bind(redeemer).all<RedeemRequestResp>();
 
 		// TODO handle confirmations
 		for (const r of results) {
@@ -490,31 +489,26 @@ export class D1Storage {
 		return results;
 	}
 
+	// TODO: should query by setup id
 	async getSolvedRedeems(): Promise<RedeemRequestWithInputs[]> {
 		const query = `
-	     	SELECT
-			    r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
-			    p.nbtc_pkg, p.nbtc_contract, p.sui_network
-			FROM nbtc_redeem_requests r
-			JOIN setups p ON r.setup_id = p.id
-			WHERE r.status = ?
-			AND EXISTS (SELECT 1 FROM nbtc_redeem_solutions s WHERE s.redeem_id = r.redeem_id AND (s.sign_id IS NULL OR s.verified = 0))
-			ORDER BY r.created_at ASC
-			LIMIT 50;
-	        `;
-		const { results: requests } = await this.db
-			.prepare(query)
-			.bind(RedeemRequestStatus.Solved)
-			.all<RedeemRequestRow>();
-
+		SELECT r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at
+		FROM nbtc_redeem_requests r
+		WHERE r.status = '${RedeemRequestStatus.Solved}'
+		  AND EXISTS (SELECT 1 FROM nbtc_redeem_solutions s
+		              WHERE s.redeem_id = r.redeem_id AND (s.sign_id IS NULL OR s.verified = 0))
+		ORDER BY r.created_at DESC
+		LIMIT 50;`;
+		const { results: requests } = await this.db.prepare(query).all<RedeemRequestRow>();
 		if (requests.length === 0) {
 			return [];
 		}
 
 		const redeemIds = requests.map((r) => r.redeem_id).join(",");
-		const inputsQuery = `SELECT * FROM nbtc_redeem_solutions WHERE redeem_id IN (${redeemIds}) ORDER BY input_index ASC`;
-
+		const inputsQuery = `SELECT * FROM nbtc_redeem_solutions
+		                     WHERE redeem_id IN (${redeemIds}) ORDER BY input_index ASC`;
 		const { results: inputs } = await this.db.prepare(inputsQuery).all<RedeemInputRow>();
+
 		const inputsMap = new Map<number, RedeemInput[]>();
 		for (const input of inputs) {
 			const mappedInput: RedeemInput = {
@@ -529,46 +523,54 @@ export class D1Storage {
 			}
 		}
 
-		return requests.map((r) => ({
-			...r,
-			recipient_script: new Uint8Array(r.recipient_script),
-			sui_network: toSuiNet(r.sui_network),
-			inputs: inputsMap.get(r.redeem_id) || [],
-		}));
+		return requests.map((r) => {
+			const s = getSetup(r.setup_id)!;
+			return {
+				...r,
+				recipient_script: new Uint8Array(r.recipient_script),
+				sui_network: toSuiNet(s.sui_network),
+				inputs: inputsMap.get(r.redeem_id) || [],
+				nbtc_pkg: s.nbtc_pkg,
+				nbtc_contract: s.nbtc_contract,
+			};
+		});
 	}
 
 	async getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]> {
 		const query = `
-            SELECT
-                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
-                p.nbtc_pkg, p.nbtc_contract, p.sui_network
-            FROM nbtc_redeem_requests r
-            JOIN setups p ON r.setup_id = p.id
-            WHERE r.status = ? AND r.created_at <= ?
-            ORDER BY r.created_at ASC
-            LIMIT 50;
+		SELECT
+		  r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
+		FROM nbtc_redeem_requests r
+		WHERE r.status = ? AND r.created_at <= ?
+		ORDER BY r.created_at DESC
+		LIMIT 50;
         `;
 		const { results } = await this.db
 			.prepare(query)
 			.bind(RedeemRequestStatus.Proposed, maxCreatedAt)
 			.all<RedeemRequestRow>();
 
-		return results.map((r) => ({
-			...r,
-			recipient_script: new Uint8Array(r.recipient_script),
-			sui_network: toSuiNet(r.sui_network),
-		}));
+		// TODO: frontend should have info about setup, so the setup content should not be needed
+		return results.map((r) => {
+			const s = getSetup(r.setup_id)!;
+			return {
+				...r,
+				recipient_script: new Uint8Array(r.recipient_script),
+				sui_network: toSuiNet(s.sui_network),
+				nbtc_pkg: s.nbtc_pkg,
+				nbtc_contract: s.nbtc_contract,
+			};
+		});
 	}
 
 	async getAvailableUtxos(setupId: number): Promise<Utxo[]> {
 		// TODO: we should not query all utxos every time
 		const query = `
-			SELECT u.nbtc_utxo_id, u.dwallet_id, u.txid, u.vout, u.amount, u.script_pubkey, u.address_id, u.status, u.locked_until
-			FROM nbtc_utxos u
-			JOIN nbtc_deposit_addresses a ON u.address_id = a.id
-			WHERE a.setup_id = ?
-			AND u.status = ?
-			ORDER BY u.amount DESC;
+		SELECT u.nbtc_utxo_id, u.dwallet_id, u.txid, u.vout, u.amount, u.script_pubkey, u.address_id, u.status, u.locked_until
+		FROM nbtc_utxos u
+		JOIN nbtc_deposit_addresses a ON u.address_id = a.id
+		WHERE a.setup_id = ? AND u.status = ?
+		ORDER BY u.amount DESC;
 		`;
 		const { results } = await this.db
 			.prepare(query)
@@ -603,9 +605,9 @@ export class D1Storage {
 				batch.push(
 					this.db
 						.prepare(
-							`UPDATE nbtc_utxos SET status = ?, locked_until = ? WHERE nbtc_utxo_id IN (${placeholders})`,
+							`UPDATE nbtc_utxos SET status = '${UtxoStatus.Locked}', locked_until = ${lockUntil} WHERE nbtc_utxo_id IN (${placeholders})`,
 						)
-						.bind(UtxoStatus.Locked, lockUntil, ...chunk),
+						.bind(...chunk),
 				);
 			}
 		}
@@ -688,26 +690,27 @@ export class D1Storage {
 
 	async getSignedRedeems(): Promise<RedeemRequestWithNetwork[]> {
 		const query = `
-            SELECT
-                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
-                p.nbtc_pkg, p.nbtc_contract, p.sui_network, p.btc_network
-            FROM nbtc_redeem_requests r
-            JOIN setups p ON r.setup_id = p.id
-            WHERE r.status = ?
-            ORDER BY r.created_at ASC
-            LIMIT 50;
-        `;
+		SELECT
+		  r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
+		FROM nbtc_redeem_requests r
+		WHERE r.status = '${RedeemRequestStatus.Signed}'
+		ORDER BY r.created_at ASC
+		LIMIT 50;`;
 		const { results } = await this.db
 			.prepare(query)
-			.bind(RedeemRequestStatus.Signed)
 			.all<RedeemRequestRow & { btc_network: string }>();
 
-		return results.map((r) => ({
-			...r,
-			recipient_script: new Uint8Array(r.recipient_script),
-			sui_network: toSuiNet(r.sui_network),
-			btc_network: btcNetFromString(r.btc_network),
-		}));
+		return results.map((r) => {
+			const s = getSetup(r.setup_id)!;
+			return {
+				...r,
+				recipient_script: new Uint8Array(r.recipient_script),
+				sui_network: toSuiNet(s.sui_network),
+				btc_network: btcNetFromString(s.btc_network),
+				nbtc_pkg: s.nbtc_pkg,
+				nbtc_contract: s.nbtc_contract,
+			};
+		});
 	}
 }
 
@@ -747,4 +750,9 @@ export async function insertRedeemRequest(
 		);
 		throw error;
 	}
+}
+
+// To be used only with predefined strings, without any special character!
+function strListToSqlInContent(vals: string[]): string {
+	return vals.map((s) => `'${s}'`).join(",");
 }

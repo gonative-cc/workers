@@ -522,20 +522,20 @@ describe("IndexerStorage", () => {
 			UtxoStatus.Available,
 			null,
 		);
-		// await storage.saveRedeemInputs([
-		// 	{
-		// 		redeem_id: 1,
-		// 		utxo_id: 1,
-		// 		input_index: 0,
-		// 		dwallet_id: "dwallet1",
-		// 		created_at: Date.now(),
-		// 	},
-		// ]);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
 
-		// await storage.markRedeemInputVerified(1, 1);
+		await storage.markRedeemInputVerified(1, 1);
 
-		// const inputs = await storage.getRedeemInputs(1);
-		// expect(inputs[0]!.verified).toBe(true);
+		const inputs = await storage.getRedeemInputs(1);
+		expect(inputs[0]!.verified).toBe(true);
 	});
 
 	it("getRedeemInputs should return inputs ordered by input_index", async () => {

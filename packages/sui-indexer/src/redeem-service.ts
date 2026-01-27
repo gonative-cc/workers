@@ -55,6 +55,8 @@ export class RedeemService {
 		// NOTE: here we are processing only 50 redeems every minute (every cron), we are not
 		// looping thought all the solved redeems to avoid cloudflare timeout, since we are
 		// already waiting for ika to sign, when calling ikaSdk.getPresignInParicularState
+		// Signature verification (recordIkaSig) has been moved to the event indexer handler,
+		//  which reacts to IKA CompletedSignEvent / RejectedSignEvent.
 		const solved = await this.storage.getSolvedRedeems();
 		if (solved.length === 0) return;
 
@@ -116,18 +118,14 @@ export class RedeemService {
 			try {
 				if (!input.sign_id) {
 					await this.requestIkaSig(client, req, input);
-				} else if (input.sign_id && !input.verified) {
-					// TODO: this should be triggered when getting the event from ika
-					await this.recordIkaSig(client, req, input);
 				}
 			} catch (e) {
 				logError(
 					{
-						msg: "Failed to process input",
+						msg: "Failed to request signature for input",
 						method: "processSolvedRedeem",
 						redeemId: req.redeem_id,
 						utxoId: input.utxo_id,
-						step: !input.sign_id ? "request_signature" : "verify_signature",
 					},
 					e,
 				);
@@ -258,39 +256,6 @@ export class RedeemService {
 			);
 			throw e;
 		}
-	}
-
-	private async recordIkaSig(
-		client: SuiClient,
-		req: RedeemRequestWithInputs,
-		input: RedeemInput,
-	) {
-		logger.info({
-			msg: "Verifying signature for input",
-			redeemId: req.redeem_id,
-			utxoId: input.utxo_id,
-			inputIdx: input.input_index,
-			signId: input.sign_id,
-		});
-
-		if (!input.sign_id) {
-			throw new Error("Input signature ID is missing");
-		}
-
-		await client.validateSignature(
-			req.redeem_id,
-			input.input_index,
-			input.sign_id,
-			req.nbtc_pkg,
-			req.nbtc_contract,
-		);
-
-		await this.storage.markRedeemInputVerified(req.redeem_id, input.utxo_id);
-		logger.info({
-			msg: "Signature verified",
-			redeemId: req.redeem_id,
-			utxoId: input.utxo_id,
-		});
 	}
 
 	private getSuiClient(suiNet: SuiNet): SuiClient {

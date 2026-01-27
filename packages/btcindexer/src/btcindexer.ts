@@ -39,7 +39,7 @@ const btcNetworkCfg: Record<BtcNet, Network> = {
 };
 
 export async function indexerFromEnv(env: Env): Promise<Indexer> {
-	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
+	const storage = new CFStorage(env.SETUP_ENV, env.DB, env.BtcBlocks);
 
 	const nbtcDepositAddrMap = await fetchNbtcAddresses(env.DB);
 	const packageConfigs = await fetchPackageConfigs(env.DB);

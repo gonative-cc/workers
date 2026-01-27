@@ -14,16 +14,17 @@ import type {
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import type { Storage } from "./storage";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
+import { getActiveSetups, type Setup } from "@gonative-cc/lib/setups";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;
 	private blocksDB: KVNamespace;
-	private nbtcTxDB: KVNamespace;
+	private activeSetups: Setup[];
 
-	constructor(d1: D1Database, blocksDB: KVNamespace, nbtcTxDB: KVNamespace) {
+	constructor(setupEnv: string, d1: D1Database, blocksDB: KVNamespace) {
 		this.d1 = d1;
 		this.blocksDB = blocksDB;
-		this.nbtcTxDB = nbtcTxDB;
+		this.activeSetups = getActiveSetups(setupEnv);
 	}
 
 	async getDepositAddresses(btcNetwork: BtcNet): Promise<string[]> {
@@ -32,7 +33,6 @@ export class CFStorage implements Storage {
 				.prepare(
 					`SELECT a.deposit_address
 					 FROM nbtc_deposit_addresses a
-					 JOIN setups p ON a.setup_id = p.id
 					 WHERE p.btc_network = ? AND a.is_active = 1`,
 				)
 				.bind(btcNetwork)

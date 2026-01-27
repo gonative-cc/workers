@@ -18,6 +18,7 @@ import { MintTxStatus } from "./models";
 import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
+import { TestEnvName } from "@gonative-cc/lib/setups";
 
 export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
@@ -172,10 +173,10 @@ export async function setupTestIndexerSuite(
 	const mockElectrs = mkElectrsServiceMock();
 	electrsClients.set(BtcNet.REGTEST, mockElectrs);
 
-	const indexerStorage = new D1Storage(db);
+	const indexerStorage = new D1Storage(db, TestEnvName);
 
 	const mockSuiIndexerService = {
-		getBroadcastedRedeemTxIds: (network: string) =>
+		getBroadcastedRedeemTxIds: (network: BtcNet) =>
 			indexerStorage.getBroadcastedBtcRedeemTxIds(network),
 		confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) =>
 			indexerStorage.confirmRedeem(txIds, blockHeight, blockHash),

@@ -8,6 +8,7 @@ import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
 import { fetchNbtcAddresses, fetchPackageConfigs } from "./storage";
 import { CFStorage as CFStorageImpl } from "./cf-storage";
 import { MintTxStatus, InsertBlockStatus } from "./models";
+import { TestEnvName } from "@gonative-cc/lib/setups";
 
 let mf: Miniflare;
 
@@ -16,7 +17,7 @@ beforeAll(async () => {
 		script: "",
 		modules: true,
 		d1Databases: ["DB"],
-		kvNamespaces: ["BtcBlocks", "nbtc_txs"],
+		kvNamespaces: ["BtcBlocks"],
 		d1Persist: false,
 		kvPersist: false,
 		cachePersist: false,
@@ -88,7 +89,7 @@ describe("CFStorage", () => {
 
 	beforeEach(async () => {
 		env = await mf.getBindings();
-		storage = new CFStorageImpl(env.DB, env.BtcBlocks, env.nbtc_txs);
+		storage = new CFStorageImpl(TestEnvName, env.DB, env.BtcBlocks);
 
 		const db = env.DB;
 		await db

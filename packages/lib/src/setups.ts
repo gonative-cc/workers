@@ -65,7 +65,7 @@ export const TestEnv: Setup[] = [
 	},
 	{
 		id: -2,
-		btc_network: "testnet", // BtcNet.REGTEST,
+		btc_network: BtcNet.TESTNET,
 		sui_network: "testnet",
 		nbtc_pkg: "0xPkg2",
 		nbtc_contract: "0xContract2",

@@ -16,6 +16,7 @@
     "crons": ["* * * * *"],
   },
   "vars": {
+    "SETUP_ENV": "dev",
     "UTXO_LOCK_TIME": 3600000, // 1 Hour
     "REDEEM_DURATION_MS": 300000, // 5 min
   },

@@ -38,15 +38,7 @@ CREATE INDEX IF NOT EXISTS nbtc_minting_sender ON nbtc_minting (sender);
 -- This table holds the config for nBTC setups.
 CREATE TABLE IF NOT EXISTS setups (
 	id INTEGER PRIMARY KEY,
-	btc_network TEXT NOT NULL,
-	sui_network TEXT NOT NULL,
-	nbtc_pkg TEXT NOT NULL,
-	nbtc_contract TEXT NOT NULL,
-	lc_pkg TEXT NOT NULL,
-	lc_contract TEXT NOT NULL,
-	nbtc_fallback_addr TEXT NOT NULL,
-	is_active INTEGER NOT NULL DEFAULT TRUE,
-	UNIQUE(sui_network, btc_network, nbtc_pkg)
+	--	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS nbtc_deposit_addresses (

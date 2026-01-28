@@ -116,6 +116,20 @@ UTXOs are stored in the `nbtc_utxos` table in the D1 database.
 
 **Key Concept:** The database acts as a cache of the on-chain state. The `SuiIndexer` ensures this cache stays synchronized with the canonical state on the Sui blockchain.
 
+## IKA Coin Management
+
+We use IKA coins to pay for presign/sign requests. The coin selection logic lives in `packages/lib/src/coin-ops.ts`.
+
+### How it works
+
+1. `fetchAllIkaCoins()` grabs all IKA coins for the signer
+2. `selectCoins()` picks coins to hit the target amount (takes first 80, then sorts by balance if needed)
+3. `prepareCoin()` merges them if we need multiple coins
+
+### Concurrency
+
+No race condition here, CF workers only run one cron at a time and `processSolvedRedeems` loops sequentially, so parallel coin selection doesn't happen.
+
 ## API
 
 This package exposes [Cloudflare RPC](../../README.md#cloudflare-rpc).

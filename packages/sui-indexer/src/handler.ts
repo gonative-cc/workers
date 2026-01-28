@@ -13,17 +13,16 @@ import {
 import { logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 import type { SuiClient } from "./redeem-sui-client";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class SuiEventHandler {
 	private storage: D1Storage;
 	private setupId?: number;
-	private suiClients?: Map<SuiNet, SuiClient>;
+	private suiClient?: SuiClient;
 
-	constructor(storage: D1Storage, setupId?: number, suiClients?: Map<SuiNet, SuiClient>) {
+	constructor(storage: D1Storage, setupId?: number, suiClient?: SuiClient) {
 		this.storage = storage;
 		this.setupId = setupId;
-		this.suiClients = suiClients;
+		this.suiClient = suiClient;
 	}
 
 	public async handleEvents(events: SuiEventNode[]) {
@@ -141,22 +140,12 @@ export class SuiEventHandler {
 			return;
 		}
 
-		if (!this.suiClients) {
-			logger.warn({ msg: "No SuiClients available to record signature", sign_id: signId });
+		if (!this.suiClient) {
+			logger.warn({ msg: "No SuiClient available to record signature", sign_id: signId });
 			return;
 		}
 
-		const client = this.suiClients.get(redeemInfo.sui_network);
-		if (!client) {
-			logger.warn({
-				msg: "No SuiClient for network",
-				network: redeemInfo.sui_network,
-				sign_id: signId,
-			});
-			return;
-		}
-
-		await client.validateSignature(
+		await this.suiClient.validateSignature(
 			redeemInfo.redeem_id,
 			redeemInfo.input_index,
 			signId,
@@ -178,14 +167,14 @@ export class SuiEventHandler {
 		const signId = data.sign_id as string;
 		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
 		if (!redeemInfo) {
-			logger.debug({
+			logger.warn({
 				msg: "Rejected sign ID not found in our redeems, ignoring",
 				sign_id: signId,
 			});
 			return;
 		}
 
-		logger.warn({
+		logger.debug({
 			msg: "Ika signature rejected, clearing sign_id for retry",
 			sign_id: signId,
 			redeem_id: redeemInfo.redeem_id,

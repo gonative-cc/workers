@@ -4,24 +4,23 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
 import type { SuiClient } from "./redeem-sui-client";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class Processor {
 	netCfg: NetworkConfig;
 	storage: D1Storage;
 	eventFetcher: EventFetcher;
-	suiClients?: Map<SuiNet, SuiClient>;
+	suiClient?: SuiClient;
 
 	constructor(
 		netCfg: NetworkConfig,
 		storage: D1Storage,
 		eventFetcher: EventFetcher,
-		suiClients?: Map<SuiNet, SuiClient>,
+		suiClient?: SuiClient,
 	) {
 		this.netCfg = netCfg;
 		this.storage = storage;
 		this.eventFetcher = eventFetcher;
-		this.suiClients = suiClients;
+		this.suiClient = suiClient;
 	}
 
 	// poll Nbtc events by multiple package ids
@@ -123,7 +122,7 @@ export class Processor {
 						const handler = new SuiEventHandler(
 							this.storage,
 							undefined,
-							this.suiClients,
+							this.suiClient,
 						);
 						await handler.handleEvents(result.events);
 					}

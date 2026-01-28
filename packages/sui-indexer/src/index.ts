@@ -97,7 +97,8 @@ async function poolAndProcessEvents(
 	suiClients: Map<SuiNet, SuiClient>,
 ) {
 	const client = new SuiGraphQLClient(netCfg.url);
-	const p = new Processor(netCfg, storage, client, suiClients);
+	const suiClient = suiClients.get(netCfg.name);
+	const p = new Processor(netCfg, storage, client, suiClient);
 
 	const nbtcPkgs = await storage.getActiveNbtcPkgs(netCfg.name);
 	if (nbtcPkgs.length > 0) {

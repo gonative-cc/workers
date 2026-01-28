@@ -158,3 +158,12 @@ export interface IkaCursorUpdate {
 
 export type CompletedSignEventRaw = typeof CoordinatorInnerModule.CompletedSignEvent.$inferInput;
 export type RejectedSignEventRaw = typeof CoordinatorInnerModule.RejectedSignEvent.$inferInput;
+
+export interface RedeemSignInfo {
+	redeem_id: number;
+	utxo_id: number;
+	input_index: number;
+	nbtc_pkg: string;
+	nbtc_contract: string;
+	sui_network: SuiNet;
+}

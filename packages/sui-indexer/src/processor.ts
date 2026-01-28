@@ -3,16 +3,24 @@ import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
+import type { SuiClient } from "./redeem-sui-client";
 
 export class Processor {
 	netCfg: NetworkConfig;
 	storage: D1Storage;
 	eventFetcher: EventFetcher;
+	suiClient?: SuiClient;
 
-	constructor(netCfg: NetworkConfig, storage: D1Storage, eventFetcher: EventFetcher) {
+	constructor(
+		netCfg: NetworkConfig,
+		storage: D1Storage,
+		eventFetcher: EventFetcher,
+		suiClient?: SuiClient,
+	) {
 		this.netCfg = netCfg;
 		this.storage = storage;
 		this.eventFetcher = eventFetcher;
+		this.suiClient = suiClient;
 	}
 
 	// TODO: Refactor pollAllNbtcEvents and pollIkaEvents into a single generic pollEvents function
@@ -113,7 +121,11 @@ export class Processor {
 					});
 
 					if (result.events.length > 0) {
-						const handler = new SuiEventHandler(this.storage);
+						const handler = new SuiEventHandler(
+							this.storage,
+							undefined,
+							this.suiClient,
+						);
 						await handler.handleEvents(result.events);
 					}
 

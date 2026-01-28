@@ -4,6 +4,7 @@ import type { NetworkConfig } from "./models";
 import { Processor } from "./processor";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { getMnemonic } from "@gonative-cc/lib/secrets";
 import { RedeemService } from "./redeem-service";
 import { createSuiClients, type SuiClient } from "./redeem-sui-client";
 import type { Service } from "@cloudflare/workers-types";
@@ -26,17 +27,8 @@ export default {
 		const storage = new D1Storage(env.DB);
 		const activeNetworks = await storage.getActiveNetworks();
 
-		let mnemonic: string;
-		try {
-			mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
-		} catch (error) {
-			logger.error({ msg: "Failed to retrieve NBTC_MINTING_SIGNER_MNEMONIC", error });
-			return;
-		}
-		if (!mnemonic) {
-			logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
-			return;
-		}
+		const mnemonic = await getMnemonic(env.NBTC_MINTING_SIGNER_MNEMONIC);
+		if (!mnemonic) return;
 		const suiClients = await createSuiClients(activeNetworks, mnemonic);
 
 		// Run both indexer and redeem solver tasks in parallel

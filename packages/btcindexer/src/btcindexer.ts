@@ -6,6 +6,7 @@ import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { getMnemonic } from "@gonative-cc/lib/secrets";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import { SuiClient, type SuiClientI } from "./sui_client";
@@ -54,7 +55,10 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid MAX_NBTC_MINT_TX_RETRIES in config. Must be a number >= 0.");
 	}
 
-	const mnemonic = await env.NBTC_MINTING_SIGNER_MNEMONIC.get();
+	const mnemonic = await getMnemonic(env.NBTC_MINTING_SIGNER_MNEMONIC);
+	if (!mnemonic) {
+		throw new Error("Failed to retrieve mnemonic");
+	}
 	const suiClients = new Map<SuiNet, SuiClient>();
 	for (const p of packageConfigs) {
 		if (!suiClients.has(p.sui_network))

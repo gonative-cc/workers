@@ -148,13 +148,24 @@ export class D1Storage {
 		await this.db.batch(batch);
 	}
 
-	async getIkaCoordinatorPkgs(suiNetwork: SuiNet): Promise<string[]> {
+	async getIkaCoordinatorPkgsWithCursors(
+		suiNetwork: SuiNet,
+	): Promise<Record<string, string | null>> {
 		const { results } = await this.db
-			.prepare("SELECT coordinator_pkg_id FROM ika_state WHERE sui_network = ?")
-			.bind(suiNetwork)
-			.all<{ coordinator_pkg_id: string }>();
+			.prepare(
+				`SELECT DISTINCT s.ika_coordinator_pkg, i.ika_cursor
+				 FROM setups s
+				 LEFT JOIN ika_state i ON s.ika_coordinator_pkg = i.coordinator_pkg_id AND i.sui_network = ?
+				 WHERE s.sui_network = ? AND s.is_active = 1 AND s.ika_coordinator_pkg IS NOT NULL`,
+			)
+			.bind(suiNetwork, suiNetwork)
+			.all<{ ika_coordinator_pkg: string; ika_cursor: string | null }>();
 
-		return results.map((r) => r.coordinator_pkg_id);
+		const result: Record<string, string | null> = {};
+		results.forEach((r) => {
+			result[r.ika_coordinator_pkg] = r.ika_cursor || null;
+		});
+		return result;
 	}
 
 	// Saves multiple cursor positions for querying Sui events.

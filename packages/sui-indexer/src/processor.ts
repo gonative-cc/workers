@@ -23,6 +23,9 @@ export class Processor {
 		this.suiClient = suiClient;
 	}
 
+	// TODO: Refactor pollAllNbtcEvents and pollIkaEvents into a single generic pollEvents function
+	// that accepts package config and handles both event types with their respective cursor storage.
+
 	// poll Nbtc events by multiple package ids
 	async pollAllNbtcEvents(nbtcPkgs: PkgCfg[]) {
 		const setupIds = nbtcPkgs.map((pkg) => pkg.id);
@@ -87,11 +90,10 @@ export class Processor {
 		}
 	}
 
-	async pollIkaEvents(coordinatorPkgIds: string[]) {
+	async pollIkaEvents(cursors: Record<string, string | null>) {
+		const coordinatorPkgIds = Object.keys(cursors);
 		try {
 			if (coordinatorPkgIds.length === 0) return;
-
-			const cursors = await this.storage.getIkaCursors(coordinatorPkgIds);
 
 			let hasNextPage = true;
 			while (hasNextPage) {

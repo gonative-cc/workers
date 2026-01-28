@@ -110,14 +110,15 @@ async function poolAndProcessEvents(
 		await p.pollAllNbtcEvents(nbtcPkgs);
 	}
 
-	const ikaPkgs = await storage.getIkaCoordinatorPkgs(netCfg.name);
-	if (ikaPkgs.length > 0) {
+	const ikaCursors = await storage.getIkaCoordinatorPkgsWithCursors(netCfg.name);
+	const ikaPkgIds = Object.keys(ikaCursors);
+	if (ikaPkgIds.length > 0) {
 		logger.info({
 			msg: `Processing IKA coordinator events`,
 			network: netCfg.name,
-			packageCount: ikaPkgs.length,
+			packageCount: ikaPkgIds.length,
 		});
-		await p.pollIkaEvents(ikaPkgs);
+		await p.pollIkaEvents(ikaCursors);
 	}
 }
 

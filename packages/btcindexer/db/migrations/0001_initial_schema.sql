@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS setups (
 	lc_pkg TEXT NOT NULL,
 	lc_contract TEXT NOT NULL,
 	nbtc_fallback_addr TEXT NOT NULL,
+	ika_coordinator_pkg TEXT, -- IKA coordinator package for this setup's network
 	is_active INTEGER NOT NULL DEFAULT TRUE,
 	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;

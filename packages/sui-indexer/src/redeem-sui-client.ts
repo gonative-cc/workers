@@ -33,7 +33,7 @@ export interface SuiClient {
 	): Promise<string>;
 	validateSignatures(
 		redeemId: number,
-		inputs: { inputIdx: number; signId: string }[],
+		inputs: { input_index: number; sign_id: string }[],
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void>;
@@ -263,7 +263,7 @@ class SuiClientImp implements SuiClient {
 
 	async validateSignatures(
 		redeemId: number,
-		inputs: { inputIdx: number; signId: string }[],
+		inputs: { input_index: number; sign_id: string }[],
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void> {
@@ -278,8 +278,8 @@ class SuiClientImp implements SuiClient {
 					contract: nbtcContract,
 					dwalletCoordinator: coordinatorId,
 					redeemId: redeemId,
-					inputIds: inputs.map((i) => BigInt(i.inputIdx)),
-					signIds: inputs.map((i) => i.signId),
+					inputIds: inputs.map((i) => BigInt(i.input_index)),
+					signIds: inputs.map((i) => i.sign_id),
 				},
 			}),
 		);

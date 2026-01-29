@@ -136,7 +136,7 @@ export class RedeemService {
 
 		if (inputsToVerify.length > 0) {
 			try {
-				await this.recordBatchIkaSig(client, req, inputsToVerify);
+				await this.recordIkaSignatures(client, req, inputsToVerify);
 			} catch (e) {
 				logError(
 					{
@@ -276,32 +276,40 @@ export class RedeemService {
 		}
 	}
 
-	private async recordBatchIkaSig(
+	private async recordIkaSignatures(
 		client: SuiClient,
 		req: RedeemRequestWithInputs,
 		inputs: RedeemInput[],
 	) {
-		const inputsData = inputs.map((input) => ({
-			inputIdx: input.input_index,
-			signId: input.sign_id as string,
-		}));
+		const inputsWithSignId = inputs.filter(
+			(input): input is RedeemInput & { sign_id: string } => input.sign_id !== null,
+		);
+
+		if (inputsWithSignId.length === 0) {
+			return;
+		}
 
 		logger.info({
 			msg: "Batch verifying signatures",
 			redeemId: req.redeem_id,
-			count: inputs.length,
+			count: inputsWithSignId.length,
 		});
 
-		await client.validateSignatures(req.redeem_id, inputsData, req.nbtc_pkg, req.nbtc_contract);
+		await client.validateSignatures(
+			req.redeem_id,
+			inputsWithSignId,
+			req.nbtc_pkg,
+			req.nbtc_contract,
+		);
 
-		for (const input of inputs) {
+		for (const input of inputsWithSignId) {
 			await this.storage.markRedeemInputVerified(req.redeem_id, input.utxo_id);
 		}
 
 		logger.info({
 			msg: "Signatures verified",
 			redeemId: req.redeem_id,
-			count: inputs.length,
+			count: inputsWithSignId.length,
 		});
 	}
 

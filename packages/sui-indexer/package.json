@@ -15,6 +15,7 @@
 	"dependencies": {
 		"@gonative-cc/btcindexer": "workspace:*",
 		"@gonative-cc/lib": "workspace:*",
+		"@gonative-cc/nbtc": "0.1.1",
 		"@ika.xyz/sdk": "^0.2.7",
 		"@mysten/bcs": "^1.9.2",
 		"@mysten/sui": "^1.45.2",

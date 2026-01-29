@@ -31,10 +31,9 @@ export interface SuiClient {
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<string>;
-	validateSignature(
+	validateSignatures(
 		redeemId: number,
-		inputIdx: number,
-		signId: string,
+		inputs: { input_index: number; sign_id: string }[],
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void>;
@@ -262,13 +261,13 @@ class SuiClientImp implements SuiClient {
 		return decoded.sign_id;
 	}
 
-	async validateSignature(
+	async validateSignatures(
 		redeemId: number,
-		inputIdx: number,
-		signId: string,
+		inputs: { input_index: number; sign_id: string }[],
 		nbtcPkg: string,
 		nbtcContract: string,
 	): Promise<void> {
+		if (inputs.length === 0) return;
 		const tx = new Transaction();
 		const coordinatorId = this.#ika.getCoordinatorId();
 
@@ -279,8 +278,8 @@ class SuiClientImp implements SuiClient {
 					contract: nbtcContract,
 					dwalletCoordinator: coordinatorId,
 					redeemId: redeemId,
-					inputIds: inputIdx,
-					signIds: [signId],
+					inputIds: inputs.map((i) => BigInt(i.input_index)),
+					signIds: inputs.map((i) => i.sign_id),
 				},
 			}),
 		);

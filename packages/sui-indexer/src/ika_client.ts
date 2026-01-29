@@ -86,8 +86,8 @@ export class IkaClientImp implements IkaClient {
 	}
 
 	// Fetches all IKA coins for an address. Used with prepareCoin() to select & merge coins.
-	// This works because CF workers only run one cron at a time and processSolvedRedeems
-	// loops sequentially so no parallel coin selection happens.
+	// NOTE: this can't be used in a parallel workload. Currently, the workers only run one cron  at a time with one processSolvedRedeems process.
+	// So no parallel coin selection happens.
 	// TODO: we should have maxCoins?: number limit
 	async fetchAllIkaCoins(owner: string): Promise<CoinStruct[]> {
 		const allCoins: CoinStruct[] = [];

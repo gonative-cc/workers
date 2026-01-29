@@ -111,14 +111,14 @@ export class RedeemService {
 
 	private async processSolvedRedeem(req: RedeemRequestWithInputs) {
 		const client = this.getSuiClient(req.sui_network);
+		const inputsToVerify: RedeemInput[] = [];
 
 		for (const input of req.inputs) {
 			try {
 				if (!input.sign_id) {
 					await this.requestIkaSig(client, req, input);
 				} else if (input.sign_id && !input.verified) {
-					// TODO: this should be triggered when getting the event from ika
-					await this.recordIkaSig(client, req, input);
+					inputsToVerify.push(input);
 				}
 			} catch (e) {
 				logError(
@@ -128,6 +128,22 @@ export class RedeemService {
 						redeemId: req.redeem_id,
 						utxoId: input.utxo_id,
 						step: !input.sign_id ? "request_signature" : "verify_signature",
+					},
+					e,
+				);
+			}
+		}
+
+		if (inputsToVerify.length > 0) {
+			try {
+				await this.recordIkaSignatures(client, req, inputsToVerify);
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to batch verify signatures",
+						method: "processSolvedRedeem",
+						redeemId: req.redeem_id,
+						count: inputsToVerify.length,
 					},
 					e,
 				);
@@ -260,36 +276,40 @@ export class RedeemService {
 		}
 	}
 
-	private async recordIkaSig(
+	private async recordIkaSignatures(
 		client: SuiClient,
 		req: RedeemRequestWithInputs,
-		input: RedeemInput,
+		inputs: RedeemInput[],
 	) {
-		logger.info({
-			msg: "Verifying signature for input",
-			redeemId: req.redeem_id,
-			utxoId: input.utxo_id,
-			inputIdx: input.input_index,
-			signId: input.sign_id,
-		});
+		const inputsWithSignId = inputs.filter(
+			(input): input is RedeemInput & { sign_id: string } => input.sign_id !== null,
+		);
 
-		if (!input.sign_id) {
-			throw new Error("Input signature ID is missing");
+		if (inputsWithSignId.length === 0) {
+			return;
 		}
 
-		await client.validateSignature(
+		logger.info({
+			msg: "Batch verifying signatures",
+			redeemId: req.redeem_id,
+			count: inputsWithSignId.length,
+		});
+
+		await client.validateSignatures(
 			req.redeem_id,
-			input.input_index,
-			input.sign_id,
+			inputsWithSignId,
 			req.nbtc_pkg,
 			req.nbtc_contract,
 		);
 
-		await this.storage.markRedeemInputVerified(req.redeem_id, input.utxo_id);
+		for (const input of inputsWithSignId) {
+			await this.storage.markRedeemInputVerified(req.redeem_id, input.utxo_id);
+		}
+
 		logger.info({
-			msg: "Signature verified",
+			msg: "Signatures verified",
 			redeemId: req.redeem_id,
-			utxoId: input.utxo_id,
+			count: inputsWithSignId.length,
 		});
 	}
 

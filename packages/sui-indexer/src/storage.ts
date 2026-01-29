@@ -9,6 +9,7 @@ import {
 	type RedeemRequestResp,
 	type Utxo,
 	type IkaCursorUpdate,
+	type RedeemSignInfo,
 } from "./models";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
@@ -388,6 +389,35 @@ export class D1Storage {
 		await this.db.batch([updateSolution, updateRequest]);
 	}
 
+	async clearRedeemInputSignId(redeemId: number, utxoId: number): Promise<void> {
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_solutions SET sign_id = NULL WHERE redeem_id = ? AND utxo_id = ?`,
+			)
+			.bind(redeemId, utxoId)
+			.run();
+	}
+
+	async getRedeemInfoBySignId(signId: string): Promise<RedeemSignInfo | null> {
+		const query = `
+			SELECT s.redeem_id, s.utxo_id, s.input_index, p.nbtc_pkg, p.nbtc_contract, p.sui_network
+			FROM nbtc_redeem_solutions s
+			JOIN nbtc_redeem_requests r ON s.redeem_id = r.redeem_id
+			JOIN setups p ON r.setup_id = p.id
+			WHERE s.sign_id = ?
+		`;
+		const result = await this.db.prepare(query).bind(signId).first<{
+			redeem_id: number;
+			utxo_id: number;
+			input_index: number;
+			nbtc_pkg: string;
+			nbtc_contract: string;
+			sui_network: string;
+		}>();
+		if (!result) return null;
+		return { ...result, sui_network: toSuiNet(result.sui_network) };
+	}
+
 	async markRedeemSolved(redeemId: number): Promise<void> {
 		try {
 			await this.db
@@ -540,7 +570,7 @@ export class D1Storage {
 			FROM nbtc_redeem_requests r
 			JOIN setups p ON r.setup_id = p.id
 			WHERE r.status = ?
-			AND EXISTS (SELECT 1 FROM nbtc_redeem_solutions s WHERE s.redeem_id = r.redeem_id AND (s.sign_id IS NULL OR s.verified = 0))
+			AND EXISTS (SELECT 1 FROM nbtc_redeem_solutions s WHERE s.redeem_id = r.redeem_id AND s.sign_id IS NULL)
 			ORDER BY r.created_at ASC
 			LIMIT 50;
 	        `;

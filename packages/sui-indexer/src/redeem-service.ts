@@ -329,9 +329,6 @@ export class RedeemService {
 		const availableUtxos = await this.storage.getAvailableUtxos(req.setup_id);
 		const selectedUtxos = selectUtxos(availableUtxos, req.amount);
 
-		// TODO: we should continue only if our solution is better than the existing one - in case
-		//   someone frontrun us.
-
 		if (!selectedUtxos) {
 			logger.warn({
 				msg: "Insufficient UTXOs for request",
@@ -341,8 +338,33 @@ export class RedeemService {
 			return;
 		}
 
+		const client = this.getSuiClient(req.sui_network);
+
 		try {
-			const client = this.getSuiClient(req.sui_network);
+			const existingUtxoCount = await client.getRedeemUtxoCount(
+				req.redeem_id,
+				req.nbtc_pkg,
+				req.nbtc_contract,
+			);
+
+			if (existingUtxoCount > 0 && selectedUtxos.length >= existingUtxoCount) {
+				logger.info({
+					msg: "Existing solution is equal or better, skipping proposal",
+					redeemId: req.redeem_id,
+					existingUtxoCount,
+					ourUtxoCount: selectedUtxos.length,
+				});
+				return;
+			}
+		} catch (e) {
+			logger.warn({
+				msg: "Failed to fetch existing UTXO count, proceeding with proposal",
+				redeemId: req.redeem_id,
+				error: e,
+			});
+		}
+
+		try {
 			const txDigest = await client.proposeRedeemUtxos({
 				redeemId: req.redeem_id,
 				utxoIds: selectedUtxos.map((u) => u.nbtc_utxo_id),

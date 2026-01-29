@@ -38,6 +38,7 @@ export interface SuiClient {
 		nbtcContract: string,
 	): Promise<void>;
 	getRedeemBtcTx(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<string>;
+	getRedeemUtxoCount(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<number>;
 }
 
 class SuiClientImp implements SuiClient {
@@ -108,6 +109,50 @@ class SuiClientImp implements SuiClient {
 		}
 		const decoded = Uint8Array.from(rawTxResult);
 		return Buffer.from(decoded).toString("hex");
+	}
+
+	async getRedeemUtxoCount(
+		redeemId: number,
+		nbtcPkg: string,
+		nbtcContract: string,
+	): Promise<number> {
+		const tx = new Transaction();
+
+		const redeem = tx.add(
+			nBTCContractModule.redeemRequest({
+				package: nbtcPkg,
+				arguments: {
+					contract: nbtcContract,
+					redeemId: redeemId,
+				},
+			}),
+		);
+
+		tx.add(
+			RedeemRequestModule.inputsLength({
+				package: nbtcPkg,
+				arguments: {
+					r: redeem,
+				},
+			}),
+		);
+
+		const result = await this.#sui.devInspectTransactionBlock({
+			transactionBlock: tx,
+			sender: this.signer.toSuiAddress(),
+		});
+
+		if (result.error) {
+			throw new Error(`DevInspect failed: ${result.error}`);
+		}
+
+		const lengthResult = result.results?.[1]?.returnValues?.[0]?.[0];
+		if (!lengthResult) {
+			throw new Error("Failed to get inputs_length result");
+		}
+		const bytes = Uint8Array.from(lengthResult);
+		const view = new DataView(bytes.buffer);
+		return Number(view.getBigUint64(0, true));
 	}
 
 	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {

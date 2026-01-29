@@ -128,7 +128,7 @@ We use IKA coins to pay for presign/sign requests. The coin selection logic live
 
 ### Concurrency
 
-The process is not safe for parallel workload. See the doc comment in  `fetchAllIkaCoins`.
+The process is not safe for parallel workload. See the doc comment in `fetchAllIkaCoins`.
 
 ## API
 

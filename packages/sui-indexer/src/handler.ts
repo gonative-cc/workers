@@ -147,10 +147,9 @@ export class SuiEventHandler {
 			return;
 		}
 
-		await this.suiClient.validateSignature(
+		await this.suiClient.validateSignatures(
 			redeemInfo.redeem_id,
-			redeemInfo.input_index,
-			signId,
+			[{ input_index: redeemInfo.input_index, sign_id: signId }],
 			redeemInfo.nbtc_pkg,
 			redeemInfo.nbtc_contract,
 		);

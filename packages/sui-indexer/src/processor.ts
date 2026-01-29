@@ -1,19 +1,30 @@
-import type { NetworkConfig, PkgCfg } from "./models";
+import type { NetworkConfig, PkgCfg, IkaCursorUpdate } from "./models";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { SuiEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
+import type { SuiClient } from "./redeem-sui-client";
 
 export class Processor {
 	netCfg: NetworkConfig;
 	storage: D1Storage;
 	eventFetcher: EventFetcher;
+	suiClient?: SuiClient;
 
-	constructor(netCfg: NetworkConfig, storage: D1Storage, eventFetcher: EventFetcher) {
+	constructor(
+		netCfg: NetworkConfig,
+		storage: D1Storage,
+		eventFetcher: EventFetcher,
+		suiClient?: SuiClient,
+	) {
 		this.netCfg = netCfg;
 		this.storage = storage;
 		this.eventFetcher = eventFetcher;
+		this.suiClient = suiClient;
 	}
+
+	// TODO: Refactor pollAllNbtcEvents and pollIkaEvents into a single generic pollEvents function
+	// that accepts package config and handles both event types with their respective cursor storage.
 
 	// poll Nbtc events by multiple package ids
 	async pollAllNbtcEvents(nbtcPkgs: PkgCfg[]) {
@@ -73,6 +84,76 @@ export class Processor {
 					method: "queryNewEvents",
 					network: this.netCfg,
 					setupIds,
+				},
+				e,
+			);
+		}
+	}
+
+	async pollIkaEvents(cursors: Record<string, string | null>) {
+		const coordinatorPkgIds = Object.keys(cursors);
+		try {
+			if (coordinatorPkgIds.length === 0) return;
+
+			let hasNextPage = true;
+			while (hasNextPage) {
+				const packages = coordinatorPkgIds.map((pkgId) => ({
+					id: pkgId,
+					cursor: cursors[pkgId] || null,
+					module: "coordinator_inner",
+				}));
+
+				const results = await this.eventFetcher.fetchEvents(packages);
+
+				const cursorsToSave: IkaCursorUpdate[] = [];
+				hasNextPage = false;
+
+				for (const pkgId of coordinatorPkgIds) {
+					const result = results[pkgId];
+					if (!result) continue;
+
+					logger.debug({
+						msg: "Fetched IKA events",
+						network: this.netCfg.name,
+						coordinatorPkgId: pkgId,
+						eventsLength: result.events.length,
+						endCursor: result.endCursor,
+					});
+
+					if (result.events.length > 0) {
+						const handler = new SuiEventHandler(
+							this.storage,
+							undefined,
+							this.suiClient,
+						);
+						await handler.handleEvents(result.events);
+					}
+
+					if (result.endCursor && result.endCursor !== cursors[pkgId]) {
+						cursorsToSave.push({
+							coordinatorPkgId: pkgId,
+							suiNetwork: this.netCfg.name,
+							cursor: result.endCursor,
+						});
+						cursors[pkgId] = result.endCursor;
+					}
+
+					if (result.hasNextPage) {
+						hasNextPage = true;
+					}
+				}
+
+				if (cursorsToSave.length > 0) {
+					await this.storage.saveIkaCursors(cursorsToSave);
+				}
+			}
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to index IKA coordinator events",
+					method: "pollIkaEvents",
+					network: this.netCfg,
+					coordinatorPkgIds,
 				},
 				e,
 			);

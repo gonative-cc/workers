@@ -41,6 +41,7 @@ export const tables = [
 	"nbtc_deposit_addresses",
 	"btc_blocks",
 	"indexer_state",
+	"ika_state",
 	"presign_objects",
 	"setups",
 ];

@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS setups (
 	lc_pkg TEXT NOT NULL,
 	lc_contract TEXT NOT NULL,
 	nbtc_fallback_addr TEXT NOT NULL,
+	ika_coordinator_pkg TEXT, -- IKA coordinator package for this setup's network
 	is_active INTEGER NOT NULL DEFAULT TRUE,
 	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;
@@ -115,6 +116,14 @@ CREATE TABLE IF NOT EXISTS indexer_state (
 	nbtc_cursor TEXT NOT NULL, -- last processed cursor state
 	updated_at INTEGER, -- epoch time in ms
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS ika_state(
+	sui_network TEXT NOT NULL,
+	coordinator_pkg_id TEXT NOT NULL,
+	ika_cursor TEXT NOT NULL, -- last processed cursor state
+	updated_at INTEGER, -- epoch time in ms
+	PRIMARY KEY (sui_network, coordinator_pkg_id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS presign_objects (

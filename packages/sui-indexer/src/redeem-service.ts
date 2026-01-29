@@ -55,6 +55,8 @@ export class RedeemService {
 		// NOTE: here we are processing only 50 redeems every minute (every cron), we are not
 		// looping thought all the solved redeems to avoid cloudflare timeout, since we are
 		// already waiting for ika to sign, when calling ikaSdk.getPresignInParicularState
+		// Signature verification (recordIkaSig) has been moved to the event indexer handler,
+		//  which reacts to IKA CompletedSignEvent / RejectedSignEvent.
 		const solved = await this.storage.getSolvedRedeems();
 		if (solved.length === 0) return;
 
@@ -111,39 +113,19 @@ export class RedeemService {
 
 	private async processSolvedRedeem(req: RedeemRequestWithInputs) {
 		const client = this.getSuiClient(req.sui_network);
-		const inputsToVerify: RedeemInput[] = [];
 
 		for (const input of req.inputs) {
 			try {
 				if (!input.sign_id) {
 					await this.requestIkaSig(client, req, input);
-				} else if (input.sign_id && !input.verified) {
-					inputsToVerify.push(input);
 				}
 			} catch (e) {
 				logError(
 					{
-						msg: "Failed to process input",
+						msg: "Failed to request signature for input",
 						method: "processSolvedRedeem",
 						redeemId: req.redeem_id,
 						utxoId: input.utxo_id,
-						step: !input.sign_id ? "request_signature" : "verify_signature",
-					},
-					e,
-				);
-			}
-		}
-
-		if (inputsToVerify.length > 0) {
-			try {
-				await this.recordIkaSignatures(client, req, inputsToVerify);
-			} catch (e) {
-				logError(
-					{
-						msg: "Failed to batch verify signatures",
-						method: "processSolvedRedeem",
-						redeemId: req.redeem_id,
-						count: inputsToVerify.length,
 					},
 					e,
 				);
@@ -274,43 +256,6 @@ export class RedeemService {
 			);
 			throw e;
 		}
-	}
-
-	private async recordIkaSignatures(
-		client: SuiClient,
-		req: RedeemRequestWithInputs,
-		inputs: RedeemInput[],
-	) {
-		const inputsWithSignId = inputs.filter(
-			(input): input is RedeemInput & { sign_id: string } => input.sign_id !== null,
-		);
-
-		if (inputsWithSignId.length === 0) {
-			return;
-		}
-
-		logger.info({
-			msg: "Batch verifying signatures",
-			redeemId: req.redeem_id,
-			count: inputsWithSignId.length,
-		});
-
-		await client.validateSignatures(
-			req.redeem_id,
-			inputsWithSignId,
-			req.nbtc_pkg,
-			req.nbtc_contract,
-		);
-
-		for (const input of inputsWithSignId) {
-			await this.storage.markRedeemInputVerified(req.redeem_id, input.utxo_id);
-		}
-
-		logger.info({
-			msg: "Signatures verified",
-			redeemId: req.redeem_id,
-			count: inputsWithSignId.length,
-		});
 	}
 
 	private getSuiClient(suiNet: SuiNet): SuiClient {

@@ -5,19 +5,24 @@ import {
 	type RedeemRequestEventRaw,
 	type SolvedEventRaw,
 	type SignatureRecordedEventRaw,
+	type CompletedSignEventRaw,
+	type RejectedSignEventRaw,
 	type SuiEventNode,
 	UtxoStatus,
 } from "./models";
 import { logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
+import type { SuiClient } from "./redeem-sui-client";
 
 export class SuiEventHandler {
 	private storage: D1Storage;
-	private setupId: number;
+	private setupId?: number;
+	private suiClient?: SuiClient;
 
-	constructor(storage: D1Storage, setupId: number) {
+	constructor(storage: D1Storage, setupId?: number, suiClient?: SuiClient) {
 		this.storage = storage;
 		this.setupId = setupId;
+		this.suiClient = suiClient;
 	}
 
 	public async handleEvents(events: SuiEventNode[]) {
@@ -34,8 +39,20 @@ export class SuiEventHandler {
 				await this.handleSolved(json as SolvedEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SignatureRecordedEvent")) {
 				await this.handleIkaSignatureRecorded(json as SignatureRecordedEventRaw);
+				// Ika events
+			} else if (e.type.includes("::coordinator_inner::CompletedSignEvent")) {
+				await this.handleCompletedSign(e);
+			} else if (e.type.includes("::coordinator_inner::RejectedSignEvent")) {
+				await this.handleRejectedSign(e);
 			}
 		}
+	}
+
+	private getSetupId(): number {
+		if (this.setupId == undefined) {
+			throw new Error("Setup ID is not set");
+		}
+		return this.setupId;
 	}
 
 	private async handleMint(txDigest: string, e: MintEventRaw) {
@@ -51,7 +68,7 @@ export class SuiEventHandler {
 			vout: e.btc_vout,
 			amount: Number(e.btc_amount),
 			script_pubkey: fromBase64(e.btc_script_publickey),
-			setup_id: this.setupId,
+			setup_id: this.getSetupId(),
 			status: UtxoStatus.Available,
 			locked_until: null,
 		});
@@ -65,7 +82,7 @@ export class SuiEventHandler {
 			recipient_script: fromBase64(e.recipient_script),
 			amount: Number(e.amount),
 			created_at: Number(e.created_at),
-			setup_id: this.setupId,
+			setup_id: this.getSetupId(),
 			sui_tx: txDigest,
 		});
 		logger.info({ msg: "Indexed Redeem Request", id: e.redeem_id });
@@ -104,5 +121,66 @@ export class SuiEventHandler {
 			redeemId: e.redeem_id,
 			utxoId: e.utxo_id,
 		});
+	}
+
+	private async handleCompletedSign(e: SuiEventNode) {
+		const data = e.json as CompletedSignEventRaw;
+		const signId = data.sign_id as string;
+		logger.info({
+			msg: "Ika signature completed",
+			sign_id: signId,
+			is_future_sign: data.is_future_sign, // true if it's Ika future transaction signature type
+			signature_length: data.signature.length,
+			txDigest: e.txDigest,
+		});
+
+		// IKA coordinator is shared across protocols, so we only process sign IDs that match our redeems.
+		// The final signature is recorded via SignatureRecordedEvent from nbtc.move (handled above).
+		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
+		if (!redeemInfo) {
+			logger.debug({ msg: "Sign ID not found in our redeems, ignoring", sign_id: signId });
+			return;
+		}
+
+		if (!this.suiClient) {
+			logger.warn({ msg: "No SuiClient available to record signature", sign_id: signId });
+			return;
+		}
+
+		await this.suiClient.validateSignatures(
+			redeemInfo.redeem_id,
+			[{ input_index: redeemInfo.input_index, sign_id: signId }],
+			redeemInfo.nbtc_pkg,
+			redeemInfo.nbtc_contract,
+		);
+		await this.storage.markRedeemInputVerified(redeemInfo.redeem_id, redeemInfo.utxo_id);
+
+		logger.info({
+			msg: "Recorded Ika signature",
+			redeem_id: redeemInfo.redeem_id,
+			utxo_id: redeemInfo.utxo_id,
+			sign_id: signId,
+		});
+	}
+
+	private async handleRejectedSign(e: SuiEventNode) {
+		const data = e.json as RejectedSignEventRaw;
+		const signId = data.sign_id as string;
+		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
+		if (!redeemInfo) {
+			logger.warn({
+				msg: "Rejected sign ID not found in our redeems, ignoring",
+				sign_id: signId,
+			});
+			return;
+		}
+
+		logger.debug({
+			msg: "Ika signature rejected, clearing sign_id for retry",
+			sign_id: signId,
+			redeem_id: redeemInfo.redeem_id,
+			utxo_id: redeemInfo.utxo_id,
+		});
+		await this.storage.clearRedeemInputSignId(redeemInfo.redeem_id, redeemInfo.utxo_id);
 	}
 }

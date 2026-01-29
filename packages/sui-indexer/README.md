@@ -128,7 +128,7 @@ We use IKA coins to pay for presign/sign requests. The coin selection logic live
 
 ### Concurrency
 
-No race condition here, CF workers only run one cron at a time and `processSolvedRedeems` loops sequentially, so parallel coin selection doesn't happen.
+The process is not safe for parallel workload. See the doc comment in  `fetchAllIkaCoins`.
 
 ## API
 

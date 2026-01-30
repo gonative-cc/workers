@@ -185,22 +185,21 @@ export class CFStorage implements Storage {
 		const now = Date.now();
 		const insertOrUpdateNbtcTxStmt = this.d1.prepare(
 			`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount, status, created_at, updated_at, sui_tx_id, retry_count)
-             VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN setups p ON a.setup_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, NULL, 0)
-             ON CONFLICT(tx_id) DO UPDATE SET
-                block_hash = excluded.block_hash,
-                block_height = excluded.block_height,
-                status = '${MintTxStatus.Confirming}',
-                updated_at = excluded.updated_at,
-				address_id = excluded.address_id,
-				sender = excluded.sender`,
+			VALUES (?,
+			  (SELECT a.id FROM nbtc_deposit_addresses a WHERE a.deposit_address = ?),
+			  ?, ?, ?, ?, ?, ?, '${MintTxStatus.Confirming}', ?, ?, NULL, 0)
+			ON CONFLICT(tx_id) DO UPDATE SET
+			  block_hash = excluded.block_hash,
+			  block_height = excluded.block_height,
+			  status = '${MintTxStatus.Confirming}',
+              updated_at = excluded.updated_at,
+			  address_id = excluded.address_id,
+			  sender = excluded.sender`,
 		);
 		const statements = txs.map((tx) =>
 			insertOrUpdateNbtcTxStmt.bind(
 				tx.txId,
-				tx.btcNetwork,
-				tx.suiNetwork,
-				tx.nbtcPkg,
-				tx.depositAddress,
+				tx.depositAddress, // inner select param
 				tx.sender,
 				tx.vout,
 				tx.blockHash,
@@ -419,15 +418,14 @@ export class CFStorage implements Storage {
 		const now = Date.now();
 		const insertStmt = this.d1.prepare(
 			`INSERT OR IGNORE INTO nbtc_minting (tx_id, address_id, sender, vout, sui_recipient, amount, status, created_at, updated_at, sui_tx_id, retry_count)
-             VALUES (?, (SELECT a.id FROM nbtc_deposit_addresses a JOIN setups p ON a.setup_id = p.id WHERE p.btc_network = ? AND p.sui_network = ? AND p.nbtc_pkg = ? AND a.deposit_address = ?), ?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, NULL, 0)`,
+			VALUES (?,
+			  (SELECT a.id FROM nbtc_deposit_addresses a WHERE a.deposit_address = ?),
+			   ?, ?, ?, ?, '${MintTxStatus.Broadcasting}', ?, ?, NULL, 0)`,
 		);
 
 		const statements = deposits.map((deposit) =>
 			insertStmt.bind(
 				deposit.txId,
-				deposit.btcNetwork,
-				deposit.suiNetwork,
-				deposit.nbtcPkg,
 				deposit.depositAddress,
 				deposit.sender,
 				deposit.vout,

@@ -262,7 +262,7 @@ export async function setupTestIndexerSuite(
 		mockSuiClient.tryMintNbtcBatch.mockResolvedValue(result);
 	};
 
-	const insertTx = async (options: {
+	const insertTx = async (args: {
 		txId: string;
 		status: MintTxStatus | string;
 		retryCount?: number;
@@ -277,39 +277,28 @@ export async function setupTestIndexerSuite(
 		const defaultBlock = testData[329] || testData[327] || Object.values(testData)[0];
 		if (!defaultBlock) throw new Error("No test data available for default values");
 
-		const depositAddr = options.depositAddress || defaultBlock.depositAddr;
-
-		// Validate that the deposit address exists in the database
-		const addressResult = await db
-			.prepare(`SELECT id FROM nbtc_deposit_addresses WHERE deposit_address = ?`)
-			.bind(depositAddr)
-			.first<{ id: number }>();
-
-		if (!addressResult) {
-			throw new Error(
-				`Deposit address '${depositAddr}' not found in database. ` +
-					`Make sure to include it in the depositAddresses array during setupTestIndexer().`,
-			);
-		}
-
+		const depositAddr = args.depositAddress || defaultBlock.depositAddr;
 		await db
 			.prepare(
 				`INSERT INTO nbtc_minting (tx_id, address_id, sender, vout, block_hash, block_height, sui_recipient, amount, status, created_at, updated_at, retry_count)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				 VALUES (
+				  ?,
+				  (SELECT id FROM nbtc_deposit_addresses WHERE deposit_address = ?),
+				  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.bind(
-				options.txId,
-				addressResult.id,
-				options.sender || "sender_address",
-				options.vout ?? 0,
-				options.blockHash || defaultBlock.hash,
-				options.blockHeight || defaultBlock.height,
-				options.suiRecipient || "0xtest_recipient",
-				options.amount || 10000,
-				options.status,
+				args.txId,
+				depositAddr,
+				args.sender || "sender_address",
+				args.vout ?? 0,
+				args.blockHash || defaultBlock.hash,
+				args.blockHeight || defaultBlock.height,
+				args.suiRecipient || "0xtest_recipient",
+				args.amount || 10000,
+				args.status,
 				Date.now(),
 				Date.now(),
-				options.retryCount || 0,
+				args.retryCount || 0,
 			)
 			.run();
 	};

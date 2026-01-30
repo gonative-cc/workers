@@ -767,6 +767,7 @@ export class Indexer {
 		}
 
 		const txIds = reorgedTxs.map((tx) => tx.tx_id);
+		// TODO: verify if we need to add setup_id here.
 		await this.storage.updateNbtcTxsStatus(txIds, MintTxStatus.MintedReorg);
 
 		logger.error({

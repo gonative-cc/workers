@@ -155,29 +155,18 @@ export class D1Storage {
 			throw new Error(`Failed to derive address from script_pubkey: ${e}`);
 		}
 
-		const addrRow = await this.db
-			.prepare(
-				"SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ? AND deposit_address = ?",
-			)
-			.bind(u.setup_id, depositAddress)
-			.first<{ id: number }>();
-
-		if (!addrRow) {
-			throw new Error(
-				`Deposit address not found for setup_id=${u.setup_id}, address=${depositAddress}`,
-			);
-		}
-
 		const stmt = this.db.prepare(
 			`INSERT OR REPLACE INTO nbtc_utxos
-            (nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount, script_pubkey, status, locked_until)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(nbtc_utxo_id, address_id, dwallet_id, txid, vout, amount, script_pubkey, status, locked_until)
+			VALUES (?,
+			  (SELECT id FROM nbtc_deposit_addresses WHERE deposit_address = ?),
+			  ?, ?, ?, ?, ?, ?, ?)`,
 		);
 		try {
 			await stmt
 				.bind(
 					u.nbtc_utxo_id,
-					addrRow.id,
+					depositAddress,
 					u.dwallet_id,
 					u.txid,
 					u.vout,

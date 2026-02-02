@@ -107,14 +107,23 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 		env.REDEEM_DURATION_MS,
 	);
 
-	const results = await Promise.allSettled([
-		service.refillPresignPool(activeNetworks),
-		service.processPendingRedeems(), // propose a solution
-		service
-			.solveReadyRedeems() // trigger status change
-			.then(() => service.processSolvedRedeems()), // request signatures
-		service.broadcastReadyRedeems(), // broadcast fully signed txs
-	]);
+	const results: PromiseSettledResult<void>[] = [];
+	// 1. Refill presign pool
+	results.push((await Promise.allSettled([service.refillPresignPool(activeNetworks)]))[0]!);
+	// 2. Propose solutions
+	results.push((await Promise.allSettled([service.processPendingRedeems()]))[0]!);
+	// 3. Solve and Sign
+	results.push(
+		(
+			await Promise.allSettled([
+				service
+					.solveReadyRedeems() // trigger status change
+					.then(() => service.processSolvedRedeems()), // request signatures
+			])
+		)[0]!,
+	);
+	// 4. Broadcast
+	results.push((await Promise.allSettled([service.broadcastReadyRedeems()]))[0]!);
 
 	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [

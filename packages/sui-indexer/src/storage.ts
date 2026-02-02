@@ -235,7 +235,7 @@ export class D1Storage {
 			.prepare("SELECT COUNT(*) as count FROM presign_objects WHERE sui_network = ?")
 			.bind(network)
 			.first<{ count: number }>();
-		return result?.count || 0;
+		return Number(result?.count || 0);
 	}
 
 	async popPresignObject(network: SuiNet): Promise<string | null> {

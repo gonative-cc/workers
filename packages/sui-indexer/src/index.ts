@@ -108,22 +108,39 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 	);
 
 	const results: PromiseSettledResult<void>[] = [];
+
 	// 1. Refill presign pool
-	results.push((await Promise.allSettled([service.refillPresignPool(activeNetworks)]))[0]!);
+	try {
+		await service.refillPresignPool(activeNetworks);
+		results.push({ status: "fulfilled", value: undefined });
+	} catch (error) {
+		results.push({ status: "rejected", reason: error });
+	}
+
 	// 2. Propose solutions
-	results.push((await Promise.allSettled([service.processPendingRedeems()]))[0]!);
+	try {
+		await service.processPendingRedeems();
+		results.push({ status: "fulfilled", value: undefined });
+	} catch (error) {
+		results.push({ status: "rejected", reason: error });
+	}
+
 	// 3. Solve and Sign
-	results.push(
-		(
-			await Promise.allSettled([
-				service
-					.solveReadyRedeems() // trigger status change
-					.then(() => service.processSolvedRedeems()), // request signatures
-			])
-		)[0]!,
-	);
+	try {
+		await service.solveReadyRedeems();
+		await service.processSolvedRedeems();
+		results.push({ status: "fulfilled", value: undefined });
+	} catch (error) {
+		results.push({ status: "rejected", reason: error });
+	}
+
 	// 4. Broadcast
-	results.push((await Promise.allSettled([service.broadcastReadyRedeems()]))[0]!);
+	try {
+		await service.broadcastReadyRedeems();
+		results.push({ status: "fulfilled", value: undefined });
+	} catch (error) {
+		results.push({ status: "rejected", reason: error });
+	}
 
 	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [

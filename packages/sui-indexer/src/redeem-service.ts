@@ -13,8 +13,7 @@ import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } fr
 
 const MAXIMUM_NUMBER_UTXO = 100;
 const PRESIGN_POOL_TARGET = 80;
-const PRESIGN_POOL_MIN = 40;
-const MAX_CREATE_PER_RUN = 5;
+const MAX_CREATE_PER_PTB = 20;
 
 export class RedeemService {
 	constructor(
@@ -39,7 +38,7 @@ export class RedeemService {
 			return;
 		}
 		const needed = PRESIGN_POOL_TARGET - count;
-		const toCreate = Math.min(needed, MAX_CREATE_PER_RUN);
+		const toCreate = Math.min(needed, MAX_CREATE_PER_PTB);
 		logger.debug({
 			msg: "Filling presign pool",
 			network,

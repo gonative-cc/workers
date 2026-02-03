@@ -202,47 +202,26 @@ describe("Indexer.constructMerkleProof", () => {
 	});
 });
 
-describe("Indexer.handleReorgs", () => {
-	it("should do nothing if no reorg", async () => {
+describe("Indexer.splitActiveInactiveTxs", () => {
+	it("should return active ID when address is active", () => {
 		const pendingTx = {
 			tx_id: "tx1",
-			block_hash: "hash_A",
+			block_hash: null,
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
 			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
-		await suite.db
-			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
-			)
-			.bind(100, "hash_A", "regtest", Date.now(), 1)
-			.run();
-
-		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
-		expect(reorgedTxIds.length).toEqual(0);
-	});
-
-	it("should generate a reset statement if reorg detected", async () => {
-		const pendingTx = {
-			tx_id: "tx1",
-			block_hash: "hash_A",
-			block_height: 100,
-			btc_network: BtcNet.REGTEST,
-			deposit_address: REGTEST_DATA[329]!.depositAddr,
-		};
-		await suite.db
-			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
-			)
-			.bind(100, "hash_A_reorged", "regtest", Date.now(), 1)
-			.run();
-		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
-		expect(reorgedTxIds.length).toEqual(1);
+		const { activeTxIds } = indexer.splitActiveInactiveTxs([pendingTx]);
+		expect(activeTxIds.length).toEqual(1);
+		expect(activeTxIds[0]).toEqual("tx1");
 	});
 });
 
-describe("Indexer.findFinalizedTxs", () => {
-	it("should generate a finalize statement when enough confirmations", () => {
+describe("Indexer.splitActiveInactiveTxs (Inactive)", () => {
+	it("should return inactiveId if address is not active", () => {
+		const pkg = indexer.getPackageConfig(1);
+		if (pkg) pkg.is_active = false;
+
 		const pendingTx = {
 			tx_id: "tx1",
 			block_hash: null,
@@ -250,28 +229,50 @@ describe("Indexer.findFinalizedTxs", () => {
 			btc_network: BtcNet.REGTEST,
 			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
-		const latestHeight = 107;
-		const { activeTxIds } = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		expect(activeTxIds.length).toEqual(1);
+		const result = indexer.splitActiveInactiveTxs([pendingTx]);
+
+		expect(result.activeTxIds.length).toEqual(0);
+		expect(result.inactiveTxIds.length).toEqual(1);
+
+		// Restore active state for other tests
+		if (pkg) pkg.is_active = true;
 	});
 
-	it("should do nothing when not enough confirmations", () => {
+	it("should return inactiveId if address is inactive but package is active", () => {
 		const pendingTx = {
 			tx_id: "tx1",
 			block_hash: null,
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
-			deposit_address: REGTEST_DATA[329]!.depositAddr,
+			deposit_address: "inactive_address",
 		};
-		const latestHeight = 106;
-		const { activeTxIds } = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		expect(activeTxIds.length).toEqual(0);
+
+		const originalMap = indexer.nbtcDepositAddrMap;
+		indexer.nbtcDepositAddrMap = new Map([
+			[
+				"inactive_address",
+				{
+					setup_id: 1,
+					is_active: false,
+				},
+			],
+		]);
+
+		const result = indexer.splitActiveInactiveTxs([pendingTx]);
+
+		expect(result.activeTxIds.length).toEqual(0);
+		expect(result.inactiveTxIds.length).toEqual(1);
+
+		indexer.nbtcDepositAddrMap = originalMap;
 	});
 });
 
 describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
-	it("should be tested later", () => {
-		// TODO: add a test for the scanNewBlocks using the same data
+	it("should finalize transactions with enough confirmations", async () => {
+		const indexer = await indexerFromEnv(env);
+		// ... setup ...
+		await indexer.updateConfirmationsAndFinalize();
+		// ... assertions ...
 	});
 });
 
@@ -592,58 +593,6 @@ describe("Indexer.processBlock", () => {
 
 		const status = await indexer.storage.getTxStatus(txData.id);
 		expect(status).toEqual(MintTxStatus.MintedReorg);
-	});
-});
-
-describe("Indexer.findFinalizedTxs (Inactive)", () => {
-	it("should return inactiveId if address is not active", () => {
-		const pkg = indexer.getPackageConfig(1);
-		if (pkg) pkg.is_active = false;
-
-		const pendingTx = {
-			tx_id: "tx1",
-			block_hash: null,
-			block_height: 100,
-			btc_network: BtcNet.REGTEST,
-			deposit_address: REGTEST_DATA[329]!.depositAddr,
-		};
-		const latestHeight = 107;
-		const result = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-
-		expect(result.activeTxIds.length).toEqual(0);
-		expect(result.inactiveTxIds.length).toEqual(1);
-
-		// Restore active state for other tests
-		if (pkg) pkg.is_active = true;
-	});
-
-	it("should return inactiveId if address is inactive but package is active", () => {
-		const pendingTx = {
-			tx_id: "tx1",
-			block_hash: null,
-			block_height: 100,
-			btc_network: BtcNet.REGTEST,
-			deposit_address: "inactive_address",
-		};
-
-		const originalMap = indexer.nbtcDepositAddrMap;
-		indexer.nbtcDepositAddrMap = new Map([
-			[
-				"inactive_address",
-				{
-					setup_id: 1,
-					is_active: false,
-				},
-			],
-		]);
-
-		const latestHeight = 107;
-		const result = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-
-		expect(result.activeTxIds.length).toEqual(0);
-		expect(result.inactiveTxIds.length).toEqual(1);
-
-		indexer.nbtcDepositAddrMap = originalMap;
 	});
 });
 

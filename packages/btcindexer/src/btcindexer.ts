@@ -4,7 +4,11 @@ import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
-import { type SuiIndexerRpc, RedeemRequestStatus } from "@gonative-cc/sui-indexer/rpc-interface";
+import {
+	type SuiIndexerRpc,
+	RedeemRequestStatus,
+	type ConfirmingRedeemReq,
+} from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
@@ -37,6 +41,14 @@ const btcNetworkCfg: Record<BtcNet, Network> = {
 	[BtcNet.REGTEST]: networks.regtest,
 	[BtcNet.SIGNET]: networks.testnet,
 };
+
+interface ConfirmingTxCandidate<T> {
+	id: string | number;
+	blockHeight: number;
+	blockHash: string;
+	network: BtcNet;
+	original: T;
+}
 
 export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	const storage = new CFStorage(env.DB, env.BtcBlocks, env.nbtc_txs);
@@ -851,27 +863,49 @@ export class Indexer {
 		}
 	}
 
-	async updateConfirmationsAndFinalize(latestHeight: number): Promise<void> {
+	async updateConfirmationsAndFinalize(): Promise<void> {
 		// check the confirming blocks against the SPV.
 		await this.verifyConfirmingBlocks();
 
-		await this.processMintingFinalization(latestHeight);
+		await this.processMintingFinalization();
 		await this.processRedeemFinalization();
 	}
 
-	async processMintingFinalization(latestHeight: number): Promise<void> {
+	async processMintingFinalization(): Promise<void> {
 		const pendingTxs = await this.storage.getConfirmingTxs();
 		if (!pendingTxs || pendingTxs.length === 0) {
 			return;
 		}
+		const networks = new Set(pendingTxs.map((tx) => tx.btc_network));
+		const chainTips = new Map<BtcNet, number>();
+		for (const net of networks) {
+			const tip = await this.storage.getChainTip(net);
+			if (tip !== null) chainTips.set(net, tip);
+		}
+
 		logger.debug({
 			msg: "Finalization: Checking 'confirming' transactions",
 			count: pendingTxs.length,
-			chainTipHeight: latestHeight,
+			chainTips: Object.fromEntries(chainTips),
 		});
 
-		const { reorgedTxIds } = await this.handleReorgs(pendingTxs);
-		if (reorgedTxIds.length > 0) {
+		const confirmingTxs: ConfirmingTxCandidate<PendingTx>[] = [];
+		for (const tx of pendingTxs) {
+			if (tx.block_hash !== null) {
+				confirmingTxs.push({
+					id: tx.tx_id,
+					blockHeight: tx.block_height,
+					blockHash: tx.block_hash,
+					network: tx.btc_network,
+					original: tx,
+				});
+			}
+		}
+
+		const { reorged, finalized } = await this.categorizeConfirmingTxs(confirmingTxs, chainTips);
+
+		if (reorged.length > 0) {
+			const reorgedTxIds = reorged.map((i) => i.id as string);
 			logger.debug({
 				msg: "Finalization: Updating reorged transactions",
 				count: reorgedTxIds.length,
@@ -879,12 +913,8 @@ export class Indexer {
 			await this.storage.updateNbtcTxsStatus(reorgedTxIds, MintTxStatus.Reorg);
 		}
 
-		// TODO: add a unit test for it so we make sure we do not finalize reorged tx.
-		const validPendingTxs = pendingTxs.filter((tx) => !reorgedTxIds.includes(tx.tx_id));
-		const { activeTxIds, inactiveTxIds } = this.selectFinalizedNbtcTxs(
-			validPendingTxs,
-			latestHeight,
-		);
+		const validFinalizedTxs = finalized.map((i) => i.original);
+		const { activeTxIds, inactiveTxIds } = this.splitActiveInactiveTxs(validFinalizedTxs);
 
 		if (activeTxIds.length > 0) {
 			logger.debug({
@@ -905,12 +935,12 @@ export class Indexer {
 	}
 
 	async processRedeemFinalization(): Promise<void> {
-		const networks = new Set<BtcNet>();
+		const btcNetworks = new Set<BtcNet>();
 		for (const cfg of this.#packageConfigs.values()) {
-			networks.add(cfg.btc_network);
+			btcNetworks.add(cfg.btc_network);
 		}
 
-		for (const net of networks) {
+		for (const net of btcNetworks) {
 			try {
 				const chainTip = await this.storage.getChainTip(net);
 				if (chainTip === null) continue;
@@ -925,34 +955,51 @@ export class Indexer {
 					chainTip,
 				});
 
-				for (const r of confirmingRedeems) {
-					const currentHash = await this.storage.getBlockHash(r.btc_block_height, net);
-					if (currentHash !== r.btc_block_hash) {
-						logger.debug({
-							msg: "Redeem Reorg detected (block hash mismatch)",
-							redeemId: r.redeem_id,
-							oldHash: r.btc_block_hash,
-							newHash: currentHash,
+				const chainTips = new Map<BtcNet, number>([[net, chainTip]]);
+
+				const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] =
+					confirmingRedeems.map((r) => ({
+						id: r.redeem_id,
+						blockHeight: r.btc_block_height,
+						blockHash: r.btc_block_hash,
+						network: btcNetFromString(r.btc_network),
+						original: r,
+					}));
+
+				const { reorged, finalized } = await this.categorizeConfirmingTxs(
+					confirmingTxs,
+					chainTips,
+				);
+
+				for (const tx of reorged) {
+					logger.debug({
+						msg: "Redeem Reorg detected (block hash mismatch)",
+						redeemId: tx.original.redeem_id,
+						oldHash: tx.original.btc_block_hash,
+					});
+					await this.suiIndexer.updateRedeemStatus(
+						tx.original.redeem_id,
+						RedeemRequestStatus.Reorg,
+					);
+				}
+				const finalizedByBlock = this.groupTransactionsByBlock(
+					finalized.map((f) => ({ ...f.original, block_hash: f.blockHash })),
+				);
+
+				for (const [blockHash, redeems] of finalizedByBlock) {
+					const blockData = await this.fetchAndVerifyBlock(blockHash);
+					if (!blockData) {
+						logger.warn({
+							msg: "Redeem finalization: block not found in storage",
+							hash: blockHash,
+							count: redeems.length,
 						});
-						await this.suiIndexer.updateRedeemStatus(
-							r.redeem_id,
-							RedeemRequestStatus.Reorg,
-						);
 						continue;
 					}
 
-					const confs = calculateConfirmations(r.btc_block_height, chainTip);
-					if (confs >= this.confirmationDepth) {
-						const blockData = await this.fetchAndVerifyBlock(r.btc_block_hash);
-						if (!blockData) {
-							logger.warn({
-								msg: "Redeem finalization: block not found in storage",
-								hash: r.btc_block_hash,
-								redeemId: r.redeem_id,
-							});
-							continue;
-						}
-						const { block, merkleTree } = blockData;
+					const { block, merkleTree } = blockData;
+
+					for (const r of redeems) {
 						const txIndex =
 							block.transactions?.findIndex((t) => t.getId() === r.btc_tx) ?? -1;
 
@@ -983,8 +1030,6 @@ export class Indexer {
 						logger.debug({
 							msg: "Redeem Finalized, calling Sui contract",
 							redeemId: r.redeem_id,
-							confirmations: confs,
-							required: this.confirmationDepth,
 						});
 
 						await this.suiIndexer.finalizeRedeem(
@@ -1008,64 +1053,69 @@ export class Indexer {
 		}
 	}
 
-	async handleReorgs(pendingTxs: PendingTx[]): Promise<{ reorgedTxIds: string[] }> {
-		const reorgedTxIds: string[] = [];
-		for (const tx of pendingTxs) {
-			if (tx.block_hash === null) continue;
-			const hash = await this.storage.getBlockHash(tx.block_height, tx.btc_network);
-			if (hash) {
-				if (hash !== tx.block_hash) {
-					logger.warn({
-						msg: "Reorg detected",
-						txId: tx.tx_id,
-						height: tx.block_height,
-						oldHash: tx.block_hash,
-						newHash: hash,
-					});
-					reorgedTxIds.push(tx.tx_id);
-				}
-			}
+	private async isReorged(height: number, oldHash: string, network: BtcNet): Promise<boolean> {
+		const currentHash = await this.storage.getBlockHash(height, network);
+		if (currentHash && currentHash !== oldHash) {
+			return true;
 		}
-		return { reorgedTxIds };
+		return false;
 	}
 
-	selectFinalizedNbtcTxs(
-		pendingTxs: PendingTx[],
-		latestHeight: number,
-	): { activeTxIds: string[]; inactiveTxIds: string[] } {
+	private async categorizeConfirmingTxs<T>(
+		txs: ConfirmingTxCandidate<T>[],
+		chainTips: Map<BtcNet, number>,
+	): Promise<{ reorged: ConfirmingTxCandidate<T>[]; finalized: ConfirmingTxCandidate<T>[] }> {
+		const reorged: ConfirmingTxCandidate<T>[] = [];
+		const finalized: ConfirmingTxCandidate<T>[] = [];
+
+		for (const tx of txs) {
+			const tip = chainTips.get(tx.network);
+			if (tip === undefined) continue;
+
+			const isReorged = await this.isReorged(tx.blockHeight, tx.blockHash, tx.network);
+			if (isReorged) {
+				reorged.push(tx);
+				continue;
+			}
+
+			const confs = calculateConfirmations(tx.blockHeight, tip);
+			if (confs >= this.confirmationDepth) {
+				finalized.push(tx);
+			}
+		}
+		return { reorged, finalized };
+	}
+
+	splitActiveInactiveTxs(pendingTxs: PendingTx[]): {
+		activeTxIds: string[];
+		inactiveTxIds: string[];
+	} {
 		const activeTxIds: string[] = [];
 		const inactiveTxIds: string[] = [];
 		for (const tx of pendingTxs) {
-			const confirmations = calculateConfirmations(tx.block_height, latestHeight);
-			if (confirmations >= this.confirmationDepth) {
-				const depositInfo = this.nbtcDepositAddrMap.get(tx.deposit_address);
-				let isPkgActive = false;
-				if (depositInfo) {
-					const setup = this.getPackageConfig(depositInfo.setup_id);
-					if (setup && setup.is_active && depositInfo.is_active) {
-						isPkgActive = true;
-					}
+			const depositInfo = this.nbtcDepositAddrMap.get(tx.deposit_address);
+			let isPkgActive = false;
+			if (depositInfo) {
+				const setup = this.getPackageConfig(depositInfo.setup_id);
+				if (setup && setup.is_active && depositInfo.is_active) {
+					isPkgActive = true;
 				}
+			}
 
-				if (isPkgActive) {
-					logger.info({
-						msg: "Transaction finalized (Active Key)",
-						txId: tx.tx_id,
-						confirmations,
-						required: this.confirmationDepth,
-						depositAddress: tx.deposit_address,
-					});
-					activeTxIds.push(tx.tx_id);
-				} else {
-					logger.info({
-						msg: "Transaction finalized (Inactive Key) - Minting will be skipped",
-						txId: tx.tx_id,
-						confirmations,
-						required: this.confirmationDepth,
-						depositAddress: tx.deposit_address,
-					});
-					inactiveTxIds.push(tx.tx_id);
-				}
+			if (isPkgActive) {
+				logger.info({
+					msg: "Transaction finalized (Active Key)",
+					txId: tx.tx_id,
+					depositAddress: tx.deposit_address,
+				});
+				activeTxIds.push(tx.tx_id);
+			} else {
+				logger.info({
+					msg: "Transaction finalized (Inactive Key) - Minting will be skipped",
+					txId: tx.tx_id,
+					depositAddress: tx.deposit_address,
+				});
+				inactiveTxIds.push(tx.tx_id);
 			}
 		}
 		return { activeTxIds, inactiveTxIds };

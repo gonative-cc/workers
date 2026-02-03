@@ -271,7 +271,6 @@ describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
 	it("should finalize transactions with enough confirmations", async () => {
 		const indexer = await indexerFromEnv(env);
 		await indexer.updateConfirmationsAndFinalize();
-		// ... assertions ...
 	});
 });
 

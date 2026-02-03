@@ -374,13 +374,13 @@ describe("IndexerStorage", () => {
 			.bind(RedeemRequestStatus.Proposed, 1)
 			.run();
 
-		await storage.markRedeemSolved(1);
+		await storage.markRedeemSinging(1);
 
 		const redeem = await db
 			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
 			.bind(1)
 			.first<{ status: string }>();
-		expect(redeem!.status).toBe(RedeemRequestStatus.Solved);
+		expect(redeem!.status).toBe(RedeemRequestStatus.Signing);
 	});
 
 	it("getActiveNetworks should return distinct active networks", async () => {
@@ -419,7 +419,7 @@ describe("IndexerStorage", () => {
 			null,
 		);
 		await storage.markRedeemProposed(1, [1], UTXO_LOCK_TIME_MS);
-		await storage.markRedeemSolved(1);
+		await storage.markRedeemSinging(1);
 		await storage.saveRedeemInputs([
 			{
 				redeem_id: 1,
@@ -430,7 +430,7 @@ describe("IndexerStorage", () => {
 			},
 		]);
 
-		const redeems = await storage.getSolvedRedeems();
+		const redeems = await storage.getSigningRedeems();
 
 		expect(redeems.length).toBe(1);
 		expect(redeems[0]!.redeem_id).toBe(1);

@@ -22,7 +22,7 @@ export interface Utxo {
 export enum RedeemStatusEnum {
 	Pending = "pending",
 	Proposed = "proposed",
-	Solved = "solved",
+	Signing = "signing",
 	Signed = "signed",
 }
 

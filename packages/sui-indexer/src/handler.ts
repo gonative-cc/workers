@@ -31,7 +31,7 @@ export class SuiEventHandler {
 			} else if (e.type.includes("::nbtc::ProposeUtxoEvent")) {
 				await this.handleProposeUtxo(json as ProposeUtxoEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SolvedEvent")) {
-				await this.handleSolved(json as SolvedEventRaw);
+				await this.handleSolvedRedeem(json as SolvedEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SignatureRecordedEvent")) {
 				await this.handleIkaSignatureRecorded(json as SignatureRecordedEventRaw);
 			}
@@ -82,13 +82,13 @@ export class SuiEventHandler {
 		});
 	}
 
-	private async handleSolved(e: SolvedEventRaw) {
+	private async handleSolvedRedeem(e: SolvedEventRaw) {
 		await this.storage.upsertRedeemInputs(
 			Number(e.redeem_id),
 			e.utxo_ids.map(Number),
 			e.dwallet_ids,
 		);
-		await this.storage.markRedeemSolved(Number(e.redeem_id));
+		await this.storage.markRedeemSinging(Number(e.redeem_id));
 
 		logger.info({
 			msg: "Marked redeem as solved and added inputs",

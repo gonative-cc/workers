@@ -8,9 +8,12 @@ import type {
 	RedeemRequestEventRaw,
 	RedeemRequestResp,
 	RedeemRequestStatus,
+	FinalizeRedeemItem,
+	RedeemRequest,
 } from "./models";
 import type { SuiIndexerRpc } from "./rpc-interface";
 import { createSuiClients } from "./redeem-sui-client";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 /**
  * RPC entrypoint for the worker.
@@ -22,58 +25,85 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	 * Once BTC withdraw for the Redeem Request is confirmed and finalzed, this method
 	 * will update the DB state and remove related UTXOs.
 	 */
-	async finalizeRedeem(
-		redeemId: number,
-		proof: string[],
-		height: number,
-		txIndex: number,
-	): Promise<void> {
-		const storage = new D1Storage(this.env.DB);
-		const req = await storage.getRedeemWithSetup(redeemId);
-		if (!req) {
-			throw new Error(`Redeem request not found: ${redeemId}`);
-		}
+	async finalizeRedeems(requests: FinalizeRedeemItem[]): Promise<void> {
+		if (requests.length === 0) return;
 
+		const storage = new D1Storage(this.env.DB);
 		const mnemonic = await this.env.NBTC_MINTING_SIGNER_MNEMONIC.get();
 		if (!mnemonic) {
 			throw new Error("NBTC_MINTING_SIGNER_MNEMONIC not set");
 		}
+		const detailsMap = new Map<number, RedeemRequest>();
+		const networks = new Set<SuiNet>();
 
-		const clients = await createSuiClients([req.sui_network], mnemonic);
-		const client = clients.get(req.sui_network);
-		if (!client) {
-			throw new Error(`SuiClient not found for network ${req.sui_network}`);
+		for (const req of requests) {
+			try {
+				const details = await storage.getRedeemWithSetup(req.redeemId);
+				if (details) {
+					detailsMap.set(req.redeemId, details);
+					networks.add(details.sui_network);
+				} else {
+					logger.error({ msg: "Redeem request not found", redeemId: req.redeemId });
+				}
+			} catch (e) {
+				logError(
+					{
+						msg: "DB error fetching redeem details",
+						method: "finalizeRedeems",
+						redeemId: req.redeemId,
+					},
+					e,
+				);
+			}
 		}
 
-		try {
-			const digest = await client.finalizeRedeem({
-				redeemId,
-				proof,
-				height,
-				txIndex,
-				nbtcPkg: req.nbtc_pkg,
-				nbtcContract: req.nbtc_contract,
-				lcContract: req.lc_contract,
-				lcPkg: req.lc_pkg,
-			});
+		if (networks.size === 0) return;
 
-			logger.info({
-				msg: "Redeem finalized on Sui",
-				redeemId,
-				digest,
-			});
+		const clients = await createSuiClients(Array.from(networks), mnemonic);
 
-			await storage.setRedeemFinalized(redeemId);
-		} catch (e) {
-			logError(
-				{
-					msg: "Failed to finalize redeem on Sui",
-					method: "finalizeRedeem",
-					redeemId,
-				},
-				e,
-			);
-			throw e;
+		for (const req of requests) {
+			const details = detailsMap.get(req.redeemId);
+			if (!details) continue;
+
+			const client = clients.get(details.sui_network);
+			if (!client) {
+				logger.error({
+					msg: "SuiClient not found for network",
+					network: details.sui_network,
+					redeemId: req.redeemId,
+				});
+				continue;
+			}
+
+			try {
+				const digest = await client.finalizeRedeem({
+					redeemId: req.redeemId,
+					proof: req.proof,
+					height: req.height,
+					txIndex: req.txIndex,
+					nbtcPkg: details.nbtc_pkg,
+					nbtcContract: details.nbtc_contract,
+					lcContract: details.lc_contract,
+					lcPkg: details.lc_pkg,
+				});
+
+				logger.info({
+					msg: "Redeem finalized on Sui",
+					redeemId: req.redeemId,
+					digest,
+				});
+
+				await storage.setRedeemFinalized(req.redeemId);
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to finalize redeem on Sui",
+						method: "finalizeRedeems",
+						redeemId: req.redeemId,
+					},
+					e,
+				);
+			}
 		}
 	}
 

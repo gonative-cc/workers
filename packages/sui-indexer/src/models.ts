@@ -147,9 +147,15 @@ export interface PkgCfg {
 export interface ProposeRedeemCall {
 	redeemId: number;
 	utxoIds: number[];
-	dwalletIds: string[];
 	nbtcPkg: string;
 	nbtcContract: string;
+}
+
+export interface FinalizeRedeemItem {
+	redeemId: number;
+	proof: string[]; // hex encoded
+	height: number;
+	txIndex: number;
 }
 
 export interface SolveRedeemCall {

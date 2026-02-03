@@ -2,22 +2,22 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { isValidSuiAddress } from "@mysten/sui/utils";
 
 import type { SuiIndexerRpc } from "./rpc-interface";
-import type { ConfirmingRedeemReq, RedeemRequestResp } from "./models";
+import type { ConfirmingRedeemReq, RedeemRequestResp, FinalizeRedeemItem } from "./models";
 import { RedeemRequestStatus, type RedeemRequestEventRaw } from "./models";
 
 export class RPCMock extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	// map setup_id -> redeemer (sui addr) -> redeem req
 	redeemRequests: Record<number, Record<string, RedeemRequestResp[]>> = {};
 
-	async finalizeRedeem(redeemId: number, proof: string[], height: number, txIndex: number) {
+	async finalizeRedeems(_requests: FinalizeRedeemItem[]): Promise<void> {
 		return;
 	}
 
-	async getConfirmingRedeems(network: string): Promise<ConfirmingRedeemReq[]> {
+	async getConfirmingRedeems(_network: string): Promise<ConfirmingRedeemReq[]> {
 		return [];
 	}
 
-	async updateRedeemStatus(redeemId: number, status: RedeemRequestStatus): Promise<void> {
+	async updateRedeemStatus(_redeemId: number, _status: RedeemRequestStatus): Promise<void> {
 		return;
 	}
 

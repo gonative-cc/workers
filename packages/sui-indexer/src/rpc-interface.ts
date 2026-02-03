@@ -1,4 +1,9 @@
-export type { ConfirmingRedeemReq, RedeemRequestEventRaw, RedeemRequestResp } from "./models";
+export type {
+	ConfirmingRedeemReq,
+	RedeemRequestEventRaw,
+	RedeemRequestResp,
+	FinalizeRedeemItem,
+} from "./models";
 
 export { RedeemRequestStatus } from "./models";
 
@@ -7,15 +12,11 @@ import type {
 	RedeemRequestEventRaw,
 	RedeemRequestResp,
 	RedeemRequestStatus,
+	FinalizeRedeemItem,
 } from "./models";
 
 export interface SuiIndexerRpc {
-	finalizeRedeem: (
-		redeemId: number,
-		proof: string[],
-		height: number,
-		txIndex: number,
-	) => Promise<void>;
+	finalizeRedeems: (requests: FinalizeRedeemItem[]) => Promise<void>;
 	putRedeemTx: (setupId: number, suiTxId: string, e: RedeemRequestEventRaw) => Promise<void>;
 	getBroadcastedRedeemTxIds: (network: string) => Promise<string[]>;
 	confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) => Promise<void>;

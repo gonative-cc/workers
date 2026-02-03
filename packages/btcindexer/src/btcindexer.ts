@@ -8,6 +8,7 @@ import {
 	type SuiIndexerRpc,
 	RedeemRequestStatus,
 	type ConfirmingRedeemReq,
+	type FinalizeRedeemItem,
 } from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { OP_RETURN } from "./opcodes";
@@ -999,6 +1000,8 @@ export class Indexer {
 
 					const { block, merkleTree } = blockData;
 
+					const batch: FinalizeRedeemItem[] = [];
+
 					for (const r of redeems) {
 						const txIndex =
 							block.transactions?.findIndex((t) => t.getId() === r.btc_tx) ?? -1;
@@ -1026,18 +1029,20 @@ export class Indexer {
 						}
 
 						const proofHex = proof.map((p) => p.toString("hex"));
-
-						logger.debug({
-							msg: "Redeem Finalized, calling Sui contract",
+						batch.push({
 							redeemId: r.redeem_id,
-						});
-
-						await this.suiIndexer.finalizeRedeem(
-							r.redeem_id,
-							proofHex,
-							r.btc_block_height,
+							proof: proofHex,
+							height: r.btc_block_height,
 							txIndex,
-						);
+						});
+					}
+
+					if (batch.length > 0) {
+						logger.debug({
+							msg: "Redeem Finalization: sending batch to Sui Indexer",
+							count: batch.length,
+						});
+						await this.suiIndexer.finalizeRedeems(batch);
 					}
 				}
 			} catch (e) {

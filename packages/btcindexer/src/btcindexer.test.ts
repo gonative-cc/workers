@@ -270,7 +270,6 @@ describe("Indexer.splitActiveInactiveTxs (Inactive)", () => {
 describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
 	it("should finalize transactions with enough confirmations", async () => {
 		const indexer = await indexerFromEnv(env);
-		// ... setup ...
 		await indexer.updateConfirmationsAndFinalize();
 		// ... assertions ...
 	});

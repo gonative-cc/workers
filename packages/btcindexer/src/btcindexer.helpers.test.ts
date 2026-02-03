@@ -7,7 +7,7 @@ import type { WorkerEntrypoint } from "cloudflare:workers";
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { D1Storage } from "@gonative-cc/sui-indexer/storage";
-import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc-interface";
+import { type SuiIndexerRpc, RedeemRequestStatus } from "@gonative-cc/sui-indexer/rpc-interface";
 import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
 
 import { Indexer } from "./btcindexer";
@@ -179,8 +179,12 @@ export async function setupTestIndexerSuite(
 			indexerStorage.getBroadcastedBtcRedeemTxIds(network),
 		confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) =>
 			indexerStorage.confirmRedeem(txIds, blockHeight, blockHash),
-		finalizeRedeem: () => Promise.resolve(),
+		finalizeRedeem: (redeemId: number, proof: string[], height: number, txIndex: number) =>
+			indexerStorage.setRedeemFinalized(redeemId),
 		putRedeemTx: () => Promise.resolve(),
+		getConfirmingRedeems: (network: string) => indexerStorage.getConfirmingRedeems(network),
+		updateRedeemStatus: (redeemId: number, status: RedeemRequestStatus) =>
+			indexerStorage.updateRedeemStatus(redeemId, status),
 	} as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>;
 
 	const indexer = new Indexer(

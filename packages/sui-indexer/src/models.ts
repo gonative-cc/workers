@@ -40,6 +40,8 @@ export interface RedeemRequest {
 	created_at: number;
 	nbtc_pkg: string;
 	nbtc_contract: string;
+	lc_pkg: string;
+	lc_contract: string;
 	sui_network: SuiNet;
 }
 
@@ -75,6 +77,14 @@ export interface RedeemRequestIngestData {
 	created_at: number;
 	setup_id: number;
 	sui_tx: string;
+}
+
+export interface ConfirmingRedeemReq {
+	redeem_id: number;
+	btc_tx: string;
+	btc_block_height: number;
+	btc_block_hash: string;
+	btc_network: string;
 }
 
 // Raw Event Interfaces (Matches Move Events)
@@ -146,4 +156,15 @@ export interface SolveRedeemCall {
 	redeemId: number;
 	nbtcPkg: string;
 	nbtcContract: string;
+}
+
+export interface FinalizeRedeemCall {
+	redeemId: number;
+	proof: string[]; // hex encoded
+	height: number;
+	txIndex: number;
+	nbtcPkg: string;
+	nbtcContract: string;
+	lcContract: string;
+	lcPkg: string;
 }

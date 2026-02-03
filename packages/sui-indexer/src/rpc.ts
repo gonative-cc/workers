@@ -3,8 +3,14 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 
 import { D1Storage } from "./storage";
-import type { RedeemRequestEventRaw, RedeemRequestResp } from "./models";
+import type {
+	ConfirmingRedeemReq,
+	RedeemRequestEventRaw,
+	RedeemRequestResp,
+	RedeemRequestStatus,
+} from "./models";
 import type { SuiIndexerRpc } from "./rpc-interface";
+import { createSuiClients } from "./redeem-sui-client";
 
 /**
  * RPC entrypoint for the worker.
@@ -16,8 +22,69 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	 * Once BTC withdraw for the Redeem Request is confirmed and finalzed, this method
 	 * will update the DB state and remove related UTXOs.
 	 */
-	async finalizeRedeem(): Promise<void> {
-		return;
+	async finalizeRedeem(
+		redeemId: number,
+		proof: string[],
+		height: number,
+		txIndex: number,
+	): Promise<void> {
+		const storage = new D1Storage(this.env.DB);
+		const req = await storage.getRedeemWithSetup(redeemId);
+		if (!req) {
+			throw new Error(`Redeem request not found: ${redeemId}`);
+		}
+
+		const mnemonic = await this.env.NBTC_MINTING_SIGNER_MNEMONIC.get();
+		if (!mnemonic) {
+			throw new Error("NBTC_MINTING_SIGNER_MNEMONIC not set");
+		}
+
+		const clients = await createSuiClients([req.sui_network], mnemonic);
+		const client = clients.get(req.sui_network);
+		if (!client) {
+			throw new Error(`SuiClient not found for network ${req.sui_network}`);
+		}
+
+		try {
+			const digest = await client.finalizeRedeem({
+				redeemId,
+				proof,
+				height,
+				txIndex,
+				nbtcPkg: req.nbtc_pkg,
+				nbtcContract: req.nbtc_contract,
+				lcContract: req.lc_contract,
+				lcPkg: req.lc_pkg,
+			});
+
+			logger.info({
+				msg: "Redeem finalized on Sui",
+				redeemId,
+				digest,
+			});
+
+			await storage.setRedeemFinalized(redeemId);
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to finalize redeem on Sui",
+					method: "finalizeRedeem",
+					redeemId,
+				},
+				e,
+			);
+			throw e;
+		}
+	}
+
+	async updateRedeemStatus(redeemId: number, status: RedeemRequestStatus): Promise<void> {
+		const storage = new D1Storage(this.env.DB);
+		await storage.updateRedeemStatus(redeemId, status);
+	}
+
+	async getConfirmingRedeems(network: string): Promise<ConfirmingRedeemReq[]> {
+		const storage = new D1Storage(this.env.DB);
+		return storage.getConfirmingRedeems(network);
 	}
 
 	async getBroadcastedRedeemTxIds(network: string): Promise<string[]> {

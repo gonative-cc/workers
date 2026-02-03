@@ -4,7 +4,7 @@ import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
-import type { SuiIndexerRpc } from "@gonative-cc/sui-indexer/rpc-interface";
+import { type SuiIndexerRpc, RedeemRequestStatus } from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
@@ -855,6 +855,11 @@ export class Indexer {
 		// check the confirming blocks against the SPV.
 		await this.verifyConfirmingBlocks();
 
+		await this.processMintingFinalization(latestHeight);
+		await this.processRedeemFinalization();
+	}
+
+	async processMintingFinalization(latestHeight: number): Promise<void> {
 		const pendingTxs = await this.storage.getConfirmingTxs();
 		if (!pendingTxs || pendingTxs.length === 0) {
 			return;
@@ -884,7 +889,7 @@ export class Indexer {
 		if (activeTxIds.length > 0) {
 			logger.debug({
 				msg: "Finalization: Updating active transactions in D1",
-				method: "Indexer.updateConfirmationsAndFinalize",
+				method: "Indexer.processMintingFinalization",
 				count: activeTxIds.length,
 			});
 			await this.storage.finalizeNbtcTxs(activeTxIds);
@@ -892,10 +897,114 @@ export class Indexer {
 		if (inactiveTxIds.length > 0) {
 			logger.debug({
 				msg: "Finalization: Updating inactive transactions in D1",
-				method: "Indexer.updateConfirmationsAndFinalize",
+				method: "Indexer.processMintingFinalization",
 				count: inactiveTxIds.length,
 			});
 			await this.storage.updateNbtcTxsStatus(inactiveTxIds, MintTxStatus.FinalizedNonActive);
+		}
+	}
+
+	async processRedeemFinalization(): Promise<void> {
+		const networks = new Set<BtcNet>();
+		for (const cfg of this.#packageConfigs.values()) {
+			networks.add(cfg.btc_network);
+		}
+
+		for (const net of networks) {
+			try {
+				const chainTip = await this.storage.getChainTip(net);
+				if (chainTip === null) continue;
+
+				const confirmingRedeems = await this.suiIndexer.getConfirmingRedeems(net);
+				if (confirmingRedeems.length === 0) continue;
+
+				logger.debug({
+					msg: "Checking confirmations for redeems",
+					network: net,
+					count: confirmingRedeems.length,
+					chainTip,
+				});
+
+				for (const r of confirmingRedeems) {
+					const currentHash = await this.storage.getBlockHash(r.btc_block_height, net);
+					if (currentHash !== r.btc_block_hash) {
+						logger.debug({
+							msg: "Redeem Reorg detected (block hash mismatch)",
+							redeemId: r.redeem_id,
+							oldHash: r.btc_block_hash,
+							newHash: currentHash,
+						});
+						await this.suiIndexer.updateRedeemStatus(
+							r.redeem_id,
+							RedeemRequestStatus.Reorg,
+						);
+						continue;
+					}
+
+					const confs = calculateConfirmations(r.btc_block_height, chainTip);
+					if (confs >= this.confirmationDepth) {
+						const blockData = await this.fetchAndVerifyBlock(r.btc_block_hash);
+						if (!blockData) {
+							logger.warn({
+								msg: "Redeem finalization: block not found in storage",
+								hash: r.btc_block_hash,
+								redeemId: r.redeem_id,
+							});
+							continue;
+						}
+						const { block, merkleTree } = blockData;
+						const txIndex =
+							block.transactions?.findIndex((t) => t.getId() === r.btc_tx) ?? -1;
+
+						if (txIndex === -1 || !block.transactions) {
+							logger.error({
+								msg: "Redeem finalization: Tx not found in block",
+								redeemId: r.redeem_id,
+								txId: r.btc_tx,
+								blockHash: r.btc_block_hash,
+							});
+							continue;
+						}
+
+						const targetTx = block.transactions[txIndex];
+						if (!targetTx) continue;
+
+						const proof = this.getTxProof(merkleTree, targetTx);
+						if (!proof) {
+							logger.error({
+								msg: "Redeem finalization: Failed to generate proof",
+								redeemId: r.redeem_id,
+							});
+							continue;
+						}
+
+						const proofHex = proof.map((p) => p.toString("hex"));
+
+						logger.debug({
+							msg: "Redeem Finalized, calling Sui contract",
+							redeemId: r.redeem_id,
+							confirmations: confs,
+							required: this.confirmationDepth,
+						});
+
+						await this.suiIndexer.finalizeRedeem(
+							r.redeem_id,
+							proofHex,
+							r.btc_block_height,
+							txIndex,
+						);
+					}
+				}
+			} catch (e) {
+				logError(
+					{
+						msg: "Error processing redeem finalization",
+						method: "processRedeemFinalization",
+						network: net,
+					},
+					e,
+				);
+			}
 		}
 	}
 

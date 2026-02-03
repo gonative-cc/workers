@@ -28,44 +28,48 @@ export class RedeemService {
 		}
 	}
 	// Makes sure we have enough presigns in the queue
-	async refillPresignPool(activeNetworks: SuiNet[]) {
-		await Promise.allSettled(activeNetworks.map((net) => this.refillNetworkPool(net)));
+	async refillPresignPool(nets: SuiNet[]) {
+		await Promise.allSettled(nets.map((net) => this.refillNetworkPool(net)));
 	}
 
 	private async refillNetworkPool(network: SuiNet) {
-		const count = await this.storage.getPresignCount(network);
-		if (count >= PRESIGN_POOL_TARGET) {
-			return;
-		}
-		const needed = PRESIGN_POOL_TARGET - count;
-		const toCreate = Math.min(needed, MAX_CREATE_PER_PTB);
-		logger.debug({
-			msg: "Filling presign pool",
-			network,
-			currentCount: count,
-			creating: toCreate,
-		});
-		const client = this.getSuiClient(network);
-		try {
-			const presignIds = await client.requestIkaPresigns(toCreate);
-			for (const presignId of presignIds) {
-				await this.storage.insertPresignObject(presignId, network);
-			}
+		let currentCount = await this.storage.getPresignCount(network);
+		let needed = PRESIGN_POOL_TARGET - currentCount;
+
+		while (needed > 0) {
+			const toCreate = Math.min(needed, MAX_CREATE_PER_PTB);
 			logger.debug({
-				msg: "Created presign objects",
+				msg: "Filling presign pool",
 				network,
-				count: presignIds.length,
+				currentCount,
+				creating: toCreate,
 			});
-		} catch (e) {
-			logError(
-				{
-					msg: "Failed to create presign objects",
-					method: "refillNetworkPool",
+
+			const client = this.getSuiClient(network);
+			try {
+				const presignIds = await client.requestIkaPresigns(toCreate);
+				for (const presignId of presignIds) {
+					await this.storage.insertPresignObject(presignId, network);
+				}
+				logger.debug({
+					msg: "Created presign objects",
 					network,
-					count: toCreate,
-				},
-				e,
-			);
+					count: presignIds.length,
+				});
+				currentCount += presignIds.length;
+				needed -= presignIds.length;
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to create presign objects",
+						method: "refillNetworkPool",
+						network,
+						count: toCreate,
+					},
+					e,
+				);
+				break;
+			}
 		}
 	}
 

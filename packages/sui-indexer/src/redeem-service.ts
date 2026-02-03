@@ -12,8 +12,9 @@ import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } from "./sighash";
 
 const MAXIMUM_NUMBER_UTXO = 100;
-const PRESIGN_POOL_TARGET = 80;
-const MAX_CREATE_PER_PTB = 20;
+const PRESIGN_POOL_TARGET = 100;
+const PRESIGN_POOL_MIN_TARGET = 40;
+const MAX_CREATE_PER_PTB = 40;
 
 export class RedeemService {
 	constructor(
@@ -34,6 +35,7 @@ export class RedeemService {
 
 	private async refillNetworkPool(network: SuiNet) {
 		let currentCount = await this.storage.getPresignCount(network);
+		if (currentCount >= PRESIGN_POOL_MIN_TARGET) return;
 		let needed = PRESIGN_POOL_TARGET - currentCount;
 
 		while (needed > 0) {

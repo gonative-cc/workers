@@ -109,13 +109,10 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 
 	const results: PromiseSettledResult<void>[] = [];
 
-	// 1. Refill presign pool
 	results.push(await tryAsync(service.refillPresignPool(activeNetworks)));
-
-	// 2. Propose solutions
 	results.push(await tryAsync(service.processPendingRedeems()));
 
-	// 3. Solve and Sign
+	// Solve and Sign
 	results.push(
 		await tryAsync(
 			(async () => {

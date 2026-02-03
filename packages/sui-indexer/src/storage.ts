@@ -230,6 +230,14 @@ export class D1Storage {
 		return results.map((r) => toSuiNet(r.sui_network));
 	}
 
+	async getPresignCount(network: SuiNet): Promise<number> {
+		const result = await this.db
+			.prepare("SELECT COUNT(*) as count FROM presign_objects WHERE sui_network = ?")
+			.bind(network)
+			.first<{ count: number }>();
+		return Number(result?.count || 0);
+	}
+
 	async popPresignObject(network: SuiNet): Promise<string | null> {
 		const result = await this.db
 			.prepare(

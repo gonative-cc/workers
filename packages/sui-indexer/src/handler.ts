@@ -5,20 +5,20 @@ import {
 	type RedeemRequestEventRaw,
 	type SolvedEventRaw,
 	type SignatureRecordedEventRaw,
+	type CompletedSignEventRaw,
+	type RejectedSignEventRaw,
 	type SuiEventNode,
 	UtxoStatus,
 } from "./models";
 import { logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
+import type { SuiClient } from "./redeem-sui-client";
 
-export class SuiEventHandler {
-	private storage: D1Storage;
-	private setupId: number;
-
-	constructor(storage: D1Storage, setupId: number) {
-		this.storage = storage;
-		this.setupId = setupId;
-	}
+export class NbtcEventHandler {
+	constructor(
+		private storage: D1Storage,
+		private setupId: number,
+	) {}
 
 	public async handleEvents(events: SuiEventNode[]) {
 		for (const e of events) {
@@ -38,7 +38,7 @@ export class SuiEventHandler {
 		}
 	}
 
-	private async handleMint(txDigest: string, e: MintEventRaw) {
+	private async handleMint(_txDigest: string, e: MintEventRaw) {
 		// NOTE: Sui contract gives us the txid in big-endian, but bitcoinjs-lib's tx.getId()
 		// returns it in little-endian (see https://github.com/bitcoinjs/bitcoinjs-lib/blob/dc8d9e26f2b9c7380aec7877155bde97594a9ade/ts_src/transaction.ts#L617)
 		// so we reverse here to match what the btcindexer uses
@@ -104,5 +104,73 @@ export class SuiEventHandler {
 			redeemId: e.redeem_id,
 			utxoId: e.utxo_id,
 		});
+	}
+}
+export class IkaEventHandler {
+	constructor(
+		private storage: D1Storage,
+		private suiClient: SuiClient,
+	) {}
+
+	public async handleEvents(events: SuiEventNode[]) {
+		for (const e of events) {
+			if (e.type.includes("::coordinator_inner::CompletedSignEvent")) {
+				await this.handleCompletedSign(e);
+			} else if (e.type.includes("::coordinator_inner::RejectedSignEvent")) {
+				await this.handleRejectedSign(e);
+			}
+		}
+	}
+
+	private async handleCompletedSign(e: SuiEventNode) {
+		const data = e.json as CompletedSignEventRaw;
+		const signId = data.sign_id as string;
+
+		// IKA coordinator is shared across protocols, so we only process sign IDs that match our redeems.
+		// The final signature is recorded via SignatureRecordedEvent from nbtc.move (handled above).
+		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
+		if (!redeemInfo) {
+			return;
+		}
+
+		logger.debug({
+			msg: "Ika signature completed",
+			sign_id: signId,
+			is_future_sign: data.is_future_sign,
+			signature_length: data.signature.length,
+			txDigest: e.txDigest,
+		});
+
+		await this.suiClient.validateSignatures(
+			redeemInfo.redeem_id,
+			[{ input_index: redeemInfo.input_index, sign_id: signId }],
+			redeemInfo.nbtc_pkg,
+			redeemInfo.nbtc_contract,
+		);
+		await this.storage.markRedeemInputVerified(redeemInfo.redeem_id, redeemInfo.utxo_id);
+
+		logger.info({
+			msg: "Recorded Ika signature",
+			redeem_id: redeemInfo.redeem_id,
+			utxo_id: redeemInfo.utxo_id,
+			sign_id: signId,
+		});
+	}
+
+	private async handleRejectedSign(e: SuiEventNode) {
+		const data = e.json as RejectedSignEventRaw;
+		const signId = data.sign_id as string;
+		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
+		if (!redeemInfo) {
+			return;
+		}
+
+		logger.warn({
+			msg: "Ika signature rejected, clearing sign_id for retry",
+			sign_id: signId,
+			redeem_id: redeemInfo.redeem_id,
+			utxo_id: redeemInfo.utxo_id,
+		});
+		await this.storage.clearRedeemInputSignId(redeemInfo.redeem_id, redeemInfo.utxo_id);
 	}
 }

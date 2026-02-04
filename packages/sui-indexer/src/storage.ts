@@ -8,6 +8,8 @@ import {
 	type RedeemRequest,
 	type RedeemRequestResp,
 	type Utxo,
+	type IkaCursorUpdate,
+	type RedeemSignInfo,
 } from "./models";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
@@ -107,6 +109,63 @@ export class D1Storage {
 			result[row.setup_id] = row.nbtc_cursor;
 		});
 
+		return result;
+	}
+
+	async getIkaCursors(coordinatorPkgIds: string[]): Promise<Record<string, string | null>> {
+		if (coordinatorPkgIds.length === 0) return {};
+
+		const placeholders = coordinatorPkgIds.map(() => "?").join(",");
+		const res = await this.db
+			.prepare(
+				`SELECT coordinator_pkg_id, ika_cursor FROM ika_state WHERE coordinator_pkg_id IN (${placeholders})`,
+			)
+			.bind(...coordinatorPkgIds)
+			.all<{ coordinator_pkg_id: string; ika_cursor: string }>();
+
+		const result: Record<string, string | null> = {};
+		coordinatorPkgIds.forEach((id) => {
+			result[id] = null;
+		});
+		res.results.forEach((row) => {
+			result[row.coordinator_pkg_id] = row.ika_cursor || null;
+		});
+		return result;
+	}
+
+	async saveIkaCursors(cursors: IkaCursorUpdate[]): Promise<void> {
+		if (cursors.length === 0) return;
+
+		const stmt = this.db.prepare(
+			`INSERT INTO ika_state (coordinator_pkg_id, sui_network, ika_cursor, updated_at)
+			 VALUES (?, ?, ?, ?)
+			 ON CONFLICT(sui_network, coordinator_pkg_id) DO UPDATE SET ika_cursor = excluded.ika_cursor, updated_at = excluded.updated_at`,
+		);
+
+		const now = Date.now();
+		const batch = cursors.map(({ coordinatorPkgId, suiNetwork, cursor }) =>
+			stmt.bind(coordinatorPkgId, suiNetwork, cursor, now),
+		);
+		await this.db.batch(batch);
+	}
+
+	async getIkaCoordinatorPkgsWithCursors(
+		suiNetwork: SuiNet,
+	): Promise<Record<string, string | null>> {
+		const { results } = await this.db
+			.prepare(
+				`SELECT DISTINCT s.ika_pkg, i.ika_cursor
+				 FROM setups s
+				 LEFT JOIN ika_state i ON s.ika_pkg = i.coordinator_pkg_id AND i.sui_network = ?
+				 WHERE s.sui_network = ? AND s.is_active = 1 AND s.ika_pkg IS NOT NULL`,
+			)
+			.bind(suiNetwork, suiNetwork)
+			.all<{ ika_pkg: string; ika_cursor: string | null }>();
+
+		const result: Record<string, string | null> = {};
+		results.forEach((r) => {
+			result[r.ika_pkg] = r.ika_cursor || null;
+		});
 		return result;
 	}
 
@@ -338,6 +397,35 @@ export class D1Storage {
 		await this.db.batch([updateSolution, updateRequest]);
 	}
 
+	async clearRedeemInputSignId(redeemId: number, utxoId: number): Promise<void> {
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_solutions SET sign_id = NULL WHERE redeem_id = ? AND utxo_id = ?`,
+			)
+			.bind(redeemId, utxoId)
+			.run();
+	}
+
+	async getRedeemInfoBySignId(signId: string): Promise<RedeemSignInfo | null> {
+		const query = `
+			SELECT s.redeem_id, s.utxo_id, s.input_index, p.nbtc_pkg, p.nbtc_contract, p.sui_network
+			FROM nbtc_redeem_solutions s
+			JOIN nbtc_redeem_requests r ON s.redeem_id = r.redeem_id
+			JOIN setups p ON r.setup_id = p.id
+			WHERE s.sign_id = ?
+		`;
+		const result = await this.db.prepare(query).bind(signId).first<{
+			redeem_id: number;
+			utxo_id: number;
+			input_index: number;
+			nbtc_pkg: string;
+			nbtc_contract: string;
+			sui_network: string;
+		}>();
+		if (!result) return null;
+		return { ...result, sui_network: toSuiNet(result.sui_network) };
+	}
+
 	async markRedeemSigning(redeemId: number): Promise<void> {
 		try {
 			await this.db
@@ -490,7 +578,7 @@ export class D1Storage {
 			FROM nbtc_redeem_requests r
 			JOIN setups p ON r.setup_id = p.id
 			WHERE r.status = ?
-			AND EXISTS (SELECT 1 FROM nbtc_redeem_solutions s WHERE s.redeem_id = r.redeem_id AND (s.sign_id IS NULL OR s.verified = 0))
+			AND EXISTS (SELECT 1 FROM nbtc_redeem_solutions s WHERE s.redeem_id = r.redeem_id AND s.sign_id IS NULL)
 			ORDER BY r.created_at ASC
 			LIMIT 50;
 	        `;

@@ -883,9 +883,9 @@ export class Indexer {
 			return;
 		}
 		const networks = new Set(pendingTxs.map((tx) => tx.btc_network));
-		const chainTips = new Map<BtcNet, number>();
+		const chainHeads = new Map<BtcNet, number>();
 		for (const net of networks) {
-			const tip = await this.storage.getChainTip(net);
+			const heads = await this.storage.getChainTip(net);
 			if (tip !== null) chainTips.set(net, tip);
 		}
 
@@ -953,7 +953,7 @@ export class Indexer {
 
 	private async processRedeemFinalizationForNetwork(net: BtcNet): Promise<void> {
 		try {
-			const chainTip = await this.storage.getChainTip(net);
+			const chainHead = await this.storage.getChainHead(net);
 			if (chainTip === null) return;
 
 			const confirmingRedeems = await this.suiIndexer.getConfirmingRedeems(net);
@@ -966,7 +966,7 @@ export class Indexer {
 				chainTip,
 			});
 
-			const chainTips = new Map<BtcNet, number>([[net, chainTip]]);
+			const chainHeads = new Map<BtcNet, number>([[net, chainTip]]);
 
 			const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] =
 				confirmingRedeems.map((r) => ({
@@ -1084,9 +1084,10 @@ export class Indexer {
 		}
 	}
 
+	// breaks down transactions past the "finality confirmations" into confirmed and reorged.
 	private async categorizeConfirmingTxs<T>(
 		txs: ConfirmingTxCandidate<T>[],
-		chainTips: Map<BtcNet, number>, // number is the latest block height (chain tip)
+		chainHeads: Map<BtcNet, number>, // number is the latest block height (chain tip)
 	): Promise<{ reorged: ConfirmingTxCandidate<T>[]; finalized: ConfirmingTxCandidate<T>[] }> {
 		const reorged: ConfirmingTxCandidate<T>[] = [];
 		const finalized: ConfirmingTxCandidate<T>[] = [];

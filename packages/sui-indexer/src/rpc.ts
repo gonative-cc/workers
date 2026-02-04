@@ -33,7 +33,8 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 		if (!mnemonic) {
 			throw new Error("NBTC_MINTING_SIGNER_MNEMONIC not set");
 		}
-		const detailsMap = new Map<number, RedeemRequest>();
+		// maps redeem id -> redeem req
+		const redeemsById = new Map<number, RedeemRequest>();
 		const networks = new Set<SuiNet>();
 
 		for (const req of requests) {

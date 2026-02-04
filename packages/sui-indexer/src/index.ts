@@ -111,14 +111,14 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 		service.processPendingRedeems(), // propose a solution
 		service
 			.solveReadyRedeems() // trigger status change
-			.then(() => service.processSolvedRedeems()), // request signatures
+			.then(() => service.processSigningRedeems()), // request signatures
 		service.broadcastReadyRedeems(), // broadcast fully signed txs
 	]);
 
 	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
 		"processPendingRedeems",
-		"solveReadyRedeems/processSolvedRedeems",
+		"solveReadyRedeems/processSigningRedeems",
 		"broadcastReadyRedeems",
 	]);
 }

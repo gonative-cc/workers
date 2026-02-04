@@ -367,14 +367,14 @@ describe("IndexerStorage", () => {
 		expect(redeem!.status).toBe(RedeemRequestStatus.Proposed);
 	});
 
-	it("markRedeemSolved should update redeem status", async () => {
+	it("markRedeemSigning should update redeem status", async () => {
 		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await db
 			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
 			.bind(RedeemRequestStatus.Proposed, 1)
 			.run();
 
-		await storage.markRedeemSinging(1);
+		await storage.markRedeemSigning(1);
 
 		const redeem = await db
 			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
@@ -405,7 +405,7 @@ describe("IndexerStorage", () => {
 		expect(networks).not.toContain(toSuiNet("testnet"));
 	});
 
-	it("getSolvedRedeems should return solved redeems with inputs", async () => {
+	it("getSigningRedeems should return signing redeems with inputs", async () => {
 		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await insertUtxo(
 			storage,
@@ -419,7 +419,7 @@ describe("IndexerStorage", () => {
 			null,
 		);
 		await storage.markRedeemProposed(1, [1], UTXO_LOCK_TIME_MS);
-		await storage.markRedeemSinging(1);
+		await storage.markRedeemSigning(1);
 		await storage.saveRedeemInputs([
 			{
 				redeem_id: 1,

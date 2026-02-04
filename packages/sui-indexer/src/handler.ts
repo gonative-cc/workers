@@ -88,7 +88,7 @@ export class SuiEventHandler {
 			e.utxo_ids.map(Number),
 			e.dwallet_ids,
 		);
-		await this.storage.markRedeemSinging(Number(e.redeem_id));
+		await this.storage.markRedeemSigning(Number(e.redeem_id));
 
 		logger.info({
 			msg: "Marked redeem as solved and added inputs",

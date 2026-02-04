@@ -394,7 +394,7 @@ export class RedeemService {
 				txDigest: txDigest,
 			});
 
-			await this.storage.markRedeemSinging(req.redeem_id);
+			await this.storage.markRedeemSigning(req.redeem_id);
 		} catch (e: unknown) {
 			logError(
 				{

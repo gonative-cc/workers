@@ -41,7 +41,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 			try {
 				const details = await storage.getRedeemWithSetup(req.redeemId);
 				if (details) {
-					detailsMap.set(req.redeemId, details);
+					redeemsById.set(req.redeemId, details);
 					networks.add(details.sui_network);
 				} else {
 					logger.error({ msg: "Redeem request not found", redeemId: req.redeemId });
@@ -63,7 +63,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 		const clients = await createSuiClients(Array.from(networks), mnemonic);
 
 		for (const req of requests) {
-			const details = detailsMap.get(req.redeemId);
+			const details = redeemsById.get(req.redeemId);
 			if (!details) continue;
 
 			const client = clients.get(details.sui_network);

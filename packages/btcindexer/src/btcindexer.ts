@@ -885,14 +885,14 @@ export class Indexer {
 		const networks = new Set(pendingTxs.map((tx) => tx.btc_network));
 		const chainHeads = new Map<BtcNet, number>();
 		for (const net of networks) {
-			const heads = await this.storage.getChainTip(net);
-			if (tip !== null) chainTips.set(net, tip);
+			const head = await this.storage.getChainTip(net);
+			if (head !== null) chainHeads.set(net, head);
 		}
 
 		logger.debug({
 			msg: "Finalization: Checking 'confirming' transactions",
 			count: pendingTxs.length,
-			chainTips: Object.fromEntries(chainTips),
+			chainHeads: Object.fromEntries(chainHeads),
 		});
 
 		const confirmingTxs: ConfirmingTxCandidate<PendingTx>[] = [];
@@ -908,7 +908,10 @@ export class Indexer {
 			}
 		}
 
-		const { reorged, finalized } = await this.categorizeConfirmingTxs(confirmingTxs, chainTips);
+		const { reorged, finalized } = await this.categorizeConfirmingTxs(
+			confirmingTxs,
+			chainHeads,
+		);
 
 		if (reorged.length > 0) {
 			const reorgedTxIds = reorged.map((i) => i.id as string);
@@ -953,8 +956,8 @@ export class Indexer {
 
 	private async processRedeemFinalizationForNetwork(net: BtcNet): Promise<void> {
 		try {
-			const chainHead = await this.storage.getChainHead(net);
-			if (chainTip === null) return;
+			const chainHead = await this.storage.getChainTip(net);
+			if (chainHead === null) return;
 
 			const confirmingRedeems = await this.suiIndexer.getConfirmingRedeems(net);
 			if (confirmingRedeems.length === 0) return;
@@ -963,10 +966,10 @@ export class Indexer {
 				msg: "Checking confirmations for redeems",
 				network: net,
 				count: confirmingRedeems.length,
-				chainTip,
+				chainHead,
 			});
 
-			const chainHeads = new Map<BtcNet, number>([[net, chainTip]]);
+			const chainHeads = new Map<BtcNet, number>([[net, chainHead]]);
 
 			const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] =
 				confirmingRedeems.map((r) => ({
@@ -979,7 +982,7 @@ export class Indexer {
 
 			const { reorged, finalized } = await this.categorizeConfirmingTxs(
 				confirmingTxs,
-				chainTips,
+				chainHeads,
 			);
 
 			await this.handleRedeemReorgs(reorged);
@@ -1093,7 +1096,7 @@ export class Indexer {
 		const finalized: ConfirmingTxCandidate<T>[] = [];
 
 		for (const tx of txs) {
-			const tip = chainTips.get(tx.network);
+			const tip = chainHeads.get(tx.network);
 			if (tip === undefined) continue;
 
 			const currentHash = await this.storage.getBlockHash(tx.blockHeight, tx.network);

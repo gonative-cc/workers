@@ -34,7 +34,7 @@ export default {
 		// Run both indexer and redeem solver tasks in parallel
 		const results = await Promise.allSettled([
 			runSuiIndexer(storage, activeNetworks, suiClients),
-			runRedeemSolver(storage, env, suiClients),
+			runRedeemSolver(storage, env, suiClients, activeNetworks),
 		]);
 
 		// Check for any rejected promises and log errors
@@ -114,7 +114,12 @@ async function poolAndProcessEvents(
 	}
 }
 
-async function runRedeemSolver(storage: D1Storage, env: Env, suiClients: Map<SuiNet, SuiClient>) {
+async function runRedeemSolver(
+	storage: D1Storage,
+	env: Env,
+	suiClients: Map<SuiNet, SuiClient>,
+	activeNetworks: SuiNet[],
+) {
 	logger.info({ msg: "Running scheduled redeem solver task..." });
 	const service = new RedeemService(
 		storage,
@@ -124,20 +129,40 @@ async function runRedeemSolver(storage: D1Storage, env: Env, suiClients: Map<Sui
 		env.REDEEM_DURATION_MS,
 	);
 
-	const results = await Promise.allSettled([
-		service.processPendingRedeems(), // propose a solution
-		service
-			.solveReadyRedeems() // trigger status change
-			.then(() => service.processSolvedRedeems()), // request signatures
-		service.broadcastReadyRedeems(), // broadcast fully signed txs
-	]);
+	const results: PromiseSettledResult<void>[] = [];
+
+	results.push(await tryAsync(service.refillPresignPool(activeNetworks)));
+	results.push(await tryAsync(service.processPendingRedeems()));
+
+	// Solve and Sign
+	results.push(
+		await tryAsync(
+			(async () => {
+				await service.solveReadyRedeems();
+				await service.processSigningRedeems();
+			})(),
+		),
+	);
+
+	// 4. Broadcast
+	results.push(await tryAsync(service.broadcastReadyRedeems()));
 
 	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
+		"refillPresignPool",
 		"processPendingRedeems",
-		"solveReadyRedeems/processSolvedRedeems",
+		"solveReadyRedeems/processSigningRedeems",
 		"broadcastReadyRedeems",
 	]);
+}
+
+async function tryAsync<T>(p: Promise<T>): Promise<PromiseSettledResult<T>> {
+	try {
+		const value = await p;
+		return { status: "fulfilled", value };
+	} catch (reason) {
+		return { status: "rejected", reason };
+	}
 }
 
 /**

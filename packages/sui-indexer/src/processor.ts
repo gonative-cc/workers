@@ -1,7 +1,7 @@
 import type { NetworkConfig, PkgCfg, IkaCursorUpdate } from "./models";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
-import { SuiEventHandler } from "./handler";
+import { NbtcEventHandler, IkaEventHandler } from "./handler";
 import type { EventFetcher } from "./graphql-client";
 import type { SuiClient } from "./redeem-sui-client";
 
@@ -59,7 +59,7 @@ export class Processor {
 					});
 
 					if (result.events.length > 0) {
-						const handler = new SuiEventHandler(this.storage, pkg.id);
+						const handler = new NbtcEventHandler(this.storage, pkg.id);
 						await handler.handleEvents(result.events);
 					}
 
@@ -120,12 +120,8 @@ export class Processor {
 						endCursor: result.endCursor,
 					});
 
-					if (result.events.length > 0) {
-						const handler = new SuiEventHandler(
-							this.storage,
-							undefined,
-							this.suiClient,
-						);
+					if (result.events.length > 0 && this.suiClient) {
+						const handler = new IkaEventHandler(this.storage, this.suiClient);
 						await handler.handleEvents(result.events);
 					}
 

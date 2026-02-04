@@ -14,16 +14,11 @@ import { logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 import type { SuiClient } from "./redeem-sui-client";
 
-export class SuiEventHandler {
-	private storage: D1Storage;
-	private setupId?: number;
-	private suiClient?: SuiClient;
-
-	constructor(storage: D1Storage, setupId?: number, suiClient?: SuiClient) {
-		this.storage = storage;
-		this.setupId = setupId;
-		this.suiClient = suiClient;
-	}
+export class NbtcEventHandler {
+	constructor(
+		private storage: D1Storage,
+		private setupId: number,
+	) {}
 
 	public async handleEvents(events: SuiEventNode[]) {
 		for (const e of events) {
@@ -39,23 +34,11 @@ export class SuiEventHandler {
 				await this.handleSolvedRedeem(json as SolvedEventRaw);
 			} else if (e.type.includes("::nbtc::redeem_request::SignatureRecordedEvent")) {
 				await this.handleIkaSignatureRecorded(json as SignatureRecordedEventRaw);
-				// Ika events
-			} else if (e.type.includes("::coordinator_inner::CompletedSignEvent")) {
-				await this.handleCompletedSign(e);
-			} else if (e.type.includes("::coordinator_inner::RejectedSignEvent")) {
-				await this.handleRejectedSign(e);
 			}
 		}
 	}
 
-	private getSetupId(): number {
-		if (this.setupId == undefined) {
-			throw new Error("Setup ID is not set");
-		}
-		return this.setupId;
-	}
-
-	private async handleMint(txDigest: string, e: MintEventRaw) {
+	private async handleMint(_txDigest: string, e: MintEventRaw) {
 		// NOTE: Sui contract gives us the txid in big-endian, but bitcoinjs-lib's tx.getId()
 		// returns it in little-endian (see https://github.com/bitcoinjs/bitcoinjs-lib/blob/dc8d9e26f2b9c7380aec7877155bde97594a9ade/ts_src/transaction.ts#L617)
 		// so we reverse here to match what the btcindexer uses
@@ -68,7 +51,7 @@ export class SuiEventHandler {
 			vout: e.btc_vout,
 			amount: Number(e.btc_amount),
 			script_pubkey: fromBase64(e.btc_script_publickey),
-			setup_id: this.getSetupId(),
+			setup_id: this.setupId,
 			status: UtxoStatus.Available,
 			locked_until: null,
 		});
@@ -82,7 +65,7 @@ export class SuiEventHandler {
 			recipient_script: fromBase64(e.recipient_script),
 			amount: Number(e.amount),
 			created_at: Number(e.created_at),
-			setup_id: this.getSetupId(),
+			setup_id: this.setupId,
 			sui_tx: txDigest,
 		});
 		logger.info({ msg: "Indexed Redeem Request", id: e.redeem_id });
@@ -122,6 +105,22 @@ export class SuiEventHandler {
 			utxoId: e.utxo_id,
 		});
 	}
+}
+export class IkaEventHandler {
+	constructor(
+		private storage: D1Storage,
+		private suiClient: SuiClient,
+	) {}
+
+	public async handleEvents(events: SuiEventNode[]) {
+		for (const e of events) {
+			if (e.type.includes("::coordinator_inner::CompletedSignEvent")) {
+				await this.handleCompletedSign(e);
+			} else if (e.type.includes("::coordinator_inner::RejectedSignEvent")) {
+				await this.handleRejectedSign(e);
+			}
+		}
+	}
 
 	private async handleCompletedSign(e: SuiEventNode) {
 		const data = e.json as CompletedSignEventRaw;
@@ -139,11 +138,6 @@ export class SuiEventHandler {
 		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
 		if (!redeemInfo) {
 			logger.debug({ msg: "Sign ID not found in our redeems, ignoring", sign_id: signId });
-			return;
-		}
-
-		if (!this.suiClient) {
-			logger.warn({ msg: "No SuiClient available to record signature", sign_id: signId });
 			return;
 		}
 

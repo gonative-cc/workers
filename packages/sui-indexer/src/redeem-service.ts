@@ -393,7 +393,7 @@ export class RedeemService {
 				redeemId: req.redeem_id,
 				txDigest: txDigest,
 			});
-
+			// update status for signing
 			await this.storage.markRedeemSigning(req.redeem_id);
 		} catch (e: unknown) {
 			logError(

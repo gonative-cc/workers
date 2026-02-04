@@ -1097,8 +1097,6 @@ export class Indexer {
 
 			const currentHash = await this.storage.getBlockHash(tx.blockHeight, tx.network);
 			if (!currentHash) {
-				// If we don't have the block hash, we can't verify if it's reorged or not.
-				// Safest is to skip processing this transaction for now.
 				logger.warn({
 					msg: "Skipping finalization check: Block hash not found in storage",
 					height: tx.blockHeight,

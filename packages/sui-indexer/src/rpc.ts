@@ -22,7 +22,7 @@ import type { SuiNet } from "@gonative-cc/lib/nsui";
  */
 export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	/**
-	 * Once BTC withdraw for the Redeem Request is confirmed and finalzed, this method
+	 * Once BTC withdraw for the Redeem Request is confirmed and finalized, this method
 	 * will update the DB state and remove related UTXOs.
 	 */
 	async finalizeRedeems(requests: FinalizeRedeemTx[]): Promise<void> {

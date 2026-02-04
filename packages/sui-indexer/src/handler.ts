@@ -91,7 +91,7 @@ export class SuiEventHandler {
 		await this.storage.markRedeemSigning(Number(e.redeem_id));
 
 		logger.info({
-			msg: "Marked redeem as solved and added inputs",
+			msg: "Marked redeem as singing status and added inputs",
 			redeemId: e.redeem_id,
 			utxos: e.utxo_ids.length,
 		});

@@ -18,9 +18,26 @@ export { RPCMock } from "./rpc-mock";
 
 const router = new HttpRouter(undefined);
 
+/**
+ * Validates the Authorization header against the AUTH_BEARER_TOKEN env var.
+ */
+function isAuthorized(req: Request, env: Env): boolean {
+	// If the token isn't set in the environment, we assume the endpoint is public
+	if (!env.AUTH_BEARER_TOKEN) return true;
+
+	const authHeader = req.headers.get("Authorization");
+	if (!authHeader || !authHeader.startsWith("Bearer ")) return false;
+
+	const token = authHeader.substring(7);
+	return token === env.AUTH_BEARER_TOKEN;
+}
+
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		try {
+			if (!isAuthorized(req, env)) {
+				return new Response("Unauthorized", { status: 401 });
+			}
 			const indexer = await indexerFromEnv(env);
 			return await router.fetch(req, env, indexer);
 		} catch (e) {

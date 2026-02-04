@@ -190,6 +190,22 @@ describe("IndexerStorage", () => {
 		expect(popped3).toBeNull();
 	});
 
+	it("should count presign objects", async () => {
+		const net1 = "testnet";
+		await storage.insertPresignObject("presign1", net1);
+		await storage.insertPresignObject("presign2", net1);
+		await storage.insertPresignObject("presign3", "mainnet");
+
+		const count = await storage.getPresignCount(net1);
+		expect(count).toBe(2);
+
+		const countMain = await storage.getPresignCount("mainnet");
+		expect(countMain).toBe(1);
+
+		const countEmpty = await storage.getPresignCount("devnet");
+		expect(countEmpty).toBe(0);
+	});
+
 	it("getPendingRedeems should return pending redeems ordered by created_at", async () => {
 		await insertRedeemRequest(storage, 2, "redeemer1", recipientScript, 5000, 2000, "0xSuiTx2");
 		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");

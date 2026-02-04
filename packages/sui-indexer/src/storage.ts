@@ -154,17 +154,17 @@ export class D1Storage {
 	): Promise<Record<string, string | null>> {
 		const { results } = await this.db
 			.prepare(
-				`SELECT DISTINCT s.ika_coordinator_pkg, i.ika_cursor
+				`SELECT DISTINCT s.ika_pkg, i.ika_cursor
 				 FROM setups s
-				 LEFT JOIN ika_state i ON s.ika_coordinator_pkg = i.coordinator_pkg_id AND i.sui_network = ?
-				 WHERE s.sui_network = ? AND s.is_active = 1 AND s.ika_coordinator_pkg IS NOT NULL`,
+				 LEFT JOIN ika_state i ON s.ika_pkg = i.coordinator_pkg_id AND i.sui_network = ?
+				 WHERE s.sui_network = ? AND s.is_active = 1 AND s.ika_pkg IS NOT NULL`,
 			)
 			.bind(suiNetwork, suiNetwork)
-			.all<{ ika_coordinator_pkg: string; ika_cursor: string | null }>();
+			.all<{ ika_pkg: string; ika_cursor: string | null }>();
 
 		const result: Record<string, string | null> = {};
 		results.forEach((r) => {
-			result[r.ika_coordinator_pkg] = r.ika_cursor || null;
+			result[r.ika_pkg] = r.ika_cursor || null;
 		});
 		return result;
 	}

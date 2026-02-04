@@ -125,21 +125,21 @@ export class IkaEventHandler {
 	private async handleCompletedSign(e: SuiEventNode) {
 		const data = e.json as CompletedSignEventRaw;
 		const signId = data.sign_id as string;
-		logger.info({
-			msg: "Ika signature completed",
-			sign_id: signId,
-			is_future_sign: data.is_future_sign, // true if it's Ika future transaction signature type
-			signature_length: data.signature.length,
-			txDigest: e.txDigest,
-		});
 
 		// IKA coordinator is shared across protocols, so we only process sign IDs that match our redeems.
 		// The final signature is recorded via SignatureRecordedEvent from nbtc.move (handled above).
 		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
 		if (!redeemInfo) {
-			logger.debug({ msg: "Sign ID not found in our redeems, ignoring", sign_id: signId });
 			return;
 		}
+
+		logger.debug({
+			msg: "Ika signature completed",
+			sign_id: signId,
+			is_future_sign: data.is_future_sign,
+			signature_length: data.signature.length,
+			txDigest: e.txDigest,
+		});
 
 		await this.suiClient.validateSignatures(
 			redeemInfo.redeem_id,
@@ -162,14 +162,10 @@ export class IkaEventHandler {
 		const signId = data.sign_id as string;
 		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
 		if (!redeemInfo) {
-			logger.warn({
-				msg: "Rejected sign ID not found in our redeems, ignoring",
-				sign_id: signId,
-			});
 			return;
 		}
 
-		logger.debug({
+		logger.warn({
 			msg: "Ika signature rejected, clearing sign_id for retry",
 			sign_id: signId,
 			redeem_id: redeemInfo.redeem_id,

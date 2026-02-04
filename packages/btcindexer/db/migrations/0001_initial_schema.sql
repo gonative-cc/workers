@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS setups (
 	lc_pkg TEXT NOT NULL,
 	lc_contract TEXT NOT NULL,
 	nbtc_fallback_addr TEXT NOT NULL,
-	ika_coordinator_pkg TEXT, -- IKA coordinator package for this setup's network
+	ika_pkg TEXT, -- Ika coordinator pkg
 	is_active INTEGER NOT NULL DEFAULT TRUE,
 	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;
@@ -118,6 +118,8 @@ CREATE TABLE IF NOT EXISTS indexer_state (
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;
 
+-- IKA coordinator is global per network (not per-setup), so we key by sui_network.
+-- If we deploy a custom coordinator, it'll have a different coordinator_pkg_id and get its own cursor.
 CREATE TABLE IF NOT EXISTS ika_state(
 	sui_network TEXT NOT NULL,
 	coordinator_pkg_id TEXT NOT NULL,

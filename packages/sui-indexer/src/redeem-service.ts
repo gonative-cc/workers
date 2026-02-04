@@ -102,13 +102,13 @@ export class RedeemService {
 
 	async processSigningRedeems() {
 		// NOTE: here we are processing only 50 redeems every minute (every cron), we are not
-		// looping thought all the solved redeems to avoid cloudflare timeout, since we are
+		// looping though all the sinning status redeems to avoid cloudflare timeout, since we are
 		// already waiting for ika to sign, when calling ikaSdk.getPresignInParicularState
 		const sinnings = await this.storage.getSigningRedeems();
 		if (sinnings.length === 0) return;
 
 		for (const req of sinnings) {
-			await this.processSolvedRedeem(req);
+			await this.processSigningRedeem(req);
 		}
 	}
 
@@ -158,7 +158,7 @@ export class RedeemService {
 		}
 	}
 
-	private async processSolvedRedeem(req: RedeemRequestWithInputs) {
+	private async processSigningRedeem(req: RedeemRequestWithInputs) {
 		const client = this.getSuiClient(req.sui_network);
 		const inputsToVerify: RedeemInput[] = [];
 

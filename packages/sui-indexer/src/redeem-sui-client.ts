@@ -22,7 +22,7 @@ export interface SuiClient {
 	ikaClient(): IkaClient;
 	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
-	requestIkaPresign(): Promise<string>;
+	requestIkaPresigns(count: number): Promise<string[]>;
 	requestInputSignature(
 		redeemId: number,
 		inputIdx: number,
@@ -216,28 +216,36 @@ class SuiClientImp implements SuiClient {
 		return result.digest;
 	}
 
-	async requestIkaPresign(): Promise<string> {
+	async requestIkaPresigns(count: number): Promise<string[]> {
+		if (count <= 0) return [];
 		const tx = new Transaction();
 		const signer = this.signer.toSuiAddress();
 		const ikaCoins = await this.#ika.fetchAllIkaCoins(signer);
-		const { preparedCoin: paymentIka } = prepareCoin(ikaCoins, BigInt(this.ikaPresignCost), tx);
+		const totalCost = BigInt(this.ikaPresignCost) * BigInt(count);
+		const { preparedCoin: paymentIka } = prepareCoin(ikaCoins, totalCost, tx);
 
 		if (!this.encryptionKeyId) {
 			const dWalletEncryptionKey = await this.#ika.getLatestNetworkEncryptionKeyId();
 			this.encryptionKeyId = dWalletEncryptionKey;
 		}
-
-		// TODO: Implement recovery for unused presign objects.
-		// If the worker crashes after creating a presign but before using it, the presign object
-		// remains in the wallet, to be used. We should scan for it or save it in a db
-		const presignCap = this.#ika.requestGlobalPresign(
-			tx,
+		const amounts = Array(count).fill(this.ikaPresignCost);
+		const coins = tx.splitCoins(
 			paymentIka,
-			tx.gas,
-			this.encryptionKeyId,
+			amounts.map((a) => BigInt(a)),
 		);
 
-		tx.transferObjects([presignCap], this.signer.toSuiAddress());
+		const caps = [];
+		for (let i = 0; i < count; i++) {
+			const presignCap = this.#ika.requestGlobalPresign(
+				tx,
+				coins[i]!,
+				tx.gas,
+				this.encryptionKeyId,
+			);
+			caps.push(presignCap);
+		}
+		tx.transferObjects([...caps, paymentIka], this.signer.toSuiAddress());
+
 		const result = await this.#sui.signAndExecuteTransaction({
 			signer: this.signer,
 			transaction: tx,
@@ -245,16 +253,26 @@ class SuiClientImp implements SuiClient {
 		});
 
 		if (result.effects?.status.status !== "success") {
-			throw new Error(`Presign request failed: ${result.effects?.status.error}`);
+			throw new Error(`Batch presign request failed: ${result.effects?.status.error}`);
 		}
 
-		const event = result.events?.find((e) => e.type.includes("PresignRequestEvent"));
-		if (!event) {
-			throw new Error("PresignRequestEvent not found");
+		const presignIds: string[] = [];
+		if (result.events) {
+			for (const event of result.events) {
+				if (event.type.includes("PresignRequestEvent")) {
+					const decoded = this.#ika.decodePresignRequestEvent(event.bcs as string);
+					presignIds.push(decoded.presign_id);
+				}
+			}
 		}
 
-		const decoded = this.#ika.decodePresignRequestEvent(event.bcs as string);
-		return decoded.presign_id;
+		if (presignIds.length !== count) {
+			throw new Error(
+				`Expected ${count} presign IDs, but got ${presignIds.length}. Transaction digest: ${result.digest}`,
+			);
+		}
+
+		return presignIds;
 	}
 
 	async requestInputSignature(

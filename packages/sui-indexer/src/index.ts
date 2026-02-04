@@ -117,7 +117,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 		await tryAsync(
 			(async () => {
 				await service.solveReadyRedeems();
-				await service.processSolvedRedeems();
+				await service.processSigningRedeems();
 			})(),
 		),
 	);

@@ -338,17 +338,17 @@ export class D1Storage {
 		await this.db.batch([updateSolution, updateRequest]);
 	}
 
-	async markRedeemSolved(redeemId: number): Promise<void> {
+	async markRedeemSigning(redeemId: number): Promise<void> {
 		try {
 			await this.db
 				.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
-				.bind(RedeemRequestStatus.Solved, redeemId)
+				.bind(RedeemRequestStatus.Signing, redeemId)
 				.run();
 		} catch (error) {
 			logError(
 				{
-					msg: "Failed to mark redeem as solved",
-					method: "markRedeemSolved",
+					msg: "Failed to mark redeem as signing",
+					method: "markRedeemSigning",
 					redeemId,
 				},
 				error,
@@ -482,7 +482,7 @@ export class D1Storage {
 		return results;
 	}
 
-	async getSolvedRedeems(): Promise<RedeemRequestWithInputs[]> {
+	async getSigningRedeems(): Promise<RedeemRequestWithInputs[]> {
 		const query = `
 	     	SELECT
 			    r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
@@ -496,7 +496,7 @@ export class D1Storage {
 	        `;
 		const { results: requests } = await this.db
 			.prepare(query)
-			.bind(RedeemRequestStatus.Solved)
+			.bind(RedeemRequestStatus.Signing)
 			.all<RedeemRequestRow>();
 
 		if (requests.length === 0) {

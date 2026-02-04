@@ -117,7 +117,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 		await tryAsync(
 			(async () => {
 				await service.solveReadyRedeems();
-				await service.processSolvedRedeems();
+				await service.processSigningRedeems();
 			})(),
 		),
 	);
@@ -129,7 +129,7 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
 		"refillPresignPool",
 		"processPendingRedeems",
-		"solveReadyRedeems/processSolvedRedeems",
+		"solveReadyRedeems/processSigningRedeems",
 		"broadcastReadyRedeems",
 	]);
 }

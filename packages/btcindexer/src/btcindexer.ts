@@ -1,5 +1,10 @@
 import { address, networks, Block, Transaction, type Network } from "bitcoinjs-lib";
-import { BtcNet, type BlockQueueRecord, calculateConfirmations } from "@gonative-cc/lib/nbtc";
+import {
+	BtcNet,
+	type BlockQueueRecord,
+	calculateConfirmations,
+	btcNetFromString,
+} from "@gonative-cc/lib/nbtc";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import type { Service } from "@cloudflare/workers-types";
@@ -8,7 +13,7 @@ import {
 	type SuiIndexerRpc,
 	RedeemRequestStatus,
 	type ConfirmingRedeemReq,
-	type FinalizeRedeemItem,
+	type FinalizeRedeemTx,
 } from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { OP_RETURN } from "./opcodes";
@@ -942,133 +947,146 @@ export class Indexer {
 		}
 
 		for (const net of btcNetworks) {
-			try {
-				const chainTip = await this.storage.getChainTip(net);
-				if (chainTip === null) continue;
-
-				const confirmingRedeems = await this.suiIndexer.getConfirmingRedeems(net);
-				if (confirmingRedeems.length === 0) continue;
-
-				logger.debug({
-					msg: "Checking confirmations for redeems",
-					network: net,
-					count: confirmingRedeems.length,
-					chainTip,
-				});
-
-				const chainTips = new Map<BtcNet, number>([[net, chainTip]]);
-
-				const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] =
-					confirmingRedeems.map((r) => ({
-						id: r.redeem_id,
-						blockHeight: r.btc_block_height,
-						blockHash: r.btc_block_hash,
-						network: btcNetFromString(r.btc_network),
-						original: r,
-					}));
-
-				const { reorged, finalized } = await this.categorizeConfirmingTxs(
-					confirmingTxs,
-					chainTips,
-				);
-
-				for (const tx of reorged) {
-					logger.debug({
-						msg: "Redeem Reorg detected (block hash mismatch)",
-						redeemId: tx.original.redeem_id,
-						oldHash: tx.original.btc_block_hash,
-					});
-					await this.suiIndexer.updateRedeemStatus(
-						tx.original.redeem_id,
-						RedeemRequestStatus.Reorg,
-					);
-				}
-				const finalizedByBlock = this.groupTransactionsByBlock(
-					finalized.map((f) => ({ ...f.original, block_hash: f.blockHash })),
-				);
-
-				for (const [blockHash, redeems] of finalizedByBlock) {
-					const blockData = await this.fetchAndVerifyBlock(blockHash);
-					if (!blockData) {
-						logger.warn({
-							msg: "Redeem finalization: block not found in storage",
-							hash: blockHash,
-							count: redeems.length,
-						});
-						continue;
-					}
-
-					const { block, merkleTree } = blockData;
-
-					const batch: FinalizeRedeemItem[] = [];
-
-					for (const r of redeems) {
-						const txIndex =
-							block.transactions?.findIndex((t) => t.getId() === r.btc_tx) ?? -1;
-
-						if (txIndex === -1 || !block.transactions) {
-							logger.error({
-								msg: "Redeem finalization: Tx not found in block",
-								redeemId: r.redeem_id,
-								txId: r.btc_tx,
-								blockHash: r.btc_block_hash,
-							});
-							continue;
-						}
-
-						const targetTx = block.transactions[txIndex];
-						if (!targetTx) continue;
-
-						const proof = this.getTxProof(merkleTree, targetTx);
-						if (!proof) {
-							logger.error({
-								msg: "Redeem finalization: Failed to generate proof",
-								redeemId: r.redeem_id,
-							});
-							continue;
-						}
-
-						const proofHex = proof.map((p) => p.toString("hex"));
-						batch.push({
-							redeemId: r.redeem_id,
-							proof: proofHex,
-							height: r.btc_block_height,
-							txIndex,
-						});
-					}
-
-					if (batch.length > 0) {
-						logger.debug({
-							msg: "Redeem Finalization: sending batch to Sui Indexer",
-							count: batch.length,
-						});
-						await this.suiIndexer.finalizeRedeems(batch);
-					}
-				}
-			} catch (e) {
-				logError(
-					{
-						msg: "Error processing redeem finalization",
-						method: "processRedeemFinalization",
-						network: net,
-					},
-					e,
-				);
-			}
+			await this.processRedeemFinalizationForNetwork(net);
 		}
 	}
 
-	private async isReorged(height: number, oldHash: string, network: BtcNet): Promise<boolean> {
-		const currentHash = await this.storage.getBlockHash(height, network);
-		if (currentHash && currentHash !== oldHash) {
-			return true;
+	private async processRedeemFinalizationForNetwork(net: BtcNet): Promise<void> {
+		try {
+			const chainTip = await this.storage.getChainTip(net);
+			if (chainTip === null) return;
+
+			const confirmingRedeems = await this.suiIndexer.getConfirmingRedeems(net);
+			if (confirmingRedeems.length === 0) return;
+
+			logger.debug({
+				msg: "Checking confirmations for redeems",
+				network: net,
+				count: confirmingRedeems.length,
+				chainTip,
+			});
+
+			const chainTips = new Map<BtcNet, number>([[net, chainTip]]);
+
+			const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] =
+				confirmingRedeems.map((r) => ({
+					id: r.redeem_id,
+					blockHeight: r.btc_block_height,
+					blockHash: r.btc_block_hash,
+					network: btcNetFromString(r.btc_network),
+					original: r,
+				}));
+
+			const { reorged, finalized } = await this.categorizeConfirmingTxs(
+				confirmingTxs,
+				chainTips,
+			);
+
+			await this.handleRedeemReorgs(reorged);
+			await this.handleRedeemFinalization(finalized);
+		} catch (e) {
+			logError(
+				{
+					msg: "Error processing redeem finalization",
+					method: "processRedeemFinalizationForNetwork",
+					network: net,
+				},
+				e,
+			);
 		}
-		return false;
+	}
+
+	private async handleRedeemReorgs(
+		reorged: ConfirmingTxCandidate<ConfirmingRedeemReq>[],
+	): Promise<void> {
+		for (const tx of reorged) {
+			logger.debug({
+				msg: "Redeem Reorg detected (block hash mismatch)",
+				redeemId: tx.original.redeem_id,
+				oldHash: tx.original.btc_block_hash,
+			});
+			await this.suiIndexer.updateRedeemStatus(
+				tx.original.redeem_id,
+				RedeemRequestStatus.Reorg,
+			);
+		}
+	}
+
+	private async handleRedeemFinalization(
+		finalized: ConfirmingTxCandidate<ConfirmingRedeemReq>[],
+	): Promise<void> {
+		const finalizedByBlock = this.groupTransactionsByBlock(
+			finalized.map((f) => ({ ...f.original, block_hash: f.blockHash })),
+		);
+
+		for (const [blockHash, redeems] of finalizedByBlock) {
+			await this.processFinalizedRedeemBlock(blockHash, redeems);
+		}
+	}
+
+	private async processFinalizedRedeemBlock(
+		blockHash: string,
+		redeems: ConfirmingRedeemReq[],
+	): Promise<void> {
+		const blockData = await this.fetchAndVerifyBlock(blockHash);
+		if (!blockData) {
+			logger.warn({
+				msg: "Redeem finalization: block not found in storage",
+				hash: blockHash,
+				count: redeems.length,
+			});
+			return;
+		}
+
+		const { block, merkleTree } = blockData;
+		const batch: FinalizeRedeemTx[] = [];
+
+		for (const r of redeems) {
+			const txIndex = block.transactions?.findIndex((t) => t.getId() === r.btc_tx) ?? -1;
+
+			if (txIndex === -1 || !block.transactions) {
+				logger.error({
+					msg: "Redeem finalization: Tx not found in block",
+					redeemId: r.redeem_id,
+					txId: r.btc_tx,
+					blockHash: r.btc_block_hash,
+				});
+				continue;
+			}
+
+			const targetTx = block.transactions[txIndex];
+			if (!targetTx) continue;
+
+			const proof = this.getTxProof(merkleTree, targetTx);
+			if (!proof) {
+				logger.error({
+					msg: "Redeem finalization: Failed to generate proof",
+					redeemId: r.redeem_id,
+				});
+				continue;
+			}
+
+			const proofHex = proof.map((p) => p.toString("hex"));
+			batch.push({
+				redeemId: r.redeem_id,
+				proof: proofHex,
+				height: r.btc_block_height,
+				txIndex,
+			});
+		}
+
+		if (batch.length > 0) {
+			logger.debug({
+				msg: "Redeem Finalization: sending batch to Sui Indexer",
+				count: batch.length,
+			});
+			await this.suiIndexer.finalizeRedeems(batch);
+		}
 	}
 
 	private async categorizeConfirmingTxs<T>(
 		txs: ConfirmingTxCandidate<T>[],
-		chainTips: Map<BtcNet, number>,
+		chainTips: Map<BtcNet, number>, // number is the latest block height (chain tip)
 	): Promise<{ reorged: ConfirmingTxCandidate<T>[]; finalized: ConfirmingTxCandidate<T>[] }> {
 		const reorged: ConfirmingTxCandidate<T>[] = [];
 		const finalized: ConfirmingTxCandidate<T>[] = [];
@@ -1077,8 +1095,20 @@ export class Indexer {
 			const tip = chainTips.get(tx.network);
 			if (tip === undefined) continue;
 
-			const isReorged = await this.isReorged(tx.blockHeight, tx.blockHash, tx.network);
-			if (isReorged) {
+			const currentHash = await this.storage.getBlockHash(tx.blockHeight, tx.network);
+			if (!currentHash) {
+				// If we don't have the block hash, we can't verify if it's reorged or not.
+				// Safest is to skip processing this transaction for now.
+				logger.warn({
+					msg: "Skipping finalization check: Block hash not found in storage",
+					height: tx.blockHeight,
+					network: tx.network,
+					txId: tx.id,
+				});
+				continue;
+			}
+
+			if (currentHash !== tx.blockHash) {
 				reorged.push(tx);
 				continue;
 			}

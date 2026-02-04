@@ -1,12 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
 import { D1Storage } from "./storage";
-import {
-	RedeemRequestStatus,
-	UtxoStatus,
-	type UtxoIngestData,
-	type RedeemRequestIngestData,
-} from "./models";
+import { UtxoStatus, type UtxoIngestData, type RedeemRequestIngestData } from "./models";
+import { RedeemRequestStatus } from "@gonative-cc/lib/rpc-types";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
 import { payments, networks } from "bitcoinjs-lib";
 import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";

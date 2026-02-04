@@ -1,5 +1,10 @@
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import { BitcoinTxStatus } from "@gonative-cc/lib/nbtc";
+import {
+	type RedeemRequestResp,
+	type ConfirmingRedeemReq,
+	RedeemRequestStatus,
+	type FinalizeRedeemTx,
+} from "@gonative-cc/lib/rpc-types";
 
 export enum UtxoStatus {
 	Available = "available",
@@ -19,17 +24,6 @@ export interface Utxo {
 	locked_until: number | null;
 }
 
-export enum RedeemStatusEnum {
-	Pending = "pending",
-	Proposed = "proposed",
-	Solved = "solved",
-	Signed = "signed",
-}
-
-export type RedeemRequestStatus = RedeemStatusEnum | BitcoinTxStatus;
-// NOTE: In case of key conflicts, BitcoinTxStatus takes precedence because it is spread last.
-export const RedeemRequestStatus = { ...RedeemStatusEnum, ...BitcoinTxStatus };
-
 export interface RedeemRequest {
 	redeem_id: number; // redeem ID created by the smart contract index (u64)
 	setup_id: number;
@@ -43,18 +37,6 @@ export interface RedeemRequest {
 	lc_pkg: string;
 	lc_contract: string;
 	sui_network: SuiNet;
-}
-
-// response interface for redeem requests rpc
-export interface RedeemRequestResp {
-	redeem_id: number;
-	recipient_script: string;
-	amount: number;
-	status: RedeemRequestStatus;
-	created_at: number;
-	sui_tx: string; // sui tx initiating the redeem process
-	btc_tx: string | null; // null if not broadcasted
-	confirmations: number; // 0 if not broadcasted
 }
 
 export interface UtxoIngestData {
@@ -79,14 +61,6 @@ export interface RedeemRequestIngestData {
 	sui_tx: string;
 }
 
-export interface ConfirmingRedeemReq {
-	redeem_id: number;
-	btc_tx: string;
-	btc_block_height: number;
-	btc_block_hash: string;
-	btc_network: string;
-}
-
 // Raw Event Interfaces (Matches Move Events)
 export interface MintEventRaw {
 	recipient: string;
@@ -97,14 +71,6 @@ export interface MintEventRaw {
 	btc_tx_id: string;
 	btc_vout: number; // u32
 	btc_amount: string;
-}
-
-export interface RedeemRequestEventRaw {
-	redeem_id: string;
-	redeemer: string;
-	recipient_script: string;
-	amount: string;
-	created_at: string;
 }
 
 export interface ProposeUtxoEventRaw {
@@ -149,13 +115,6 @@ export interface ProposeRedeemCall {
 	utxoIds: number[];
 	nbtcPkg: string;
 	nbtcContract: string;
-}
-
-export interface FinalizeRedeemItem {
-	redeemId: number;
-	proof: string[]; // hex encoded
-	height: number;
-	txIndex: number;
 }
 
 export interface SolveRedeemCall {

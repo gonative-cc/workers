@@ -7,10 +7,10 @@ import type {
 	ConfirmingRedeemReq,
 	RedeemRequestEventRaw,
 	RedeemRequestResp,
-	RedeemRequestStatus,
-	FinalizeRedeemItem,
-	RedeemRequest,
-} from "./models";
+	FinalizeRedeemTx,
+} from "@gonative-cc/lib/rpc-types";
+import { RedeemRequestStatus } from "@gonative-cc/lib/rpc-types";
+import type { RedeemRequest } from "./models";
 import type { SuiIndexerRpc } from "./rpc-interface";
 import { createSuiClients } from "./redeem-sui-client";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
@@ -25,7 +25,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	 * Once BTC withdraw for the Redeem Request is confirmed and finalzed, this method
 	 * will update the DB state and remove related UTXOs.
 	 */
-	async finalizeRedeems(requests: FinalizeRedeemItem[]): Promise<void> {
+	async finalizeRedeems(requests: FinalizeRedeemTx[]): Promise<void> {
 		if (requests.length === 0) return;
 
 		const storage = new D1Storage(this.env.DB);

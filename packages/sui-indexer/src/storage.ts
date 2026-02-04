@@ -1,15 +1,17 @@
 import { logError } from "@gonative-cc/lib/logger";
 import {
-	RedeemRequestStatus,
 	UtxoStatus,
-	type RedeemRequestIngestData,
 	type UtxoIngestData,
 	type PkgCfg,
 	type RedeemRequest,
-	type RedeemRequestResp,
 	type Utxo,
-	type ConfirmingRedeemReq,
+	type RedeemRequestIngestData,
 } from "./models";
+import {
+	type RedeemRequestResp,
+	type ConfirmingRedeemReq,
+	RedeemRequestStatus,
+} from "@gonative-cc/lib/rpc-types";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";

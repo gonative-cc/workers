@@ -10,8 +10,8 @@ import { D1Storage } from "@gonative-cc/sui-indexer/storage";
 import {
 	type SuiIndexerRpc,
 	RedeemRequestStatus,
-	type FinalizeRedeemItem,
-} from "@gonative-cc/sui-indexer/rpc-interface";
+	type FinalizeRedeemTx,
+} from "@gonative-cc/lib/rpc-types";
 import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
 
 import { Indexer } from "./btcindexer";
@@ -183,7 +183,7 @@ export async function setupTestIndexerSuite(
 			indexerStorage.getBroadcastedBtcRedeemTxIds(network),
 		confirmRedeem: (txIds: string[], blockHeight: number, blockHash: string) =>
 			indexerStorage.confirmRedeem(txIds, blockHeight, blockHash),
-		finalizeRedeems: async (requests: FinalizeRedeemItem[]) => {
+		finalizeRedeems: async (requests: FinalizeRedeemTx[]) => {
 			await Promise.all(requests.map((r) => indexerStorage.setRedeemFinalized(r.redeemId)));
 		},
 		putRedeemTx: () => Promise.resolve(),

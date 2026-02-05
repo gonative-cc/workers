@@ -430,6 +430,17 @@ export class D1Storage {
 			.run();
 	}
 
+	async updateRedeemStatuses(redeemIds: number[], status: RedeemRequestStatus): Promise<void> {
+		if (redeemIds.length === 0) return;
+		const placeholders = redeemIds.map(() => "?").join(",");
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id IN (${placeholders})`,
+			)
+			.bind(status, ...redeemIds)
+			.run();
+	}
+
 	async setRedeemFinalized(redeemId: number): Promise<void> {
 		const updateReq = this.db
 			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")

@@ -54,6 +54,7 @@ export interface SuiIndexerRpc {
 	redeemsBySuiAddr: (setupId: number, suiAddr: string) => Promise<RedeemRequestResp[]>;
 	getConfirmingRedeems: (network: string) => Promise<ConfirmingRedeemReq[]>;
 	updateRedeemStatus: (redeemId: number, status: RedeemRequestStatus) => Promise<void>;
+	updateRedeemStatuses: (redeemIds: number[], status: RedeemRequestStatus) => Promise<void>;
 }
 
 // --- BTC Indexer RPC Types ---

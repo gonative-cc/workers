@@ -33,31 +33,8 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 		if (!mnemonic) {
 			throw new Error("NBTC_MINTING_SIGNER_MNEMONIC not set");
 		}
-		// maps redeem id -> redeem req
-		const redeemsById = new Map<number, RedeemRequest>();
-		const networks = new Set<SuiNet>();
 
-		for (const req of requests) {
-			try {
-				const details = await storage.getRedeemWithSetup(req.redeemId);
-				if (details) {
-					redeemsById.set(req.redeemId, details);
-					networks.add(details.sui_network);
-				} else {
-					logger.error({ msg: "Redeem request not found", redeemId: req.redeemId });
-				}
-			} catch (e) {
-				logError(
-					{
-						msg: "DB error fetching redeem details",
-						method: "finalizeRedeems",
-						redeemId: req.redeemId,
-					},
-					e,
-				);
-			}
-		}
-
+		const { redeemsById, networks } = await this.fetchRedeemDetails(storage, requests);
 		if (networks.size === 0) return;
 
 		const clients = await createSuiClients(Array.from(networks), mnemonic);
@@ -108,9 +85,45 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 		}
 	}
 
+	private async fetchRedeemDetails(
+		storage: D1Storage,
+		requests: FinalizeRedeemTx[],
+	): Promise<{ redeemsById: Map<number, RedeemRequest>; networks: Set<SuiNet> }> {
+		// maps redeem id -> redeem req
+		const redeemsById = new Map<number, RedeemRequest>();
+		const networks = new Set<SuiNet>();
+
+		for (const req of requests) {
+			try {
+				const details = await storage.getRedeemWithSetup(req.redeemId);
+				if (details) {
+					redeemsById.set(req.redeemId, details);
+					networks.add(details.sui_network);
+				} else {
+					logger.error({ msg: "Redeem request not found", redeemId: req.redeemId });
+				}
+			} catch (e) {
+				logError(
+					{
+						msg: "DB error fetching redeem details",
+						method: "fetchRedeemDetails",
+						redeemId: req.redeemId,
+					},
+					e,
+				);
+			}
+		}
+		return { redeemsById, networks };
+	}
+
 	async updateRedeemStatus(redeemId: number, status: RedeemRequestStatus): Promise<void> {
 		const storage = new D1Storage(this.env.DB);
 		await storage.updateRedeemStatus(redeemId, status);
+	}
+
+	async updateRedeemStatuses(redeemIds: number[], status: RedeemRequestStatus): Promise<void> {
+		const storage = new D1Storage(this.env.DB);
+		await storage.updateRedeemStatuses(redeemIds, status);
 	}
 
 	async getConfirmingRedeems(network: string): Promise<ConfirmingRedeemReq[]> {

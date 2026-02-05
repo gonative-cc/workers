@@ -190,6 +190,8 @@ export async function setupTestIndexerSuite(
 		getConfirmingRedeems: (network: string) => indexerStorage.getConfirmingRedeems(network),
 		updateRedeemStatus: (redeemId: number, status: RedeemRequestStatus) =>
 			indexerStorage.updateRedeemStatus(redeemId, status),
+		updateRedeemStatuses: (redeemIds: number[], status: RedeemRequestStatus) =>
+			indexerStorage.updateRedeemStatuses(redeemIds, status),
 	} as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>;
 
 	const indexer = new Indexer(

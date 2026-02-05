@@ -949,70 +949,72 @@ export class Indexer {
 			btcNetworks.add(cfg.btc_network);
 		}
 
-		for (const net of btcNetworks) {
-			await this.processRedeemFinalizationForNetwork(net);
-		}
+		const tasks = Array.from(btcNetworks).map((net) =>
+			this.processRedeemFinalizationForNetwork(net).catch((e) => {
+				logError(
+					{
+						msg: "Error processing redeem finalization for network",
+						method: "processRedeemFinalization",
+						network: net,
+					},
+					e,
+				);
+			}),
+		);
+		await Promise.all(tasks);
 	}
 
 	private async processRedeemFinalizationForNetwork(net: BtcNet): Promise<void> {
-		try {
-			const chainHead = await this.storage.getChainTip(net);
-			if (chainHead === null) return;
+		const chainHead = await this.storage.getChainTip(net);
+		if (chainHead === null) return;
 
-			const confirmingRedeems = await this.suiIndexer.getConfirmingRedeems(net);
-			if (confirmingRedeems.length === 0) return;
+		const confirmingRedeems = await this.suiIndexer.getConfirmingRedeems(net);
+		if (confirmingRedeems.length === 0) return;
 
-			logger.debug({
-				msg: "Checking confirmations for redeems",
-				network: net,
-				count: confirmingRedeems.length,
-				chainHead,
-			});
+		logger.debug({
+			msg: "Checking confirmations for redeems",
+			network: net,
+			count: confirmingRedeems.length,
+			chainHead,
+		});
 
-			const chainHeads = new Map<BtcNet, number>([[net, chainHead]]);
+		const chainHeads = new Map<BtcNet, number>([[net, chainHead]]);
 
-			const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] =
-				confirmingRedeems.map((r) => ({
-					id: r.redeem_id,
-					blockHeight: r.btc_block_height,
-					blockHash: r.btc_block_hash,
-					network: btcNetFromString(r.btc_network),
-					original: r,
-				}));
+		const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] = confirmingRedeems.map(
+			(r) => ({
+				id: r.redeem_id,
+				blockHeight: r.btc_block_height,
+				blockHash: r.btc_block_hash,
+				network: btcNetFromString(r.btc_network),
+				original: r,
+			}),
+		);
 
-			const { reorged, finalized } = await this.categorizeConfirmingTxs(
-				confirmingTxs,
-				chainHeads,
-			);
+		const { reorged, finalized } = await this.categorizeConfirmingTxs(
+			confirmingTxs,
+			chainHeads,
+		);
 
-			await this.handleRedeemReorgs(reorged);
-			await this.handleRedeemFinalization(finalized);
-		} catch (e) {
-			logError(
-				{
-					msg: "Error processing redeem finalization",
-					method: "processRedeemFinalizationForNetwork",
-					network: net,
-				},
-				e,
-			);
-		}
+		await this.handleRedeemReorgs(reorged);
+		await this.handleRedeemFinalization(finalized);
 	}
 
 	private async handleRedeemReorgs(
 		reorged: ConfirmingTxCandidate<ConfirmingRedeemReq>[],
 	): Promise<void> {
+		if (reorged.length === 0) return;
+
+		const redeemIds: number[] = [];
 		for (const tx of reorged) {
 			logger.debug({
 				msg: "Redeem Reorg detected (block hash mismatch)",
 				redeemId: tx.original.redeem_id,
 				oldHash: tx.original.btc_block_hash,
 			});
-			await this.suiIndexer.updateRedeemStatus(
-				tx.original.redeem_id,
-				RedeemRequestStatus.Reorg,
-			);
+			redeemIds.push(tx.original.redeem_id);
 		}
+
+		await this.suiIndexer.updateRedeemStatuses(redeemIds, RedeemRequestStatus.Reorg);
 	}
 
 	private async handleRedeemFinalization(

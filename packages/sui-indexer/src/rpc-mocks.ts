@@ -26,6 +26,10 @@ export class RPCMock extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 		return;
 	}
 
+	async updateRedeemStatuses(_redeemIds: number[], _status: RedeemRequestStatus): Promise<void> {
+		return;
+	}
+
 	async getBroadcastedRedeemTxIds(): Promise<string[]> {
 		return [];
 	}

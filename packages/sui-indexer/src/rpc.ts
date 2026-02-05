@@ -62,7 +62,6 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 					nbtcPkg: details.nbtc_pkg,
 					nbtcContract: details.nbtc_contract,
 					lcContract: details.lc_contract,
-					lcPkg: details.lc_pkg,
 				});
 
 				logger.info({

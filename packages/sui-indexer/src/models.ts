@@ -131,5 +131,4 @@ export interface FinalizeRedeemCall {
 	nbtcPkg: string;
 	nbtcContract: string;
 	lcContract: string;
-	lcPkg: string;
 }

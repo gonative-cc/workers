@@ -1,14 +1,17 @@
 import { logError } from "@gonative-cc/lib/logger";
 import {
-	RedeemRequestStatus,
 	UtxoStatus,
-	type RedeemRequestIngestData,
 	type UtxoIngestData,
 	type PkgCfg,
 	type RedeemRequest,
-	type RedeemRequestResp,
 	type Utxo,
+	type RedeemRequestIngestData,
 } from "./models";
+import {
+	type RedeemRequestResp,
+	type ConfirmingRedeemReq,
+	RedeemRequestStatus,
+} from "@gonative-cc/lib/rpc-types";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";
@@ -51,6 +54,8 @@ interface RedeemRequestRow {
 	created_at: number;
 	nbtc_pkg: string;
 	nbtc_contract: string;
+	lc_pkg: string;
+	lc_contract: string;
 	sui_network: string;
 }
 
@@ -360,8 +365,11 @@ export class D1Storage {
 	// Returns transactions that have been broadcasted or are confirming in order to update the
 	// confirmation status
 	async getBroadcastedBtcRedeemTxIds(network: string): Promise<string[]> {
-		// TODO: should we include Reorg here?
-		const statuses = [RedeemRequestStatus.Broadcasting, RedeemRequestStatus.Confirming];
+		const statuses = [
+			RedeemRequestStatus.Broadcasting,
+			RedeemRequestStatus.Confirming,
+			RedeemRequestStatus.Reorg,
+		];
 		const placeholders = statuses.map(() => "?").join(",");
 
 		const { results } = await this.db
@@ -400,24 +408,75 @@ export class D1Storage {
 				.prepare(
 					`UPDATE nbtc_redeem_requests
                  SET status = ?, btc_block_height = ?, btc_block_hash = ?
-                 WHERE status = ? AND btc_tx IN (${placeholders})`,
+                 WHERE status IN (?, ?, ?) AND btc_tx IN (${placeholders})`,
 				)
 				.bind(
 					RedeemRequestStatus.Confirming,
 					blockHeight,
 					blockHash,
 					RedeemRequestStatus.Broadcasting,
+					RedeemRequestStatus.Confirming,
+					RedeemRequestStatus.Reorg,
 					...batch,
 				)
 				.run();
 		}
 	}
 
+	async getConfirmingRedeems(network: string): Promise<ConfirmingRedeemReq[]> {
+		const { results } = await this.db
+			.prepare(
+				`SELECT r.redeem_id, r.btc_tx, r.btc_block_height, r.btc_block_hash, s.btc_network
+				 FROM nbtc_redeem_requests r
+				 JOIN setups s ON r.setup_id = s.id
+				 WHERE s.btc_network = ? AND r.status = ?`,
+			)
+			.bind(network, RedeemRequestStatus.Confirming)
+			.all<ConfirmingRedeemReq>();
+		return results;
+	}
+
+	async updateRedeemStatus(redeemId: number, status: RedeemRequestStatus): Promise<void> {
+		await this.db
+			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
+			.bind(status, redeemId)
+			.run();
+	}
+
+	async updateRedeemStatuses(redeemIds: number[], status: RedeemRequestStatus): Promise<void> {
+		if (redeemIds.length === 0) return;
+		const placeholders = redeemIds.map(() => "?").join(",");
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id IN (${placeholders})`,
+			)
+			.bind(status, ...redeemIds)
+			.run();
+	}
+
+	async setRedeemFinalized(redeemId: number): Promise<void> {
+		const updateReq = this.db
+			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
+			.bind(RedeemRequestStatus.Finalized, redeemId);
+
+		const updateUtxos = this.db
+			.prepare(
+				`UPDATE nbtc_utxos
+				 SET status = ?
+				 WHERE nbtc_utxo_id IN (
+					 SELECT utxo_id FROM nbtc_redeem_solutions WHERE redeem_id = ?
+				 )`,
+			)
+			.bind(UtxoStatus.Spent, redeemId);
+
+		await this.db.batch([updateReq, updateUtxos]);
+	}
+
 	async getPendingRedeems(): Promise<RedeemRequest[]> {
 		const query = `
             SELECT
                 r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
-                p.nbtc_pkg, p.nbtc_contract, p.sui_network
+                p.nbtc_pkg, p.nbtc_contract, p.lc_pkg, p.lc_contract, p.sui_network
             FROM nbtc_redeem_requests r
             JOIN setups p ON r.setup_id = p.id
             WHERE r.status = ?
@@ -486,7 +545,7 @@ export class D1Storage {
 		const query = `
 	     	SELECT
 			    r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
-			    p.nbtc_pkg, p.nbtc_contract, p.sui_network
+			    p.nbtc_pkg, p.nbtc_contract, p.lc_pkg, p.lc_contract, p.sui_network
 			FROM nbtc_redeem_requests r
 			JOIN setups p ON r.setup_id = p.id
 			WHERE r.status = ?
@@ -533,7 +592,7 @@ export class D1Storage {
 		const query = `
             SELECT
                 r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
-                p.nbtc_pkg, p.nbtc_contract, p.sui_network
+                p.nbtc_pkg, p.nbtc_contract, p.lc_pkg, p.lc_contract, p.sui_network
             FROM nbtc_redeem_requests r
             JOIN setups p ON r.setup_id = p.id
             WHERE r.status = ? AND r.created_at <= ?
@@ -682,7 +741,7 @@ export class D1Storage {
 		const query = `
             SELECT
                 r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
-                p.nbtc_pkg, p.nbtc_contract, p.sui_network, p.btc_network
+                p.nbtc_pkg, p.nbtc_contract, p.lc_pkg, p.lc_contract, p.sui_network, p.btc_network
             FROM nbtc_redeem_requests r
             JOIN setups p ON r.setup_id = p.id
             WHERE r.status = ?
@@ -700,6 +759,26 @@ export class D1Storage {
 			sui_network: toSuiNet(r.sui_network),
 			btc_network: btcNetFromString(r.btc_network),
 		}));
+	}
+
+	async getRedeemWithSetup(redeemId: number): Promise<RedeemRequest | null> {
+		const query = `
+			SELECT
+				r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
+				p.nbtc_pkg, p.nbtc_contract, p.lc_pkg, p.lc_contract, p.sui_network
+			FROM nbtc_redeem_requests r
+			JOIN setups p ON r.setup_id = p.id
+			WHERE r.redeem_id = ?
+		`;
+		const result = await this.db.prepare(query).bind(redeemId).first<RedeemRequestRow>();
+
+		if (!result) return null;
+
+		return {
+			...result,
+			recipient_script: new Uint8Array(result.recipient_script),
+			sui_network: toSuiNet(result.sui_network),
+		};
 	}
 }
 

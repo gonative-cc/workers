@@ -6,7 +6,7 @@ import type { SuiNet } from "@gonative-cc/lib/nsui";
 import { prepareCoin } from "@gonative-cc/lib/coin-ops";
 import { nBTCContractModule, RedeemRequestModule } from "@gonative-cc/nbtc";
 
-import type { SolveRedeemCall, ProposeRedeemCall } from "./models";
+import type { SolveRedeemCall, ProposeRedeemCall, FinalizeRedeemCall } from "./models";
 import { type IkaClient, createIkaClient } from "./ika_client";
 
 export interface SuiClientCfg {
@@ -22,6 +22,7 @@ export interface SuiClient {
 	ikaClient(): IkaClient;
 	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
+	finalizeRedeem(args: FinalizeRedeemCall): Promise<string>;
 	requestIkaPresigns(count: number): Promise<string[]>;
 	requestInputSignature(
 		redeemId: number,
@@ -156,6 +157,37 @@ class SuiClientImp implements SuiClient {
 
 		tx.setGasBudget(100000000); // TODO: Move to config
 
+		const result = await this.#sui.signAndExecuteTransaction({
+			signer: this.signer,
+			transaction: tx,
+			options: {
+				showEffects: true,
+			},
+		});
+
+		if (result.effects?.status.status !== "success") {
+			throw new Error(`Transaction failed: ${result.effects?.status.error}`);
+		}
+
+		return result.digest;
+	}
+
+	async finalizeRedeem(args: FinalizeRedeemCall): Promise<string> {
+		const tx = new Transaction();
+
+		tx.add(
+			nBTCContractModule.finalizeRedeem({
+				package: args.nbtcPkg,
+				arguments: {
+					contract: args.nbtcContract,
+					lightClient: args.lcContract,
+					redeemId: args.redeemId,
+					proof: args.proof.map((p) => Array.from(Buffer.from(p, "hex"))),
+					height: args.height,
+					txIndex: args.txIndex,
+				},
+			}),
+		);
 		const result = await this.#sui.signAndExecuteTransaction({
 			signer: this.signer,
 			transaction: tx,

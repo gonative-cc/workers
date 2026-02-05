@@ -421,7 +421,6 @@ export class RedeemService {
 			const txDigest = await client.proposeRedeemUtxos({
 				redeemId: req.redeem_id,
 				utxoIds: selectedUtxos.map((u) => u.nbtc_utxo_id),
-				dwalletIds: selectedUtxos.map((u) => u.dwallet_id),
 				nbtcPkg: req.nbtc_pkg,
 				nbtcContract: req.nbtc_contract,
 			});

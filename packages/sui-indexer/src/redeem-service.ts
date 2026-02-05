@@ -12,6 +12,9 @@ import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { computeBtcSighash, DEFAULT_FEE_SATS, type UtxoInput, type TxOutput } from "./sighash";
 
 const MAXIMUM_NUMBER_UTXO = 100;
+const PRESIGN_POOL_TARGET = 100;
+const PRESIGN_POOL_MIN_TARGET = 40;
+const MAX_CREATE_PER_PTB = 40;
 
 export class RedeemService {
 	constructor(
@@ -23,6 +26,52 @@ export class RedeemService {
 	) {
 		if (clients.size === 0) {
 			throw new Error("No SuiClients configured");
+		}
+	}
+	// Makes sure we have enough presigns in the queue
+	async refillPresignPool(nets: SuiNet[]) {
+		await Promise.allSettled(nets.map((net) => this.refillNetworkPool(net)));
+	}
+
+	private async refillNetworkPool(network: SuiNet) {
+		let currentCount = await this.storage.getPresignCount(network);
+		if (currentCount >= PRESIGN_POOL_MIN_TARGET) return;
+		let needed = PRESIGN_POOL_TARGET - currentCount;
+
+		while (needed > 0) {
+			const toCreate = Math.min(needed, MAX_CREATE_PER_PTB);
+			logger.debug({
+				msg: "Filling presign pool",
+				network,
+				currentCount,
+				creating: toCreate,
+			});
+
+			const client = this.getSuiClient(network);
+			try {
+				const presignIds = await client.requestIkaPresigns(toCreate);
+				for (const presignId of presignIds) {
+					await this.storage.insertPresignObject(presignId, network);
+				}
+				logger.debug({
+					msg: "Created presign objects",
+					network,
+					count: presignIds.length,
+				});
+				currentCount += presignIds.length;
+				needed -= presignIds.length;
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to create presign objects",
+						method: "refillNetworkPool",
+						network,
+						count: toCreate,
+					},
+					e,
+				);
+				break;
+			}
 		}
 	}
 
@@ -51,15 +100,15 @@ export class RedeemService {
 		}
 	}
 
-	async processSolvedRedeems() {
+	async processSigningRedeems() {
 		// NOTE: here we are processing only 50 redeems every minute (every cron), we are not
-		// looping thought all the solved redeems to avoid cloudflare timeout, since we are
+		// looping through all the sinning status redeems to avoid cloudflare timeout, since we are
 		// already waiting for ika to sign, when calling ikaSdk.getPresignInParicularState
-		const solved = await this.storage.getSolvedRedeems();
-		if (solved.length === 0) return;
+		const sinnings = await this.storage.getSigningRedeems();
+		if (sinnings.length === 0) return;
 
-		for (const req of solved) {
-			await this.processSolvedRedeem(req);
+		for (const req of sinnings) {
+			await this.processSigningRedeem(req);
 		}
 	}
 
@@ -109,7 +158,7 @@ export class RedeemService {
 		}
 	}
 
-	private async processSolvedRedeem(req: RedeemRequestWithInputs) {
+	private async processSigningRedeem(req: RedeemRequestWithInputs) {
 		const client = this.getSuiClient(req.sui_network);
 		const inputsToVerify: RedeemInput[] = [];
 
@@ -216,7 +265,11 @@ export class RedeemService {
 				msg: "No presign object in pool, creating new one",
 				redeemId: req.redeem_id,
 			});
-			presignId = await client.requestIkaPresign();
+			const presigns = await client.requestIkaPresigns(1);
+			if (presigns.length === 0 || !presigns[0]) {
+				throw new Error("Failed to create presign object");
+			}
+			presignId = presigns[0];
 		} else {
 			logger.debug({
 				msg: "Using existing presign object from pool",
@@ -392,13 +445,13 @@ export class RedeemService {
 				redeemId: req.redeem_id,
 				txDigest: txDigest,
 			});
-
-			await this.storage.markRedeemSolved(req.redeem_id);
+			// update status to signing
+			await this.storage.markRedeemSigning(req.redeem_id);
 		} catch (e: unknown) {
 			logError(
 				{
-					msg: "Failed to solve redeem request",
-					method: "solveRequest",
+					msg: "Failed to update to signing",
+					method: "makeSigning",
 					redeemId: req.redeem_id,
 				},
 				e,

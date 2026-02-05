@@ -5,7 +5,7 @@ import { BitcoinTxStatus, BtcNet } from "./nbtc";
 export enum RedeemStatusEnum {
 	Pending = "pending",
 	Proposed = "proposed",
-	Solved = "solved",
+	Signing = "signing",
 	Signed = "signed",
 }
 

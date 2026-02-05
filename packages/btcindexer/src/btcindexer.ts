@@ -1050,6 +1050,7 @@ export class Indexer {
 			const txIndex = block.transactions?.findIndex((t) => t.getId() === r.btc_tx) ?? -1;
 
 			if (txIndex === -1 || !block.transactions) {
+				// Data integrity error: Tx verified in DB but missing from the actual block data.
 				logger.error({
 					msg: "Redeem finalization: Tx not found in block",
 					redeemId: r.redeem_id,
@@ -1064,6 +1065,7 @@ export class Indexer {
 
 			const proof = this.getTxProof(merkleTree, targetTx);
 			if (!proof) {
+				// Safety check: failed to generate proof for a transaction verified to be in the block.
 				logger.error({
 					msg: "Redeem finalization: Failed to generate proof",
 					redeemId: r.redeem_id,

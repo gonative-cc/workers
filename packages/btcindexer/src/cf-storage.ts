@@ -14,13 +14,22 @@ import type {
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import type { Storage } from "./storage";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
+import { getActiveSetups, type Setup } from "@gonative-cc/lib/setups";
 
 export class CFStorage implements Storage {
+	activeSetups: Setup[];
+
 	constructor(
-		private setupEnv: string,
+		setupEnv: string,
 		private d1: D1Database,
 		private blocksDB: KVNamespace,
-	) {}
+	) {
+		this.activeSetups = getActiveSetups(setupEnv);
+	}
+
+	btcNetwork(setupId: number): BtcNet | undefined {
+		return this.activeSetups[setupId]?.btc_network;
+	}
 
 	async getDepositAddresses(btcNetwork: BtcNet): Promise<string[]> {
 		try {

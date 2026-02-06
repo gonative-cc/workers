@@ -18,6 +18,7 @@ const rawSegwitTxHex = [
 const transactions = rawTxHex.map((hex) => Transaction.fromHex(hex));
 const segwitTransactions = rawSegwitTxHex.map((hex) => Transaction.fromHex(hex));
 
+console.log("check");
 describe("BitcoinMerkleTree", () => {
 	it("should calculate the correct Merkle root", () => {
 		const tree = new BitcoinMerkleTree(transactions);

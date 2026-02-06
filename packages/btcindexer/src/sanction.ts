@@ -88,7 +88,7 @@ export async function processSanctionedAddress(env: Env) {
 		suiAddresses.forEach((addr) => {
 			statements.push(
 				env.DB.prepare(
-					"INSERT INTO SanctionedCryptoAddresses (wallet_address, address_type) VALUES (?, ?)",
+					"INSERT OR IGNORE INTO SanctionedCryptoAddresses (wallet_address, address_type) VALUES (?, ?)",
 				).bind(addr, "SUI"),
 			);
 		});

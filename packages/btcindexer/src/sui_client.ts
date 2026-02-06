@@ -215,7 +215,13 @@ export class SuiClient implements SuiClientI {
 
 			return null;
 		} catch (e) {
-			console.error("Failed to extract sender address", e);
+			logError(
+				{
+					method: "extractSenderAddress",
+					msg: "Failed to extract sender address",
+				},
+				e,
+			);
 			return null;
 		}
 	}

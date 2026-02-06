@@ -9,7 +9,7 @@ import type {
 	FinalizeRedeemTx,
 } from "@gonative-cc/lib/rpc-types";
 import { RedeemRequestStatus } from "@gonative-cc/lib/rpc-types";
-import { btcNetFromString } from "@gonative-cc/lib/nbtc";
+import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 import { D1Storage } from "./storage";
@@ -23,6 +23,10 @@ import { createSuiClients } from "./redeem-sui-client";
  * @see https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/
  */
 export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
+	private storage(): D1Storage {
+		return new D1Storage(this.env.DB, this.env.SETUP_ENV);
+	}
+
 	/**
 	 * Once BTC withdraw for the Redeem Request is confirmed and finalized, this method
 	 * will update the DB state and remove related UTXOs.
@@ -30,7 +34,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	async finalizeRedeems(requests: FinalizeRedeemTx[]): Promise<void> {
 		if (requests.length === 0) return;
 
-		const storage = new D1Storage(this.env.DB);
+		const storage = this.storage();
 		const mnemonic = await this.env.NBTC_MINTING_SIGNER_MNEMONIC.get();
 		if (!mnemonic) {
 			throw new Error("NBTC_MINTING_SIGNER_MNEMONIC not set");
@@ -96,7 +100,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 
 		for (const req of requests) {
 			try {
-				const details = await storage.getRedeemWithSetup(req.redeemId);
+				const details = await storage.getRedeem(req.redeemId);
 				if (details) {
 					redeemsById.set(req.redeemId, details);
 					networks.add(details.sui_network);
@@ -118,31 +122,27 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	}
 
 	async updateRedeemStatus(redeemId: number, status: RedeemRequestStatus): Promise<void> {
-		const storage = new D1Storage(this.env.DB);
+		const storage = this.storage();
 		await storage.updateRedeemStatus(redeemId, status);
 	}
 
 	async updateRedeemStatuses(redeemIds: number[], status: RedeemRequestStatus): Promise<void> {
-		const storage = new D1Storage(this.env.DB);
+		const storage = this.storage();
 		await storage.updateRedeemStatuses(redeemIds, status);
 	}
 
 	async getConfirmingRedeems(network: string): Promise<ConfirmingRedeemReq[]> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.getConfirmingRedeems(network);
-	}
-
-	private _db() {
-		return new D1Storage(this.env.DB, this.env.SETUP_ENV);
+		const storage = this.storage();
+		return storage.getConfirmingRedeems(btcNetFromString(network));
 	}
 
 	// TODO: should be by setup_id
 	async getBroadcastedRedeemTxIds(btcNet: string): Promise<string[]> {
-		return this._db().getBroadcastedBtcRedeemTxIds(btcNetFromString(btcNet));
+		return this.storage().getBroadcastedBtcRedeemTxIds(btcNetFromString(btcNet));
 	}
 
 	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {
-		return this._db().confirmRedeem(txIds, blockHeight, blockHash);
+		return this.storage().confirmRedeem(txIds, blockHeight, blockHash);
 	}
 
 	/**
@@ -158,7 +158,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	 */
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
-			const storage = this._db();
+			const storage = this.storage();
 			if (await storage.hasRedeemRequest(Number(e.redeem_id))) {
 				logger.info({
 					msg: "Redeem request already processed",
@@ -197,6 +197,6 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	}
 
 	async redeemsBySuiAddr(setupId: number, suiAddr: string): Promise<RedeemRequestResp[]> {
-		return this._db().getRedeemsBySuiAddr(setupId, suiAddr);
+		return this.storage().getRedeemsBySuiAddr(setupId, suiAddr);
 	}
 }

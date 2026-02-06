@@ -1,12 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Miniflare } from "miniflare";
 import { D1Storage } from "./storage";
-import {
-	RedeemRequestStatus,
-	UtxoStatus,
-	type UtxoIngestData,
-	type RedeemRequestIngestData,
-} from "./models";
+import { UtxoStatus, type UtxoIngestData, type RedeemRequestIngestData } from "./models";
+import { RedeemRequestStatus } from "@gonative-cc/lib/rpc-types";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
 import { payments, networks } from "bitcoinjs-lib";
 import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
@@ -150,6 +146,22 @@ describe("IndexerStorage", () => {
 
 		const popped3 = await storage.popPresignObject(net1);
 		expect(popped3).toBeNull();
+	});
+
+	it("should count presign objects", async () => {
+		const net1 = "testnet";
+		await storage.insertPresignObject("presign1", net1);
+		await storage.insertPresignObject("presign2", net1);
+		await storage.insertPresignObject("presign3", "mainnet");
+
+		const count = await storage.getPresignCount(net1);
+		expect(count).toBe(2);
+
+		const countMain = await storage.getPresignCount("mainnet");
+		expect(countMain).toBe(1);
+
+		const countEmpty = await storage.getPresignCount("devnet");
+		expect(countEmpty).toBe(0);
 	});
 
 	it("getPendingRedeems should return pending redeems ordered by created_at", async () => {
@@ -319,20 +331,20 @@ describe("IndexerStorage", () => {
 		expect(redeem!.status).toBe(RedeemRequestStatus.Proposed);
 	});
 
-	it("markRedeemSolved should update redeem status", async () => {
+	it("markRedeemSigning should update redeem status", async () => {
 		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await db
 			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
 			.bind(RedeemRequestStatus.Proposed, 1)
 			.run();
 
-		await storage.markRedeemSolved(1);
+		await storage.markRedeemSigning(1);
 
 		const redeem = await db
 			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
 			.bind(1)
 			.first<{ status: string }>();
-		expect(redeem!.status).toBe(RedeemRequestStatus.Solved);
+		expect(redeem!.status).toBe(RedeemRequestStatus.Signing);
 	});
 
 	it("getActiveNetworks should return distinct active networks", async () => {
@@ -344,7 +356,7 @@ describe("IndexerStorage", () => {
 		expect(networks).not.toContain(toSuiNet("mainnet"));
 	});
 
-	it("getSolvedRedeems should return solved redeems with inputs", async () => {
+	it("getSigningRedeems should return signing redeems with inputs", async () => {
 		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await insertUtxo(
 			storage,
@@ -358,7 +370,7 @@ describe("IndexerStorage", () => {
 			null,
 		);
 		await storage.markRedeemProposed(1, [1], UTXO_LOCK_TIME_MS);
-		await storage.markRedeemSolved(1);
+		await storage.markRedeemSigning(1);
 		await storage.saveRedeemInputs([
 			{
 				redeem_id: 1,
@@ -369,7 +381,7 @@ describe("IndexerStorage", () => {
 			},
 		]);
 
-		const redeems = await storage.getSolvedRedeems();
+		const redeems = await storage.getSigningRedeems();
 
 		expect(redeems.length).toBe(1);
 		expect(redeems[0]!.redeem_id).toBe(1);

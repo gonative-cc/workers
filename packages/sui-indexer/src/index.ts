@@ -94,20 +94,40 @@ async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: Sui
 		env.REDEEM_DURATION_MS,
 	);
 
-	const results = await Promise.allSettled([
-		service.processPendingRedeems(), // propose a solution
-		service
-			.solveReadyRedeems() // trigger status change
-			.then(() => service.processSolvedRedeems()), // request signatures
-		service.broadcastReadyRedeems(), // broadcast fully signed txs
-	]);
+	const results: PromiseSettledResult<void>[] = [];
+
+	results.push(await tryAsync(service.refillPresignPool(activeNetworks)));
+	results.push(await tryAsync(service.processPendingRedeems()));
+
+	// Solve and Sign
+	results.push(
+		await tryAsync(
+			(async () => {
+				await service.solveReadyRedeems();
+				await service.processSigningRedeems();
+			})(),
+		),
+	);
+
+	// 4. Broadcast
+	results.push(await tryAsync(service.broadcastReadyRedeems()));
 
 	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
+		"refillPresignPool",
 		"processPendingRedeems",
-		"solveReadyRedeems/processSolvedRedeems",
+		"solveReadyRedeems/processSigningRedeems",
 		"broadcastReadyRedeems",
 	]);
+}
+
+async function tryAsync<T>(p: Promise<T>): Promise<PromiseSettledResult<T>> {
+	try {
+		const value = await p;
+		return { status: "fulfilled", value };
+	} catch (reason) {
+		return { status: "rejected", reason };
+	}
 }
 
 // Helper function to report errors from `Promise.allSettled` results.

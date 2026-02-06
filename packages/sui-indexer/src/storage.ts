@@ -1,14 +1,17 @@
 import { logError } from "@gonative-cc/lib/logger";
 import {
-	RedeemRequestStatus,
 	UtxoStatus,
-	type RedeemRequestIngestData,
 	type UtxoIngestData,
 	type NbtcPkg,
 	type RedeemRequest,
-	type RedeemRequestResp,
 	type Utxo,
+	type RedeemRequestIngestData,
 } from "./models";
+import {
+	type RedeemRequestResp,
+	type ConfirmingRedeemReq,
+	RedeemRequestStatus,
+} from "@gonative-cc/lib/rpc-types";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { address, networks } from "bitcoinjs-lib";
 import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";
@@ -51,6 +54,9 @@ interface RedeemRequestRow {
 	amount: number;
 	status: RedeemRequestStatus;
 	created_at: number;
+	// TODO: remove
+	lc_pkg: string;
+	lc_contract: string;
 }
 
 interface UtxoRow {
@@ -235,6 +241,14 @@ export class D1Storage {
 		return insertRedeemRequest(this.db, r);
 	}
 
+	async getPresignCount(network: SuiNet): Promise<number> {
+		const result = await this.db
+			.prepare("SELECT COUNT(*) as count FROM presign_objects WHERE sui_network = ?")
+			.bind(network)
+			.first<{ count: number }>();
+		return Number(result?.count || 0);
+	}
+
 	async popPresignObject(network: SuiNet): Promise<string | null> {
 		const result = await this.db
 			.prepare(
@@ -335,17 +349,17 @@ export class D1Storage {
 		await this.db.batch([updateSolution, updateRequest]);
 	}
 
-	async markRedeemSolved(redeemId: number): Promise<void> {
+	async markRedeemSigning(redeemId: number): Promise<void> {
 		try {
 			await this.db
 				.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
-				.bind(RedeemRequestStatus.Solved, redeemId)
+				.bind(RedeemRequestStatus.Signing, redeemId)
 				.run();
 		} catch (error) {
 			logError(
 				{
-					msg: "Failed to mark redeem as solved",
-					method: "markRedeemSolved",
+					msg: "Failed to mark redeem as signing",
+					method: "markRedeemSigning",
 					redeemId,
 				},
 				error,
@@ -360,10 +374,10 @@ export class D1Storage {
 		const setupIds = this.activeSetups.filter((s) => s.btc_network === net).map((s) => s.id);
 		if (setupIds.length === 0) return [];
 
-		// TODO: should we include Reorg here?
 		const statuses = strListToSqlInContent([
 			RedeemRequestStatus.Broadcasting,
 			RedeemRequestStatus.Confirming,
+			RedeemRequestStatus.Reorg,
 		]);
 		const { results } = await this.db
 			.prepare(
@@ -398,17 +412,69 @@ export class D1Storage {
 				.prepare(
 					`UPDATE nbtc_redeem_requests
                  SET status = ?, btc_block_height = ?, btc_block_hash = ?
-                 WHERE status = ? AND btc_tx IN (${placeholders})`,
+                 WHERE status IN (?, ?, ?) AND btc_tx IN (${placeholders})`,
 				)
 				.bind(
 					RedeemRequestStatus.Confirming,
 					blockHeight,
 					blockHash,
 					RedeemRequestStatus.Broadcasting,
+					RedeemRequestStatus.Confirming,
+					RedeemRequestStatus.Reorg,
 					...batch,
 				)
 				.run();
 		}
+	}
+
+	// TODO: add pagination
+	async getConfirmingRedeems(network: string): Promise<ConfirmingRedeemReq[]> {
+		const { results } = await this.db
+			.prepare(
+				`SELECT r.redeem_id, r.btc_tx, r.btc_block_height, r.btc_block_hash, s.btc_network
+				 FROM nbtc_redeem_requests r
+				 JOIN setups s ON r.setup_id = s.id
+				 WHERE s.btc_network = ? AND r.status = ?`,
+			)
+			.bind(network, RedeemRequestStatus.Confirming)
+			.all<ConfirmingRedeemReq>();
+		return results;
+	}
+
+	async updateRedeemStatus(redeemId: number, status: RedeemRequestStatus): Promise<void> {
+		await this.db
+			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
+			.bind(status, redeemId)
+			.run();
+	}
+
+	async updateRedeemStatuses(redeemIds: number[], status: RedeemRequestStatus): Promise<void> {
+		if (redeemIds.length === 0) return;
+		const placeholders = redeemIds.map(() => "?").join(",");
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id IN (${placeholders})`,
+			)
+			.bind(status, ...redeemIds)
+			.run();
+	}
+
+	async setRedeemFinalized(redeemId: number): Promise<void> {
+		const updateReq = this.db
+			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
+			.bind(RedeemRequestStatus.Finalized, redeemId);
+
+		const updateUtxos = this.db
+			.prepare(
+				`UPDATE nbtc_utxos
+				 SET status = ?
+				 WHERE nbtc_utxo_id IN (
+					 SELECT utxo_id FROM nbtc_redeem_solutions WHERE redeem_id = ?
+				 )`,
+			)
+			.bind(UtxoStatus.Spent, redeemId);
+
+		await this.db.batch([updateReq, updateUtxos]);
 	}
 
 	// TODO: add pagination
@@ -479,11 +545,11 @@ export class D1Storage {
 	}
 
 	// TODO: should query by setup id
-	async getSolvedRedeems(): Promise<RedeemRequestWithInputs[]> {
+	async getSigningRedeems(): Promise<RedeemRequestWithInputs[]> {
 		const query = `
 		SELECT r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at
 		FROM nbtc_redeem_requests r
-		WHERE r.status = '${RedeemRequestStatus.Solved}'
+		WHERE r.status = '${RedeemRequestStatus.Signing}'
 		  AND EXISTS (SELECT 1 FROM nbtc_redeem_solutions s
 		              WHERE s.redeem_id = r.redeem_id AND (s.sign_id IS NULL OR s.verified = 0))
 		ORDER BY r.created_at DESC
@@ -527,12 +593,14 @@ export class D1Storage {
 
 	async getRedeemsReadyForSolving(maxCreatedAt: number): Promise<RedeemRequest[]> {
 		const query = `
-		SELECT
-		  r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at
-		FROM nbtc_redeem_requests r
-		WHERE r.status = ? AND r.created_at <= ?
-		ORDER BY r.created_at DESC
-		LIMIT 50;
+            SELECT
+                r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
+                p.nbtc_pkg, p.nbtc_contract, p.lc_pkg, p.lc_contract, p.sui_network
+            FROM nbtc_redeem_requests r
+            JOIN setups p ON r.setup_id = p.id
+            WHERE r.status = ? AND r.created_at <= ?
+            ORDER BY r.created_at ASC
+            LIMIT 50;
         `;
 		const { results } = await this.db
 			.prepare(query)
@@ -700,6 +768,26 @@ export class D1Storage {
 				nbtc_contract: s.nbtc_contract,
 			};
 		});
+	}
+
+	async getRedeemWithSetup(redeemId: number): Promise<RedeemRequest | null> {
+		const query = `
+			SELECT
+				r.redeem_id, r.setup_id, r.redeemer, r.recipient_script, r.amount, r.status, r.created_at,
+				p.nbtc_pkg, p.nbtc_contract, p.lc_pkg, p.lc_contract, p.sui_network
+			FROM nbtc_redeem_requests r
+			JOIN setups p ON r.setup_id = p.id
+			WHERE r.redeem_id = ?
+		`;
+		const result = await this.db.prepare(query).bind(redeemId).first<RedeemRequestRow>();
+
+		if (!result) return null;
+
+		return {
+			...result,
+			recipient_script: new Uint8Array(result.recipient_script),
+			sui_network: toSuiNet(result.sui_network),
+		};
 	}
 }
 

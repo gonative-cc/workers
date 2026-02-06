@@ -35,6 +35,7 @@
     "CONFIRMATION_DEPTH": "4",
     "MAX_NBTC_MINT_TX_RETRIES": "1",
     "BTC_BLOCK_PROCESSING_BATCH_SIZE": "100",
+    "AUTH_BEARER_TOKEN": "",
   },
   "secrets_store_secrets": [
     {

@@ -3,9 +3,11 @@ import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
 import type { Signer } from "@mysten/sui/cryptography";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction as SuiTransaction } from "@mysten/sui/transactions";
-import type { MintBatchArg, NbtcPkgCfg, SuiTxDigest } from "./models";
+import { btcNetworkCfg, type MintBatchArg, type NbtcPkgCfg, type SuiTxDigest } from "./models";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { nBTCContractModule } from "@gonative-cc/nbtc";
+import { Transaction, payments, script } from "bitcoinjs-lib";
+import type { D1Database } from "@cloudflare/workers-types";
 
 const LC_MODULE = "light_client";
 
@@ -18,20 +20,22 @@ export interface SuiClientI {
 
 export type SuiClientConstructor = (config: NbtcPkgCfg) => SuiClientI;
 
-export function NewSuiClient(mnemonic: string): SuiClientConstructor {
-	return (config: NbtcPkgCfg) => new SuiClient(config, mnemonic);
+export function NewSuiClient(mnemonic: string, db: D1Database): SuiClientConstructor {
+	return (config: NbtcPkgCfg) => new SuiClient(config, mnemonic, db);
 }
 
 export class SuiClient implements SuiClientI {
 	private client: Client;
 	private signer: Signer;
 	private config: NbtcPkgCfg;
+	private db: D1Database;
 
-	constructor(config: NbtcPkgCfg, mnemonic: string) {
+	constructor(config: NbtcPkgCfg, mnemonic: string, db?: D1Database) {
 		this.config = config;
 		this.client = new Client({ url: getFullnodeUrl(config.sui_network) });
 		// TODO: instead of mnemonic, let's use the Signer interface in the config
 		this.signer = Ed25519Keypair.deriveKeypair(mnemonic);
+		this.db = db!;
 		logger.debug({
 			msg: "Sui Client Initialized",
 			suiSignerAddress: this.signer.getPublicKey().toSuiAddress(),
@@ -129,6 +133,17 @@ export class SuiClient implements SuiClientI {
 			const proofLittleEndian = args.proof.proofPath.map((p) => Array.from(p));
 			const txBytes = Array.from(args.tx.toBuffer());
 
+			// Extract sender address and check sanctions
+			const senderAddress = await this.extractSenderAddress(args.tx);
+			if (senderAddress && (await this.isSanctioned(senderAddress))) {
+				logger.error({
+					msg: "Sanctioned address detected, skipping mint",
+					txId: args.tx.getId(),
+					senderAddress,
+				});
+				continue;
+			}
+
 			tx.add(
 				nBTCContractModule.mint({
 					package: this.config.nbtc_pkg,
@@ -166,6 +181,58 @@ export class SuiClient implements SuiClientI {
 		}
 
 		return [success, result.digest];
+	}
+
+	private async extractSenderAddress(tx: Transaction): Promise<string | null> {
+		try {
+			if (tx.ins.length === 0) return null;
+
+			const firstInput = tx.ins[0];
+			const network = btcNetworkCfg[this.config.btc_network];
+
+			if (firstInput && firstInput.witness && firstInput.witness.length >= 2) {
+				const pubKey = firstInput.witness[1];
+				const { address } = payments.p2wpkh({
+					pubkey: pubKey,
+					network: network,
+				});
+				return address || null;
+			}
+
+			const scriptSig = firstInput?.script;
+			if (scriptSig && scriptSig.length >= 65) {
+				const chunks = script.decompile(scriptSig);
+				if (!chunks) return null;
+
+				const pubKey = chunks[chunks.length - 1] as Buffer;
+
+				const { address } = payments.p2pkh({
+					pubkey: pubKey,
+					network: network,
+				});
+				return address || null;
+			}
+
+			return null;
+		} catch (e) {
+			console.error("Failed to extract sender address", e);
+			return null;
+		}
+	}
+
+	private async isSanctioned(btcAddress: string): Promise<boolean> {
+		try {
+			const result = await this.db
+				.prepare(
+					"SELECT 1 FROM SanctionedCryptoAddresses WHERE wallet_address = ? AND address_type = 'BTC'",
+				)
+				.bind(btcAddress)
+				.first();
+			return result !== null;
+		} catch (e) {
+			logError({ method: "isSanctioned", msg: "Failed to check sanctions", btcAddress }, e);
+			return false;
+		}
 	}
 
 	/**

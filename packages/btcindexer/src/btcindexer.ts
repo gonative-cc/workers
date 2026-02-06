@@ -34,19 +34,12 @@ import type {
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
 } from "./models";
-import { MintTxStatus, InsertBlockStatus } from "./models";
+import { MintTxStatus, InsertBlockStatus, btcNetworkCfg } from "./models";
 import type { Electrs } from "./electrs";
 import { ElectrsService, ELECTRS_URLS_BY_NETWORK } from "./electrs";
 import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
-
-const btcNetworkCfg: Record<BtcNet, Network> = {
-	[BtcNet.MAINNET]: networks.bitcoin,
-	[BtcNet.TESTNET]: networks.testnet,
-	[BtcNet.REGTEST]: networks.regtest,
-	[BtcNet.SIGNET]: networks.testnet,
-};
 
 interface ConfirmingTxCandidate<T> {
 	id: string | number;
@@ -76,7 +69,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 	const suiClients = new Map<SuiNet, SuiClient>();
 	for (const p of packageConfigs) {
 		if (!suiClients.has(p.sui_network))
-			suiClients.set(p.sui_network, new SuiClient(p, mnemonic));
+			suiClients.set(p.sui_network, new SuiClient(p, mnemonic, env.DB));
 	}
 
 	const electrsClients = new Map<BtcNet, ElectrsService>();

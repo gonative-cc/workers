@@ -12,7 +12,7 @@
   },
   "triggers": {
     // every one minute
-    "crons": ["* * * * *"],
+    "crons": ["* * * * *", "0 1 * * *"],
   },
   "compatibility_flags": ["nodejs_compat"],
   /**

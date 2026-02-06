@@ -11,6 +11,7 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { processBlockBatch } from "./queue-handler";
+import { processSanctionedAddress } from "./sanction";
 
 // Export RPC entrypoints for service bindings
 export { RPC } from "./rpc";
@@ -73,12 +74,25 @@ export default {
 
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
-	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
+	async scheduled(event: ScheduledController, env: Env, _ctx): Promise<void> {
 		logger.debug({ msg: "Cron job starting" });
 		try {
-			const indexer = await indexerFromEnv(env);
-			await indexer.updateConfirmationsAndFinalize();
-			await indexer.processFinalizedTransactions();
+			const trigger = event.cron;
+			switch (trigger) {
+				case "0 1 * * *":
+					await processSanctionedAddress(env);
+					break;
+				case "* * * * *":
+					{
+						const indexer = await indexerFromEnv(env);
+						await indexer.updateConfirmationsAndFinalize();
+						await indexer.processFinalizedTransactions();
+					}
+					break;
+				default:
+					logger.info({ msg: "Unknown schedule triggered" });
+			}
+
 			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
 			logError({ msg: "Cron job failed", method: "scheduled" }, e);

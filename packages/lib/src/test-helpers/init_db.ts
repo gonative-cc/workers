@@ -43,6 +43,7 @@ export const tables = [
 	"indexer_state",
 	"presign_objects",
 	"setups",
+	"SanctionedCryptoAddresses",
 ];
 
 export async function initDb(db: D1Database) {

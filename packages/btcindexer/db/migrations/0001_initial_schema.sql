@@ -124,3 +124,11 @@ CREATE TABLE IF NOT EXISTS presign_objects (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS presign_objects_sui_network_created_at ON presign_objects(sui_network, created_at);
+
+CREATE TABLE IF NOT EXISTS SanctionedCryptoAddresses (
+    wallet_address VARCHAR(255) PRIMARY KEY,
+    address_type VARCHAR(3) NOT NULL,
+    CONSTRAINT chk_address_type CHECK (address_type IN ('BTC', 'SUI'))
+);
+
+CREATE INDEX idx_type ON SanctionedCryptoAddresses(address_type);

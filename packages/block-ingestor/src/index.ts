@@ -5,10 +5,11 @@ import { handleIngestBlocks } from "./ingest";
 import { type BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { logError } from "@gonative-cc/lib/logger";
 import { btcNetFromString } from "@gonative-cc/lib/nbtc";
+import { RestPath } from "./api/client";
 
 export const router = Router();
 
-router.put("/bitcoin/blocks", async (request, env: Env) => {
+router.put(RestPath.blocks, async (request, env: Env) => {
 	if (!(await isAuthorized(request, env))) {
 		return new Response("Unauthorized", { status: 401 });
 	}

@@ -36,12 +36,26 @@ describe("block-ingestor auth helper", () => {
 		expect(await isAuthorized(request, env)).toBe(true);
 	});
 
-	it("should return true if token matches (case insensitive Bearer)", async () => {
+	it("should return false if token matches (case insensitive Bearer)", async () => {
 		const request = new Request("http://localhost", {
 			headers: {
 				Authorization: "bearer test-token",
 			},
 		});
 		expect(await isAuthorized(request, env)).toBe(true);
+	});
+
+	it("should return false if RELAYER_AUTH_TOKEN is missing in env", async () => {
+		const envMissing = {
+			BtcBlocks: {} as KVNamespace,
+			BlockQueue: {} as Queue,
+			BtcIndexer: {} as Fetcher,
+		} as Env;
+		const request = new Request("http://localhost", {
+			headers: {
+				Authorization: "Bearer test-token",
+			},
+		});
+		expect(await isAuthorized(request, envMissing)).toBe(false);
 	});
 });

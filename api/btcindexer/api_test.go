@@ -45,7 +45,7 @@ func TestPutBlocksInt(t *testing.T) {
 
 	pb := PutBlock{Network: NetworkRegtest, Height: 156, Block: blockBz}
 
-	c := NewClient("http://localhost:8787")
+	c := NewClient("http://localhost:8787", "")
 	resp, err := c.PutBlocks(PutBlocksReq{pb})
 	assert.NilError(t, err)
 	respBody, err := io.ReadAll(resp.Body)

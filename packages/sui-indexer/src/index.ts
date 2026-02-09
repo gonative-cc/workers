@@ -24,16 +24,32 @@ export default {
 	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new D1Storage(env.DB);
-		const activeNetworks = await storage.getActiveNetworks();
+		const lockAcquired = await storage.acquireLock("sui-indexer-cron", 5 * 60 * 1000); // 5 minutes
+		if (!lockAcquired) {
+			logger.warn({
+				msg: "Cron job already running, skipping this execution",
+				lockName: "sui-indexer-cron",
+			});
+			return;
+		}
 
-		// Run both indexer and redeem solver tasks in parallel
-		const results = await Promise.allSettled([
-			runSuiIndexer(storage, env, activeNetworks),
-			runRedeemSolver(storage, env, activeNetworks),
-		]);
+		try {
+			const activeNetworks = await storage.getActiveNetworks();
 
-		// Check for any rejected promises and log errors
-		reportErrors(results, "scheduled", "Scheduled task error", ["SuiIndexer", "RedeemSolver"]);
+			// Run both indexer and redeem solver tasks in parallel
+			const results = await Promise.allSettled([
+				runSuiIndexer(storage, env, activeNetworks),
+				runRedeemSolver(storage, env, activeNetworks),
+			]);
+
+			// Check for any rejected promises and log errors
+			reportErrors(results, "scheduled", "Scheduled task error", [
+				"SuiIndexer",
+				"RedeemSolver",
+			]);
+		} finally {
+			await storage.releaseLock("sui-indexer-cron");
+		}
 	},
 } satisfies ExportedHandler<Env>;
 

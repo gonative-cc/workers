@@ -780,6 +780,30 @@ export class D1Storage {
 			sui_network: toSuiNet(result.sui_network),
 		};
 	}
+
+	async acquireLock(lockName: string, ttlMs: number): Promise<boolean> {
+		const now = Date.now();
+		try {
+			const result = await this.db
+				.prepare(
+					`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
+					 VALUES (?, ?, ?)
+					 ON CONFLICT(lock_name) DO UPDATE
+					 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
+					 WHERE cron_locks.expires_at < excluded.acquired_at
+					 RETURNING 1`,
+				)
+				.bind(lockName, now, now + ttlMs)
+				.first();
+			return !!result;
+		} catch {
+			return false;
+		}
+	}
+
+	async releaseLock(lockName: string): Promise<void> {
+		await this.db.prepare(`DELETE FROM cron_locks WHERE lock_name = ?`).bind(lockName).run();
+	}
 }
 
 export async function insertRedeemRequest(

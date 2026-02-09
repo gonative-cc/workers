@@ -124,3 +124,9 @@ CREATE TABLE IF NOT EXISTS presign_objects (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS presign_objects_sui_network_created_at ON presign_objects(sui_network, created_at);
+
+CREATE TABLE IF NOT EXISTS cron_locks (
+	lock_name TEXT NOT NULL PRIMARY KEY,
+	acquired_at INTEGER NOT NULL,
+	expires_at INTEGER NOT NULL
+) STRICT;

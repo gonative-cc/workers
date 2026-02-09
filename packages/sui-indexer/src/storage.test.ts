@@ -597,4 +597,83 @@ describe("IndexerStorage", () => {
 		expect(inputs[0]!.input_index).toBe(0);
 		expect(inputs[1]!.input_index).toBe(1);
 	});
+
+	describe("Distributed Lock", () => {
+		it("should acquire lock when none exists", async () => {
+			const acquired = await storage.acquireLock("test-lock", 60000);
+			expect(acquired).toBe(true);
+			const lock = await db
+				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
+				.bind("test-lock")
+				.first<{ lock_name: string; acquired_at: number; expires_at: number }>();
+			expect(lock).not.toBeNull();
+			expect(lock!.lock_name).toBe("test-lock");
+		});
+
+		it("should fail to acquire lock when already held (not expired)", async () => {
+			const first = await storage.acquireLock("test-lock", 60000);
+			expect(first).toBe(true);
+			const second = await storage.acquireLock("test-lock", 60000);
+			expect(second).toBe(false);
+		});
+
+		it("should acquire lock when existing lock is expired", async () => {
+			const expiredTime = Date.now() - 10000;
+			await db
+				.prepare(
+					"INSERT INTO cron_locks (lock_name, acquired_at, expires_at) VALUES (?, ?, ?)",
+				)
+				.bind("test-lock", expiredTime - 60000, expiredTime)
+				.run();
+
+			const acquired = await storage.acquireLock("test-lock", 60000);
+			expect(acquired).toBe(true);
+
+			const lock = await db
+				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
+				.bind("test-lock")
+				.first<{ expires_at: number }>();
+			expect(lock!.expires_at).toBeGreaterThan(Date.now());
+		});
+
+		it("should release lock", async () => {
+			await storage.acquireLock("test-lock", 60000);
+
+			let lock = await db
+				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
+				.bind("test-lock")
+				.first();
+			expect(lock).not.toBeNull();
+
+			await storage.releaseLock("test-lock");
+
+			lock = await db
+				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
+				.bind("test-lock")
+				.first();
+			expect(lock).toBeNull();
+		});
+
+		it("should allow reacquiring lock after release", async () => {
+			const first = await storage.acquireLock("test-lock", 60000);
+			expect(first).toBe(true);
+			await storage.releaseLock("test-lock");
+			const second = await storage.acquireLock("test-lock", 60000);
+			expect(second).toBe(true);
+		});
+
+		it("should handle multiple different locks independently", async () => {
+			const lock1 = await storage.acquireLock("lock-1", 60000);
+			const lock2 = await storage.acquireLock("lock-2", 60000);
+
+			expect(lock1).toBe(true);
+			expect(lock2).toBe(true);
+			await storage.releaseLock("lock-1");
+			const lock1Again = await storage.acquireLock("lock-1", 60000);
+			const lock2Again = await storage.acquireLock("lock-2", 60000);
+
+			expect(lock1Again).toBe(true);
+			expect(lock2Again).toBe(false);
+		});
+	});
 });

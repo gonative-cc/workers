@@ -13,6 +13,13 @@
   "queues": {
     "producers": [{ "queue": "block-queue", "binding": "BlockQueue" }],
   },
+  "secrets_store_secrets": [
+    {
+      "binding": "RELAYER_AUTH_TOKEN",
+      "store_id": "75adbc6657de4f4cb739f63eb4d0cd7a",
+      "secret_name": "RELAYER_AUTH_TOKEN",
+    },
+  ],
   // "vars": {
   // },
   "services": [

@@ -1310,9 +1310,6 @@ export function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 	// Check simple transfer format: 1-byte flag (0x00)
 	if (payload[0] === 0x00) {
 		const addressBytes = payload.subarray(1);
-		if (addressBytes.length !== 32) {
-			return null;
-		}
 		const address = `0x${addressBytes.toString("hex")}`;
 		if (!isValidSuiAddress(address)) {
 			return null;

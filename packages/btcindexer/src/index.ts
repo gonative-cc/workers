@@ -77,13 +77,7 @@ export default {
 		logger.debug({ msg: "Cron job starting" });
 		try {
 			const indexer = await indexerFromEnv(env);
-			const latestBlock = await env.DB.prepare(
-				"SELECT MAX(height) as latest_height FROM btc_blocks",
-			).first<{ latest_height: number }>();
-
-			if (latestBlock && latestBlock.latest_height) {
-				await indexer.updateConfirmationsAndFinalize(latestBlock.latest_height);
-			}
+			await indexer.updateConfirmationsAndFinalize();
 			await indexer.processFinalizedTransactions();
 			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {

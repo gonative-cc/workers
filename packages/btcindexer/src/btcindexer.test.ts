@@ -5,7 +5,8 @@ import { Block, networks } from "bitcoinjs-lib";
 
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 
-import { Indexer } from "./btcindexer";
+import { Indexer, parseSuiRecipientFromOpReturn } from "./btcindexer";
+import { OP_RETURN } from "./opcodes";
 import type { Deposit, ProofResult } from "./models";
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import { setupTestIndexerSuite, type TestIndexerHelper } from "./btcindexer.helpers.test";
@@ -45,13 +46,13 @@ const REGTEST_DATA: TestBlocks = {
 	327: {
 		depositAddr: "bcrt1qfnyeg7dd5vqs2mtc4rekwm8mgpxkj647p39zhw",
 		height: 327,
-		hash: "44ebd5a48c4b7410eb92f527a382d7d9de88f7450e47de099e4197a6a473a36b",
+		hash: "9e8cbaeb4b4bb6caa1348b1ce39aac60b5eb16d4ada1710167d7d2dba494b1f6",
 		rawBlockHex:
-			"000000309e02811147a48d71d33ce8b4acaeeb4d6ffb43a9aaf1e1564160422724aed63f5aeaa3f37c1c99da4079cc60a2d72ed164ee1e08a44942c765a44ad5801fb580aa93ca68ffff7f200000000003020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0402470100ffffffff02ea8a814a000000001600144d92b0bf448dde39553e93a06ca04b8cc7e449ec0000000000000000266a24aa21a9ed584e9196713025fba31e8bd4d3980c610196d6fab5408fbf041993fb3ebf70ab012000000000000000000000000000000000000000000000000000000000000000000000000002000000000101fd2df0a3bf517b009c7d2bf1b5d9d9900a3702f4f66bbcaf7fc7762159d7344b0100000000fdffffff0370110100000000001600144cc99479ada301056d78a8f3676cfb404d696abe0000000000000000226a200011223344556677889900aabbccddeeff0011223344556677889900aabbccddc0c70095000000001600146832da4e5b5e1db2d0fa2e485e9e4484536e98090247304402202431b1446d9dbd5d95d50bcc6489877207d89e7ed563aad7abc9745fc09d8afe02200d392e6e8789893a84a2d7edc48f34f75c5a0184c8a4606df0c44aa167431aaa012103c340c0b1657023b8cd3349e8c5239a36651fa03d75876e7a6d520af55ef5cd2200000000020000000001016ec7be18e2ccf0642f36ae8e0d3e9d12973ef0d38d1bea0fbb2f18edb159c2f50200000000fdffffff0360ea0000000000001600144cc99479ada301056d78a8f3676cfb404d696abe0000000000000000236a2100aabbccddeeff00112233445566778899aabbccddeeff001122334455667788992eb6fe940000000016001401f073c70b560278eb5be6c6ece81b2d9524c9c202473044022002132a77bbfec74aacf4265be5e9f165c75cfc5cfcb95df2b3fc2c7bf3bb94d102203eed6272738859056b10d021dd4c18af57be89080a264e3af6cfe39559de128201210386d157e283bbe381db6069007e15a8fcc71d88672fa8d6522903c4089c77b40800000000",
+			"000000309e02811147a48d71d33ce8b4acaeeb4d6ffb43a9aaf1e1564160422724aed63fb9603c099517313df9118b0a1bde44ec77ed0c581da79c4e52067b686ffa81feaa93ca68ffff7f200000000003020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0402470100ffffffff02ea8a814a000000001600144d92b0bf448dde39553e93a06ca04b8cc7e449ec0000000000000000266a24aa21a9ed584e9196713025fba31e8bd4d3980c610196d6fab5408fbf041993fb3ebf70ab012000000000000000000000000000000000000000000000000000000000000000000000000002000000000101fd2df0a3bf517b009c7d2bf1b5d9d9900a3702f4f66bbcaf7fc7762159d7344b0100000000fdffffff0370110100000000001600144cc99479ada301056d78a8f3676cfb404d696abe0000000000000000236a210011223344556677889900aabbccddeeff0011223344556677889900aabbccdd00c0c70095000000001600146832da4e5b5e1db2d0fa2e485e9e4484536e98090247304402202431b1446d9dbd5d95d50bcc6489877207d89e7ed563aad7abc9745fc09d8afe02200d392e6e8789893a84a2d7edc48f34f75c5a0184c8a4606df0c44aa167431aaa012103c340c0b1657023b8cd3349e8c5239a36651fa03d75876e7a6d520af55ef5cd2200000000020000000001016ec7be18e2ccf0642f36ae8e0d3e9d12973ef0d38d1bea0fbb2f18edb159c2f50200000000fdffffff0360ea0000000000001600144cc99479ada301056d78a8f3676cfb404d696abe0000000000000000236a2100aabbccddeeff00112233445566778899aabbccddeeff001122334455667788992eb6fe940000000016001401f073c70b560278eb5be6c6ece81b2d9524c9c202473044022002132a77bbfec74aacf4265be5e9f165c75cfc5cfcb95df2b3fc2c7bf3bb94d102203eed6272738859056b10d021dd4c18af57be89080a264e3af6cfe39559de128201210386d157e283bbe381db6069007e15a8fcc71d88672fa8d6522903c4089c77b40800000000",
 		txs: {
 			1: {
-				id: "22c0c042fd2b8bc083079987d9690ecebe9a74d427b0148888637065097e3f49",
-				suiAddr: "0x11223344556677889900aabbccddeeff0011223344556677889900aabbccdd",
+				id: "3d40280c5a2700dd64c8957252444e7b25f9bdd2046b581ea4f864fa04b9979e",
+				suiAddr: "0x11223344556677889900aabbccddeeff0011223344556677889900aabbccdd00",
 				amount: 70000,
 			},
 			2: {
@@ -202,47 +203,26 @@ describe("Indexer.constructMerkleProof", () => {
 	});
 });
 
-describe("Indexer.handleReorgs", () => {
-	it("should do nothing if no reorg", async () => {
+describe("Indexer.splitActiveInactiveTxs", () => {
+	it("should return active ID when address is active", () => {
 		const pendingTx = {
 			tx_id: "tx1",
-			block_hash: "hash_A",
+			block_hash: null,
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
 			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
-		await suite.db
-			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
-			)
-			.bind(100, "hash_A", "regtest", Date.now(), 1)
-			.run();
-
-		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
-		expect(reorgedTxIds.length).toEqual(0);
-	});
-
-	it("should generate a reset statement if reorg detected", async () => {
-		const pendingTx = {
-			tx_id: "tx1",
-			block_hash: "hash_A",
-			block_height: 100,
-			btc_network: BtcNet.REGTEST,
-			deposit_address: REGTEST_DATA[329]!.depositAddr,
-		};
-		await suite.db
-			.prepare(
-				"INSERT INTO btc_blocks (height, hash, network, processed_at, is_scanned) VALUES (?, ?, ?, ?, ?)",
-			)
-			.bind(100, "hash_A_reorged", "regtest", Date.now(), 1)
-			.run();
-		const { reorgedTxIds } = await indexer.handleReorgs([pendingTx]);
-		expect(reorgedTxIds.length).toEqual(1);
+		const { activeTxIds } = indexer.splitActiveInactiveTxs([pendingTx]);
+		expect(activeTxIds.length).toEqual(1);
+		expect(activeTxIds[0]).toEqual("tx1");
 	});
 });
 
-describe("Indexer.findFinalizedTxs", () => {
-	it("should generate a finalize statement when enough confirmations", () => {
+describe("Indexer.splitActiveInactiveTxs (Inactive)", () => {
+	it("should return inactiveId if address is not active", () => {
+		const pkg = indexer.getPackageConfig(1);
+		if (pkg) pkg.is_active = false;
+
 		const pendingTx = {
 			tx_id: "tx1",
 			block_hash: null,
@@ -250,28 +230,48 @@ describe("Indexer.findFinalizedTxs", () => {
 			btc_network: BtcNet.REGTEST,
 			deposit_address: REGTEST_DATA[329]!.depositAddr,
 		};
-		const latestHeight = 107;
-		const { activeTxIds } = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		expect(activeTxIds.length).toEqual(1);
+		const result = indexer.splitActiveInactiveTxs([pendingTx]);
+
+		expect(result.activeTxIds.length).toEqual(0);
+		expect(result.inactiveTxIds.length).toEqual(1);
+
+		// Restore active state for other tests
+		if (pkg) pkg.is_active = true;
 	});
 
-	it("should do nothing when not enough confirmations", () => {
+	it("should return inactiveId if address is inactive but package is active", () => {
 		const pendingTx = {
 			tx_id: "tx1",
 			block_hash: null,
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
-			deposit_address: REGTEST_DATA[329]!.depositAddr,
+			deposit_address: "inactive_address",
 		};
-		const latestHeight = 106;
-		const { activeTxIds } = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-		expect(activeTxIds.length).toEqual(0);
+
+		const originalMap = indexer.nbtcDepositAddrMap;
+		indexer.nbtcDepositAddrMap = new Map([
+			[
+				"inactive_address",
+				{
+					setup_id: 1,
+					is_active: false,
+				},
+			],
+		]);
+
+		const result = indexer.splitActiveInactiveTxs([pendingTx]);
+
+		expect(result.activeTxIds.length).toEqual(0);
+		expect(result.inactiveTxIds.length).toEqual(1);
+
+		indexer.nbtcDepositAddrMap = originalMap;
 	});
 });
 
 describe.skip("Indexer.updateConfirmationsAndFinalize", () => {
-	it("should be tested later", () => {
-		// TODO: add a test for the scanNewBlocks using the same data
+	it("should finalize transactions with enough confirmations", async () => {
+		// const indexer = await indexerFromEnv(env);
+		// await indexer.updateConfirmationsAndFinalize();
 	});
 });
 
@@ -595,58 +595,6 @@ describe("Indexer.processBlock", () => {
 	});
 });
 
-describe("Indexer.findFinalizedTxs (Inactive)", () => {
-	it("should return inactiveId if address is not active", () => {
-		const pkg = indexer.getPackageConfig(1);
-		if (pkg) pkg.is_active = false;
-
-		const pendingTx = {
-			tx_id: "tx1",
-			block_hash: null,
-			block_height: 100,
-			btc_network: BtcNet.REGTEST,
-			deposit_address: REGTEST_DATA[329]!.depositAddr,
-		};
-		const latestHeight = 107;
-		const result = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-
-		expect(result.activeTxIds.length).toEqual(0);
-		expect(result.inactiveTxIds.length).toEqual(1);
-
-		// Restore active state for other tests
-		if (pkg) pkg.is_active = true;
-	});
-
-	it("should return inactiveId if address is inactive but package is active", () => {
-		const pendingTx = {
-			tx_id: "tx1",
-			block_hash: null,
-			block_height: 100,
-			btc_network: BtcNet.REGTEST,
-			deposit_address: "inactive_address",
-		};
-
-		const originalMap = indexer.nbtcDepositAddrMap;
-		indexer.nbtcDepositAddrMap = new Map([
-			[
-				"inactive_address",
-				{
-					setup_id: 1,
-					is_active: false,
-				},
-			],
-		]);
-
-		const latestHeight = 107;
-		const result = indexer.selectFinalizedNbtcTxs([pendingTx], latestHeight);
-
-		expect(result.activeTxIds.length).toEqual(0);
-		expect(result.inactiveTxIds.length).toEqual(1);
-
-		indexer.nbtcDepositAddrMap = originalMap;
-	});
-});
-
 describe("CFStorage.insertBlockInfo (Stale Block Protection)", () => {
 	it("should return TRUE and insert data when block is new", async () => {
 		const record: BlockQueueRecord = {
@@ -840,5 +788,70 @@ describe("Indexer.getSenderAddresses (via processBlock)", () => {
 		// Should still have the nBTC deposits but no sender deposits due to invalid response
 		await suite.expectMintingCount(1);
 		await suite.expectSenderCount(0);
+	});
+});
+
+describe("parseSuiRecipientFromOpReturn", () => {
+	it("should return null if script is empty", () => {
+		expect(parseSuiRecipientFromOpReturn(Buffer.alloc(0))).toBeNull();
+	});
+
+	it("should return null if script does not start with OP_RETURN", () => {
+		const script = Buffer.from([0x01, 0x00]);
+		expect(parseSuiRecipientFromOpReturn(script)).toBeNull();
+	});
+
+	it("should return null if script is too short", () => {
+		const script = Buffer.from([OP_RETURN]);
+		expect(parseSuiRecipientFromOpReturn(script)).toBeNull();
+	});
+
+	it("should return null if payload flag is not 0x00", () => {
+		// this test will have to be updated once we start supporting other flags
+		const script = Buffer.concat([
+			Buffer.from([OP_RETURN, 33]),
+			Buffer.from([0x01]), // flag 0x01
+			Buffer.alloc(32, 0x01),
+		]);
+		expect(parseSuiRecipientFromOpReturn(script)).toBeNull();
+	});
+
+	it("should return null if address length is not 32 bytes", () => {
+		const script = Buffer.concat([
+			Buffer.from([OP_RETURN, 32]),
+			Buffer.from([0x00]),
+			Buffer.alloc(31, 0x01), // 31 bytes addr
+		]);
+		expect(parseSuiRecipientFromOpReturn(script)).toBeNull();
+	});
+
+	it("should return valid sui address if data is correct", () => {
+		const addressBytes = Buffer.alloc(32, 0xaa);
+		const addressHex = `0x${addressBytes.toString("hex")}`;
+		const script = Buffer.concat([
+			Buffer.from([OP_RETURN, 33]), // OP_RETURN + length
+			Buffer.from([0x00]), // flag
+			addressBytes,
+		]);
+		expect(parseSuiRecipientFromOpReturn(script)).toBe(addressHex);
+	});
+
+	it("should return the address if it follows valid sui address format", () => {
+		const script = Buffer.concat([
+			Buffer.from([OP_RETURN, 33]),
+			Buffer.from([0x00]),
+			Buffer.alloc(32, 0x01),
+		]);
+		const result = parseSuiRecipientFromOpReturn(script);
+		expect(result).toBe("0x0101010101010101010101010101010101010101010101010101010101010101");
+	});
+
+	it("should return null if address is not 32 bytes (too long)", () => {
+		const script = Buffer.concat([
+			Buffer.from([OP_RETURN, 34]),
+			Buffer.from([0x00]),
+			Buffer.alloc(33, 0x01),
+		]);
+		expect(parseSuiRecipientFromOpReturn(script)).toBeNull();
 	});
 });

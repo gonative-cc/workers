@@ -1,6 +1,10 @@
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import { BitcoinTxStatus } from "@gonative-cc/lib/nbtc";
-import { createInterface } from "node:readline/promises";
+import {
+	type RedeemRequestResp,
+	type ConfirmingRedeemReq,
+	RedeemRequestStatus,
+	type FinalizeRedeemTx,
+} from "@gonative-cc/lib/rpc-types";
 import { CoordinatorInnerModule } from "@ika.xyz/sdk";
 
 export enum UtxoStatus {
@@ -21,17 +25,6 @@ export interface Utxo {
 	locked_until: number | null;
 }
 
-export enum RedeemStatusEnum {
-	Pending = "pending",
-	Proposed = "proposed",
-	Signing = "signing",
-	Signed = "signed",
-}
-
-export type RedeemRequestStatus = RedeemStatusEnum | BitcoinTxStatus;
-// NOTE: In case of key conflicts, BitcoinTxStatus takes precedence because it is spread last.
-export const RedeemRequestStatus = { ...RedeemStatusEnum, ...BitcoinTxStatus };
-
 export interface RedeemRequest {
 	redeem_id: number; // redeem ID created by the smart contract index (u64)
 	setup_id: number;
@@ -42,19 +35,9 @@ export interface RedeemRequest {
 	created_at: number;
 	nbtc_pkg: string;
 	nbtc_contract: string;
+	lc_pkg: string;
+	lc_contract: string;
 	sui_network: SuiNet;
-}
-
-// response interface for redeem requests rpc
-export interface RedeemRequestResp {
-	redeem_id: number;
-	recipient_script: string;
-	amount: number;
-	status: RedeemRequestStatus;
-	created_at: number;
-	sui_tx: string; // sui tx initiating the redeem process
-	btc_tx: string | null; // null if not broadcasted
-	confirmations: number; // 0 if not broadcasted
 }
 
 export interface UtxoIngestData {
@@ -89,14 +72,6 @@ export interface MintEventRaw {
 	btc_tx_id: string;
 	btc_vout: number; // u32
 	btc_amount: string;
-}
-
-export interface RedeemRequestEventRaw {
-	redeem_id: string;
-	redeemer: string;
-	recipient_script: string;
-	amount: string;
-	created_at: string;
 }
 
 export interface ProposeUtxoEventRaw {
@@ -139,7 +114,6 @@ export interface PkgCfg {
 export interface ProposeRedeemCall {
 	redeemId: number;
 	utxoIds: number[];
-	dwalletIds: string[];
 	nbtcPkg: string;
 	nbtcContract: string;
 }
@@ -148,6 +122,16 @@ export interface SolveRedeemCall {
 	redeemId: number;
 	nbtcPkg: string;
 	nbtcContract: string;
+}
+
+export interface FinalizeRedeemCall {
+	redeemId: number;
+	proof: string[]; // hex encoded
+	height: number;
+	txIndex: number;
+	nbtcPkg: string;
+	nbtcContract: string;
+	lcContract: string;
 }
 
 export interface IkaCursorUpdate {

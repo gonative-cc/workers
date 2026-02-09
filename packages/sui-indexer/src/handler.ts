@@ -2,7 +2,6 @@ import { D1Storage } from "./storage";
 import {
 	type MintEventRaw,
 	type ProposeUtxoEventRaw,
-	type RedeemRequestEventRaw,
 	type SolvedEventRaw,
 	type SignatureRecordedEventRaw,
 	type CompletedSignEventRaw,
@@ -10,6 +9,7 @@ import {
 	type SuiEventNode,
 	UtxoStatus,
 } from "./models";
+import { type RedeemRequestEventRaw } from "@gonative-cc/lib/rpc-types";
 import { logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 import type { SuiClient } from "./redeem-sui-client";

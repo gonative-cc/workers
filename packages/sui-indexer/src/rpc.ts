@@ -3,8 +3,17 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import { fromBase64 } from "@mysten/sui/utils";
 
 import { D1Storage } from "./storage";
-import type { RedeemRequestEventRaw, RedeemRequestResp } from "./models";
+import type {
+	ConfirmingRedeemReq,
+	RedeemRequestEventRaw,
+	RedeemRequestResp,
+	FinalizeRedeemTx,
+} from "@gonative-cc/lib/rpc-types";
+import { RedeemRequestStatus } from "@gonative-cc/lib/rpc-types";
+import type { RedeemRequest } from "./models";
 import type { SuiIndexerRpc } from "./rpc-interface";
+import { createSuiClients } from "./redeem-sui-client";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 /**
  * RPC entrypoint for the worker.
@@ -13,11 +22,112 @@ import type { SuiIndexerRpc } from "./rpc-interface";
  */
 export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	/**
-	 * Once BTC withdraw for the Redeem Request is confirmed and finalzed, this method
+	 * Once BTC withdraw for the Redeem Request is confirmed and finalized, this method
 	 * will update the DB state and remove related UTXOs.
 	 */
-	async finalizeRedeem(): Promise<void> {
-		return;
+	async finalizeRedeems(requests: FinalizeRedeemTx[]): Promise<void> {
+		if (requests.length === 0) return;
+
+		const storage = new D1Storage(this.env.DB);
+		const mnemonic = await this.env.NBTC_MINTING_SIGNER_MNEMONIC.get();
+		if (!mnemonic) {
+			throw new Error("NBTC_MINTING_SIGNER_MNEMONIC not set");
+		}
+
+		const { redeemsById, networks } = await this.fetchRedeemDetails(storage, requests);
+		if (networks.size === 0) return;
+
+		const clients = await createSuiClients(Array.from(networks), mnemonic);
+
+		for (const req of requests) {
+			const details = redeemsById.get(req.redeemId);
+			if (!details) continue;
+
+			const client = clients.get(details.sui_network);
+			if (!client) {
+				logger.error({
+					msg: "SuiClient not found for network",
+					network: details.sui_network,
+					redeemId: req.redeemId,
+				});
+				continue;
+			}
+
+			try {
+				const digest = await client.finalizeRedeem({
+					redeemId: req.redeemId,
+					proof: req.proof,
+					height: req.height,
+					txIndex: req.txIndex,
+					nbtcPkg: details.nbtc_pkg,
+					nbtcContract: details.nbtc_contract,
+					lcContract: details.lc_contract,
+				});
+
+				logger.info({
+					msg: "Redeem finalized on Sui",
+					redeemId: req.redeemId,
+					digest,
+				});
+
+				await storage.setRedeemFinalized(req.redeemId);
+			} catch (e) {
+				logError(
+					{
+						msg: "Failed to finalize redeem on Sui",
+						method: "finalizeRedeems",
+						redeemId: req.redeemId,
+					},
+					e,
+				);
+			}
+		}
+	}
+
+	private async fetchRedeemDetails(
+		storage: D1Storage,
+		requests: FinalizeRedeemTx[],
+	): Promise<{ redeemsById: Map<number, RedeemRequest>; networks: Set<SuiNet> }> {
+		// maps redeem id -> redeem req
+		const redeemsById = new Map<number, RedeemRequest>();
+		const networks = new Set<SuiNet>();
+
+		for (const req of requests) {
+			try {
+				const details = await storage.getRedeemWithSetup(req.redeemId);
+				if (details) {
+					redeemsById.set(req.redeemId, details);
+					networks.add(details.sui_network);
+				} else {
+					logger.error({ msg: "Redeem request not found", redeemId: req.redeemId });
+				}
+			} catch (e) {
+				logError(
+					{
+						msg: "DB error fetching redeem details",
+						method: "fetchRedeemDetails",
+						redeemId: req.redeemId,
+					},
+					e,
+				);
+			}
+		}
+		return { redeemsById, networks };
+	}
+
+	async updateRedeemStatus(redeemId: number, status: RedeemRequestStatus): Promise<void> {
+		const storage = new D1Storage(this.env.DB);
+		await storage.updateRedeemStatus(redeemId, status);
+	}
+
+	async updateRedeemStatuses(redeemIds: number[], status: RedeemRequestStatus): Promise<void> {
+		const storage = new D1Storage(this.env.DB);
+		await storage.updateRedeemStatuses(redeemIds, status);
+	}
+
+	async getConfirmingRedeems(network: string): Promise<ConfirmingRedeemReq[]> {
+		const storage = new D1Storage(this.env.DB);
+		return storage.getConfirmingRedeems(network);
 	}
 
 	async getBroadcastedRedeemTxIds(network: string): Promise<string[]> {

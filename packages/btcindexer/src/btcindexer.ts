@@ -16,6 +16,7 @@ import {
 	type FinalizeRedeemTx,
 } from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { isValidSuiAddress } from "@mysten/sui/utils";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import { SuiClient, type SuiClientI } from "./sui_client";
@@ -1307,10 +1308,13 @@ export function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 	const payload = script.subarray(2);
 
 	// Check simple transfer format: 1-byte flag (0x00)
-	// TODO: add validation for the sui address
 	if (payload[0] === 0x00) {
 		const addressBytes = payload.subarray(1);
-		return `0x${addressBytes.toString("hex")}`;
+		const address = `0x${addressBytes.toString("hex")}`;
+		if (!isValidSuiAddress(address)) {
+			return null;
+		}
+		return address;
 	}
 	//TODO: in the future we need to update the relayer to correctly handle the flag 0x01
 	// for now we cannot determine the recipient

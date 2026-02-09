@@ -807,9 +807,9 @@ describe("parseSuiRecipientFromOpReturn", () => {
 	});
 
 	it("should return null if payload flag is not 0x00", () => {
-		// this test will have to be udpated once we start supporting other flags
+		// this test will have to be updated once we start supporting other flags
 		const script = Buffer.concat([
-			Buffer.from([OP_RETURN, 34]),
+			Buffer.from([OP_RETURN, 33]),
 			Buffer.from([0x01]), // flag 0x01
 			Buffer.alloc(32, 0x01),
 		]);
@@ -818,7 +818,7 @@ describe("parseSuiRecipientFromOpReturn", () => {
 
 	it("should return null if address length is not 32 bytes", () => {
 		const script = Buffer.concat([
-			Buffer.from([OP_RETURN, 31]),
+			Buffer.from([OP_RETURN, 32]),
 			Buffer.from([0x00]),
 			Buffer.alloc(31, 0x01), // 31 bytes addr
 		]);

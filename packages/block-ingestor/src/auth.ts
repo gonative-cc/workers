@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { logError } from "@gonative-cc/lib/logger";
 
 /**
@@ -22,5 +23,12 @@ export async function isAuthorized(request: Request, env: Env): Promise<boolean>
 
 	const token = authHeader.trim().replace(/^Bearer\s+/i, "");
 	const secretValue = await env.RELAYER_AUTH_TOKEN.get();
-	return token === secretValue;
+
+	if (!secretValue || token.length !== secretValue.length) {
+		return false;
+	}
+
+	// we do that to prevent timing attacks
+	const encoder = new TextEncoder();
+	return timingSafeEqual(encoder.encode(token), encoder.encode(secretValue));
 }

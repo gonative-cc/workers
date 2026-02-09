@@ -5,7 +5,7 @@ export const RestPath = {
 };
 
 export enum ContentType {
-	MSG_PACK = "application/msgpack",
+	MSG_PACK = "application/vnd.msgpack",
 }
 
 export class BtcIndexerClient {

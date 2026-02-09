@@ -1,6 +1,6 @@
 import { Router } from "itty-router";
 import { PutBlocksReq } from "./api/put-blocks";
-import { isAuthorized } from "./auth";
+import { extractBearerToken, isAuthorized } from "@gonative-cc/lib/auth";
 import { handleIngestBlocks } from "./ingest";
 import { type BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { logError } from "@gonative-cc/lib/logger";
@@ -10,7 +10,8 @@ import { RestPath } from "./api/client";
 export const router = Router();
 
 router.put(RestPath.blocks, async (request, env: Env) => {
-	if (!(await isAuthorized(request, env))) {
+	const token = extractBearerToken(request.headers.get("Authorization"));
+	if (!isAuthorized(token, env.AUTH_BEARER_TOKEN)) {
 		return new Response("Unauthorized", { status: 401 });
 	}
 

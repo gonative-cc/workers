@@ -17,11 +17,9 @@ export function isAuthorized(headers: Headers, expectedSecret: string | undefine
 	}
 
 	const token = authHeader.substring(7);
-
 	if (token.length !== expectedSecret.length) {
 		return false;
 	}
-
 	// we do that to prevent timing attacks
 	const encoder = new TextEncoder();
 	return timingSafeEqual(encoder.encode(token), encoder.encode(expectedSecret));

@@ -40,7 +40,7 @@ describe("Bitcoin compliance", () => {
 		storage = new D1Storage(db);
 	});
 
-	afterEach(async () => dropTables(db));
+	afterEach(() => dropTables(db));
 
 	test("should detect sanctioned bitcoin addresses", async () => {
 		expect(await storage.isBtcBlocked([])).toBeFalse();

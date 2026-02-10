@@ -11,7 +11,7 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { processBlockBatch } from "./queue-handler";
-import { extractBearerToken, isAuthorized } from "@gonative-cc/lib/auth";
+import { isAuthorized } from "@gonative-cc/lib/auth";
 
 // Export RPC entrypoints for service bindings
 export { RPC } from "./rpc";
@@ -22,8 +22,7 @@ const router = new HttpRouter(undefined);
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		try {
-			const token = extractBearerToken(req.headers.get("Authorization"));
-			if (!isAuthorized(token, env.AUTH_BEARER_TOKEN)) {
+			if (!isAuthorized(req.headers, env.AUTH_BEARER_TOKEN)) {
 				return new Response("Unauthorized", { status: 401 });
 			}
 			const indexer = await indexerFromEnv(env);

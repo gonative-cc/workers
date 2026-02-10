@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { extractBearerToken, isAuthorized } from "@gonative-cc/lib/auth";
+import { isAuthorized } from "@gonative-cc/lib/auth";
 
 describe("block-ingestor auth helper", () => {
 	const env = {
@@ -11,8 +11,7 @@ describe("block-ingestor auth helper", () => {
 
 	it("should return false if no auth header", () => {
 		const request = new Request("http://localhost");
-		const token = extractBearerToken(request.headers.get("Authorization"));
-		expect(isAuthorized(token, env.AUTH_BEARER_TOKEN)).toBe(false);
+		expect(isAuthorized(request.headers, env.AUTH_BEARER_TOKEN)).toBe(false);
 	});
 
 	it("should return false if token mismatch", () => {
@@ -21,8 +20,7 @@ describe("block-ingestor auth helper", () => {
 				Authorization: "Bearer wrong-token",
 			},
 		});
-		const token = extractBearerToken(request.headers.get("Authorization"));
-		expect(isAuthorized(token, env.AUTH_BEARER_TOKEN)).toBe(false);
+		expect(isAuthorized(request.headers, env.AUTH_BEARER_TOKEN)).toBe(false);
 	});
 
 	it("should return true if token matches", () => {
@@ -31,8 +29,7 @@ describe("block-ingestor auth helper", () => {
 				Authorization: "Bearer test-token",
 			},
 		});
-		const token = extractBearerToken(request.headers.get("Authorization"));
-		expect(isAuthorized(token, env.AUTH_BEARER_TOKEN)).toBe(true);
+		expect(isAuthorized(request.headers, env.AUTH_BEARER_TOKEN)).toBe(true);
 	});
 
 	it("should return false if AUTH_BEARER_TOKEN is missing in env", () => {
@@ -46,7 +43,6 @@ describe("block-ingestor auth helper", () => {
 				Authorization: "Bearer test-token",
 			},
 		});
-		const token = extractBearerToken(request.headers.get("Authorization"));
-		expect(isAuthorized(token, envMissing.AUTH_BEARER_TOKEN)).toBe(false);
+		expect(isAuthorized(request.headers, envMissing.AUTH_BEARER_TOKEN)).toBe(false);
 	});
 });

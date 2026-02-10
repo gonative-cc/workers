@@ -10,8 +10,9 @@ import (
 )
 
 type Client struct {
-	baseUrl string
-	c       http.Client
+	baseUrl   string
+	authToken string
+	c         http.Client
 }
 
 const (
@@ -20,10 +21,11 @@ const (
 	pathDepositsBySender = "/bitcoin/deposits/"
 )
 
-func NewClient(workerUrl string) Client {
+func NewClient(workerUrl string, authToken string) Client {
 	return Client{
-		baseUrl: workerUrl,
-		c:       http.Client{Timeout: time.Second * 30},
+		baseUrl:   workerUrl,
+		authToken: authToken,
+		c:         http.Client{Timeout: time.Second * 30},
 	}
 }
 
@@ -38,6 +40,9 @@ func (c Client) PutBlocks(putBlocks PutBlocksReq) (*http.Response, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/msgpack")
+	if c.authToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.authToken))
+	}
 	return c.c.Do(req)
 }
 

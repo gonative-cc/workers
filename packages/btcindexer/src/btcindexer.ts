@@ -52,7 +52,6 @@ interface ConfirmingTxCandidate<T> {
 	id: string | number;
 	blockHeight: number;
 	blockHash: string;
-	network: BtcNet;
 	original: T;
 }
 
@@ -883,11 +882,13 @@ export class Indexer {
 		if (!pendingTxs || pendingTxs.length === 0) {
 			return;
 		}
-		const networks = new Set(pendingTxs.map((tx) => tx.btc_network));
 		const chainHeads = new Map<BtcNet, number>();
-		for (const net of networks) {
-			const head = await this.storage.getChainTip(net);
-			if (head !== null) chainHeads.set(net, head);
+		for (const tx of pendingTxs) {
+			const net = this.storage.btcNetwork(tx.setup_id);
+			if (!chainHeads.has(net)) {
+				const height = await this.storage.getChainTip(net);
+				if (height !== null) chainHeads.set(net, height);
+			}
 		}
 
 		logger.debug({
@@ -903,7 +904,6 @@ export class Indexer {
 					id: tx.tx_id,
 					blockHeight: tx.block_height,
 					blockHash: tx.block_hash,
-					network: tx.btc_network,
 					original: tx,
 				});
 			}
@@ -986,7 +986,6 @@ export class Indexer {
 				id: r.redeem_id,
 				blockHeight: r.btc_block_height,
 				blockHash: r.btc_block_hash,
-				network: btcNetFromString(r.btc_network),
 				original: r,
 			}),
 		);
@@ -1094,6 +1093,7 @@ export class Indexer {
 
 	// breaks down transactions past the "finality confirmations" into confirmed and reorged.
 	private async categorizeConfirmingTxs<T>(
+		net: BtcNet,
 		txs: ConfirmingTxCandidate<T>[],
 		chainHeads: Map<BtcNet, number>, // number is the latest block height (chain tip)
 	): Promise<{ reorged: ConfirmingTxCandidate<T>[]; finalized: ConfirmingTxCandidate<T>[] }> {
@@ -1165,25 +1165,27 @@ export class Indexer {
 
 	// queries NbtcTxResp by BTC Tx ID
 	async getNbtcMintTx(txid: string): Promise<NbtcTxResp | null> {
-		const nbtMintRow = await this.storage.getNbtcMintTx(txid);
-		if (!nbtMintRow) return null;
+		const n = await this.storage.getNbtcMintTx(txid);
+		if (!n) return null;
 
-		const latestHeight = await this.storage.getChainTip(nbtMintRow.btc_network);
+		const latestHeight = await this.storage.getChainTip(this.storage.btcNetwork(n.setup_id));
 
-		return nbtcRowToResp(nbtMintRow, latestHeight);
+		return nbtcRowToResp(n, latestHeight);
 	}
 
+	// TODO: should be queried by network or setup_id as well!
 	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxResp[]> {
-		const dbResult = await this.storage.getNbtcMintTxsBySuiAddr(suiAddress);
-
-		const networks = new Set(dbResult.map((tx) => tx.btc_network));
-		const chainTips = new Map<string, number | null>();
-		for (const net of networks) {
-			chainTips.set(net, await this.storage.getChainTip(net));
+		const nbtcTxs = await this.storage.getNbtcMintTxsBySuiAddr(suiAddress);
+		const chainHeads = new Map<string, number | null>();
+		for (const tx of nbtcTxs) {
+			const net = this.storage.btcNetwork(tx.setup_id);
+			if (!chainHeads.has(net)) {
+				chainHeads.set(net, await this.storage.getChainTip(net));
+			}
 		}
 
-		return dbResult.map((tx): NbtcTxResp => {
-			const latestHeight = chainTips.get(tx.btc_network) ?? null;
+		return nbtcTxs.map((tx): NbtcTxResp => {
+			const latestHeight = chainHeads.get(this.storage.btcNetwork(tx.setup_id)) ?? null;
 			return nbtcRowToResp(tx, latestHeight);
 		});
 	}

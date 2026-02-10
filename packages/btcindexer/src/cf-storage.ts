@@ -27,8 +27,12 @@ export class CFStorage implements Storage {
 		this.activeSetups = getActiveSetups(setupEnv);
 	}
 
-	btcNetwork(setupId: number): BtcNet | undefined {
-		return this.activeSetups[setupId]?.btc_network;
+	// throws exception if setupId is wrong
+	btcNetwork(setupId: number): BtcNet {
+		const s = this.activeSetups[setupId];
+		if (s === undefined) throw new Error("setup_id not found: " + setupId);
+
+		return s.btc_network;
 	}
 
 	async getDepositAddresses(btcNetwork: BtcNet): Promise<string[]> {

@@ -141,20 +141,30 @@ export class IkaEventHandler {
 			txDigest: e.txDigest,
 		});
 
-		await this.suiClient.validateSignatures(
-			redeemInfo.redeem_id,
-			[{ input_index: redeemInfo.input_index, sign_id: signId }],
-			redeemInfo.nbtc_pkg,
-			redeemInfo.nbtc_contract,
-		);
-		await this.storage.markRedeemInputVerified(redeemInfo.redeem_id, redeemInfo.utxo_id);
+		try {
+			await this.suiClient.validateSignatures(
+				redeemInfo.redeem_id,
+				[{ input_index: redeemInfo.input_index, sign_id: signId }],
+				redeemInfo.nbtc_pkg,
+				redeemInfo.nbtc_contract,
+			);
+			await this.storage.markRedeemInputVerified(redeemInfo.redeem_id, redeemInfo.utxo_id);
 
-		logger.info({
-			msg: "Recorded Ika signature",
-			redeem_id: redeemInfo.redeem_id,
-			utxo_id: redeemInfo.utxo_id,
-			sign_id: signId,
-		});
+			logger.info({
+				msg: "Recorded Ika signature",
+				redeem_id: redeemInfo.redeem_id,
+				utxo_id: redeemInfo.utxo_id,
+				sign_id: signId,
+			});
+		} catch (err) {
+			logger.warn({
+				msg: "Failed to validate Ika signature, will be handled by SignatureRecordedEvent",
+				sign_id: signId,
+				redeem_id: redeemInfo.redeem_id,
+				utxo_id: redeemInfo.utxo_id,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
 	}
 
 	private async handleRejectedSign(e: SuiEventNode) {

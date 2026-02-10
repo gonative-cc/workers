@@ -114,18 +114,9 @@ CREATE INDEX IF NOT EXISTS nbtc_redeem_solutions_redeem_id ON nbtc_redeem_soluti
 CREATE TABLE IF NOT EXISTS indexer_state (
 	setup_id INTEGER PRIMARY KEY,
 	nbtc_cursor TEXT NOT NULL, -- last processed cursor state
+	ika_cursor TEXT, -- IKA coordinator cursor 
 	updated_at INTEGER, -- epoch time in ms
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
-) STRICT;
-
--- IKA coordinator is global per network (not per-setup), so we key by sui_network.
--- If we deploy a custom coordinator, it'll have a different coordinator_pkg_id and get its own cursor.
-CREATE TABLE IF NOT EXISTS ika_state(
-	sui_network TEXT NOT NULL,
-	coordinator_pkg_id TEXT NOT NULL,
-	ika_cursor TEXT NOT NULL, -- last processed cursor state
-	updated_at INTEGER, -- epoch time in ms
-	PRIMARY KEY (sui_network, coordinator_pkg_id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS presign_objects (

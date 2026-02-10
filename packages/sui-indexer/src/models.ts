@@ -134,12 +134,6 @@ export interface FinalizeRedeemCall {
 	lcContract: string;
 }
 
-export interface IkaCursorUpdate {
-	coordinatorPkgId: string;
-	suiNetwork: SuiNet;
-	cursor: string;
-}
-
 export type CompletedSignEventRaw = typeof CoordinatorInnerModule.CompletedSignEvent.$inferInput;
 export type RejectedSignEventRaw = typeof CoordinatorInnerModule.RejectedSignEvent.$inferInput;
 

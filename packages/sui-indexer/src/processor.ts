@@ -1,4 +1,4 @@
-import type { NetworkConfig, PkgCfg, IkaCursorUpdate } from "./models";
+import type { NetworkConfig, PkgCfg } from "./models";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
 import { NbtcEventHandler, IkaEventHandler } from "./handler";
@@ -105,7 +105,7 @@ export class Processor {
 
 				const results = await this.eventFetcher.fetchEvents(packages);
 
-				const cursorsToSave: IkaCursorUpdate[] = [];
+				const cursorsToSave: { ikaPkg: string; cursor: string }[] = [];
 				hasNextPage = false;
 
 				for (const pkgId of coordinatorPkgIds) {
@@ -123,12 +123,18 @@ export class Processor {
 					if (result.events.length > 0 && this.suiClient) {
 						const handler = new IkaEventHandler(this.storage, this.suiClient);
 						await handler.handleEvents(result.events);
+					} else if (result.events.length > 0 && !this.suiClient) {
+						logger.warn({
+							msg: "Skipping IKA events: suiClient not initialized",
+							network: this.netCfg.name,
+							coordinatorPkgId: pkgId,
+							eventsLength: result.events.length,
+						});
 					}
 
 					if (result.endCursor && result.endCursor !== cursors[pkgId]) {
 						cursorsToSave.push({
-							coordinatorPkgId: pkgId,
-							suiNetwork: this.netCfg.name,
+							ikaPkg: pkgId,
 							cursor: result.endCursor,
 						});
 						cursors[pkgId] = result.endCursor;
@@ -140,7 +146,7 @@ export class Processor {
 				}
 
 				if (cursorsToSave.length > 0) {
-					await this.storage.saveIkaCursors(cursorsToSave);
+					await this.storage.saveIkaCursors(this.netCfg.name, cursorsToSave);
 				}
 			}
 		} catch (e) {

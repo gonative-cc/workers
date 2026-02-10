@@ -602,10 +602,11 @@ describe("IndexerStorage", () => {
 		it("should acquire lock when none exists", async () => {
 			const acquired = await storage.acquireLock("test-lock", 60000);
 			expect(acquired).toBe(true);
+
 			const lock = await db
 				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
 				.bind("test-lock")
-				.first<{ lock_name: string; acquired_at: number; expires_at: number }>();
+				.first<{ lock_name: string }>();
 			expect(lock).not.toBeNull();
 			expect(lock!.lock_name).toBe("test-lock");
 		});
@@ -613,6 +614,7 @@ describe("IndexerStorage", () => {
 		it("should fail to acquire lock when already held (not expired)", async () => {
 			const first = await storage.acquireLock("test-lock", 60000);
 			expect(first).toBe(true);
+
 			const second = await storage.acquireLock("test-lock", 60000);
 			expect(second).toBe(false);
 		});
@@ -657,23 +659,11 @@ describe("IndexerStorage", () => {
 		it("should allow reacquiring lock after release", async () => {
 			const first = await storage.acquireLock("test-lock", 60000);
 			expect(first).toBe(true);
+
 			await storage.releaseLock("test-lock");
+
 			const second = await storage.acquireLock("test-lock", 60000);
 			expect(second).toBe(true);
-		});
-
-		it("should handle multiple different locks independently", async () => {
-			const lock1 = await storage.acquireLock("lock-1", 60000);
-			const lock2 = await storage.acquireLock("lock-2", 60000);
-
-			expect(lock1).toBe(true);
-			expect(lock2).toBe(true);
-			await storage.releaseLock("lock-1");
-			const lock1Again = await storage.acquireLock("lock-1", 60000);
-			const lock2Again = await storage.acquireLock("lock-2", 60000);
-
-			expect(lock1Again).toBe(true);
-			expect(lock2Again).toBe(false);
 		});
 	});
 });

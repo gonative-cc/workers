@@ -790,13 +790,14 @@ export class D1Storage {
 					 VALUES (?, ?, ?)
 					 ON CONFLICT(lock_name) DO UPDATE
 					 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
-					 WHERE cron_locks.expires_at < excluded.acquired_at
+					 WHERE cron_locks.expires_at <= excluded.acquired_at
 					 RETURNING 1`,
 				)
 				.bind(lockName, now, now + ttlMs)
 				.first();
 			return !!result;
-		} catch {
+		} catch (error) {
+			logError({ msg: "Failed to acquire lock", method: "acquireLock", lockName }, error);
 			return false;
 		}
 	}

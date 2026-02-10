@@ -35,6 +35,11 @@ Workers are based on the Cloudflare Workers framework.
   - Proposes appropriate UTXO sets for withdrawal transactions
   - Coordinates with BTCIndexer for consistent state
 
+#### [Compliance](./packages/compliance/)
+
+- Updates sanctions and geo-location data.
+- Providing API to block specific addresses or queries.
+
 #### [Shared Library](./packages/lib/) (`lib`)
 
 - Provides shared functions, types, and configurations

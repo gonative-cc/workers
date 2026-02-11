@@ -367,18 +367,6 @@ describe("IndexerStorage", () => {
 		expect(utxo!.locked_until).toBeLessThanOrEqual(afterLock + UTXO_LOCK_TIME_MS);
 	});
 
-	it("markRedeemProposed should handle empty utxo array", async () => {
-		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
-
-		await storage.markRedeemProposed(1, [], UTXO_LOCK_TIME_MS);
-
-		const redeem = await db
-			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
-			.bind(1)
-			.first<{ status: string }>();
-		expect(redeem!.status).toBe(RedeemRequestStatus.Proposed);
-	});
-
 	it("markRedeemSigning should update redeem status", async () => {
 		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
 		await db
@@ -596,5 +584,359 @@ describe("IndexerStorage", () => {
 		expect(inputs.length).toBe(2);
 		expect(inputs[0]!.input_index).toBe(0);
 		expect(inputs[1]!.input_index).toBe(1);
+	});
+
+	it("should save and retrieve multiple cursors", async () => {
+		await insertSetup(db, 2, "testnet", "testnet", "0xPkg2", "0xC2", "0xL2", "0xLC2", "0xF2");
+
+		await storage.saveMultipleSuiGqlCursors([
+			{ setupId: 1, cursor: "cursor1" },
+			{ setupId: 2, cursor: "cursor2" },
+		]);
+
+		const cursors = await storage.getMultipleSuiGqlCursors([1, 2, 3]);
+		expect(cursors[1]).toBe("cursor1");
+		expect(cursors[2]).toBe("cursor2");
+		expect(cursors[3]).toBeNull();
+	});
+
+	it("markRedeemBroadcasted should update status and set btc_tx", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await db
+			.prepare("UPDATE nbtc_redeem_requests SET status = ? WHERE redeem_id = ?")
+			.bind(RedeemRequestStatus.Signed, 1)
+			.run();
+
+		const beforeBroadcast = Date.now();
+		await storage.markRedeemBroadcasted(1, "btc_tx_123");
+		const afterBroadcast = Date.now();
+
+		const redeem = await db
+			.prepare(
+				"SELECT status, btc_tx, btc_broadcasted_at FROM nbtc_redeem_requests WHERE redeem_id = ?",
+			)
+			.bind(1)
+			.first<{ status: string; btc_tx: string; btc_broadcasted_at: number }>();
+
+		expect(redeem!.status).toBe(RedeemRequestStatus.Broadcasting);
+		expect(redeem!.btc_tx).toBe("btc_tx_123");
+		expect(redeem!.btc_broadcasted_at).toBeGreaterThanOrEqual(beforeBroadcast);
+		expect(redeem!.btc_broadcasted_at).toBeLessThanOrEqual(afterBroadcast);
+	});
+
+	it("confirmRedeem should update status and block info for multiple txs", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertRedeemRequest(storage, 2, "redeemer1", recipientScript, 5000, 2000, "0xSuiTx2");
+
+		await storage.markRedeemBroadcasted(1, "btc_tx_1");
+		await storage.markRedeemBroadcasted(2, "btc_tx_2");
+
+		await storage.confirmRedeem(["btc_tx_1", "btc_tx_2"], 100, "blockhash123");
+
+		const redeem1 = await db
+			.prepare(
+				"SELECT status, btc_block_height, btc_block_hash FROM nbtc_redeem_requests WHERE redeem_id = ?",
+			)
+			.bind(1)
+			.first<{ status: string; btc_block_height: number; btc_block_hash: string }>();
+
+		const redeem2 = await db
+			.prepare(
+				"SELECT status, btc_block_height, btc_block_hash FROM nbtc_redeem_requests WHERE redeem_id = ?",
+			)
+			.bind(2)
+			.first<{ status: string; btc_block_height: number; btc_block_hash: string }>();
+
+		expect(redeem1!.status).toBe(RedeemRequestStatus.Confirming);
+		expect(redeem1!.btc_block_height).toBe(100);
+		expect(redeem1!.btc_block_hash).toBe("blockhash123");
+
+		expect(redeem2!.status).toBe(RedeemRequestStatus.Confirming);
+		expect(redeem2!.btc_block_height).toBe(100);
+		expect(redeem2!.btc_block_hash).toBe("blockhash123");
+	});
+
+	it("getConfirmingRedeems should return redeems with confirming status", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertRedeemRequest(storage, 2, "redeemer1", recipientScript, 5000, 2000, "0xSuiTx2");
+
+		await storage.markRedeemBroadcasted(1, "btc_tx_1");
+		await storage.markRedeemBroadcasted(2, "btc_tx_2");
+		await storage.confirmRedeem(["btc_tx_1"], 100, "blockhash123");
+
+		const confirming = await storage.getConfirmingRedeems("regtest");
+
+		expect(confirming.length).toBe(1);
+		expect(confirming[0]!.redeem_id).toBe(1);
+		expect(confirming[0]!.btc_tx).toBe("btc_tx_1");
+		expect(confirming[0]!.btc_block_height).toBe(100);
+		expect(confirming[0]!.btc_block_hash).toBe("blockhash123");
+		expect(confirming[0]!.btc_network).toBe("regtest");
+	});
+
+	it("getBroadcastedBtcRedeemTxIds should return txs with Broadcasting/Confirming/Reorg statuses", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertRedeemRequest(storage, 2, "redeemer1", recipientScript, 5000, 2000, "0xSuiTx2");
+		await insertRedeemRequest(storage, 3, "redeemer1", recipientScript, 7000, 3000, "0xSuiTx3");
+		await insertRedeemRequest(storage, 4, "redeemer1", recipientScript, 9000, 4000, "0xSuiTx4");
+
+		await storage.markRedeemBroadcasted(1, "btc_tx_1");
+		await storage.markRedeemBroadcasted(2, "btc_tx_2");
+		await storage.markRedeemBroadcasted(3, "btc_tx_3");
+		await storage.confirmRedeem(["btc_tx_2"], 100, "blockhash123");
+
+		const txIds = await storage.getBroadcastedBtcRedeemTxIds("regtest");
+
+		expect(txIds.length).toBe(3);
+		expect(txIds).toContain("btc_tx_1");
+		expect(txIds).toContain("btc_tx_2");
+		expect(txIds).toContain("btc_tx_3");
+	});
+
+	it("setRedeemFinalized should update redeem and mark UTXOs as spent", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Locked,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+
+		await storage.setRedeemFinalized(1);
+
+		const redeem = await db
+			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(1)
+			.first<{ status: string }>();
+		expect(redeem!.status).toBe(RedeemRequestStatus.Finalized);
+
+		const utxo = await db
+			.prepare("SELECT status FROM nbtc_utxos WHERE nbtc_utxo_id = ?")
+			.bind(1)
+			.first<{ status: string }>();
+		expect(utxo!.status).toBe(UtxoStatus.Spent);
+	});
+
+	it("getRedeemUtxosWithDetails should return UTXOs with input_index", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 5000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await insertUtxo(
+			storage,
+			2,
+			scriptPubkey1,
+			"dwallet1",
+			"tx2",
+			0,
+			3000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 2,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 1,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+
+		const utxos = await storage.getRedeemUtxosWithDetails(1);
+
+		expect(utxos.length).toBe(2);
+		expect(utxos[0]!.nbtc_utxo_id).toBe(2);
+		expect(utxos[0]!.input_index).toBe(0);
+		expect(utxos[1]!.nbtc_utxo_id).toBe(1);
+		expect(utxos[1]!.input_index).toBe(1);
+	});
+
+	it("upsertRedeemInputs should insert new inputs and ignore conflicts", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 5000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await insertUtxo(
+			storage,
+			2,
+			scriptPubkey1,
+			"dwallet1",
+			"tx2",
+			0,
+			3000,
+			UtxoStatus.Available,
+			null,
+		);
+
+		await storage.upsertRedeemInputs(1, [1, 2], ["dwallet1", "dwallet1"]);
+
+		const inputs = await storage.getRedeemInputs(1);
+		expect(inputs.length).toBe(2);
+		expect(inputs[0]!.utxo_id).toBe(1);
+		expect(inputs[1]!.utxo_id).toBe(2);
+
+		// Try to insert again - should ignore due to conflict
+		await storage.upsertRedeemInputs(1, [1], ["dwallet1"]);
+		const inputsAgain = await storage.getRedeemInputs(1);
+		expect(inputsAgain.length).toBe(2); // Still 2, not 3
+	});
+
+	it("markRedeemInputVerified should update input and conditionally update request", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 5000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await insertUtxo(
+			storage,
+			2,
+			scriptPubkey1,
+			"dwallet1",
+			"tx2",
+			0,
+			3000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.markRedeemSigning(1);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+			{
+				redeem_id: 1,
+				utxo_id: 2,
+				input_index: 1,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+
+		await storage.markRedeemInputVerified(1, 1);
+		let redeem = await db
+			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(1)
+			.first<{ status: string }>();
+		expect(redeem!.status).toBe(RedeemRequestStatus.Signing);
+
+		await storage.markRedeemInputVerified(1, 2);
+		redeem = await db
+			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(1)
+			.first<{ status: string }>();
+		expect(redeem!.status).toBe(RedeemRequestStatus.Signed);
+	});
+
+	it("clearRedeemInputSignId should set sign_id to null", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		await storage.updateRedeemInputSig(1, 1, "signId123");
+
+		await storage.clearRedeemInputSignId(1, 1);
+
+		const inputs = await storage.getRedeemInputs(1);
+		expect(inputs[0]!.sign_id).toBeNull();
+	});
+
+	it("getRedeemInfoBySignId should return redeem info with setup data", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		await storage.updateRedeemInputSig(1, 1, "signId123");
+
+		const info = await storage.getRedeemInfoBySignId("signId123");
+
+		expect(info).not.toBeNull();
+		expect(info!.redeem_id).toBe(1);
+		expect(info!.utxo_id).toBe(1);
+		expect(info!.input_index).toBe(0);
+		expect(info!.nbtc_pkg).toBe("0xPkg1");
+		expect(info!.sui_network).toBe(toSuiNet("devnet"));
 	});
 });

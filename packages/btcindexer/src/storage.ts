@@ -14,7 +14,7 @@ import type {
 } from "./models";
 import { D1Database } from "@cloudflare/workers-types";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
-import { toSuiNet } from "@gonative-cc/lib/nsui";
+import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 
 export interface Storage {
 	// Block operations
@@ -31,9 +31,9 @@ export interface Storage {
 	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;
 
 	getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]>;
-	getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]>;
-	getTxStatus(txId: string): Promise<MintTxStatus | null>;
-	getReorgedMintedTxs(blockHeight: number): Promise<ReorgedMintedTx[]>;
+	getMintedTxs(blockHeight: number, btcNet: BtcNet, suiNet: SuiNet): Promise<FinalizedTxRow[]>;
+	getTxStatus(txId: string, btcNet: BtcNet): Promise<MintTxStatus | null>;
+	getReorgedMintedTxs(blockHeight: number, btcNet: BtcNet): Promise<ReorgedMintedTx[]>;
 	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
 	batchUpdateNbtcMintTxs(updates: NbtcTxUpdate[]): Promise<void>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;

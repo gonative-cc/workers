@@ -547,9 +547,9 @@ describe("Indexer.detectMintedReorgs", () => {
 			.bind(blockData.hash, blockData.height, BtcNet.REGTEST, Date.now(), 1)
 			.run();
 
-		await indexer.detectMintedReorgs(blockData.height);
+		await indexer.detectMintedReorgs(blockData.height, BtcNet.REGTEST);
 
-		const status = await indexer.storage.getTxStatus(txData.id);
+		const status = await indexer.storage.getTxStatus(txData.id, BtcNet.REGTEST);
 		expect(status).toEqual(MintTxStatus.Minted);
 	});
 });
@@ -590,7 +590,7 @@ describe("Indexer.processBlock", () => {
 		await suite.setupBlock(327);
 		await indexer.processBlock(reorgBlockInfo);
 
-		const status = await indexer.storage.getTxStatus(txData.id);
+		const status = await indexer.storage.getTxStatus(txData.id, BtcNet.REGTEST);
 		expect(status).toEqual(MintTxStatus.MintedReorg);
 	});
 });

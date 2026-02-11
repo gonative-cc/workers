@@ -245,7 +245,7 @@ export class Indexer {
 				hash: blockInfo.hash,
 				status: result,
 			});
-			await this.detectMintedReorgs(blockInfo.height);
+			await this.detectMintedReorgs(blockInfo.height, blockInfo.network);
 		}
 		return true;
 	}
@@ -555,11 +555,14 @@ export class Indexer {
 				for (const txRow of txs) {
 					try {
 						const txId = txRow.tx_id;
+						const setupId = txRow.setup_id;
+						const config = this.getPackageConfig(setupId);
+
 						const transactions = block.transactions;
 						const txIndex = transactions?.findIndex((t) => t.getId() === txId) ?? -1;
 
 						if (txIndex < 0 || !transactions) {
-							await this.handleMissingFinalizedMintingTx(txId);
+							await this.handleMissingFinalizedMintingTx(txId, config.btc_network);
 							continue;
 						}
 						const targetTx = transactions[txIndex];
@@ -571,9 +574,6 @@ export class Indexer {
 						if (!proof) {
 							throw new Error("Proof generation failed (returned null or undefined)");
 						}
-
-						const setupId = txRow.setup_id;
-						const config = this.getPackageConfig(setupId);
 
 						let batch = batches.get(setupId);
 						if (!batch) {
@@ -656,14 +656,14 @@ export class Indexer {
 	}
 
 	// Marks a transaction as reorged if it is missing from its expected block.
-	private async handleMissingFinalizedMintingTx(txId: string): Promise<void> {
+	private async handleMissingFinalizedMintingTx(txId: string, btcNet: BtcNet): Promise<void> {
 		logger.error({
 			msg: "Minting: Could not find TX within its block. Detecting reorg.",
 			method: "handleMissingFinalizedMintingTx",
 			txId,
 		});
 		try {
-			const currentStatus = await this.storage.getTxStatus(txId);
+			const currentStatus = await this.storage.getTxStatus(txId, btcNet);
 			if (
 				currentStatus !== MintTxStatus.Finalized &&
 				currentStatus !== MintTxStatus.MintFailed
@@ -773,14 +773,14 @@ export class Indexer {
 		}
 	}
 
-	async detectMintedReorgs(blockHeight: number): Promise<void> {
+	async detectMintedReorgs(blockHeight: number, btcNet: BtcNet): Promise<void> {
 		logger.debug({
 			msg: "Checking for reorgs on minted transactions",
 			method: "detectMintedReorgs",
 			blockHeight,
 		});
 
-		const reorgedTxs = await this.storage.getReorgedMintedTxs(blockHeight);
+		const reorgedTxs = await this.storage.getReorgedMintedTxs(blockHeight, btcNet);
 		if (!reorgedTxs || reorgedTxs.length === 0) {
 			return;
 		}

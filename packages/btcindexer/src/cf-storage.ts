@@ -14,6 +14,7 @@ import type {
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import type { Storage } from "./storage";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;
@@ -239,23 +240,25 @@ export class CFStorage implements Storage {
 	}
 
 	// Returns all Bitcoin deposit transactions in or after the given block, that successfully minted nBTC.
-	//TODO: We need to query by network
-	async getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]> {
+	async getMintedTxs(
+		blockHeight: number,
+		btcNet: BtcNet,
+		suiNet: SuiNet,
+	): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network, p.id as setup_id
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				 JOIN setups p ON a.setup_id = p.id
-				 WHERE m.status = '${MintTxStatus.Minted}' AND m.block_height >= ?`,
+				 WHERE m.status = '${MintTxStatus.Minted}' AND m.block_height >= ? AND p.btc_network = ? AND p.sui_network = ?`,
 			)
-			.bind(blockHeight)
+			.bind(blockHeight, btcNet, suiNet)
 			.all<FinalizedTxRow>();
 		return txs.results ?? [];
 	}
 
-	//TODO: We need to query by network
-	async getReorgedMintedTxs(blockHeight: number): Promise<ReorgedMintedTx[]> {
+	async getReorgedMintedTxs(blockHeight: number, btcNet: BtcNet): Promise<ReorgedMintedTx[]> {
 		const reorged = await this.d1
 			.prepare(
 				`SELECT
@@ -264,23 +267,29 @@ export class CFStorage implements Storage {
 					b.hash as new_block_hash,
 					m.block_height
 				FROM nbtc_minting m
-				INNER JOIN btc_blocks b ON m.block_height = b.height
+				INNER JOIN btc_blocks b ON m.block_height = b.height AND b.network = ?
 				JOIN nbtc_deposit_addresses a ON m.address_id = a.id
 				JOIN setups p ON a.setup_id = p.id AND p.btc_network = b.network
 				WHERE m.status = '${MintTxStatus.Minted}'
 					AND m.block_height >= ?
 					AND m.block_hash != b.hash`,
 			)
-			.bind(blockHeight)
+			.bind(btcNet, blockHeight)
 			.all<ReorgedMintedTx>();
 		return reorged.results ?? [];
 	}
 
-	//TODO: We need to query by network
-	async getTxStatus(txId: string): Promise<MintTxStatus | null> {
+	async getTxStatus(txId: string, btcNet: BtcNet): Promise<MintTxStatus | null> {
 		const result = await this.d1
-			.prepare(`SELECT status FROM nbtc_minting WHERE tx_id = ? LIMIT 1`)
-			.bind(txId)
+			.prepare(
+				`SELECT m.status
+				 FROM nbtc_minting m
+				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
+				 JOIN setups p ON a.setup_id = p.id
+				 WHERE m.tx_id = ? AND p.btc_network = ?
+				 LIMIT 1`,
+			)
+			.bind(txId, btcNet)
 			.first<{ status: MintTxStatus }>();
 		return result?.status ?? null;
 	}

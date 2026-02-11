@@ -16,6 +16,7 @@ import {
 	type FinalizeRedeemTx,
 } from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { getSecret } from "@gonative-cc/lib/secrets";
 import { isValidSuiAddress } from "@mysten/sui/utils";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
@@ -73,7 +74,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid MAX_NBTC_MINT_TX_RETRIES in config. Must be a number >= 0.");
 	}
 
-	const mnemonic = await env.NBTC_MINTING_SIGNER_MNEMONIC.get();
+	const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
 	const suiClients = new Map<SuiNet, SuiClient>();
 	for (const p of packageConfigs) {
 		if (!suiClients.has(p.sui_network))

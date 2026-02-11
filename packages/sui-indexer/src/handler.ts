@@ -124,10 +124,17 @@ export class IkaEventHandler {
 
 	private async handleCompletedSign(e: SuiEventNode) {
 		const data = e.json as CompletedSignEventRaw;
-		const signId = data.sign_id as string;
+		if (typeof data.sign_id !== "string") {
+			logger.error({
+				msg: "Unexpected sign_id type in CompletedSignEvent",
+				type: typeof data.sign_id,
+			});
+			return;
+		}
+		const signId = data.sign_id;
 
 		// IKA coordinator is shared across protocols, so we only process sign IDs that match our redeems.
-		// The final signature is recorded via SignatureRecordedEvent from nbtc.move (handled above).
+		// The final signature is recorded via SignatureRecordedEvent from nbtc.move (handled in NbtcEventHandler).
 		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
 		if (!redeemInfo) {
 			return;
@@ -137,7 +144,6 @@ export class IkaEventHandler {
 			msg: "Ika signature completed",
 			sign_id: signId,
 			is_future_sign: data.is_future_sign,
-			signature_length: data.signature.length,
 			txDigest: e.txDigest,
 		});
 
@@ -169,7 +175,14 @@ export class IkaEventHandler {
 
 	private async handleRejectedSign(e: SuiEventNode) {
 		const data = e.json as RejectedSignEventRaw;
-		const signId = data.sign_id as string;
+		if (typeof data.sign_id !== "string") {
+			logger.error({
+				msg: "Unexpected sign_id type in RejectedSignEvent",
+				type: typeof data.sign_id,
+			});
+			return;
+		}
+		const signId = data.sign_id;
 		const redeemInfo = await this.storage.getRedeemInfoBySignId(signId);
 		if (!redeemInfo) {
 			return;

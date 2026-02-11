@@ -1,23 +1,15 @@
-import { logger } from "./logger";
-
 interface SecretStore {
 	get(): Promise<string>;
 }
 
 /**
- * Retrieves the mnemonic from the secrets store with proper error handling.
- * Returns the mnemonic string or null if not found/failed.
+ * Retrieves a secret from the secrets store.
+ * Throws if the secret is not found or retrieval fails.
  */
-export async function getMnemonic(secret: SecretStore): Promise<string | null> {
-	try {
-		const mnemonic = await secret.get();
-		if (!mnemonic) {
-			logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
-			return null;
-		}
-		return mnemonic;
-	} catch (error) {
-		logger.error({ msg: "Failed to retrieve NBTC_MINTING_SIGNER_MNEMONIC", error });
-		return null;
+export async function getSecret(secret: SecretStore): Promise<string> {
+	const value = await secret.get();
+	if (!value) {
+		throw new Error("Secret not found in store");
 	}
+	return value;
 }

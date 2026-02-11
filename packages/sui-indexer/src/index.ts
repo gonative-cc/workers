@@ -4,7 +4,7 @@ import type { NetworkConfig } from "./models";
 import { Processor } from "./processor";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
-import { getMnemonic } from "@gonative-cc/lib/secrets";
+import { getSecret } from "@gonative-cc/lib/secrets";
 import { RedeemService } from "./redeem-service";
 import { createSuiClients, type SuiClient } from "./redeem-sui-client";
 import type { Service } from "@cloudflare/workers-types";
@@ -27,8 +27,7 @@ export default {
 		const storage = new D1Storage(env.DB);
 		const activeNetworks = await storage.getActiveNetworks();
 
-		const mnemonic = await getMnemonic(env.NBTC_MINTING_SIGNER_MNEMONIC);
-		if (!mnemonic) return;
+		const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
 		const suiClients = await createSuiClients(activeNetworks, mnemonic);
 
 		// Run both indexer and redeem solver tasks in parallel
@@ -88,8 +87,12 @@ async function poolAndProcessEvents(
 	storage: D1Storage,
 	suiClients: Map<SuiNet, SuiClient>,
 ) {
-	const client = new SuiGraphQLClient(netCfg.url);
 	const suiClient = suiClients.get(netCfg.name);
+	if (!suiClient) {
+		logger.warn({ msg: "No SuiClient for network, skipping", network: netCfg.name });
+		return;
+	}
+	const client = new SuiGraphQLClient(netCfg.url);
 	const p = new Processor(netCfg, storage, client, suiClient);
 
 	const nbtcPkgs = await storage.getActiveNbtcPkgs(netCfg.name);

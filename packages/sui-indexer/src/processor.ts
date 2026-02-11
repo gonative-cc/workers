@@ -9,13 +9,13 @@ export class Processor {
 	netCfg: NetworkConfig;
 	storage: D1Storage;
 	eventFetcher: EventFetcher;
-	suiClient?: SuiClient;
+	suiClient: SuiClient;
 
 	constructor(
 		netCfg: NetworkConfig,
 		storage: D1Storage,
 		eventFetcher: EventFetcher,
-		suiClient?: SuiClient,
+		suiClient: SuiClient,
 	) {
 		this.netCfg = netCfg;
 		this.storage = storage;
@@ -120,16 +120,9 @@ export class Processor {
 						endCursor: result.endCursor,
 					});
 
-					if (result.events.length > 0 && this.suiClient) {
+					if (result.events.length > 0) {
 						const handler = new IkaEventHandler(this.storage, this.suiClient);
 						await handler.handleEvents(result.events);
-					} else if (result.events.length > 0 && !this.suiClient) {
-						logger.warn({
-							msg: "Skipping IKA events: suiClient not initialized",
-							network: this.netCfg.name,
-							coordinatorPkgId: pkgId,
-							eventsLength: result.events.length,
-						});
 					}
 
 					if (result.endCursor && result.endCursor !== cursors[pkgId]) {

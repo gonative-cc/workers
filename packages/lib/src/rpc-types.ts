@@ -57,10 +57,6 @@ export interface SuiIndexerRpc {
 	updateRedeemStatuses: (redeemIds: number[], status: RedeemRequestStatus) => Promise<void>;
 }
 
-export interface ComplianceRpc {
-	isBtcBlocked: (btcAddresses: string[]) => Promise<Record<string, boolean>>;
-}
-
 // --- BTC Indexer RPC Types ---
 
 export interface PutNbtcTxResponse {

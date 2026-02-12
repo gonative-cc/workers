@@ -1,6 +1,6 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { D1Storage } from "./storage";
-import type { ComplianceRpc } from "@gonative-cc/lib/rpc-types";
+import type { ComplianceRpc } from "./types";
 
 /**
  * RPC entrypoint for the worker.

@@ -43,7 +43,7 @@ import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 import { extractSenderAddresses } from "./btc-address-utils";
-import type { ComplianceRpc } from "@gonative-cc/lib/rpc-types";
+import type { ComplianceRpc } from "@gonative-cc/compliance/types";
 
 interface ConfirmingTxCandidate<T> {
 	id: string | number;
@@ -109,7 +109,7 @@ export class Indexer {
 	#suiClients: Map<SuiNet, SuiClientI>;
 	#electrsClients: Map<BtcNet, Electrs>;
 	suiIndexer: Service<SuiIndexerRpc & WorkerEntrypoint>;
-	compliance: Service<ComplianceRpc & WorkerEntrypoint>;
+	compliance: ComplianceRpc;
 
 	constructor(
 		storage: Storage,
@@ -120,7 +120,7 @@ export class Indexer {
 		maxRetries: number,
 		electrsClients: Map<BtcNet, Electrs>,
 		suiIndexer: Service<SuiIndexerRpc & WorkerEntrypoint>,
-		compliance: Service<ComplianceRpc & WorkerEntrypoint>,
+		compliance: ComplianceRpc,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
@@ -795,7 +795,7 @@ export class Indexer {
 		for (let i = 0; i < mintArgs.length; i++) {
 			const args = mintArgs[i];
 			if (!args) continue;
-			const senderAddresses = await extractSenderAddresses(args.tx, btcNetwork);
+			const senderAddresses = extractSenderAddresses(args.tx, btcNetwork);
 			senderAddressMap.set(i, senderAddresses);
 		}
 

@@ -394,13 +394,8 @@ describe("Indexer.processFinalizedTransactions Sanctions Filtering", () => {
 
 		await indexer.processFinalizedTransactions();
 
-		// Verify compliance was called
 		expect(mockIsBtcBlocked).toHaveBeenCalled();
-
-		// Verify mint was never called (transaction was filtered out)
 		expect(suite.mockSuiClient.tryMintNbtcBatch).not.toHaveBeenCalled();
-
-		// Verify transaction status remains finalized (not updated since batch was empty)
 		await suite.expectTxStatus(txData.id, MintTxStatus.Finalized);
 	});
 });

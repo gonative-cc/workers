@@ -21,6 +21,7 @@
 	"dependencies": {
 		"@gonative-cc/lib": "workspace:*",
 		"@gonative-cc/sui-indexer": "workspace:*",
+		"@gonative-cc/compliance": "workspace:*",
 		"@mysten/bcs": "^1.9.2",
 		"@mysten/sui": "^1.45.2",
 		"bitcoinjs-lib": "^6.1.7",

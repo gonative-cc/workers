@@ -4,37 +4,31 @@ import { BtcNet } from "@gonative-cc/lib/nbtc";
 import { btcNetworkCfg } from "./models";
 import type { Input } from "bitcoinjs-lib/src/transaction";
 
-function extractAddressFromInput(input: Input, btcNetwork: BtcNet): string | null {
+function extractAddressFromInput(input: Input, btcNetwork: BtcNet): string | undefined {
 	try {
 		const network = btcNetworkCfg[btcNetwork];
 
 		if (input.witness && input.witness.length >= 2) {
 			const pubKey = input.witness[1];
 			const { address } = payments.p2wpkh({ pubkey: pubKey, network });
-			return address || null;
+			return address;
 		}
 
 		const scriptSig = input?.script;
 		if (scriptSig && scriptSig.length >= 65) {
 			const chunks = script.decompile(scriptSig);
-			if (!chunks) return null;
+			if (!chunks) return;
 
 			const pubKey = chunks[chunks.length - 1] as Buffer;
 			const { address } = payments.p2pkh({ pubkey: pubKey, network });
-			return address || null;
+			return address;
 		}
-
-		return null;
 	} catch (e) {
 		logError({ method: "extractAddressFromInput", msg: "Failed to extract address" }, e);
-		return null;
 	}
 }
 
-export async function extractSenderAddresses(
-	tx: Transaction,
-	btcNetwork: BtcNet,
-): Promise<string[]> {
+export function extractSenderAddresses(tx: Transaction, btcNetwork: BtcNet): string[] {
 	if (tx.ins.length === 0) return [];
 
 	const addresses: string[] = [];

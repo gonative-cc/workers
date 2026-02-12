@@ -24,7 +24,7 @@ export function processLine(line: string, btcAddresses: string[], suiAddresses: 
 	const entity: SanctionEntity = JSON.parse(line);
 
 	if (entity.properties?.cryptoWallets) {
-		for (const wallet of entity.properties.cryptoWallets) {
+		for (const wallet of entity.properties?.cryptoWallets || []) {
 			const currency = wallet.properties.currency?.[0]?.toUpperCase();
 			const address = wallet.properties.publicKey?.[0];
 

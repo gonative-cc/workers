@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS setups (
 	lc_pkg TEXT NOT NULL,
 	lc_contract TEXT NOT NULL,
 	nbtc_fallback_addr TEXT NOT NULL,
+	ika_pkg TEXT, -- Ika coordinator pkg
 	is_active INTEGER NOT NULL DEFAULT TRUE,
 	UNIQUE(sui_network, btc_network, nbtc_pkg)
 ) STRICT;
@@ -113,6 +114,7 @@ CREATE INDEX IF NOT EXISTS nbtc_redeem_solutions_redeem_id ON nbtc_redeem_soluti
 CREATE TABLE IF NOT EXISTS indexer_state (
 	setup_id INTEGER PRIMARY KEY,
 	nbtc_cursor TEXT NOT NULL, -- last processed cursor state
+	ika_cursor TEXT, -- IKA coordinator cursor 
 	updated_at INTEGER, -- epoch time in ms
 	FOREIGN KEY (setup_id) REFERENCES setups(id)
 ) STRICT;

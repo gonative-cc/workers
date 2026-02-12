@@ -46,8 +46,8 @@ export const tables = [
 	"setups",
 ];
 
-export async function initDb(db: D1Database) {
-	return applyMigrations(db, MIGRATIONS_PATH);
+export async function initDb(db: D1Database, path?: string) {
+	return applyMigrations(db, path || MIGRATIONS_PATH);
 }
 
 export function dropTables(db: D1Database) {

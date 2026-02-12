@@ -35,6 +35,7 @@
       "name": "@gonative-cc/btcindexer",
       "version": "0.0.1",
       "dependencies": {
+        "@gonative-cc/compliance": "workspace:*",
         "@gonative-cc/lib": "workspace:*",
         "@gonative-cc/sui-indexer": "workspace:*",
         "@mysten/bcs": "^1.9.2",

@@ -61,12 +61,10 @@ export default {
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
 	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
-		logger.debug({ msg: "Cron job starting" });
 		try {
 			const indexer = await indexerFromEnv(env);
 			await indexer.updateConfirmationsAndFinalize();
 			await indexer.processFinalizedTransactions();
-			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
 			logError({ msg: "Cron job failed", method: "scheduled" }, e);
 		}

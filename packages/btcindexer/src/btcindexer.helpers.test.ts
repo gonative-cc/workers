@@ -20,7 +20,7 @@ import { MintTxStatus } from "./models";
 import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
-import type { ComplianceRpc } from "@gonative-cc/compliance/types";
+import type { ComplianceRpc } from "@gonative-cc/compliance/rpc";
 
 export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 

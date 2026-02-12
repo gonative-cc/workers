@@ -1,6 +1,5 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { D1Storage } from "./storage";
-import type { ComplianceRpc } from "./types";
 
 /**
  * RPC entrypoint for the worker.
@@ -12,4 +11,7 @@ export class RPC extends WorkerEntrypoint<Env> implements ComplianceRpc {
 		const storage = new D1Storage(this.env.DB);
 		return storage.isBtcBlocked(btcAddresses);
 	}
+}
+export interface ComplianceRpc {
+	isBtcBlocked: (btcAddresses: string[]) => Promise<Record<string, boolean>>;
 }

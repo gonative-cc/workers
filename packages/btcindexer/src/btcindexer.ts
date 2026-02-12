@@ -43,7 +43,7 @@ import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
 import { extractSenderAddresses } from "./btc-address-utils";
-import type { ComplianceRpc } from "@gonative-cc/compliance/types";
+import type { ComplianceRpc } from "@gonative-cc/compliance/rpc";
 
 interface ConfirmingTxCandidate<T> {
 	id: string | number;
@@ -443,12 +443,10 @@ export class Indexer {
 		});
 
 		const filteredTxs = await this.filterSanctionedTxs(txsToProcess);
-
-		if (filteredTxs.length === 0) {
-			logger.warn({ msg: "All transactions filtered out (sanctioned addresses)" });
-			return;
+		if (filteredTxs.length === 0) return;
+		if (filteredTxs.length !== txsToProcess.length) {
+			logger.debug({ msg: "sanctioned txs: " + filteredTxs.length });
 		}
-
 		const txsByBlock = this.groupTransactionsByBlock(filteredTxs);
 		const { batches } = await this.prepareMintBatches(txsByBlock);
 		await this.executeMintBatches(batches);
@@ -781,6 +779,7 @@ export class Indexer {
 	}
 
 	private async filterSanctionedTxs(txs: FinalizedTxRow[]): Promise<FinalizedTxRow[]> {
+		// TODO: rework it (@robert-zaremba )
 		const txsByBlock = this.groupTransactionsByBlock(txs);
 		const filteredTxs: FinalizedTxRow[] = [];
 

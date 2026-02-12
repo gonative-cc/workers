@@ -1,12 +1,13 @@
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Miniflare } from "miniflare";
+import type { D1Database } from "@cloudflare/workers-types";
+import { applyMigrations } from "@gonative-cc/lib/test-helpers/init_db";
+import * as path from "path";
 import { D1Storage } from "./storage";
-import { payments, networks } from "bitcoinjs-lib";
-import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
-
-export const UTXO_LOCK_TIME_MS = 120000; // 2 minutes
 
 let mf: Miniflare;
+let db: D1Database;
+let storage: D1Storage;
 
 beforeAll(async () => {
 	mf = new Miniflare({
@@ -21,28 +22,39 @@ afterAll(async () => {
 	await mf.dispose();
 });
 
-const p2wpkh1 = payments.p2wpkh({
-	pubkey: Buffer.from(
-		"03b32dc780fba98db25b4b72cf2b69da228f5e10ca6aa8f46eabe7f9fe22c994ee",
-		"hex",
-	),
-	network: networks.regtest,
+beforeEach(async () => {
+	db = await mf.getD1Database("DB");
+	const migrationsPath = path.resolve(__dirname, "../db/migrations");
+	await applyMigrations(db, migrationsPath);
+	storage = new D1Storage(db);
 });
 
-describe("Bitcoin compliance", () => {
-	let storage: D1Storage;
-	let db: D1Database;
-
-	beforeEach(async () => {
-		db = await mf.getD1Database("DB");
-		await initDb(db);
-
-		storage = new D1Storage(db);
+describe("isBtcBlocked", () => {
+	it("should return false for all addresses when none are blocked", async () => {
+		const result = await storage.isBtcBlocked(["addr1", "addr2"]);
+		expect(result).toEqual({ addr1: false, addr2: false });
 	});
 
-	afterEach(() => dropTables(db));
+	it("should return true for blocked addresses", async () => {
+		await db
+			.prepare("INSERT INTO sanctioned_addresses (address, chain) VALUES (?, ?)")
+			.bind("blocked_addr", 0)
+			.run();
+		const result = await storage.isBtcBlocked(["blocked_addr", "clean_addr"]);
+		expect(result).toEqual({ blocked_addr: true, clean_addr: false });
+	});
 
-	test("should detect sanctioned bitcoin addresses", async () => {
-		expect(await storage.isBtcBlocked([])).toBeFalse();
+	it("should handle multiple blocked addresses", async () => {
+		await db
+			.prepare("INSERT INTO sanctioned_addresses (address, chain) VALUES (?, ?), (?, ?)")
+			.bind("addr1", 0, "addr2", 0)
+			.run();
+		const result = await storage.isBtcBlocked(["addr1", "addr2", "addr3"]);
+		expect(result).toEqual({ addr1: true, addr2: true, addr3: false });
+	});
+
+	it("should handle empty address list", async () => {
+		const result = await storage.isBtcBlocked([]);
+		expect(result).toEqual({});
 	});
 });

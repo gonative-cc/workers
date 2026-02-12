@@ -11,6 +11,7 @@ import {
 	type SuiIndexerRpc,
 	RedeemRequestStatus,
 	type FinalizeRedeemTx,
+	type ComplianceRpc,
 } from "@gonative-cc/lib/rpc-types";
 import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
 
@@ -194,6 +195,10 @@ export async function setupTestIndexerSuite(
 			indexerStorage.updateRedeemStatuses(redeemIds, status),
 	} as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>;
 
+	const mockComplianceService = {
+		isBtcBlocked: (_address: string) => Promise.resolve(false),
+	} as unknown as Service<ComplianceRpc & WorkerEntrypoint>;
+
 	const indexer = new Indexer(
 		storage,
 		[packageConfig],
@@ -203,6 +208,7 @@ export async function setupTestIndexerSuite(
 		options.maxRetries || 2,
 		electrsClients,
 		mockSuiIndexerService,
+		mockComplianceService,
 	);
 
 	//

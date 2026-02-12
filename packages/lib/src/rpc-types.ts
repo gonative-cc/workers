@@ -1,4 +1,4 @@
-import { BitcoinTxStatus, BtcNet } from "./nbtc";
+import { BitcoinTxStatus } from "./nbtc";
 
 // --- Sui Indexer RPC Types ---
 
@@ -55,6 +55,10 @@ export interface SuiIndexerRpc {
 	getConfirmingRedeems: (network: string) => Promise<ConfirmingRedeemReq[]>;
 	updateRedeemStatus: (redeemId: number, status: RedeemRequestStatus) => Promise<void>;
 	updateRedeemStatuses: (redeemIds: number[], status: RedeemRequestStatus) => Promise<void>;
+}
+
+export interface ComplianceRpc {
+	isBtcBlocked: (btcAddresses: string[]) => Promise<Record<string, boolean>>;
 }
 
 // --- BTC Indexer RPC Types ---

@@ -36,19 +36,14 @@ import type {
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
 } from "./models";
-import { MintTxStatus, InsertBlockStatus } from "./models";
+import { MintTxStatus, InsertBlockStatus, btcNetworkCfg } from "./models";
 import type { Electrs } from "./electrs";
 import { ElectrsService, ELECTRS_URLS_BY_NETWORK } from "./electrs";
 import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
-
-const btcNetworkCfg: Record<BtcNet, Network> = {
-	[BtcNet.MAINNET]: networks.bitcoin,
-	[BtcNet.TESTNET]: networks.testnet,
-	[BtcNet.REGTEST]: networks.regtest,
-	[BtcNet.SIGNET]: networks.testnet,
-};
+import { extractSenderAddresses } from "./btc-address-utils";
+import type { ComplianceRpc } from "@gonative-cc/lib/rpc-types";
 
 interface ConfirmingTxCandidate<T> {
 	id: string | number;
@@ -97,6 +92,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 			maxNbtcMintTxRetries,
 			electrsClients,
 			env.SuiIndexer as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>,
+			env.Compliance as unknown as Service<ComplianceRpc & WorkerEntrypoint>,
 		);
 	} catch (err) {
 		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
@@ -113,6 +109,7 @@ export class Indexer {
 	#suiClients: Map<SuiNet, SuiClientI>;
 	#electrsClients: Map<BtcNet, Electrs>;
 	suiIndexer: Service<SuiIndexerRpc & WorkerEntrypoint>;
+	compliance: Service<ComplianceRpc & WorkerEntrypoint>;
 
 	constructor(
 		storage: Storage,
@@ -123,6 +120,7 @@ export class Indexer {
 		maxRetries: number,
 		electrsClients: Map<BtcNet, Electrs>,
 		suiIndexer: Service<SuiIndexerRpc & WorkerEntrypoint>,
+		compliance: Service<ComplianceRpc & WorkerEntrypoint>,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
@@ -154,6 +152,7 @@ export class Indexer {
 		this.#packageConfigs = pkgCfgMap;
 		this.#suiClients = suiClients;
 		this.suiIndexer = suiIndexer;
+		this.compliance = compliance;
 	}
 
 	async hasNbtcMintTx(txId: string): Promise<boolean> {
@@ -711,14 +710,26 @@ export class Indexer {
 			const client = this.getSuiClient(config.sui_network);
 			const pkgKey = config.nbtc_pkg;
 
+			const { filteredMintArgs, filteredProcessedKeys } =
+				await this.filterSanctionedAddresses(mintArgs, processedKeys, config.btc_network);
+
+			if (filteredMintArgs.length === 0) {
+				logger.warn({
+					msg: "All transactions in batch were filtered out (sanctioned addresses)",
+					setupId,
+					pkgKey,
+				});
+				continue;
+			}
+
 			logger.info({
 				msg: "Minting: Sending batch of mints to Sui",
-				count: mintArgs.length,
+				count: filteredMintArgs.length,
 				setupId,
 				pkgKey,
 			});
 
-			const result = await client.tryMintNbtcBatch(mintArgs);
+			const result = await client.tryMintNbtcBatch(filteredMintArgs);
 			if (!result) {
 				// Pre-submission error (network failure, validation error, etc.)
 				logger.error({
@@ -728,7 +739,7 @@ export class Indexer {
 					pkgKey,
 				});
 				await this.storage.batchUpdateNbtcMintTxs(
-					processedKeys.map((p) => ({
+					filteredProcessedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.MintFailed,
@@ -746,7 +757,7 @@ export class Indexer {
 					pkgKey,
 				});
 				await this.storage.batchUpdateNbtcMintTxs(
-					processedKeys.map((p) => ({
+					filteredProcessedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.Minted,
@@ -763,7 +774,7 @@ export class Indexer {
 					suiTxDigest,
 				});
 				await this.storage.batchUpdateNbtcMintTxs(
-					processedKeys.map((p) => ({
+					filteredProcessedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.MintFailed,
@@ -772,6 +783,56 @@ export class Indexer {
 				);
 			}
 		}
+	}
+
+	private async filterSanctionedAddresses(
+		mintArgs: MintBatchArg[],
+		processedKeys: ProcessedKey[],
+		btcNetwork: BtcNet,
+	): Promise<{ filteredMintArgs: MintBatchArg[]; filteredProcessedKeys: ProcessedKey[] }> {
+		// mapping between current mint index and sender address list
+		const senderAddressMap = new Map<number, string[]>();
+		for (let i = 0; i < mintArgs.length; i++) {
+			const args = mintArgs[i];
+			if (!args) continue;
+			const senderAddresses = await extractSenderAddresses(args.tx, btcNetwork);
+			senderAddressMap.set(i, senderAddresses);
+		}
+
+		const allAddresses = Array.from(senderAddressMap.values()).flat();
+		const uniqueAddresses = [...new Set(allAddresses)];
+		const blockedResults = await this.compliance.isBtcBlocked(uniqueAddresses);
+		const blockedAddressSet = new Set(
+			Object.entries(blockedResults)
+				.filter(([_, isBlocked]) => isBlocked)
+				.map(([addr]) => addr),
+		);
+
+		const filteredMintArgs: MintBatchArg[] = [];
+		const filteredProcessedKeys: ProcessedKey[] = [];
+
+		for (let i = 0; i < mintArgs.length; i++) {
+			const args = mintArgs[i];
+			if (!args) continue;
+
+			const senderAddresses = senderAddressMap.get(i) || [];
+			const hasBlockedAddress = senderAddresses.some((addr) => blockedAddressSet.has(addr));
+			if (hasBlockedAddress) {
+				const blockedAddrs = senderAddresses.filter((addr) => blockedAddressSet.has(addr));
+				logger.error({
+					msg: "Sanctioned address detected, skipping mint",
+					txId: args.tx.getId(),
+					senderAddresses: blockedAddrs,
+				});
+				continue;
+			}
+
+			filteredMintArgs.push(args);
+			const key = processedKeys[i];
+			if (key) filteredProcessedKeys.push(key);
+		}
+
+		return { filteredMintArgs, filteredProcessedKeys };
 	}
 
 	async detectMintedReorgs(blockHeight: number): Promise<void> {

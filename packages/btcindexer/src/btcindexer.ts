@@ -442,7 +442,14 @@ export class Indexer {
 			count: txsToProcess.length,
 		});
 
-		const txsByBlock = this.groupTransactionsByBlock(txsToProcess);
+		const filteredTxs = await this.filterSanctionedTxs(txsToProcess);
+
+		if (filteredTxs.length === 0) {
+			logger.warn({ msg: "All transactions filtered out (sanctioned addresses)" });
+			return;
+		}
+
+		const txsByBlock = this.groupTransactionsByBlock(filteredTxs);
 		const { batches } = await this.prepareMintBatches(txsByBlock);
 		await this.executeMintBatches(batches);
 	}
@@ -710,26 +717,14 @@ export class Indexer {
 			const client = this.getSuiClient(config.sui_network);
 			const pkgKey = config.nbtc_pkg;
 
-			const { filteredMintArgs, filteredProcessedKeys } =
-				await this.filterSanctionedAddresses(mintArgs, processedKeys, config.btc_network);
-
-			if (filteredMintArgs.length === 0) {
-				logger.warn({
-					msg: "All transactions in batch were filtered out (sanctioned addresses)",
-					setupId,
-					pkgKey,
-				});
-				continue;
-			}
-
 			logger.info({
 				msg: "Minting: Sending batch of mints to Sui",
-				count: filteredMintArgs.length,
+				count: mintArgs.length,
 				setupId,
 				pkgKey,
 			});
 
-			const result = await client.tryMintNbtcBatch(filteredMintArgs);
+			const result = await client.tryMintNbtcBatch(mintArgs);
 			if (!result) {
 				// Pre-submission error (network failure, validation error, etc.)
 				logger.error({
@@ -739,7 +734,7 @@ export class Indexer {
 					pkgKey,
 				});
 				await this.storage.batchUpdateNbtcMintTxs(
-					filteredProcessedKeys.map((p) => ({
+					processedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.MintFailed,
@@ -757,7 +752,7 @@ export class Indexer {
 					pkgKey,
 				});
 				await this.storage.batchUpdateNbtcMintTxs(
-					filteredProcessedKeys.map((p) => ({
+					processedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.Minted,
@@ -774,7 +769,7 @@ export class Indexer {
 					suiTxDigest,
 				});
 				await this.storage.batchUpdateNbtcMintTxs(
-					filteredProcessedKeys.map((p) => ({
+					processedKeys.map((p) => ({
 						txId: p.tx_id,
 						vout: p.vout,
 						status: MintTxStatus.MintFailed,
@@ -785,54 +780,39 @@ export class Indexer {
 		}
 	}
 
-	private async filterSanctionedAddresses(
-		mintArgs: MintBatchArg[],
-		processedKeys: ProcessedKey[],
-		btcNetwork: BtcNet,
-	): Promise<{ filteredMintArgs: MintBatchArg[]; filteredProcessedKeys: ProcessedKey[] }> {
-		// mapping between current mint index and sender address list
-		const senderAddressMap = new Map<number, string[]>();
-		for (let i = 0; i < mintArgs.length; i++) {
-			const args = mintArgs[i];
-			if (!args) continue;
-			const senderAddresses = extractSenderAddresses(args.tx, btcNetwork);
-			senderAddressMap.set(i, senderAddresses);
-		}
+	private async filterSanctionedTxs(txs: FinalizedTxRow[]): Promise<FinalizedTxRow[]> {
+		const txsByBlock = this.groupTransactionsByBlock(txs);
+		const filteredTxs: FinalizedTxRow[] = [];
 
-		const allAddresses = Array.from(senderAddressMap.values()).flat();
-		const uniqueAddresses = [...new Set(allAddresses)];
-		const blockedResults = await this.compliance.isBtcBlocked(uniqueAddresses);
-		const blockedAddressSet = new Set(
-			Object.entries(blockedResults)
-				.filter(([_, isBlocked]) => isBlocked)
-				.map(([addr]) => addr),
-		);
+		for (const [blockHash, blockTxs] of txsByBlock) {
+			const blockData = await this.fetchAndVerifyBlock(blockHash);
+			if (!blockData) continue;
 
-		const filteredMintArgs: MintBatchArg[] = [];
-		const filteredProcessedKeys: ProcessedKey[] = [];
+			const { block } = blockData;
+			for (const txRow of blockTxs) {
+				const tx = block.transactions?.find((t) => t.getId() === txRow.tx_id);
+				if (!tx) continue;
+				const config = this.getPackageConfig(txRow.setup_id);
+				const senderAddresses = extractSenderAddresses(tx, config.btc_network);
+				const blockedResults = await this.compliance.isBtcBlocked(senderAddresses);
+				const blockedAddrs = Object.entries(blockedResults)
+					.filter(([_, isBlocked]) => isBlocked)
+					.map(([addr]) => addr);
 
-		for (let i = 0; i < mintArgs.length; i++) {
-			const args = mintArgs[i];
-			if (!args) continue;
+				if (blockedAddrs.length > 0) {
+					logger.error({
+						msg: "Sanctioned address detected, skipping transaction",
+						txId: txRow.tx_id,
+						senderAddresses: blockedAddrs,
+					});
+					continue;
+				}
 
-			const senderAddresses = senderAddressMap.get(i) || [];
-			const hasBlockedAddress = senderAddresses.some((addr) => blockedAddressSet.has(addr));
-			if (hasBlockedAddress) {
-				const blockedAddrs = senderAddresses.filter((addr) => blockedAddressSet.has(addr));
-				logger.error({
-					msg: "Sanctioned address detected, skipping mint",
-					txId: args.tx.getId(),
-					senderAddresses: blockedAddrs,
-				});
-				continue;
+				filteredTxs.push(txRow);
 			}
-
-			filteredMintArgs.push(args);
-			const key = processedKeys[i];
-			if (key) filteredProcessedKeys.push(key);
 		}
 
-		return { filteredMintArgs, filteredProcessedKeys };
+		return filteredTxs;
 	}
 
 	async detectMintedReorgs(blockHeight: number): Promise<void> {

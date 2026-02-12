@@ -336,38 +336,25 @@ export class RedeemService {
 		}
 
 		const client = this.getSuiClient(req.sui_network);
+		const proposalArgs = {
+			redeemId: req.redeem_id,
+			utxoIds: selectedUtxos.map((u) => u.nbtc_utxo_id),
+			nbtcPkg: req.nbtc_pkg,
+			nbtcContract: req.nbtc_contract,
+		};
 
-		try {
-			const existingUtxoCount = await client.getRedeemUtxoCount(
-				req.redeem_id,
-				req.nbtc_pkg,
-				req.nbtc_contract,
-			);
-
-			if (existingUtxoCount > 0 && selectedUtxos.length >= existingUtxoCount) {
-				logger.info({
-					msg: "Existing solution is equal or better, skipping proposal",
-					redeemId: req.redeem_id,
-					existingUtxoCount,
-					ourUtxoCount: selectedUtxos.length,
-				});
-				return;
-			}
-		} catch (e) {
-			logger.warn({
-				msg: "Failed to fetch existing UTXO count, proceeding with proposal",
+		const wouldSucceed = await client.dryRunProposeUtxos(proposalArgs);
+		if (!wouldSucceed) {
+			logger.info({
+				msg: "Dry-run failed, existing proposal is better or equal",
 				redeemId: req.redeem_id,
-				error: e,
+				ourUtxoCount: selectedUtxos.length,
 			});
+			return;
 		}
 
 		try {
-			const txDigest = await client.proposeRedeemUtxos({
-				redeemId: req.redeem_id,
-				utxoIds: selectedUtxos.map((u) => u.nbtc_utxo_id),
-				nbtcPkg: req.nbtc_pkg,
-				nbtcContract: req.nbtc_contract,
-			});
+			const txDigest = await client.proposeRedeemUtxos(proposalArgs);
 
 			logger.info({
 				msg: "Proposed UTXOs for redeem request",

@@ -21,6 +21,7 @@ export interface SuiClientCfg {
 export interface SuiClient {
 	ikaClient(): IkaClient;
 	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
+	dryRunProposeUtxos(args: ProposeRedeemCall): Promise<boolean>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
 	finalizeRedeem(args: FinalizeRedeemCall): Promise<string>;
 	requestIkaPresigns(count: number): Promise<string[]>;
@@ -39,7 +40,6 @@ export interface SuiClient {
 		nbtcContract: string,
 	): Promise<void>;
 	getRedeemBtcTx(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<string>;
-	getRedeemUtxoCount(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<number>;
 }
 
 class SuiClientImp implements SuiClient {
@@ -112,50 +112,6 @@ class SuiClientImp implements SuiClient {
 		return Buffer.from(decoded).toString("hex");
 	}
 
-	async getRedeemUtxoCount(
-		redeemId: number,
-		nbtcPkg: string,
-		nbtcContract: string,
-	): Promise<number> {
-		const tx = new Transaction();
-
-		const redeem = tx.add(
-			nBTCContractModule.redeemRequest({
-				package: nbtcPkg,
-				arguments: {
-					contract: nbtcContract,
-					redeemId: redeemId,
-				},
-			}),
-		);
-
-		tx.add(
-			RedeemRequestModule.inputsLength({
-				package: nbtcPkg,
-				arguments: {
-					r: redeem,
-				},
-			}),
-		);
-
-		const result = await this.#sui.devInspectTransactionBlock({
-			transactionBlock: tx,
-			sender: this.signer.toSuiAddress(),
-		});
-
-		if (result.error) {
-			throw new Error(`DevInspect failed: ${result.error}`);
-		}
-
-		const lengthResult = result.results?.[1]?.returnValues?.[0]?.[0];
-		if (!lengthResult) {
-			throw new Error("Failed to get inputs_length result");
-		}
-		const bytes = Uint8Array.from(lengthResult);
-		const view = new DataView(bytes.buffer);
-		return Number(view.getBigUint64(0, true));
-	}
-
 	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {
 		const tx = new Transaction();
 
@@ -185,6 +141,28 @@ class SuiClientImp implements SuiClient {
 		}
 
 		return result.digest;
+	}
+
+	async dryRunProposeUtxos(args: ProposeRedeemCall): Promise<boolean> {
+		const tx = new Transaction();
+
+		tx.add(
+			nBTCContractModule.proposeUtxos({
+				package: args.nbtcPkg,
+				arguments: {
+					contract: args.nbtcContract,
+					redeemId: args.redeemId,
+					utxoIds: args.utxoIds.map((u) => BigInt(u)),
+				},
+			}),
+		);
+
+		const result = await this.#sui.devInspectTransactionBlock({
+			transactionBlock: tx,
+			sender: this.signer.toSuiAddress(),
+		});
+
+		return !result.error;
 	}
 
 	async solveRedeemRequest(args: SolveRedeemCall): Promise<string> {

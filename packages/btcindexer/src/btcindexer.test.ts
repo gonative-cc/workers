@@ -151,6 +151,24 @@ describe("Indexer.findNbtcDeposits", () => {
 		expect(deposits[1]![0]!.suiRecipient).toEqual(REGTEST_DATA[327]!.txs[2]!.suiAddr);
 		expect(deposits[1]![0]!.amount).toEqual(REGTEST_DATA[327]!.txs[2]!.amount);
 	});
+
+	it("should skip inactive deposit addresses", () => {
+		const block = Block.fromHex(REGTEST_DATA[329]!.rawBlockHex);
+		const targetTx = block.transactions?.find(
+			(tx) => tx.getId() === REGTEST_DATA[329]!.txs[1]!.id,
+		);
+		expect(targetTx).toBeDefined();
+
+		const originalMap = indexer.nbtcDepositAddrMap;
+		indexer.nbtcDepositAddrMap = new Map([
+			[REGTEST_DATA[329]!.depositAddr, { setup_id: 1, is_active: false }],
+		]);
+
+		const deposits = indexer.findNbtcDeposits(targetTx!, networks.regtest);
+		expect(deposits.length).toEqual(0);
+
+		indexer.nbtcDepositAddrMap = originalMap;
+	});
 });
 
 describe("Indexer.processBlock", () => {

@@ -385,9 +385,17 @@ export class Indexer {
 			}
 			try {
 				const btcAddress = address.fromOutputScript(vout.script, network);
-				const pkgId = this.nbtcDepositAddrMap.get(btcAddress)?.setup_id;
-				if (pkgId === undefined) continue;
-				const config = this.getPackageConfig(pkgId);
+				const depositInfo = this.nbtcDepositAddrMap.get(btcAddress);
+				if (!depositInfo) continue;
+				if (!depositInfo.is_active) {
+					logger.debug({
+						msg: "Skipping inactive deposit address",
+						txId: tx.getId(),
+						btcAddress,
+					});
+					continue;
+				}
+				const config = this.getPackageConfig(depositInfo.setup_id);
 
 				logger.debug({
 					msg: "Found matching nBTC deposit output",

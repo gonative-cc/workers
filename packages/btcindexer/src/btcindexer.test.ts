@@ -10,7 +10,6 @@ import { OP_RETURN } from "./opcodes";
 import type { Deposit, ProofResult } from "./models";
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import { setupTestIndexerSuite, type TestIndexerHelper } from "./btcindexer.helpers.test";
-import { extractSenderAddresses } from "./btc-address-utils";
 
 interface TxInfo {
 	id: string;

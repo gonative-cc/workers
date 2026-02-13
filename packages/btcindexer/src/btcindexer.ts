@@ -270,7 +270,6 @@ export class Indexer {
 			}
 
 			const depositTxs = await this.detectMintingTx(tx, network, blockInfo);
-			deposits.concat();
 			if (depositTxs.length > 0) {
 				deposits.push(...depositTxs);
 				continue;

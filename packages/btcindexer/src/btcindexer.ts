@@ -262,13 +262,23 @@ export class Indexer {
 		const nbtcRedeems: string[] = [];
 
 		for (const tx of block.transactions ?? []) {
-			const txDeposits = await this.detectMintingTx(tx, network, blockInfo);
-			if (txDeposits.length > 0) {
-				deposits.push(...txDeposits);
+			// TODO: we should better optimise the check. In detectMintingTx and detectRedeemTx
+			// we are checking inputs and outputs, so ideally we don't repeat this.
+			if (await this.isTxSanctioned(tx, network)) {
+				logger.debug({ msg: "tx with sanctioned address", txId: tx.getId() });
+				continue;
+			}
+
+			const depositTxs = await this.detectMintingTx(tx, network, blockInfo);
+			deposits.concat();
+			if (depositTxs.length > 0) {
+				deposits.push(...depositTxs);
+				continue;
 			}
 
 			if (this.detectRedeemTx(tx, trackedRedeems)) {
 				nbtcRedeems.push(tx.getId());
+				continue;
 			}
 		}
 
@@ -376,6 +386,7 @@ export class Indexer {
 		}
 
 		for (let i = 0; i < tx.outs.length; i++) {
+			// TODO: we should aggregate the deposits: this is a single TX with a single recipient!
 			const vout = tx.outs[i];
 			if (!vout) {
 				continue;
@@ -395,8 +406,8 @@ export class Indexer {
 					});
 					continue;
 				}
+				// TODO: here we process setups, not package configs
 				const config = this.getPackageConfig(depositInfo.setup_id);
-
 				logger.debug({
 					msg: "Found matching nBTC deposit output",
 					txId: tx.getId(),
@@ -439,23 +450,13 @@ export class Indexer {
 		}
 
 		const txsToProcess = await this.filterAlreadyMinted(finalizedTxs);
-
-		if (txsToProcess.length === 0) {
-			logger.info({ msg: "No new deposits to process after front-run check" });
-			return;
-		}
-
+		if (txsToProcess.length === 0) return;
 		logger.info({
-			msg: "Minting: Found deposits to process",
+			msg: "Minting: Found finalized deposits to process",
 			count: txsToProcess.length,
 		});
 
-		const filteredTxs = await this.filterSanctionedTxs(txsToProcess);
-		if (filteredTxs.length === 0) return;
-		if (filteredTxs.length !== txsToProcess.length) {
-			logger.debug({ msg: "sanctioned txs: " + filteredTxs.length });
-		}
-		const txsByBlock = this.groupTransactionsByBlock(filteredTxs);
+		const txsByBlock = this.groupTransactionsByBlock(txsToProcess);
 		const { batches } = await this.prepareMintBatches(txsByBlock);
 		await this.executeMintBatches(batches);
 	}
@@ -525,7 +526,7 @@ export class Indexer {
 	 * Groups a list of blockchain transactions (or any object containing a block_hash) by their block hash.
 	 * This optimization allows fetching and parsing the block data once for all related transactions.
 	 * @param transactions - A list of objects that must include a block_hash.
-	 * @returns A map where each key is a block hash and the value is an array of transactions belonging to that block.
+	 * @returns Mapping block hash -> subset of transactions belonging to that block.
 	 */
 	private groupTransactionsByBlock<T extends { block_hash: string }>(
 		transactions: T[],
@@ -786,40 +787,9 @@ export class Indexer {
 		}
 	}
 
-	private async filterSanctionedTxs(txs: FinalizedTxRow[]): Promise<FinalizedTxRow[]> {
-		// TODO: rework it (@robert-zaremba )
-		const txsByBlock = this.groupTransactionsByBlock(txs);
-		const filteredTxs: FinalizedTxRow[] = [];
-
-		for (const [blockHash, blockTxs] of txsByBlock) {
-			const blockData = await this.fetchAndVerifyBlock(blockHash);
-			if (!blockData) continue;
-
-			const { block } = blockData;
-			for (const txRow of blockTxs) {
-				const tx = block.transactions?.find((t) => t.getId() === txRow.tx_id);
-				if (!tx) continue;
-				const config = this.getPackageConfig(txRow.setup_id);
-				const senderAddresses = extractSenderAddresses(tx, config.btc_network);
-				const blockedResults = await this.compliance.isBtcBlocked(senderAddresses);
-				const blockedAddrs = Object.entries(blockedResults)
-					.filter(([_, isBlocked]) => isBlocked)
-					.map(([addr]) => addr);
-
-				if (blockedAddrs.length > 0) {
-					logger.error({
-						msg: "Sanctioned address detected, skipping transaction",
-						txId: txRow.tx_id,
-						senderAddresses: blockedAddrs,
-					});
-					continue;
-				}
-
-				filteredTxs.push(txRow);
-			}
-		}
-
-		return filteredTxs;
+	isTxSanctioned(tx: Transaction, btcNet: Network): Promise<boolean> {
+		const senderAddresses = extractSenderAddresses(tx, btcNet);
+		return this.compliance.isAnyBtcAddressSanctioned(senderAddresses);
 	}
 
 	async detectMintedReorgs(blockHeight: number): Promise<void> {
@@ -1311,7 +1281,6 @@ export class Indexer {
 
 	async getDepositsBySender(btcAddress: string, network: BtcNet): Promise<NbtcTxResp[]> {
 		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress, network);
-
 		const latestHeight = await this.storage.getChainTip(network);
 
 		return nbtcMintRows.map((r) => nbtcRowToResp(r, latestHeight));

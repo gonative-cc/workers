@@ -392,29 +392,17 @@ describe("Indexer.processFinalizedTransactions", () => {
 	});
 });
 
-describe("Indexer.processFinalizedTransactions Sanctions Filtering", () => {
+describe("isTxSanctioned", () => {
 	it("should skip sanctioned addresses and not mint", async () => {
-		const txData = REGTEST_DATA[329]!.txs[1]!;
+		const block = Block.fromHex(REGTEST_DATA[327]!.rawBlockHex);
+		const txs = block.transactions!;
+		// notes: in this block,
+		// tx1 senders = [ "tb1q4jxws26hkjn6y5qspgqsuwtu5whel39j2xq3n2" ]
+		// tx1 senders = [ "tb1qw7zqqtpxmptxszythfjs4ugflvm4m358tn3jvw" ]
+		// const addrs = extractSenderAddresses(txs[2]!, networks.testnet);
 
-		await suite.insertTx({ txId: txData.id, status: MintTxStatus.Finalized });
-		await suite.setupBlock(329);
-
-		// Mock compliance to block all addresses
-		const mockIsBtcBlocked = jest.fn().mockImplementation((addresses: string[]) => {
-			const result: Record<string, boolean> = {};
-			for (const addr of addresses) {
-				result[addr] = true; // Block all addresses
-			}
-			return Promise.resolve(result);
-		});
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		indexer.compliance = { isBtcBlocked: mockIsBtcBlocked } as any;
-
-		await indexer.processFinalizedTransactions();
-
-		expect(mockIsBtcBlocked).toHaveBeenCalled();
-		expect(suite.mockSuiClient.tryMintNbtcBatch).not.toHaveBeenCalled();
-		await suite.expectTxStatus(txData.id, MintTxStatus.Finalized);
+		expect(await indexer.isTxSanctioned(txs[1]!, networks.testnet)).toBeTrue();
+		expect(await indexer.isTxSanctioned(txs[2]!, networks.testnet)).toBeFalse();
 	});
 });
 

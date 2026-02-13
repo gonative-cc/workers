@@ -194,8 +194,9 @@ export async function setupTestIndexerSuite(
 	} as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>;
 
 	const mockComplianceService: ComplianceRpc = {
-		isBtcBlocked: (_btcAddresses: string[]): Promise<Record<string, boolean>> =>
-			Promise.resolve({ "0x12btc": false }),
+		isAnyBtcAddressSanctioned: (addrs: string[]): Promise<boolean> =>
+			// returns true if there is an address with last character being digit
+			Promise.resolve(addrs.findIndex((a) => /\d$/.test(a)) >= 0),
 	};
 
 	const indexer = new Indexer(

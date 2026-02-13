@@ -7,7 +7,7 @@ import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
 
 import { fetchNbtcAddresses, fetchPackageConfigs } from "./storage";
 import { CFStorage as CFStorageImpl } from "./cf-storage";
-import { MintTxStatus, InsertBlockStatus } from "./models";
+import { MintTxStatus, InsertBlockStatus, type NbtcBroadcastedDeposit } from "./models";
 
 let mf: Miniflare;
 
@@ -370,6 +370,311 @@ describe("CFStorage", () => {
 			const txs = await storage.getNbtcMintTxsByBtcSender(txBase.sender, BtcNet.REGTEST);
 			expect(txs.length).toBe(1);
 			expect(txs[0]!.tx_id).toBe("tx1");
+		});
+
+		it("getTxStatus should return status for existing tx", async () => {
+			await storage.insertOrUpdateNbtcTxs([txBase]);
+			const status = await storage.getTxStatus("tx1");
+			expect(status).toBe(MintTxStatus.Confirming);
+		});
+
+		it("getTxStatus should return null for non-existent tx", async () => {
+			const status = await storage.getTxStatus("nonexistent");
+			expect(status).toBeNull();
+		});
+
+		it("insertOrUpdateNbtcTxs should handle empty array", async () => {
+			expect(await storage.insertOrUpdateNbtcTxs([])).toBeUndefined();
+		});
+
+		it("updateNbtcTxsStatus should handle empty array", async () => {
+			expect(await storage.updateNbtcTxsStatus([], MintTxStatus.Minted)).not.toBeNull();
+		});
+
+		it("finalizeNbtcTxs should handle empty array", async () => {
+			expect(await storage.finalizeNbtcTxs([])).not.toBeNull();
+		});
+
+		it("batchUpdateNbtcMintTxs should handle MintFailed status", async () => {
+			await storage.insertOrUpdateNbtcTxs([txBase]);
+			await storage.batchUpdateNbtcMintTxs([
+				{
+					txId: "tx1",
+					vout: 0,
+					status: MintTxStatus.MintFailed,
+					suiTxDigest: "failedDigest",
+				},
+			]);
+			const tx = await storage.getNbtcMintTx("tx1");
+			expect(tx!.status).toBe(MintTxStatus.MintFailed);
+			expect(tx!.retry_count).toBe(1);
+		});
+
+		it("getNbtcMintCandidates should include failed txs within retry limit", async () => {
+			await storage.insertOrUpdateNbtcTxs([txBase]);
+			await storage.finalizeNbtcTxs(["tx1"]);
+			await storage.batchUpdateNbtcMintTxs([
+				{
+					txId: "tx1",
+					vout: 0,
+					status: MintTxStatus.MintFailed,
+				},
+			]);
+
+			const candidates = await storage.getNbtcMintCandidates(3);
+			expect(candidates.length).toBe(1);
+		});
+
+		it("getNbtcMintCandidates should exclude failed txs exceeding retry limit", async () => {
+			await storage.insertOrUpdateNbtcTxs([txBase]);
+			await storage.finalizeNbtcTxs(["tx1"]);
+			// Simulate multiple failures
+			for (let i = 0; i < 4; i++) {
+				await storage.batchUpdateNbtcMintTxs([
+					{
+						txId: "tx1",
+						vout: 0,
+						status: MintTxStatus.MintFailed,
+					},
+				]);
+			}
+
+			const candidates = await storage.getNbtcMintCandidates(3);
+			expect(candidates.length).toBe(0);
+		});
+
+		it("insertOrUpdateNbtcTxs should update existing tx with new block info", async () => {
+			await storage.insertOrUpdateNbtcTxs([txBase]);
+
+			const updatedTx = {
+				...txBase,
+				blockHash: "newBlockHash",
+				blockHeight: 101,
+			};
+			await storage.insertOrUpdateNbtcTxs([updatedTx]);
+
+			const tx = await storage.getNbtcMintTx("tx1");
+			expect(tx!.block_hash).toBe("newBlockHash");
+			expect(tx!.block_height).toBe(101);
+			expect(tx!.status).toBe(MintTxStatus.Confirming);
+		});
+
+		it("registerBroadcastedNbtcTx should ignore duplicate broadcasts", async () => {
+			const broadcast: NbtcBroadcastedDeposit = {
+				txId: "txNoBlock",
+				btcNetwork: BtcNet.REGTEST,
+				suiNetwork: "devnet",
+				nbtcPkg: "0xPkg1",
+				depositAddress: "bcrt1qAddress1",
+				sender: "sender",
+				vout: 0,
+				suiRecipient: "0xSui",
+				amount: 1000,
+			};
+
+			await storage.registerBroadcastedNbtcTx([broadcast]);
+			await storage.registerBroadcastedNbtcTx([broadcast]); // duplicate
+
+			const tx = await storage.getNbtcMintTx("txNoBlock");
+			expect(tx!.status).toBe(MintTxStatus.Broadcasting);
+		});
+
+		it("updateNbtcTxsStatus should update multiple txs", async () => {
+			const tx2 = { ...txBase, txId: "tx2", vout: 1 };
+			await storage.insertOrUpdateNbtcTxs([txBase, tx2]);
+
+			await storage.updateNbtcTxsStatus(["tx1", "tx2"], MintTxStatus.Minted);
+
+			const tx1Result = await storage.getNbtcMintTx("tx1");
+			const tx2Result = await storage.getNbtcMintTx("tx2");
+			expect(tx1Result!.status).toBe(MintTxStatus.Minted);
+			expect(tx2Result!.status).toBe(MintTxStatus.Minted);
+		});
+
+		it("getConfirmingBlocks should not return blocks with null hash", async () => {
+			await storage.registerBroadcastedNbtcTx([
+				{
+					txId: "txNoBlock",
+					btcNetwork: BtcNet.REGTEST,
+					suiNetwork: "devnet",
+					nbtcPkg: "0xPkg1",
+					depositAddress: "bcrt1qAddress1",
+					sender: "sender",
+					vout: 0,
+					suiRecipient: "0xSui",
+					amount: 1000,
+				},
+			]);
+
+			// Update to Confirming but no block hash
+			await storage.updateNbtcTxsStatus(["txNoBlock"], MintTxStatus.Confirming);
+
+			const blocks = await storage.getConfirmingBlocks();
+			expect(blocks.length).toBe(0);
+		});
+
+		it("getNbtcMintTxsBySuiAddr should return empty for non-existent address", async () => {
+			const txs = await storage.getNbtcMintTxsBySuiAddr("0xNonExistent");
+			expect(txs.length).toBe(0);
+		});
+
+		it("getNbtcMintTxsByBtcSender should return empty for non-existent sender", async () => {
+			const txs = await storage.getNbtcMintTxsByBtcSender("nonexistent", BtcNet.REGTEST);
+			expect(txs.length).toBe(0);
+		});
+
+		it("getNbtcMintTx should return null for non-existent tx", async () => {
+			const tx = await storage.getNbtcMintTx("nonexistent");
+			expect(tx).toBeNull();
+		});
+	});
+
+	describe("Block Operations - Edge Cases", () => {
+		it("getLatestBlockHeight should return null for empty database", async () => {
+			const height = await storage.getLatestBlockHeight(BtcNet.REGTEST);
+			expect(height).toBeNull();
+		});
+
+		it("getChainTip should return null when not set", async () => {
+			const tip = await storage.getChainTip(BtcNet.TESTNET);
+			expect(tip).toBeNull();
+		});
+
+		it("getBlock should return null for non-existent hash", async () => {
+			const block = await storage.getBlock("nonexistent");
+			expect(block).toBeNull();
+		});
+
+		it("getBlockHash should return null for non-existent height", async () => {
+			const hash = await storage.getBlockHash(999, BtcNet.REGTEST);
+			expect(hash).toBeNull();
+		});
+
+		it("getBlocksToProcess should return empty array when all processed", async () => {
+			await storage.insertBlockInfo({
+				hash: "hash1",
+				height: 100,
+				network: BtcNet.REGTEST,
+				timestamp_ms: 1000,
+			});
+			await storage.markBlockAsProcessed("hash1", BtcNet.REGTEST);
+
+			const blocks = await storage.getBlocksToProcess(10);
+			expect(blocks.length).toBe(0);
+		});
+
+		it("getBlocksToProcess should respect batch size limit", async () => {
+			for (let i = 0; i < 5; i++) {
+				await storage.insertBlockInfo({
+					hash: `hash${i}`,
+					height: 100 + i,
+					network: BtcNet.REGTEST,
+					timestamp_ms: 1000 + i,
+				});
+			}
+
+			const blocks = await storage.getBlocksToProcess(3);
+			expect(blocks.length).toBe(3);
+		});
+
+		it("getBlocksToProcess should return blocks in ascending height order", async () => {
+			await storage.insertBlockInfo({
+				hash: "hash102",
+				height: 102,
+				network: BtcNet.REGTEST,
+				timestamp_ms: 1002,
+			});
+			await storage.insertBlockInfo({
+				hash: "hash100",
+				height: 100,
+				network: BtcNet.REGTEST,
+				timestamp_ms: 1000,
+			});
+			await storage.insertBlockInfo({
+				hash: "hash101",
+				height: 101,
+				network: BtcNet.REGTEST,
+				timestamp_ms: 1001,
+			});
+
+			const blocks = await storage.getBlocksToProcess(10);
+			expect(blocks.length).toBe(3);
+			expect(blocks[0]!.height).toBe(100);
+			expect(blocks[1]!.height).toBe(101);
+			expect(blocks[2]!.height).toBe(102);
+		});
+
+		it("insertBlockInfo should handle same timestamp", async () => {
+			await storage.insertBlockInfo({
+				hash: "hash1",
+				height: 100,
+				network: BtcNet.REGTEST,
+				timestamp_ms: 1000,
+			});
+
+			const result = await storage.insertBlockInfo({
+				hash: "hash2",
+				height: 100,
+				network: BtcNet.REGTEST,
+				timestamp_ms: 1000,
+			});
+
+			expect(result).toBe(InsertBlockStatus.Skipped);
+		});
+
+		it("setChainTip and getChainTip should work for different networks", async () => {
+			await storage.setChainTip(100, BtcNet.REGTEST);
+			await storage.setChainTip(200, BtcNet.MAINNET);
+
+			expect(await storage.getChainTip(BtcNet.REGTEST)).toBe(100);
+			expect(await storage.getChainTip(BtcNet.MAINNET)).toBe(200);
+		});
+	});
+
+	describe("Storage Helper Functions - Edge Cases", () => {
+		it("fetchPackageConfigs should only return active packages", async () => {
+			const db = await mf.getD1Database("DB");
+			await db
+				.prepare(
+					`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
+					VALUES (2, 'testnet', 'testnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 0)`,
+				)
+				.run();
+
+			const configs = await fetchPackageConfigs(db);
+			expect(configs.length).toBe(1);
+		});
+
+		it("fetchNbtcAddresses should return empty map when no active setups", async () => {
+			const db = await mf.getD1Database("DB");
+			await db
+				.prepare(
+					`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
+					VALUES (2, 'testnet', 'testnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 0)`,
+				)
+				.run();
+			await db
+				.prepare(
+					`INSERT INTO nbtc_deposit_addresses (setup_id, deposit_address, is_active)
+					VALUES (2, 'bcrt1qAddress2', 1)`,
+				)
+				.run();
+
+			const addrMap = await fetchNbtcAddresses(db);
+			expect(addrMap.size).toBe(1);
+		});
+
+		it("fetchPackageConfigs should handle multiple active packages", async () => {
+			const db = await mf.getD1Database("DB");
+			await db
+				.prepare(
+					`INSERT INTO setups (id, btc_network, sui_network, nbtc_pkg, nbtc_contract, lc_pkg, lc_contract, nbtc_fallback_addr, is_active)
+					VALUES (2, 'mainnet', 'mainnet', '0xPkg2', '0xContract2', '0xLC2', '0xLCC2', '0xFallback2', 1)`,
+				)
+				.run();
+
+			const configs = await fetchPackageConfigs(db);
+			expect(configs.length).toBe(2);
 		});
 	});
 });

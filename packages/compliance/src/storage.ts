@@ -9,19 +9,27 @@ export class D1Storage {
 	async isAnyBtcAddressSanctioned(btcAddresses: string[]): Promise<boolean> {
 		if (btcAddresses.length === 0) return false;
 
-		// TODO: we need to batch this!
 		// TODO: consider caching
-		const placeholders = btcAddresses.map(() => "?").join(",");
-		const query = `SELECT EXISTS (
-		  SELECT 1 FROM sanctioned_addresses
-		  WHERE address IN (${placeholders}) AND chain = ${SanctionChains.Bitcoin}
-		) as sanctioned;`;
+		const BATCH_SIZE = 100;
+		for (let i = 0; i < btcAddresses.length; i += BATCH_SIZE) {
+			const chunk = btcAddresses.slice(i, i + BATCH_SIZE);
+			const placeholders = chunk.map(() => "?").join(",");
+			const query = `
+			SELECT EXISTS (
+			  SELECT 1 FROM sanctioned_addresses
+			  WHERE address IN (${placeholders}) AND chain = ${SanctionChains.Bitcoin}
+			) as sanctioned;`;
+			const result = await this.db
+				.prepare(query)
+				.bind(...chunk)
+				.first<{ sanctioned: number }>();
 
-		const result = await this.db
-			.prepare(query)
-			.bind(...btcAddresses)
-			.first<{ sanctioned: number }>();
-		return Boolean(result?.sanctioned);
+			if (result?.sanctioned) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	async insertSanctionnedAddrs(addrs: string[], chain: SanctionChains) {

@@ -33,6 +33,7 @@ const dev: Setup[] = [
 		sui_fallback_addr: "0xce726adf013f79a029f73bb4baa56af644e90ef79ed0486c9550b76ee219f78e",
 		lc_pkg: "0x9010405a2de729a8a2578ab78b061591dc6f637cca16fd17d84242fd6d485a6d",
 		lc_contract: "0x74d82b7df244d578e6a71a57e84081e8a1050df5214e0f97870a8d9d486810a7",
+		ika_pkg: "0x4d157b7415a298c56ec2cb1dcab449525fa74aec17ddba376a83a7600f2062fc",
 		is_active: 1,
 	},
 ];
@@ -47,6 +48,7 @@ const staging: Setup[] = [
 		sui_fallback_addr: "0xce726adf013f79a029f73bb4baa56af644e90ef79ed0486c9550b76ee219f78e",
 		lc_pkg: "0x9010405a2de729a8a2578ab78b061591dc6f637cca16fd17d84242fd6d485a6d",
 		lc_contract: "0x74d82b7df244d578e6a71a57e84081e8a1050df5214e0f97870a8d9d486810a7",
+		ika_pkg: "0x4d157b7415a298c56ec2cb1dcab449525fa74aec17ddba376a83a7600f2062fc",
 		is_active: 1,
 	},
 ];
@@ -62,6 +64,7 @@ export const TestEnv: Setup[] = [
 		sui_fallback_addr: "0xFallback1",
 		lc_pkg: "0xLC1",
 		lc_contract: "0xLCC1",
+		ika_pkg: "0xika",
 		is_active: 1,
 	},
 	{
@@ -73,6 +76,7 @@ export const TestEnv: Setup[] = [
 		sui_fallback_addr: "0xFallback2",
 		lc_pkg: "0xLC1",
 		lc_contract: "0xLCC1",
+		ika_pkg: "0xika",
 		is_active: 1,
 	},
 ];

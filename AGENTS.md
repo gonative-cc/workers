@@ -14,12 +14,9 @@ Check @README.md for more details.
 
 ### Packages
 
-- `./packages/lib` : a library package where we put common functions to be shared with other packages.
-- `./packages/btcindexer` : a Bitcoin indexer (btcindexer) for the nBTC project. The project is designed to monitor the Bitcoin blockchain, parse Bitcoin blocks, identify nBTC deposits, and facilitate their minting on the Sui blockchain.
-- `./packages/sui-indexer` : Polls Sui events for all active packages listed in the `nbtc_packages` database. The events are handled by the `SuiEventHandler`. Provides Redeem Solver and RPC.
-- `./packages/block-ingestor` : a new worker that exposes REST API to receive new blocks and queue them for processing.
+All packages are in the `./packages` directory. Each package, except `lib` is a service (Cloudflare worker). `lib` is a package with helper modules and functions shared between other packages.
 
-Details about each package is in described in the sections below.
+See @README.md file for details about packages.
 
 ### Core Technologies
 
@@ -245,17 +242,6 @@ Regenerate using `tree --gitignore`.
 │   └── git-hooks/
 ├── node_modules/
 ├── packages/
-│   └── btcindexer/
-│       ├── db/
-│       │   └── migrations/
-│       └── src/
-│           ├── api/
-│           ├── btcindexer.test.ts
-│           ├── electrs-service.ts
-│           ├── models.ts
-│           ├── router.ts
-│           ├── sui_client.ts
-│           └── sui_client.test.ts
 ├── .editorconfig
 ├── .gitignore
 ├── .markdownlint.yml

@@ -16,6 +16,8 @@ import {
 	type FinalizeRedeemTx,
 } from "@gonative-cc/sui-indexer/rpc-interface";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { getSecret } from "@gonative-cc/lib/secrets";
+import { isValidSuiAddress } from "@mysten/sui/utils";
 import { OP_RETURN } from "./opcodes";
 import { BitcoinMerkleTree } from "./bitcoin-merkle-tree";
 import { SuiClient, type SuiClientI } from "./sui_client";
@@ -34,19 +36,14 @@ import type {
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
 } from "./models";
-import { MintTxStatus, InsertBlockStatus } from "./models";
+import { MintTxStatus, InsertBlockStatus, btcNetworkCfg } from "./models";
 import type { Electrs } from "./electrs";
 import { ElectrsService, ELECTRS_URLS_BY_NETWORK } from "./electrs";
 import { fetchNbtcAddresses, fetchPackageConfigs, type Storage } from "./storage";
 import { CFStorage } from "./cf-storage";
 import type { PutNbtcTxResponse } from "./rpc-interface";
-
-const btcNetworkCfg: Record<BtcNet, Network> = {
-	[BtcNet.MAINNET]: networks.bitcoin,
-	[BtcNet.TESTNET]: networks.testnet,
-	[BtcNet.REGTEST]: networks.regtest,
-	[BtcNet.SIGNET]: networks.testnet,
-};
+import { extractSenderAddresses } from "./btc-address-utils";
+import type { ComplianceRpc } from "@gonative-cc/compliance/rpc";
 
 interface ConfirmingTxCandidate<T> {
 	id: string | number;
@@ -71,7 +68,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 		throw new Error("Invalid MAX_NBTC_MINT_TX_RETRIES in config. Must be a number >= 0.");
 	}
 
-	const mnemonic = await env.NBTC_MINTING_SIGNER_MNEMONIC.get();
+	const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
 	const suiClients = new Map<SuiNet, SuiClient>();
 	for (const p of packageConfigs) {
 		if (!suiClients.has(p.sui_network))
@@ -94,6 +91,7 @@ export async function indexerFromEnv(env: Env): Promise<Indexer> {
 			maxNbtcMintTxRetries,
 			electrsClients,
 			env.SuiIndexer as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>,
+			env.Compliance as unknown as Service<ComplianceRpc & WorkerEntrypoint>,
 		);
 	} catch (err) {
 		logError({ msg: "Can't create btcindexer", method: "Indexer.constructor" }, err);
@@ -110,6 +108,7 @@ export class Indexer {
 	#suiClients: Map<SuiNet, SuiClientI>;
 	#electrsClients: Map<BtcNet, Electrs>;
 	suiIndexer: Service<SuiIndexerRpc & WorkerEntrypoint>;
+	compliance: ComplianceRpc;
 
 	constructor(
 		storage: Storage,
@@ -120,6 +119,7 @@ export class Indexer {
 		maxRetries: number,
 		electrsClients: Map<BtcNet, Electrs>,
 		suiIndexer: Service<SuiIndexerRpc & WorkerEntrypoint>,
+		compliance: ComplianceRpc,
 	) {
 		if (packageConfigs.length === 0) {
 			throw new Error("No active nBTC packages configured.");
@@ -151,6 +151,7 @@ export class Indexer {
 		this.#packageConfigs = pkgCfgMap;
 		this.#suiClients = suiClients;
 		this.suiIndexer = suiIndexer;
+		this.compliance = compliance;
 	}
 
 	async hasNbtcMintTx(txId: string): Promise<boolean> {
@@ -260,13 +261,22 @@ export class Indexer {
 		const nbtcRedeems: string[] = [];
 
 		for (const tx of block.transactions ?? []) {
-			const txDeposits = await this.detectMintingTx(tx, network, blockInfo);
-			if (txDeposits.length > 0) {
-				deposits.push(...txDeposits);
+			// TODO: we should better optimise the check. In detectMintingTx and detectRedeemTx
+			// we are checking inputs and outputs, so ideally we don't repeat this.
+			if (await this.isTxSanctioned(tx, network)) {
+				logger.debug({ msg: "tx with sanctioned address", txId: tx.getId() });
+				continue;
+			}
+
+			const depositTxs = await this.detectMintingTx(tx, network, blockInfo);
+			if (depositTxs.length > 0) {
+				deposits.push(...depositTxs);
+				continue;
 			}
 
 			if (this.detectRedeemTx(tx, trackedRedeems)) {
 				nbtcRedeems.push(tx.getId());
+				continue;
 			}
 		}
 
@@ -374,6 +384,7 @@ export class Indexer {
 		}
 
 		for (let i = 0; i < tx.outs.length; i++) {
+			// TODO: we should aggregate the deposits: this is a single TX with a single recipient!
 			const vout = tx.outs[i];
 			if (!vout) {
 				continue;
@@ -383,10 +394,18 @@ export class Indexer {
 			}
 			try {
 				const btcAddress = address.fromOutputScript(vout.script, network);
-				const pkgId = this.nbtcDepositAddrMap.get(btcAddress)?.setup_id;
-				if (pkgId === undefined) continue;
-				const config = this.getPackageConfig(pkgId);
-
+				const depositInfo = this.nbtcDepositAddrMap.get(btcAddress);
+				if (!depositInfo) continue;
+				if (!depositInfo.is_active) {
+					logger.debug({
+						msg: "Skipping inactive deposit address",
+						txId: tx.getId(),
+						btcAddress,
+					});
+					continue;
+				}
+				// TODO: here we process setups, not package configs
+				const config = this.getPackageConfig(depositInfo.setup_id);
 				logger.debug({
 					msg: "Found matching nBTC deposit output",
 					txId: tx.getId(),
@@ -429,14 +448,9 @@ export class Indexer {
 		}
 
 		const txsToProcess = await this.filterAlreadyMinted(finalizedTxs);
-
-		if (txsToProcess.length === 0) {
-			logger.info({ msg: "No new deposits to process after front-run check" });
-			return;
-		}
-
+		if (txsToProcess.length === 0) return;
 		logger.info({
-			msg: "Minting: Found deposits to process",
+			msg: "Minting: Found finalized deposits to process",
 			count: txsToProcess.length,
 		});
 
@@ -510,7 +524,7 @@ export class Indexer {
 	 * Groups a list of blockchain transactions (or any object containing a block_hash) by their block hash.
 	 * This optimization allows fetching and parsing the block data once for all related transactions.
 	 * @param transactions - A list of objects that must include a block_hash.
-	 * @returns A map where each key is a block hash and the value is an array of transactions belonging to that block.
+	 * @returns Mapping block hash -> subset of transactions belonging to that block.
 	 */
 	private groupTransactionsByBlock<T extends { block_hash: string }>(
 		transactions: T[],
@@ -769,6 +783,11 @@ export class Indexer {
 				);
 			}
 		}
+	}
+
+	isTxSanctioned(tx: Transaction, btcNet: Network): Promise<boolean> {
+		const senderAddresses = extractSenderAddresses(tx, btcNet);
+		return this.compliance.isAnyBtcAddressSanctioned(senderAddresses);
 	}
 
 	async detectMintedReorgs(blockHeight: number): Promise<void> {
@@ -1264,7 +1283,6 @@ export class Indexer {
 
 	async getDepositsBySender(btcAddress: string, network: BtcNet): Promise<NbtcTxResp[]> {
 		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress, network);
-
 		const latestHeight = await this.storage.getChainTip(network);
 
 		return nbtcMintRows.map((r) => nbtcRowToResp(r, latestHeight));
@@ -1310,10 +1328,13 @@ export function parseSuiRecipientFromOpReturn(script: Buffer): string | null {
 	const payload = script.subarray(2);
 
 	// Check simple transfer format: 1-byte flag (0x00)
-	// TODO: add validation for the sui address
 	if (payload[0] === 0x00) {
 		const addressBytes = payload.subarray(1);
-		return `0x${addressBytes.toString("hex")}`;
+		const address = `0x${addressBytes.toString("hex")}`;
+		if (!isValidSuiAddress(address)) {
+			return null;
+		}
+		return address;
 	}
 	//TODO: in the future we need to update the relayer to correctly handle the flag 0x01
 	// for now we cannot determine the recipient

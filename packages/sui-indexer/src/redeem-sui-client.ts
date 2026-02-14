@@ -354,28 +354,26 @@ const miniIka = 1e6;
 export async function createSuiClients(
 	activeNetworks: SuiNet[],
 	mnemonic: string,
-): Promise<Map<SuiNet, SuiClient>> {
-	const clients = new Map<SuiNet, SuiClient>();
+): Promise<[SuiNet, SuiClient][]> {
+	const clients: [SuiNet, SuiClient][] = [];
 	for (const net of activeNetworks) {
 		const url = getFullnodeUrl(net);
 		const mystenClient = new Client({ url });
 		const ikaClient = await createIkaClient(net, mystenClient);
-		clients.set(
-			net,
-			new SuiClientImp({
-				network: net,
-				signerMnemonic: mnemonic,
-				ikaClient: ikaClient,
-				client: mystenClient,
-				// TODO:: We can get the function about pricing use this endpoint:
-				// https://github.com/dwallet-labs/ika/blob/01efcabe6282164b242040f0e338de6de164ae41/deployed_contracts/testnet/ika_dwallet_2pc_mpc/sources/coordinator.move#L807
-				// cost fee here is estimated relatively
-				// sign cost = 0.2 ika * 60% = 0.32 ika
-				// presign cost = 0.15 * 60% = 0.24 ika
-				ikaSignCost: 320 * miniIka,
-				ikaPresignCost: 240 * miniIka,
-			}),
-		);
+		const suiClient = new SuiClientImp({
+			network: net,
+			signerMnemonic: mnemonic,
+			ikaClient: ikaClient,
+			client: mystenClient,
+			// TODO:: We can get the function about pricing use this endpoint:
+			// https://github.com/dwallet-labs/ika/blob/01efcabe6282164b242040f0e338de6de164ae41/deployed_contracts/testnet/ika_dwallet_2pc_mpc/sources/coordinator.move#L807
+			// cost fee here is estimated relatively
+			// sign cost = 0.2 ika * 60% = 0.32 ika
+			// presign cost = 0.15 * 60% = 0.24 ika
+			ikaSignCost: 320 * miniIka,
+			ikaPresignCost: 240 * miniIka,
+		});
+		clients.push([net, suiClient]);
 	}
 	return clients;
 }

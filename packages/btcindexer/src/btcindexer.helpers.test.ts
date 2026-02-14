@@ -3,7 +3,6 @@ import { Block, type Transaction } from "bitcoinjs-lib";
 import { expect } from "bun:test";
 import type { D1Database, KVNamespace, Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
-
 import { BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { toSuiNet, type SuiNet } from "@gonative-cc/lib/nsui";
 import { D1Storage } from "@gonative-cc/sui-indexer/storage";
@@ -13,7 +12,6 @@ import {
 	type FinalizeRedeemTx,
 } from "@gonative-cc/lib/rpc-types";
 import { dropTables, initDb } from "@gonative-cc/lib/test-helpers/init_db";
-
 import { Indexer } from "./btcindexer";
 import { CFStorage } from "./cf-storage";
 import type { SuiClientI } from "./sui_client";
@@ -23,6 +21,7 @@ import { mkElectrsServiceMock } from "./electrs.test";
 import { MockSuiClient } from "./sui_client-mock";
 import type { Electrs } from "./electrs";
 import { TestEnvName } from "@gonative-cc/lib/setups";
+import type { ComplianceRpc } from "@gonative-cc/compliance/rpc";
 
 export const SUI_FALLBACK_ADDRESS = "0xFALLBACK";
 
@@ -195,6 +194,12 @@ export async function setupTestIndexerSuite(
 			indexerStorage.updateRedeemStatuses(redeemIds, status),
 	} as unknown as Service<SuiIndexerRpc & WorkerEntrypoint>;
 
+	const mockComplianceService: ComplianceRpc = {
+		isAnyBtcAddressSanctioned: (addrs: string[]): Promise<boolean> =>
+			// returns true if there is an address with last character being digit
+			Promise.resolve(addrs.findIndex((a) => /\d$/.test(a)) >= 0),
+	};
+
 	const indexer = new Indexer(
 		storage,
 		[packageConfig],
@@ -204,6 +209,7 @@ export async function setupTestIndexerSuite(
 		options.maxRetries || 2,
 		electrsClients,
 		mockSuiIndexerService,
+		mockComplianceService,
 	);
 
 	//

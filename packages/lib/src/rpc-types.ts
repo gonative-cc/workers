@@ -1,4 +1,4 @@
-import { BitcoinTxStatus, BtcNet } from "./nbtc";
+import { BitcoinTxStatus } from "./nbtc";
 
 // --- Sui Indexer RPC Types ---
 

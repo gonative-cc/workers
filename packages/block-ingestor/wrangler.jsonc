@@ -13,6 +13,9 @@
   "queues": {
     "producers": [{ "queue": "block-queue", "binding": "BlockQueue" }],
   },
+  "vars": {
+    "AUTH_BEARER_TOKEN": "",
+  },
   // "vars": {
   // },
   "services": [

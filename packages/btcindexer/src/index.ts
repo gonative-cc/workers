@@ -11,6 +11,7 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import HttpRouter from "./router";
 import { type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import { processBlockBatch } from "./queue-handler";
+import { isAuthorized } from "@gonative-cc/lib/auth";
 
 // Export RPC entrypoints for service bindings
 export { RPC } from "./rpc";
@@ -18,24 +19,10 @@ export { RPCMock } from "./rpc-mock";
 
 const router = new HttpRouter(undefined);
 
-/**
- * Validates the Authorization header against the AUTH_BEARER_TOKEN env var.
- */
-function isAuthorized(req: Request, env: Env): boolean {
-	// If the token isn't set in the environment, we assume the endpoint is public
-	if (!env.AUTH_BEARER_TOKEN) return true;
-
-	const authHeader = req.headers.get("Authorization");
-	if (!authHeader || !authHeader.startsWith("Bearer ")) return false;
-
-	const token = authHeader.substring(7);
-	return token === env.AUTH_BEARER_TOKEN;
-}
-
 export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		try {
-			if (!isAuthorized(req, env)) {
+			if (!isAuthorized(req.headers, env.AUTH_BEARER_TOKEN)) {
 				return new Response("Unauthorized", { status: 401 });
 			}
 			const indexer = await indexerFromEnv(env);
@@ -64,9 +51,6 @@ export default {
 			count: batch.messages.length,
 			queue: batch.queue,
 		});
-		// TODO: Add support for active/inactive nBTC addresses.
-		// The current implementation fetches all addresses, but we need to distinguish it,
-		// probably a active (boolean) column in the table.
 		const indexer = await indexerFromEnv(env);
 		return processBlockBatch(batch, indexer);
 	},
@@ -74,12 +58,10 @@ export default {
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
 	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
-		logger.debug({ msg: "Cron job starting" });
 		try {
 			const indexer = await indexerFromEnv(env);
 			await indexer.updateConfirmationsAndFinalize();
 			await indexer.processFinalizedTransactions();
-			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
 			logError({ msg: "Cron job failed", method: "scheduled" }, e);
 		}

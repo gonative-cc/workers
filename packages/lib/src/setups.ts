@@ -18,6 +18,7 @@ export interface Setup extends NbtcCfg, BtcLCCfg {
 	id: number;
 	btc_network: BtcNet;
 	sui_network: SuiNet;
+	ika_pkg: string; // Ika coordinator pkg
 	is_active: number; // TODO: rename to "active"
 }
 

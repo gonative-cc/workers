@@ -16,21 +16,24 @@ const PRESIGN_POOL_TARGET = 100;
 const PRESIGN_POOL_MIN_TARGET = 40;
 const MAX_CREATE_PER_PTB = 40;
 
+// RedeemService operates per BitcoinNetwork
+// TODO: probably it should be an instance per sui network x Bitcoin network.
 export class RedeemService {
 	constructor(
 		private storage: D1Storage,
-		private clients: Map<SuiNet, SuiClient>,
+		private clients: [SuiNet, SuiClient][],
 		private btcIndexer: BtcIndexerRpc,
 		private utxoLockTimeMs: number,
 		private redeemDurationMs: number,
 	) {
-		if (clients.size === 0) {
+		if (clients.length === 0) {
 			throw new Error("No SuiClients configured");
 		}
 	}
+
 	// Makes sure we have enough presigns in the queue
-	async refillPresignPool(nets: SuiNet[]) {
-		await Promise.allSettled(nets.map((net) => this.refillNetworkPool(net)));
+	async refillPresignPool() {
+		await Promise.allSettled(this.clients.map((c) => this.refillNetworkPool(c[0])));
 	}
 
 	private async refillNetworkPool(network: SuiNet) {
@@ -102,12 +105,13 @@ export class RedeemService {
 
 	async processSigningRedeems() {
 		// NOTE: here we are processing only 50 redeems every minute (every cron), we are not
-		// looping through all the sinning status redeems to avoid cloudflare timeout, since we are
-		// already waiting for ika to sign, when calling ikaSdk.getPresignInParicularState
-		const sinnings = await this.storage.getSigningRedeems();
-		if (sinnings.length === 0) return;
+		// looping through all the signing status redeems to avoid cloudflare timeout, since we are
+		// already waiting for ika to sign, when calling ikaSdk.getPresignInParticularState
+		// Signature verification is handled by the event indexer
+		const signings = await this.storage.getSigningRedeems();
+		if (signings.length === 0) return;
 
-		for (const req of sinnings) {
+		for (const req of signings) {
 			await this.processSigningRedeem(req);
 		}
 	}
@@ -160,39 +164,19 @@ export class RedeemService {
 
 	private async processSigningRedeem(req: RedeemRequestWithInputs) {
 		const client = this.getSuiClient(req.sui_network);
-		const inputsToVerify: RedeemInput[] = [];
 
 		for (const input of req.inputs) {
 			try {
 				if (!input.sign_id) {
 					await this.requestIkaSig(client, req, input);
-				} else if (input.sign_id && !input.verified) {
-					inputsToVerify.push(input);
 				}
 			} catch (e) {
 				logError(
 					{
-						msg: "Failed to process input",
+						msg: "Failed to request signature for input",
 						method: "processSolvedRedeem",
 						redeemId: req.redeem_id,
 						utxoId: input.utxo_id,
-						step: !input.sign_id ? "request_signature" : "verify_signature",
-					},
-					e,
-				);
-			}
-		}
-
-		if (inputsToVerify.length > 0) {
-			try {
-				await this.recordIkaSignatures(client, req, inputsToVerify);
-			} catch (e) {
-				logError(
-					{
-						msg: "Failed to batch verify signatures",
-						method: "processSolvedRedeem",
-						redeemId: req.redeem_id,
-						count: inputsToVerify.length,
 					},
 					e,
 				);
@@ -327,43 +311,6 @@ export class RedeemService {
 			);
 			throw e;
 		}
-	}
-
-	private async recordIkaSignatures(
-		client: SuiClient,
-		req: RedeemRequestWithInputs,
-		inputs: RedeemInput[],
-	) {
-		const inputsWithSignId = inputs.filter(
-			(input): input is RedeemInput & { sign_id: string } => input.sign_id !== null,
-		);
-
-		if (inputsWithSignId.length === 0) {
-			return;
-		}
-
-		logger.info({
-			msg: "Batch verifying signatures",
-			redeemId: req.redeem_id,
-			count: inputsWithSignId.length,
-		});
-
-		await client.validateSignatures(
-			req.redeem_id,
-			inputsWithSignId,
-			req.nbtc_pkg,
-			req.nbtc_contract,
-		);
-
-		for (const input of inputsWithSignId) {
-			await this.storage.markRedeemInputVerified(req.redeem_id, input.utxo_id);
-		}
-
-		logger.info({
-			msg: "Signatures verified",
-			redeemId: req.redeem_id,
-			count: inputsWithSignId.length,
-		});
 	}
 
 	private getSuiClient(suiNet: SuiNet): SuiClient {

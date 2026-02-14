@@ -1,5 +1,6 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { getSecret } from "@gonative-cc/lib/secrets";
 import { fromBase64 } from "@mysten/sui/utils";
 
 import type {
@@ -35,10 +36,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 		if (requests.length === 0) return;
 
 		const storage = this.storage();
-		const mnemonic = await this.env.NBTC_MINTING_SIGNER_MNEMONIC.get();
-		if (!mnemonic) {
-			throw new Error("NBTC_MINTING_SIGNER_MNEMONIC not set");
-		}
+		const mnemonic = await getSecret(this.env.NBTC_MINTING_SIGNER_MNEMONIC);
 
 		const { redeemsById, networks } = await this.fetchRedeemDetails(storage, requests);
 		if (networks.size === 0) return;

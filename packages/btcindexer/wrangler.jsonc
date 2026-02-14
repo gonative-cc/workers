@@ -57,7 +57,10 @@
    * Service Bindings (communicate between multiple Workers)
    * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
    */
-  "services": [{ "binding": "SuiIndexer", "service": "sui-indexer" }],
+  "services": [
+    { "binding": "SuiIndexer", "service": "sui-indexer" },
+    { "binding": "Compliance", "service": "compliance", "entrypoint": "RPC" },
+  ],
   //
   "d1_databases": [
     {

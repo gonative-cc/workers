@@ -3,8 +3,9 @@ import { SuiGraphQLClient } from "./graphql-client";
 import { Processor } from "./processor";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
+import { getSecret } from "@gonative-cc/lib/secrets";
 import { RedeemService } from "./redeem-service";
-import { createSuiClients } from "./redeem-sui-client";
+import { createSuiClients, type SuiClient } from "./redeem-sui-client";
 import type { Service } from "@cloudflare/workers-types";
 import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
@@ -24,11 +25,22 @@ export default {
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new D1Storage(env.DB, env.SETUP_ENV);
 		const activeNetworks = storage.getSuiNetworks();
+		logger.debug({
+			msg: "Starting sui-indexer",
+			networks: activeNetworks,
+		});
+
+		const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
+		const suiClients = await createSuiClients(activeNetworks, mnemonic);
+		if (suiClients.length === 0) {
+			logger.info({ msg: "No active packages/networks found in database." });
+			return;
+		}
 
 		// Run both indexer and redeem solver tasks in parallel
 		const results = await Promise.allSettled([
-			runIndexers(storage, activeNetworks),
-			runRedeemSolver(storage, env, activeNetworks),
+			runIndexers(storage, suiClients),
+			runRedeemSolver(storage, env, suiClients),
 		]);
 
 		// Check for any rejected promises and log errors
@@ -36,83 +48,56 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-async function runIndexers(storage: D1Storage, activeNetworks: SuiNet[]) {
-	if (activeNetworks.length === 0) {
-		logger.info({ msg: "No active packages/networks found in database." });
-		return;
-	}
-
-	const networksToProcess: { net: SuiNet; gqlUrl: string }[] = [];
-	for (const net of activeNetworks) {
+async function runIndexers(storage: D1Storage, suiClients: [SuiNet, SuiClient][]) {
+	const indexers: Processor[] = [];
+	const taskNames = [];
+	for (const sc of suiClients) {
+		const net = sc[0];
 		const gqlUrl = SUI_GRAPHQL_URLS[net];
-		if (gqlUrl) {
-			networksToProcess.push({ net, gqlUrl });
-		} else {
+		if (!gqlUrl) {
 			logger.warn({
 				msg: "Skipping processing network: No GraphQL URL configured",
 				network: net,
 			});
+			continue;
 		}
+		const gql = new SuiGraphQLClient(gqlUrl);
+		indexers.push(new Processor(net, storage, sc[1], gql));
+		taskNames.push(net + " Processor.run");
 	}
-
-	const netNames = networksToProcess.map((n) => n.net);
-	logger.debug({
-		msg: "Starting Indexer Loop",
-		networks: netNames,
-	});
-
-	const networkJobs = networksToProcess.map((n) => runIndexerByNetwork(storage, n.net, n.gqlUrl));
-	const results = await Promise.allSettled(networkJobs);
-	reportErrors(results, "runSuiIndexer", "Failed to process network", netNames, "network");
+	const jobs = indexers.map((p) => p.run());
+	const results = await Promise.allSettled(jobs);
+	reportErrors(results, "runSuiIndexers", "Indexer run failure", taskNames);
 }
 
-async function runIndexerByNetwork(storage: D1Storage, net: SuiNet, gqlUrl: string) {
-	const client = new SuiGraphQLClient(gqlUrl);
-	const p = new Processor(storage, client, net);
-	return p.run();
-}
-
-async function runRedeemSolver(storage: D1Storage, env: Env, activeNetworks: SuiNet[]) {
+async function runRedeemSolver(
+	storage: D1Storage,
+	env: Env,
+	suiClients: [SuiNet, SuiClient][],
+) {
 	logger.info({ msg: "Running scheduled redeem solver task..." });
-	let mnemonic: string;
-	try {
-		mnemonic = (await env.NBTC_MINTING_SIGNER_MNEMONIC.get()) || "";
-	} catch (error) {
-		logger.error({ msg: "Failed to retrieve NBTC_MINTING_SIGNER_MNEMONIC", error });
-		return;
-	}
-	if (!mnemonic) {
-		logger.error({ msg: "Missing NBTC_MINTING_SIGNER_MNEMONIC" });
-		return;
-	}
-	const clients = await createSuiClients(activeNetworks, mnemonic);
-	const service = new RedeemService(
+	const rs = new RedeemService(
 		storage,
-		clients,
+		suiClients,
 		env.BtcIndexer as unknown as Service<BtcIndexerRpc & WorkerEntrypoint>,
 		env.UTXO_LOCK_TIME,
 		env.REDEEM_DURATION_MS,
 	);
 
 	const results: PromiseSettledResult<void>[] = [];
-
-	results.push(await tryAsync(service.refillPresignPool(activeNetworks)));
-	results.push(await tryAsync(service.processPendingRedeems()));
-
-	// Solve and Sign
+	results.push(await tryAsync(rs.refillPresignPool()));
+	results.push(await tryAsync(rs.processPendingRedeems()));
 	results.push(
 		await tryAsync(
 			(async () => {
-				await service.solveReadyRedeems();
-				await service.processSigningRedeems();
+				await rs.solveReadyRedeems();
+				await rs.processSigningRedeems();
 			})(),
 		),
 	);
 
-	// 4. Broadcast
-	results.push(await tryAsync(service.broadcastReadyRedeems()));
+	results.push(await tryAsync(rs.broadcastReadyRedeems()));
 
-	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
 		"refillPresignPool",
 		"processPendingRedeems",
@@ -130,21 +115,20 @@ async function tryAsync<T>(p: Promise<T>): Promise<PromiseSettledResult<T>> {
 	}
 }
 
-// Helper function to report errors from `Promise.allSettled` results.
+// Helper function to check for rejected promises and report errors from `Promise.allSettled` results.
 function reportErrors(
 	results: PromiseSettledResult<unknown>[],
 	method: string,
 	msg: string,
-	names: (string | undefined)[],
-	nameKey = "task",
+	names: string[],
 ) {
-	results.forEach((result, index) => {
+	results.forEach((result, idx) => {
 		if (result.status === "rejected") {
 			logError(
 				{
 					msg,
 					method,
-					[nameKey]: names[index],
+					task: names[idx],
 				},
 				result.reason,
 			);

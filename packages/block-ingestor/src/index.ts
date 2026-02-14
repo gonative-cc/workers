@@ -1,13 +1,19 @@
 import { Router } from "itty-router";
 import { PutBlocksReq } from "./api/put-blocks";
+import { isAuthorized } from "@gonative-cc/lib/auth";
 import { handleIngestBlocks } from "./ingest";
 import { type BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import { logError } from "@gonative-cc/lib/logger";
 import { btcNetFromString } from "@gonative-cc/lib/nbtc";
+import { RestPath } from "./api/client";
 
-const router = Router();
+export const router = Router();
 
-router.put("/bitcoin/blocks", async (request, env: Env) => {
+router.put(RestPath.blocks, async (request, env: Env) => {
+	if (!isAuthorized(request.headers, env.AUTH_BEARER_TOKEN)) {
+		return new Response("Unauthorized", { status: 401 });
+	}
+
 	try {
 		const blocks = PutBlocksReq.decode(await request.arrayBuffer());
 		await handleIngestBlocks(blocks, env.BtcBlocks, env.BlockQueue);
@@ -45,7 +51,6 @@ function envBtcIndexer(env: Env): BtcIndexerRpc {
 
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-		// TODO: add authentication method here
 		return router.handle(request, env);
 	},
 };

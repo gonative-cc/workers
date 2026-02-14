@@ -127,7 +127,7 @@ describe("IndexerStorage", () => {
 		await insertDepositAddress(db, testSetupId0, 1, depositAddress1);
 	});
 
-	afterEach(async () => dropTables(await mf.getD1Database("DB")));
+	afterEach(() => dropTables(db));
 
 	it("should manage presign objects", async () => {
 		const presignId1 = "presign1";

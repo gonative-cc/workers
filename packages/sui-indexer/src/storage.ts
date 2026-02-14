@@ -5,6 +5,7 @@ import {
 	type NbtcPkg,
 	type RedeemRequest,
 	type Utxo,
+	type RedeemSignInfo,
 	type RedeemRequestIngestData,
 } from "./models";
 import {
@@ -143,6 +144,50 @@ export class D1Storage {
 		for (const r of res.results) result[r.setup_id] = r.nbtc_cursor;
 
 		return result;
+	}
+
+	async getIkaCoordinatorPkgsWithCursors(
+		suiNetwork: SuiNet,
+	): Promise<Record<string, string | null>> {
+		const { results } = await this.db
+			.prepare(
+				`SELECT s.ika_pkg,
+				        (SELECT i.ika_cursor FROM indexer_state i WHERE i.setup_id = s.id LIMIT 1) as ika_cursor
+				 FROM setups s
+				 WHERE s.sui_network = ? AND s.is_active = 1 AND s.ika_pkg IS NOT NULL
+				 GROUP BY s.ika_pkg`,
+			)
+			.bind(suiNetwork)
+			.all<{ ika_pkg: string; ika_cursor: string | null }>();
+
+		const result: Record<string, string | null> = {};
+		results.forEach((r) => {
+			result[r.ika_pkg] = r.ika_cursor || null;
+		});
+		return result;
+	}
+
+	async saveIkaCursors(
+		suiNetwork: SuiNet,
+		cursors: { ikaPkg: string; cursor: string }[],
+	): Promise<void> {
+		if (cursors.length === 0) return;
+
+		const now = Date.now();
+		const batch = [];
+
+		for (const { ikaPkg, cursor } of cursors) {
+			batch.push(
+				this.db
+					.prepare(
+						`UPDATE indexer_state SET ika_cursor = ?, updated_at = ?
+						 WHERE setup_id IN (SELECT id FROM setups WHERE ika_pkg = ? AND sui_network = ?)`,
+					)
+					.bind(cursor, now, ikaPkg, suiNetwork),
+			);
+		}
+
+		await this.db.batch(batch);
 	}
 
 	// Saves multiple cursor positions for querying Sui events.
@@ -345,6 +390,35 @@ export class D1Storage {
 			.bind(RedeemRequestStatus.Signed, redeemId, redeemId);
 
 		await this.db.batch([updateSolution, updateRequest]);
+	}
+
+	async clearRedeemInputSignId(redeemId: number, utxoId: number): Promise<void> {
+		await this.db
+			.prepare(
+				`UPDATE nbtc_redeem_solutions SET sign_id = NULL WHERE redeem_id = ? AND utxo_id = ?`,
+			)
+			.bind(redeemId, utxoId)
+			.run();
+	}
+
+	async getRedeemInfoBySignId(signId: string): Promise<RedeemSignInfo | null> {
+		const query = `
+			SELECT s.redeem_id, s.utxo_id, s.input_index, p.nbtc_pkg, p.nbtc_contract, p.sui_network
+			FROM nbtc_redeem_solutions s
+			JOIN nbtc_redeem_requests r ON s.redeem_id = r.redeem_id
+			JOIN setups p ON r.setup_id = p.id
+			WHERE s.sign_id = ?
+		`;
+		const result = await this.db.prepare(query).bind(signId).first<{
+			redeem_id: number;
+			utxo_id: number;
+			input_index: number;
+			nbtc_pkg: string;
+			nbtc_contract: string;
+			sui_network: string;
+		}>();
+		if (!result) return null;
+		return { ...result, sui_network: toSuiNet(result.sui_network) };
 	}
 
 	async markRedeemSigning(redeemId: number): Promise<void> {

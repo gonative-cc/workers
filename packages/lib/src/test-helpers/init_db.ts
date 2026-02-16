@@ -1,6 +1,6 @@
 import * as path from "path";
 import { readdir } from "fs/promises";
-import { D1Database } from "@cloudflare/workers-types";
+import { D1Database, type D1ExecResult } from "@cloudflare/workers-types";
 import assert from "assert";
 
 // Loads all migration files into database
@@ -45,11 +45,17 @@ export const tables = [
 	"setups",
 ];
 
-export async function initDb(db: D1Database) {
-	return applyMigrations(db, MIGRATIONS_PATH);
+export async function initDb(db: D1Database, path?: string) {
+	return applyMigrations(db, path || MIGRATIONS_PATH);
 }
 
 export function dropTables(db: D1Database) {
 	const dropStms = tables.map((t) => `DROP TABLE IF EXISTS ${t};`).join(" ");
 	return db.exec(dropStms);
+}
+
+export function purgeTables(db: D1Database, tableNames: string[]): Promise<D1ExecResult> {
+	const sql = tableNames.map((t) => `DELETE FROM ${t};`).join(" ");
+
+	return db.exec(sql);
 }

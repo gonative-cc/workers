@@ -1,4 +1,4 @@
-import { Transaction } from "bitcoinjs-lib";
+import { networks, Transaction, type Network } from "bitcoinjs-lib";
 import { BitcoinTxStatus, BtcNet, type BlockQueueRecord } from "@gonative-cc/lib/nbtc";
 import type { NbtcPkg, SuiNet } from "@gonative-cc/lib/nsui";
 
@@ -199,3 +199,10 @@ export const enum InsertBlockStatus {
 }
 
 export type InsertBlockResult = InsertBlockStatus;
+
+export const btcNetworkCfg: Record<BtcNet, Network> = {
+	[BtcNet.MAINNET]: networks.bitcoin,
+	[BtcNet.TESTNET]: networks.testnet,
+	[BtcNet.REGTEST]: networks.regtest,
+	[BtcNet.SIGNET]: networks.testnet,
+};

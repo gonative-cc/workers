@@ -51,9 +51,6 @@ export default {
 			count: batch.messages.length,
 			queue: batch.queue,
 		});
-		// TODO: Add support for active/inactive nBTC addresses.
-		// The current implementation fetches all addresses, but we need to distinguish it,
-		// probably a active (boolean) column in the table.
 		const indexer = await indexerFromEnv(env);
 		return processBlockBatch(batch, indexer);
 	},
@@ -61,12 +58,10 @@ export default {
 	// the scheduled handler is invoked at the interval set in our wrangler.jsonc's
 	// [[triggers]] configuration.
 	async scheduled(_event: ScheduledController, env: Env, _ctx): Promise<void> {
-		logger.debug({ msg: "Cron job starting" });
 		try {
 			const indexer = await indexerFromEnv(env);
 			await indexer.updateConfirmationsAndFinalize();
 			await indexer.processFinalizedTransactions();
-			logger.info({ msg: "Cron job finished successfully" });
 		} catch (e) {
 			logError({ msg: "Cron job failed", method: "scheduled" }, e);
 		}

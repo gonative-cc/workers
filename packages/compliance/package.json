@@ -10,7 +10,10 @@
 		"deploy": "wrangler deploy",
 		"typecheck": "tsc --noEmit",
 		"cf-typegen": "wrangler types",
-		"test": "bun test"
+		"test": "bun test",
+		"db:migrate": "wrangler d1 migrations apply compliance",
+		"db:migrate:local": "wrangler d1 migrations apply compliance --local",
+		"db:migrate:backstage": "wrangler d1 migrations apply compliance --remote"
 	},
 	"dependencies": {
 		"@gonative-cc/lib": "workspace:*"

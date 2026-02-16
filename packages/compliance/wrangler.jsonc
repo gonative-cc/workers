@@ -19,7 +19,10 @@
     {
       "binding": "DB",
       "database_name": "compliance",
-      "database_id": "",
+      // TODO: update database id
+      "database_id": "compliance-db-id",
+      "migrations_table": "migrations",
+      "migrations_dir": "./db/migrations/",
     },
   ],
 }

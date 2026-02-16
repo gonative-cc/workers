@@ -16,21 +16,24 @@ const PRESIGN_POOL_TARGET = 100;
 const PRESIGN_POOL_MIN_TARGET = 40;
 const MAX_CREATE_PER_PTB = 40;
 
+// RedeemService operates per BitcoinNetwork
+// TODO: probably it should be an instance per sui network x Bitcoin network.
 export class RedeemService {
 	constructor(
 		private storage: D1Storage,
-		private clients: Map<SuiNet, SuiClient>,
+		private clients: [SuiNet, SuiClient][],
 		private btcIndexer: BtcIndexerRpc,
 		private utxoLockTimeMs: number,
 		private redeemDurationMs: number,
 	) {
-		if (clients.size === 0) {
+		if (clients.length === 0) {
 			throw new Error("No SuiClients configured");
 		}
 	}
+
 	// Makes sure we have enough presigns in the queue
-	async refillPresignPool(nets: SuiNet[]) {
-		await Promise.allSettled(nets.map((net) => this.refillNetworkPool(net)));
+	async refillPresignPool() {
+		await Promise.allSettled(this.clients.map((c) => this.refillNetworkPool(c[0])));
 	}
 
 	private async refillNetworkPool(network: SuiNet) {
@@ -311,9 +314,9 @@ export class RedeemService {
 	}
 
 	private getSuiClient(suiNet: SuiNet): SuiClient {
-		const c = this.clients.get(suiNet);
+		const c = this.clients.find((c) => c[0] === suiNet);
 		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);
-		return c;
+		return c[1];
 	}
 
 	private async redeemReqProposeSolution(req: RedeemRequest) {

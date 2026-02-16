@@ -26,7 +26,7 @@ export interface PendingTx {
 	tx_id: string;
 	block_hash: string | null;
 	block_height: number;
-	btc_network: BtcNet;
+	setup_id: number;
 	deposit_address: string;
 }
 
@@ -35,9 +35,6 @@ export interface FinalizedTxRow {
 	vout: number;
 	block_hash: string;
 	block_height: number;
-	nbtc_pkg: string;
-	sui_network: SuiNet;
-	btc_network: string;
 	setup_id: number;
 }
 
@@ -98,9 +95,7 @@ export interface NbtcTxRow {
 	updated_at: number;
 	sui_tx_id: string | null;
 	retry_count: number;
-	nbtc_pkg: string;
-	sui_network: SuiNet;
-	btc_network: BtcNet;
+	setup_id: number;
 }
 
 export interface MintBatchArg extends NbtcPkg {

@@ -17,6 +17,8 @@ import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
 import { toSuiNet } from "@gonative-cc/lib/nsui";
 
 export interface Storage {
+	btcNetwork(setupId: number): BtcNet;
+
 	// Block operations
 	markBlockAsProcessed(hash: string, network: BtcNet): Promise<void>;
 	insertBlockInfo(blockMessage: BlockQueueRecord): Promise<InsertBlockResult>;

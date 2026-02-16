@@ -99,14 +99,9 @@ export interface SuiEventNode {
 	txDigest: string;
 }
 
-export interface NetworkConfig {
-	name: SuiNet;
-	url: string;
-}
-
 // partial entry in the setups table
-export interface PkgCfg {
-	id: number;
+export interface NbtcPkg {
+	setup_id: number;
 	nbtc_pkg: string;
 }
 

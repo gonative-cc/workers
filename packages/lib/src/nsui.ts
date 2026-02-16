@@ -1,14 +1,9 @@
 export type SuiNet = "testnet" | "mainnet" | "devnet" | "localnet";
 
+// TODO: should use setup_id instead of this object
 export interface NbtcPkg {
 	nbtcPkg: string;
 	suiNetwork: SuiNet;
-}
-
-export interface NbtcCfg {
-	network: SuiNet;
-	nbtcPkg: string;
-	nbtcModule: string;
 }
 
 /**

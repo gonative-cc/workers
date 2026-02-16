@@ -109,7 +109,7 @@ export class NbtcEventHandler {
 export class IkaEventHandler {
 	constructor(
 		private storage: D1Storage,
-		private suiClient: SuiClient,
+		private suiClient: SuiClient, // TODO should be IkaClient
 	) {}
 
 	public async handleEvents(events: SuiEventNode[]) {

@@ -5,24 +5,29 @@ const EVENTS_PER_PAGE = 50;
 
 export type Cursor = string | null;
 
+export interface PageInfo {
+	hasNextPage: boolean;
+	endCursor: Cursor;
+}
+
 export interface EventsBatch {
 	events: SuiEventNode[];
-	endCursor: Cursor;
-	hasNextPage: boolean;
+	pageInfo: PageInfo;
+}
+
+export interface EventFetcherArg {
+	module: string; // pkg_id::module
+	cursor: string | null;
+	index: number | string; // used to index entries
 }
 
 export interface EventFetcher {
-	fetchEvents: (
-		packages: { id: string; cursor: string | null; module?: string }[],
-	) => Promise<Record<string, EventsBatch>>;
+	fetchEvents: (modules: EventFetcherArg[]) => Promise<EventsBatch[]>;
 }
 
 interface ModuleEventsResponse {
 	events: {
-		pageInfo: {
-			hasNextPage: boolean;
-			endCursor: Cursor;
-		};
+		pageInfo: PageInfo;
 		nodes: {
 			timestamp: string; // ISO timestamp string
 			contents: {
@@ -38,11 +43,11 @@ interface ModuleEventsResponse {
 	};
 }
 
-function buildMultipleEventsQuery(packageCount: number): string {
+function buildMultipleEventsQuery(numModules: number): string {
 	const variables = [];
 	const queries = [];
 
-	for (let i = 0; i < packageCount; i++) {
+	for (let i = 0; i < numModules; i++) {
 		variables.push(`$filter${i}: String!`, `$cursor${i}: String`);
 		queries.push(`
 			events${i}: events(filter: { module: $filter${i} }, first: ${EVENTS_PER_PAGE}, after: $cursor${i}) {
@@ -76,17 +81,17 @@ export class SuiGraphQLClient implements EventFetcher {
 		this.client = new GraphQLClient(endpoint);
 	}
 
-	async fetchEvents(
-		packages: { id: string; cursor: string | null; module?: string }[],
-	): Promise<Record<string, EventsBatch>> {
-		if (packages.length === 0) return {};
+	// returns list of fetched EventBatch in the same order as the modules. EventBatch can be null
+	// if the response could not be obtained
+	async fetchEvents(modules: EventFetcherArg[]): Promise<EventsBatch[]> {
+		if (modules.length === 0) return [];
 
-		const query = buildMultipleEventsQuery(packages.length);
+		const query = buildMultipleEventsQuery(modules.length);
 		const variables: Record<string, string | null> = {};
 
-		packages.forEach((pkg, i) => {
-			variables[`filter${i}`] = `${pkg.id}::${pkg.module ?? "nbtc"}`;
-			variables[`cursor${i}`] = pkg.cursor;
+		modules.forEach((m, i) => {
+			variables[`filter${i}`] = m.module;
+			variables[`cursor${i}`] = m.cursor;
 		});
 
 		const data = await this.client.request<Record<string, ModuleEventsResponse["events"]>>(
@@ -94,25 +99,20 @@ export class SuiGraphQLClient implements EventFetcher {
 			variables,
 		);
 
-		const result: Record<string, EventsBatch> = {};
-		packages.forEach((pkg, i) => {
-			const eventsData = data[`events${i}`];
-			if (eventsData) {
-				const events: SuiEventNode[] = eventsData.nodes.map((node) => ({
-					type: node.contents.type.repr,
-					json: node.contents.json,
-					timestamp: node.timestamp,
-					txDigest: node.transaction.digest,
-				}));
+		return modules.map((_, i) => {
+			const eventsData = data[`events${i}`]!;
 
-				result[pkg.id] = {
-					events,
-					endCursor: eventsData.pageInfo.endCursor,
-					hasNextPage: eventsData.pageInfo.hasNextPage,
-				};
-			}
+			const events: SuiEventNode[] = eventsData.nodes.map((node) => ({
+				type: node.contents.type.repr,
+				json: node.contents.json,
+				timestamp: node.timestamp,
+				txDigest: node.transaction.digest,
+			}));
+
+			return {
+				events,
+				pageInfo: eventsData.pageInfo,
+			};
 		});
-
-		return result;
 	}
 }

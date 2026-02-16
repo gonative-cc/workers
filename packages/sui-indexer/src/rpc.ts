@@ -3,7 +3,6 @@ import { logError, logger } from "@gonative-cc/lib/logger";
 import { getSecret } from "@gonative-cc/lib/secrets";
 import { fromBase64 } from "@mysten/sui/utils";
 
-import { D1Storage } from "./storage";
 import type {
 	ConfirmingRedeemReq,
 	RedeemRequestEventRaw,
@@ -11,10 +10,13 @@ import type {
 	FinalizeRedeemTx,
 } from "@gonative-cc/lib/rpc-types";
 import { RedeemRequestStatus } from "@gonative-cc/lib/rpc-types";
+import { BtcNet, btcNetFromString } from "@gonative-cc/lib/nbtc";
+import type { SuiNet } from "@gonative-cc/lib/nsui";
+
+import { D1Storage } from "./storage";
 import type { RedeemRequest } from "./models";
 import type { SuiIndexerRpc } from "./rpc-interface";
 import { createSuiClients } from "./redeem-sui-client";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 /**
  * RPC entrypoint for the worker.
@@ -22,6 +24,10 @@ import type { SuiNet } from "@gonative-cc/lib/nsui";
  * @see https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/
  */
 export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
+	private storage(): D1Storage {
+		return new D1Storage(this.env.DB, this.env.SETUP_ENV);
+	}
+
 	/**
 	 * Once BTC withdraw for the Redeem Request is confirmed and finalized, this method
 	 * will update the DB state and remove related UTXOs.
@@ -29,7 +35,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	async finalizeRedeems(requests: FinalizeRedeemTx[]): Promise<void> {
 		if (requests.length === 0) return;
 
-		const storage = new D1Storage(this.env.DB);
+		const storage = this.storage();
 		const mnemonic = await getSecret(this.env.NBTC_MINTING_SIGNER_MNEMONIC);
 
 		const { redeemsById, networks } = await this.fetchRedeemDetails(storage, requests);
@@ -41,8 +47,8 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 			const details = redeemsById.get(req.redeemId);
 			if (!details) continue;
 
-			const client = clients.get(details.sui_network);
-			if (!client) {
+			const c = clients.find((sc) => sc[0] === details.sui_network);
+			if (!c) {
 				logger.error({
 					msg: "SuiClient not found for network",
 					network: details.sui_network,
@@ -51,8 +57,9 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 				continue;
 			}
 
+			const suiClient = c[1];
 			try {
-				const digest = await client.finalizeRedeem({
+				const digest = await suiClient.finalizeRedeem({
 					redeemId: req.redeemId,
 					proof: req.proof,
 					height: req.height,
@@ -92,7 +99,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 
 		for (const req of requests) {
 			try {
-				const details = await storage.getRedeemWithSetup(req.redeemId);
+				const details = await storage.getRedeem(req.redeemId);
 				if (details) {
 					redeemsById.set(req.redeemId, details);
 					networks.add(details.sui_network);
@@ -114,28 +121,27 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	}
 
 	async updateRedeemStatus(redeemId: number, status: RedeemRequestStatus): Promise<void> {
-		const storage = new D1Storage(this.env.DB);
+		const storage = this.storage();
 		await storage.updateRedeemStatus(redeemId, status);
 	}
 
 	async updateRedeemStatuses(redeemIds: number[], status: RedeemRequestStatus): Promise<void> {
-		const storage = new D1Storage(this.env.DB);
+		const storage = this.storage();
 		await storage.updateRedeemStatuses(redeemIds, status);
 	}
 
 	async getConfirmingRedeems(network: string): Promise<ConfirmingRedeemReq[]> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.getConfirmingRedeems(network);
+		const storage = this.storage();
+		return storage.getConfirmingRedeems(btcNetFromString(network));
 	}
 
-	async getBroadcastedRedeemTxIds(network: string): Promise<string[]> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.getBroadcastedBtcRedeemTxIds(network);
+	// TODO: should be by setup_id
+	async getBroadcastedRedeemTxIds(btcNet: string): Promise<string[]> {
+		return this.storage().getBroadcastedBtcRedeemTxIds(btcNetFromString(btcNet));
 	}
 
 	async confirmRedeem(txIds: string[], blockHeight: number, blockHash: string): Promise<void> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.confirmRedeem(txIds, blockHeight, blockHash);
+		return this.storage().confirmRedeem(txIds, blockHeight, blockHash);
 	}
 
 	/**
@@ -151,7 +157,7 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	 */
 	async putRedeemTx(setupId: number, suiTxId: string, e: RedeemRequestEventRaw): Promise<void> {
 		try {
-			const storage = new D1Storage(this.env.DB);
+			const storage = this.storage();
 			if (await storage.hasRedeemRequest(Number(e.redeem_id))) {
 				logger.info({
 					msg: "Redeem request already processed",
@@ -190,7 +196,6 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 	}
 
 	async redeemsBySuiAddr(setupId: number, suiAddr: string): Promise<RedeemRequestResp[]> {
-		const storage = new D1Storage(this.env.DB);
-		return storage.getRedeemsBySuiAddr(setupId, suiAddr);
+		return this.storage().getRedeemsBySuiAddr(setupId, suiAddr);
 	}
 }

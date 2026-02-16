@@ -17,7 +17,6 @@ export interface ConfirmingRedeemReq {
 	btc_tx: string;
 	btc_block_height: number;
 	btc_block_hash: string;
-	btc_network: string;
 }
 
 export interface FinalizeRedeemTx {

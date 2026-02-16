@@ -1,6 +1,5 @@
 import { SUI_GRAPHQL_URLS } from "@gonative-cc/lib/nsui";
 import { SuiGraphQLClient } from "./graphql-client";
-import type { NetworkConfig } from "./models";
 import { Processor } from "./processor";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -24,16 +23,24 @@ export default {
 		return router.fetch(request, env, ctx);
 	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-		const storage = new D1Storage(env.DB);
-		const activeNetworks = await storage.getActiveNetworks();
+		const storage = new D1Storage(env.DB, env.SETUP_ENV);
+		const activeNetworks = storage.getSuiNetworks();
+		logger.debug({
+			msg: "Starting sui-indexer",
+			networks: activeNetworks,
+		});
 
 		const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
 		const suiClients = await createSuiClients(activeNetworks, mnemonic);
+		if (suiClients.length === 0) {
+			logger.info({ msg: "No active packages/networks found in database." });
+			return;
+		}
 
 		// Run both indexer and redeem solver tasks in parallel
 		const results = await Promise.allSettled([
-			runSuiIndexer(storage, activeNetworks, suiClients),
-			runRedeemSolver(storage, env, suiClients, activeNetworks),
+			runIndexers(storage, suiClients),
+			runRedeemSolver(storage, env, suiClients),
 		]);
 
 		// Check for any rejected promises and log errors
@@ -41,90 +48,35 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-async function runSuiIndexer(
-	storage: D1Storage,
-	activeNetworks: SuiNet[],
-	suiClients: Map<SuiNet, SuiClient>,
-) {
-	if (activeNetworks.length === 0) {
-		logger.info({ msg: "No active packages/networks found in database." });
-		return;
-	}
-
-	const networksToProcess: NetworkConfig[] = [];
-	for (const netName of activeNetworks) {
-		const url = SUI_GRAPHQL_URLS[netName];
-		if (url) {
-			networksToProcess.push({ name: netName, url });
-		} else {
+async function runIndexers(storage: D1Storage, suiClients: [SuiNet, SuiClient][]) {
+	const indexers: Processor[] = [];
+	const taskNames = [];
+	for (const sc of suiClients) {
+		const net = sc[0];
+		const gqlUrl = SUI_GRAPHQL_URLS[net];
+		if (!gqlUrl) {
 			logger.warn({
-				msg: "Skipping network: No GraphQL URL configured",
-				network: netName,
+				msg: "Skipping processing network: No GraphQL URL configured",
+				network: net,
 			});
+			continue;
 		}
+		const gql = new SuiGraphQLClient(gqlUrl);
+		indexers.push(new Processor(net, storage, sc[1], gql));
+		taskNames.push(net + " Processor.run");
 	}
-
-	logger.debug({
-		msg: "Starting Indexer Loop",
-		networks: networksToProcess.map((n) => n.name),
-	});
-
-	const networkJobs = networksToProcess.map((netCfg) =>
-		poolAndProcessEvents(netCfg, storage, suiClients),
-	);
-	const results = await Promise.allSettled(networkJobs);
-	reportErrors(
-		results,
-		"runSuiIndexer",
-		"Failed to process network",
-		networksToProcess.map((n) => n.name),
-		"network",
-	);
-}
-
-async function poolAndProcessEvents(
-	netCfg: NetworkConfig,
-	storage: D1Storage,
-	suiClients: Map<SuiNet, SuiClient>,
-) {
-	const suiClient = suiClients.get(netCfg.name);
-	if (!suiClient) {
-		logger.warn({ msg: "No SuiClient for network, skipping", network: netCfg.name });
-		return;
-	}
-	const client = new SuiGraphQLClient(netCfg.url);
-	const p = new Processor(netCfg, storage, client, suiClient);
-
-	const nbtcPkgs = await storage.getActiveNbtcPkgs(netCfg.name);
-	if (nbtcPkgs.length > 0) {
-		logger.info({
-			msg: `Processing nBTC events`,
-			network: netCfg.name,
-			packageCount: nbtcPkgs.length,
-		});
-		await p.pollAllNbtcEvents(nbtcPkgs);
-	}
-
-	const ikaCursors = await storage.getIkaCoordinatorPkgsWithCursors(netCfg.name);
-	const ikaPkgIds = Object.keys(ikaCursors);
-	if (ikaPkgIds.length > 0) {
-		logger.info({
-			msg: `Processing IKA coordinator events`,
-			network: netCfg.name,
-			packageCount: ikaPkgIds.length,
-		});
-		await p.pollIkaEvents(ikaCursors);
-	}
+	const jobs = indexers.map((p) => p.run());
+	const results = await Promise.allSettled(jobs);
+	reportErrors(results, "runSuiIndexers", "Indexer run failure", taskNames);
 }
 
 async function runRedeemSolver(
 	storage: D1Storage,
 	env: Env,
-	suiClients: Map<SuiNet, SuiClient>,
-	activeNetworks: SuiNet[],
+	suiClients: [SuiNet, SuiClient][],
 ) {
 	logger.info({ msg: "Running scheduled redeem solver task..." });
-	const service = new RedeemService(
+	const rs = new RedeemService(
 		storage,
 		suiClients,
 		env.BtcIndexer as unknown as Service<BtcIndexerRpc & WorkerEntrypoint>,
@@ -133,24 +85,19 @@ async function runRedeemSolver(
 	);
 
 	const results: PromiseSettledResult<void>[] = [];
-
-	results.push(await tryAsync(service.refillPresignPool(activeNetworks)));
-	results.push(await tryAsync(service.processPendingRedeems()));
-
-	// Solve and Sign
+	results.push(await tryAsync(rs.refillPresignPool()));
+	results.push(await tryAsync(rs.processPendingRedeems()));
 	results.push(
 		await tryAsync(
 			(async () => {
-				await service.solveReadyRedeems();
-				await service.processSigningRedeems();
+				await rs.solveReadyRedeems();
+				await rs.processSigningRedeems();
 			})(),
 		),
 	);
 
-	// 4. Broadcast
-	results.push(await tryAsync(service.broadcastReadyRedeems()));
+	results.push(await tryAsync(rs.broadcastReadyRedeems()));
 
-	// Check for any rejected promises and log errors
 	reportErrors(results, "runRedeemSolver", "Processing redeems error", [
 		"refillPresignPool",
 		"processPendingRedeems",
@@ -168,23 +115,20 @@ async function tryAsync<T>(p: Promise<T>): Promise<PromiseSettledResult<T>> {
 	}
 }
 
-/**
- * Helper function to report errors from `Promise.allSettled` results.
- */
+// Helper function to check for rejected promises and report errors from `Promise.allSettled` results.
 function reportErrors(
 	results: PromiseSettledResult<unknown>[],
 	method: string,
 	msg: string,
-	names: (string | undefined)[],
-	nameKey = "task",
+	names: string[],
 ) {
-	results.forEach((result, index) => {
+	results.forEach((result, idx) => {
 		if (result.status === "rejected") {
 			logError(
 				{
 					msg,
 					method,
-					[nameKey]: names[index],
+					task: names[idx],
 				},
 				result.reason,
 			);

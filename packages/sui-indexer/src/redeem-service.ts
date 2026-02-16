@@ -314,9 +314,9 @@ export class RedeemService {
 	}
 
 	private getSuiClient(suiNet: SuiNet): SuiClient {
-		const c = this.clients.get(suiNet);
+		const c = this.clients.find((c) => c[0] === suiNet);
 		if (c === undefined) throw new Error("No SuiClient for the sui network = " + suiNet);
-		return c;
+		return c[1];
 	}
 
 	private async redeemReqProposeSolution(req: RedeemRequest) {

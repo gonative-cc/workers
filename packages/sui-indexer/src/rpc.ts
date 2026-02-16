@@ -47,8 +47,8 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 			const details = redeemsById.get(req.redeemId);
 			if (!details) continue;
 
-			const client = clients.get(details.sui_network);
-			if (!client) {
+			const c = clients.find((sc) => sc[0] === details.sui_network);
+			if (!c) {
 				logger.error({
 					msg: "SuiClient not found for network",
 					network: details.sui_network,
@@ -57,8 +57,9 @@ export class RPC extends WorkerEntrypoint<Env> implements SuiIndexerRpc {
 				continue;
 			}
 
+			const suiClient = c[1];
 			try {
-				const digest = await client.finalizeRedeem({
+				const digest = await suiClient.finalizeRedeem({
 					redeemId: req.redeemId,
 					proof: req.proof,
 					height: req.height,

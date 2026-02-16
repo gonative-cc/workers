@@ -1,3 +1,5 @@
+// TODO: rename this module to indexer.ts
+
 import type { NbtcPkg } from "./models";
 import { D1Storage } from "./storage";
 import { logError, logger } from "@gonative-cc/lib/logger";
@@ -19,11 +21,16 @@ export class Processor {
 	) {}
 
 	// poll Nbtc events and process them by network
+	// NOTE: with the current setup, we can only handle indexing one module per package!
 	async run() {
-		// NOTE: with the current setup, we can only handle indexing one module per package!
+		await this.indexNbtc();
+	}
+
+	// TODO: we should simplify: there should be only one pkg / network / env.
+	async indexNbtc() {
 		const nbtcPkgs = this.storage.getNbtcPkgs(this.net);
 		logger.debug({
-			msg: `Processing network`,
+			msg: `Indexing Nbtc Pkgs`,
 			network: this.net,
 			nbtcPkgsCount: nbtcPkgs.length,
 		});
@@ -37,7 +44,7 @@ export class Processor {
 			]);
 			let hasNextPage = true;
 			while (hasNextPage) {
-				await this.indexNbtc(nbtcWithCursors);
+				await this.indexNbtcCursorStep(nbtcWithCursors);
 				hasNextPage = false;
 				for (const o of nbtcWithCursors) {
 					hasNextPage = hasNextPage || o[1].hasNextPage;
@@ -59,8 +66,11 @@ export class Processor {
 				e,
 			);
 		}
+	}
 
-		// TODO: run ika indexer  as well:
+	async indexIka() {
+		// TODO: replicate indexNbtc
+
 		// const ikaCursors = await storage.getIkaCoordinatorPkgsWithCursors(netCfg.name);
 		// const ikaPkgIds = Object.keys(ikaCursors);
 		// if (ikaPkgIds.length > 0) {
@@ -71,9 +81,48 @@ export class Processor {
 		// 	});
 		// 	await p.pollIkaEvents(ikaCursors);
 		// }
+
+		const nbtcPkgs = this.storage.getNbtcPkgs(this.net);
+		logger.debug({
+			msg: `Indexing Nbtc Pkgs`,
+			network: this.net,
+			nbtcPkgsCount: nbtcPkgs.length,
+		});
+		if (!nbtcPkgs.length) return;
+
+		try {
+			const cursors = await this.storage.getNbtcGqlCursors(this.net);
+			const nbtcWithCursors: NbtcPkgWithCursors[] = nbtcPkgs.map((p) => [
+				p,
+				{ hasNextPage: true, endCursor: cursors[p.setup_id] || null },
+			]);
+			let hasNextPage = true;
+			while (hasNextPage) {
+				await this.indexNbtcCursorStep(nbtcWithCursors);
+				hasNextPage = false;
+				for (const o of nbtcWithCursors) {
+					hasNextPage = hasNextPage || o[1].hasNextPage;
+				}
+			}
+
+			const cursorsToSave = nbtcWithCursors.map(([nbtc, pageInfo]) => ({
+				setupId: nbtc.setup_id,
+				cursor: pageInfo.endCursor,
+			}));
+			await this.storage.saveNbtcGqlCursors(cursorsToSave);
+		} catch (e) {
+			logError(
+				{
+					msg: "Failed to index packages",
+					method: "queryNewEvents",
+					network: this.net,
+				},
+				e,
+			);
+		}
 	}
 
-	async indexNbtc(nbtcPkgs: NbtcPkgWithCursors[]) {
+	async indexNbtcCursorStep(nbtcPkgs: NbtcPkgWithCursors[]) {
 		const fetcherArgs: EventFetcherArg[] = [];
 		for (let index = 0; index < nbtcPkgs.length; ++index) {
 			const [pkg, c] = nbtcPkgs[index]!;

@@ -435,7 +435,7 @@ export class Indexer {
 					nbtcPkg: config.nbtc_pkg,
 					suiNetwork: config.sui_network,
 					depositAddress: btcAddress,
-					setupId: pkgId,
+					setupId: depositInfo.setup_id,
 				});
 				// NOTE: "First Match Wins" policy.
 				// We stop scanning outputs after finding the first valid deposit.

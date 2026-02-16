@@ -31,18 +31,18 @@ export interface Storage {
 	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;
 
 	getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]>;
-	getMintedTxs(blockHeight: number, btcNet: BtcNet, suiNet: SuiNet): Promise<FinalizedTxRow[]>;
-	getTxStatus(txId: string, btcNet: BtcNet): Promise<MintTxStatus | null>;
-	getReorgedMintedTxs(blockHeight: number, btcNet: BtcNet): Promise<ReorgedMintedTx[]>;
-	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
-	batchUpdateNbtcMintTxs(updates: NbtcTxUpdate[]): Promise<void>;
+	getMintedTxs(blockHeight: number, setupId: number): Promise<FinalizedTxRow[]>;
+	getTxStatus(txId: string, setupId: number): Promise<MintTxStatus | null>;
+	getReorgedMintedTxs(blockHeight: number, setupId: number): Promise<ReorgedMintedTx[]>;
+	updateNbtcTxsStatus(txIds: string[], setupId: number, status: MintTxStatus): Promise<void>;
+	batchUpdateNbtcMintTxs(updates: NbtcTxUpdate[], setupId: number): Promise<void>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;
 	getConfirmingTxs(): Promise<PendingTx[]>;
-	finalizeNbtcTxs(txIds: string[]): Promise<void>;
-	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
+	finalizeNbtcTxs(txIds: string[], setupId: number): Promise<void>;
+	getNbtcMintTx(txid: string, setupId: number): Promise<NbtcTxRow | null>;
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
-	getNbtcMintTxsByBtcSender(btcAddress: string, network: BtcNet): Promise<NbtcTxRow[]>;
+	getNbtcMintTxsByBtcSender(btcAddress: string, setupId: number): Promise<NbtcTxRow[]>;
 }
 
 // TODO: Add tests

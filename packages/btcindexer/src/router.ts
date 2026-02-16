@@ -140,7 +140,16 @@ export default class HttpRouter {
 		if (!txid) {
 			return error(400, "Missing txid parameter");
 		}
-		const result = await this.indexer().getNbtcMintTx(txid);
+		const setupIdStr = req.query.setup_id;
+		if (!setupIdStr || typeof setupIdStr !== "string") {
+			return error(400, "Missing or invalid setup_id query parameter.");
+		}
+		const setupId = parseInt(setupIdStr, 10);
+		if (isNaN(setupId)) {
+			return error(400, "Invalid setup_id query parameter.");
+		}
+
+		const result = await this.indexer().getNbtcMintTx(txid, setupId);
 
 		if (result === null) {
 			return error(404, "Transaction not found.");
@@ -175,9 +184,17 @@ export default class HttpRouter {
 			return error(400, "Missing or invalid sender query parameter.");
 		}
 
+		const setupIdStr = req.query.setup_id;
+		if (!setupIdStr || typeof setupIdStr !== "string") {
+			return error(400, "Missing or invalid setup_id query parameter.");
+		}
+		const setupId = parseInt(setupIdStr, 10);
+		if (isNaN(setupId)) {
+			return error(400, "Invalid setup_id query parameter.");
+		}
+
 		try {
-			const btcNet = this.getNetworkParam(req);
-			return this.indexer().getDepositsBySender(sender, btcNet);
+			return this.indexer().getDepositsBySender(sender, setupId);
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : "Invalid request";
 			return error(400, msg);

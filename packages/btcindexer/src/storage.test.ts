@@ -86,6 +86,21 @@ describe("CFStorage", () => {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let env: any;
 
+	const txBase = {
+		txId: "tx1",
+		btcNetwork: BtcNet.REGTEST,
+		suiNetwork: toSuiNet("devnet"),
+		nbtcPkg: "0xPkg1",
+		depositAddress: "bcrt1qAddress1",
+		sender: "sender1",
+		vout: 0,
+		blockHash: "blockHash1",
+		blockHeight: 100,
+		suiRecipient: "0xSui1",
+		amount: 5000,
+		setupId: 1,
+	};
+
 	beforeEach(async () => {
 		env = await mf.getBindings();
 		storage = new CFStorageImpl(env.DB, env.BtcBlocks, env.nbtc_txs);
@@ -217,24 +232,10 @@ describe("CFStorage", () => {
 	});
 
 	describe("Transaction Operations", () => {
-		const txBase = {
-			txId: "tx1",
-			btcNetwork: BtcNet.REGTEST,
-			suiNetwork: toSuiNet("devnet"),
-			nbtcPkg: "0xPkg1",
-			depositAddress: "bcrt1qAddress1",
-			sender: "sender1",
-			vout: 0,
-			blockHash: "blockHash1",
-			blockHeight: 100,
-			suiRecipient: "0xSui1",
-			amount: 5000,
-		};
-
 		it("insertOrUpdateNbtcTxs should insert transaction", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
 
-			const tx = await storage.getNbtcMintTx("tx1");
+			const tx = await storage.getNbtcMintTx("tx1", 1);
 			expect(tx).not.toBeNull();
 			expect(tx!.status).toBe(MintTxStatus.Confirming);
 			expect(tx!.amount).toBe(5000);
@@ -242,7 +243,7 @@ describe("CFStorage", () => {
 
 		it("getNbtcMintCandidates should return correct candidates", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
-			await storage.finalizeNbtcTxs(["tx1"]);
+			await storage.finalizeNbtcTxs(["tx1"], 1);
 
 			const candidates = await storage.getNbtcMintCandidates(3);
 			expect(candidates.length).toBe(1);
@@ -252,30 +253,36 @@ describe("CFStorage", () => {
 		it("batchUpdateNbtcTxs should update statuses", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
 
-			await storage.batchUpdateNbtcMintTxs([
-				{
-					txId: "tx1",
-					vout: 0,
-					status: MintTxStatus.Minted,
-					suiTxDigest: "digest1",
-				},
-			]);
+			await storage.batchUpdateNbtcMintTxs(
+				[
+					{
+						txId: "tx1",
+						vout: 0,
+						status: MintTxStatus.Minted,
+						suiTxDigest: "digest1",
+					},
+				],
+				1,
+			);
 
-			const tx = await storage.getNbtcMintTx("tx1");
+			const tx = await storage.getNbtcMintTx("tx1", 1);
 			expect(tx!.status).toBe(MintTxStatus.Minted);
 			expect(tx!.sui_tx_id).toBe("digest1");
 		});
 
 		it("getReorgedMintedTxs should detect reorg", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
-			await storage.batchUpdateNbtcMintTxs([
-				{
-					txId: "tx1",
-					vout: 0,
-					status: MintTxStatus.Minted,
-					suiTxDigest: "digest1",
-				},
-			]);
+			await storage.batchUpdateNbtcMintTxs(
+				[
+					{
+						txId: "tx1",
+						vout: 0,
+						status: MintTxStatus.Minted,
+						suiTxDigest: "digest1",
+					},
+				],
+				1,
+			);
 
 			// new block at the same height with different hash (reorg)
 			await storage.insertBlockInfo({
@@ -285,7 +292,7 @@ describe("CFStorage", () => {
 				timestamp_ms: 2000,
 			});
 
-			const reorged = await storage.getReorgedMintedTxs(100, BtcNet.REGTEST);
+			const reorged = await storage.getReorgedMintedTxs(100, 1);
 			expect(reorged.length).toBe(1);
 			expect(reorged[0]!.tx_id).toBe("tx1");
 			expect(reorged[0]!.old_block_hash).toBe("blockHash1");
@@ -304,10 +311,11 @@ describe("CFStorage", () => {
 					vout: 1,
 					suiRecipient: "0xSui2",
 					amount: 1000,
+					setupId: 1,
 				},
 			]);
 
-			const tx = await storage.getNbtcMintTx("txBroadcast");
+			const tx = await storage.getNbtcMintTx("txBroadcast", 1);
 			expect(tx!.status).toBe(MintTxStatus.Broadcasting);
 		});
 
@@ -324,21 +332,21 @@ describe("CFStorage", () => {
 
 		it("getMintedTxs should return minted txs after specific height", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
-			await storage.updateNbtcTxsStatus(["tx1"], MintTxStatus.Minted);
+			await storage.updateNbtcTxsStatus(["tx1"], 1, MintTxStatus.Minted);
 
-			const minted = await storage.getMintedTxs(90, BtcNet.REGTEST, toSuiNet("devnet"));
+			const minted = await storage.getMintedTxs(90, 1);
 			expect(minted.length).toBe(1);
 			expect(minted[0]!.tx_id).toBe("tx1");
 
-			const mintedHigh = await storage.getMintedTxs(101, BtcNet.REGTEST, toSuiNet("devnet"));
+			const mintedHigh = await storage.getMintedTxs(101, 1);
 			expect(mintedHigh.length).toBe(0);
 		});
 
 		it("updateNbtcTxsStatus should update single status", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
-			await storage.updateNbtcTxsStatus(["tx1"], MintTxStatus.MintFailed);
+			await storage.updateNbtcTxsStatus(["tx1"], 1, MintTxStatus.MintFailed);
 
-			const tx = await storage.getNbtcMintTx("tx1");
+			const tx = await storage.getNbtcMintTx("tx1", 1);
 			expect(tx!.status).toBe(MintTxStatus.MintFailed);
 		});
 
@@ -347,7 +355,7 @@ describe("CFStorage", () => {
 
 			await storage.updateConfirmingTxsToReorg([txBase.blockHash]);
 
-			const tx = await storage.getNbtcMintTx("tx1");
+			const tx = await storage.getNbtcMintTx("tx1", 1);
 			expect(tx!.status).toBe(MintTxStatus.Reorg);
 		});
 
@@ -367,7 +375,7 @@ describe("CFStorage", () => {
 
 		it("getNbtcMintTxsByBtcSender should return txs for sender", async () => {
 			await storage.insertOrUpdateNbtcTxs([txBase]);
-			const txs = await storage.getNbtcMintTxsByBtcSender(txBase.sender, BtcNet.REGTEST);
+			const txs = await storage.getNbtcMintTxsByBtcSender(txBase.sender, 1);
 			expect(txs.length).toBe(1);
 			expect(txs[0]!.tx_id).toBe("tx1");
 		});
@@ -395,7 +403,7 @@ describe("CFStorage", () => {
 				.run();
 		});
 
-		it("getMintedTxs should isolate by network pair", async () => {
+		it("getMintedTxs should isolate by setupId", async () => {
 			await storage.insertOrUpdateNbtcTxs([
 				{
 					txId: "tx_regtest",
@@ -409,9 +417,10 @@ describe("CFStorage", () => {
 					blockHeight: 100,
 					suiRecipient: "0xSui1",
 					amount: 1000,
+					setupId: 1,
 				},
 			]);
-			await storage.updateNbtcTxsStatus(["tx_regtest"], MintTxStatus.Minted);
+			await storage.updateNbtcTxsStatus(["tx_regtest"], 1, MintTxStatus.Minted);
 
 			await storage.insertOrUpdateNbtcTxs([
 				{
@@ -426,28 +435,21 @@ describe("CFStorage", () => {
 					blockHeight: 100,
 					suiRecipient: "0xSui2",
 					amount: 2000,
+					setupId: 2,
 				},
 			]);
-			await storage.updateNbtcTxsStatus(["tx_testnet"], MintTxStatus.Minted);
+			await storage.updateNbtcTxsStatus(["tx_testnet"], 2, MintTxStatus.Minted);
 
-			const mintedRegtest = await storage.getMintedTxs(
-				90,
-				BtcNet.REGTEST,
-				toSuiNet("devnet"),
-			);
+			const mintedRegtest = await storage.getMintedTxs(90, 1);
 			expect(mintedRegtest.length).toBe(1);
 			expect(mintedRegtest[0]!.tx_id).toBe("tx_regtest");
 
-			const mintedTestnet = await storage.getMintedTxs(
-				90,
-				BtcNet.TESTNET,
-				toSuiNet("testnet"),
-			);
+			const mintedTestnet = await storage.getMintedTxs(90, 2);
 			expect(mintedTestnet.length).toBe(1);
 			expect(mintedTestnet[0]!.tx_id).toBe("tx_testnet");
 		});
 
-		it("getReorgedMintedTxs should isolate by network", async () => {
+		it("getReorgedMintedTxs should isolate by setupId", async () => {
 			await storage.insertOrUpdateNbtcTxs([
 				{
 					txId: "tx_regtest",
@@ -461,9 +463,10 @@ describe("CFStorage", () => {
 					blockHeight: 100,
 					suiRecipient: "0xSui1",
 					amount: 1000,
+					setupId: 1,
 				},
 			]);
-			await storage.updateNbtcTxsStatus(["tx_regtest"], MintTxStatus.Minted);
+			await storage.updateNbtcTxsStatus(["tx_regtest"], 1, MintTxStatus.Minted);
 
 			await storage.insertOrUpdateNbtcTxs([
 				{
@@ -478,9 +481,10 @@ describe("CFStorage", () => {
 					blockHeight: 100,
 					suiRecipient: "0xSui2",
 					amount: 2000,
+					setupId: 2,
 				},
 			]);
-			await storage.updateNbtcTxsStatus(["tx_testnet"], MintTxStatus.Minted);
+			await storage.updateNbtcTxsStatus(["tx_testnet"], 2, MintTxStatus.Minted);
 
 			await storage.insertBlockInfo({
 				hash: "new_block_testnet",
@@ -489,15 +493,15 @@ describe("CFStorage", () => {
 				timestamp_ms: 2000,
 			});
 
-			const reorgedRegtest = await storage.getReorgedMintedTxs(90, BtcNet.REGTEST);
+			const reorgedRegtest = await storage.getReorgedMintedTxs(90, 1);
 			expect(reorgedRegtest.length).toBe(0);
 
-			const reorgedTestnet = await storage.getReorgedMintedTxs(90, BtcNet.TESTNET);
+			const reorgedTestnet = await storage.getReorgedMintedTxs(90, 2);
 			expect(reorgedTestnet.length).toBe(1);
 			expect(reorgedTestnet[0]!.tx_id).toBe("tx_testnet");
 		});
 
-		it("getTxStatus should isolate by network", async () => {
+		it("getTxStatus should isolate by setupId", async () => {
 			await storage.insertOrUpdateNbtcTxs([
 				{
 					txId: "tx_regtest",
@@ -511,9 +515,10 @@ describe("CFStorage", () => {
 					blockHeight: 100,
 					suiRecipient: "0xSui1",
 					amount: 1000,
+					setupId: 1,
 				},
 			]);
-			await storage.updateNbtcTxsStatus(["tx_regtest"], MintTxStatus.Minted);
+			await storage.updateNbtcTxsStatus(["tx_regtest"], 1, MintTxStatus.Minted);
 
 			await storage.insertOrUpdateNbtcTxs([
 				{
@@ -528,19 +533,50 @@ describe("CFStorage", () => {
 					blockHeight: 100,
 					suiRecipient: "0xSui2",
 					amount: 2000,
+					setupId: 2,
 				},
 			]);
-			await storage.updateNbtcTxsStatus(["tx_testnet"], MintTxStatus.Confirming);
+			await storage.updateNbtcTxsStatus(["tx_testnet"], 2, MintTxStatus.Confirming);
 
-			expect(await storage.getTxStatus("tx_regtest", BtcNet.REGTEST)).toBe(
-				MintTxStatus.Minted,
-			);
-			expect(await storage.getTxStatus("tx_testnet", BtcNet.TESTNET)).toBe(
-				MintTxStatus.Confirming,
-			);
+			expect(await storage.getTxStatus("tx_regtest", 1)).toBe(MintTxStatus.Minted);
+			expect(await storage.getTxStatus("tx_testnet", 2)).toBe(MintTxStatus.Confirming);
 
-			expect(await storage.getTxStatus("tx_regtest", BtcNet.TESTNET)).toBeNull();
-			expect(await storage.getTxStatus("tx_testnet", BtcNet.REGTEST)).toBeNull();
+			expect(await storage.getTxStatus("tx_regtest", 2)).toBeNull();
+			expect(await storage.getTxStatus("tx_testnet", 1)).toBeNull();
+		});
+
+		it("should support same tx_id for different setups (isolation test)", async () => {
+			const txId = "shared_tx_id";
+			await storage.insertOrUpdateNbtcTxs([
+				{
+					...txBase,
+					txId: txId,
+					setupId: 1,
+					amount: 111,
+				},
+			]);
+
+			await storage.insertOrUpdateNbtcTxs([
+				{
+					...txBase,
+					txId: txId,
+					setupId: 2,
+					depositAddress: "addr_testnet",
+					amount: 222,
+				},
+			]);
+			const tx1 = await storage.getNbtcMintTx(txId, 1);
+			const tx2 = await storage.getNbtcMintTx(txId, 2);
+
+			expect(tx1).not.toBeNull();
+			expect(tx2).not.toBeNull();
+			expect(tx1!.amount).toBe(111);
+			expect(tx2!.amount).toBe(222);
+
+			await storage.updateNbtcTxsStatus([txId], 1, MintTxStatus.Minted);
+
+			expect(await storage.getTxStatus(txId, 1)).toBe(MintTxStatus.Minted);
+			expect(await storage.getTxStatus(txId, 2)).toBe(MintTxStatus.Confirming);
 		});
 	});
 });

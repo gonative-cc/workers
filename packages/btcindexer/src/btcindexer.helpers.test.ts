@@ -108,7 +108,11 @@ export interface TestIndexerHelper {
 
 	expectMintingCount: (count: number) => Promise<void>;
 	expectSenderCount: (count: number, expectedAddress?: string) => Promise<void>;
-	expectTxStatus: (txId: string, expectedStatus: MintTxStatus | string) => Promise<void>;
+	expectTxStatus: (
+		txId: string,
+		expectedStatus: MintTxStatus | string,
+		setupId?: number,
+	) => Promise<void>;
 }
 
 // test suite helper functions constructor.
@@ -330,12 +334,18 @@ export async function setupTestIndexerSuite(
 	const expectTxStatus = async (
 		txId: string,
 		expectedStatus: MintTxStatus | string,
+		setupId?: number,
 	): Promise<void> => {
-		const { results } = await db
-			.prepare("SELECT status FROM nbtc_minting WHERE tx_id = ?")
-			.bind(txId)
-			.all();
-		expect(results.length).toEqual(1);
+		const query = setupId
+			? db
+					.prepare(
+						"SELECT status FROM nbtc_minting WHERE tx_id = ? AND address_id IN (SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ?)",
+					)
+					.bind(txId, setupId)
+			: db.prepare("SELECT status FROM nbtc_minting WHERE tx_id = ?").bind(txId);
+
+		const { results } = await query.all<{ status: string }>();
+		expect(results.length).toBeGreaterThanOrEqual(1);
 		expect(results[0]).toBeDefined();
 		expect(results[0]!.status).toEqual(expectedStatus);
 	};

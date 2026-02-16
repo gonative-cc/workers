@@ -211,6 +211,7 @@ describe("Indexer.splitActiveInactiveTxs", () => {
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
 			deposit_address: REGTEST_DATA[329]!.depositAddr,
+			setup_id: 1,
 		};
 		const { activeTxIds } = indexer.splitActiveInactiveTxs([pendingTx]);
 		expect(activeTxIds.length).toEqual(1);
@@ -229,6 +230,7 @@ describe("Indexer.splitActiveInactiveTxs (Inactive)", () => {
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
 			deposit_address: REGTEST_DATA[329]!.depositAddr,
+			setup_id: 1,
 		};
 		const result = indexer.splitActiveInactiveTxs([pendingTx]);
 
@@ -246,6 +248,7 @@ describe("Indexer.splitActiveInactiveTxs (Inactive)", () => {
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
 			deposit_address: "inactive_address",
+			setup_id: 1,
 		};
 
 		const originalMap = indexer.nbtcDepositAddrMap;
@@ -337,7 +340,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 
 describe("Indexer.hasNbtcMintTx", () => {
 	it("should return false when transaction does not exist", async () => {
-		const result = await indexer.hasNbtcMintTx("nonexistent_tx_id");
+		const result = await indexer.hasNbtcMintTx("nonexistent_tx_id", 1);
 		expect(result).toBe(false);
 	});
 
@@ -347,7 +350,7 @@ describe("Indexer.hasNbtcMintTx", () => {
 
 		await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
 
-		const result = await indexer.hasNbtcMintTx(txInfo.id);
+		const result = await indexer.hasNbtcMintTx(txInfo.id, 1);
 		expect(result).toBe(true);
 	});
 });
@@ -547,9 +550,9 @@ describe("Indexer.detectMintedReorgs", () => {
 			.bind(blockData.hash, blockData.height, BtcNet.REGTEST, Date.now(), 1)
 			.run();
 
-		await indexer.detectMintedReorgs(blockData.height, BtcNet.REGTEST);
+		await indexer.detectMintedReorgs(blockData.height, 1);
 
-		const status = await indexer.storage.getTxStatus(txData.id, BtcNet.REGTEST);
+		const status = await indexer.storage.getTxStatus(txData.id, 1);
 		expect(status).toEqual(MintTxStatus.Minted);
 	});
 });
@@ -590,7 +593,7 @@ describe("Indexer.processBlock", () => {
 		await suite.setupBlock(327);
 		await indexer.processBlock(reorgBlockInfo);
 
-		const status = await indexer.storage.getTxStatus(txData.id, BtcNet.REGTEST);
+		const status = await indexer.storage.getTxStatus(txData.id, 1);
 		expect(status).toEqual(MintTxStatus.MintedReorg);
 	});
 });

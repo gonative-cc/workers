@@ -855,7 +855,7 @@ export class D1Storage {
 		};
 	}
 
-	async acquireLock(lockName: string, ttlMs: number): Promise<boolean> {
+	async acquireLock(lockName: string, ttlMs: number): Promise<number | null> {
 		const now = Date.now();
 		try {
 			const result = await this.db
@@ -865,19 +865,22 @@ export class D1Storage {
 					 ON CONFLICT(lock_name) DO UPDATE
 					 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
 					 WHERE cron_locks.expires_at <= excluded.acquired_at
-					 RETURNING 1`,
+					 RETURNING acquired_at`,
 				)
 				.bind(lockName, now, now + ttlMs)
-				.first();
-			return !!result;
+				.first<number>("acquired_at");
+			return result ?? null;
 		} catch (error) {
 			logError({ msg: "Failed to acquire lock", method: "acquireLock", lockName }, error);
-			return false;
+			return null;
 		}
 	}
 
-	async releaseLock(lockName: string): Promise<void> {
-		await this.db.prepare(`DELETE FROM cron_locks WHERE lock_name = ?`).bind(lockName).run();
+	async releaseLock(lockName: string, acquiredAt: number): Promise<void> {
+		await this.db
+			.prepare(`DELETE FROM cron_locks WHERE lock_name = ? AND acquired_at = ?`)
+			.bind(lockName, acquiredAt)
+			.run();
 	}
 }
 

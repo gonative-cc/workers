@@ -25,8 +25,8 @@ export default {
 	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new D1Storage(env.DB);
-		const lockAcquired = await storage.acquireLock("sui-indexer-cron", 5 * 60 * 1000); // 5 minutes
-		if (!lockAcquired) {
+		const lockToken = await storage.acquireLock("sui-indexer-cron", 5 * 60 * 1000); // 5 minutes
+		if (lockToken === null) {
 			logger.warn({
 				msg: "Cron job already running, skipping this execution",
 				lockName: "sui-indexer-cron",
@@ -52,7 +52,7 @@ export default {
 				"RedeemSolver",
 			]);
 		} finally {
-			await storage.releaseLock("sui-indexer-cron");
+			await storage.releaseLock("sui-indexer-cron", lockToken);
 		}
 	},
 } satisfies ExportedHandler<Env>;

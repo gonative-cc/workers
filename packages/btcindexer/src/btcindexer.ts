@@ -317,19 +317,7 @@ export class Indexer {
 
 		const results: NbtcTxInsertion[] = [];
 		for (const deposit of foundDeposits) {
-			logger.info({
-				msg: "Found new nBTC deposit",
-				txId: tx.getId(),
-				vout: deposit.vout,
-				amount: deposit.amount,
-				suiRecipient: deposit.suiRecipient,
-				nbtcPkg: deposit.nbtcPkg,
-				suiNetwork: deposit.suiNetwork,
-				depositAddress: deposit.depositAddress,
-				sender,
-			});
-
-			results.push({
+			const t: NbtcTxInsertion = {
 				txId: tx.getId(),
 				vout: deposit.vout,
 				blockHash: blockInfo.hash,
@@ -342,7 +330,13 @@ export class Indexer {
 				depositAddress: deposit.depositAddress,
 				sender,
 				setupId: deposit.setupId,
+			};
+			logger.info({
+				msg: "Found new nBTC deposit",
+				...t,
 			});
+
+			results.push(t);
 		}
 		return results;
 	}
@@ -476,9 +470,12 @@ export class Indexer {
 	private async filterAlreadyMinted(finalizedTxs: FinalizedTxRow[]): Promise<FinalizedTxRow[]> {
 		const txsBySetupId = new Map<number, FinalizedTxRow[]>();
 		for (const tx of finalizedTxs) {
-			const list = txsBySetupId.get(tx.setup_id) || [];
-			list.push(tx);
-			txsBySetupId.set(tx.setup_id, list);
+			const list = txsBySetupId.get(tx.setup_id);
+			if (list) {
+				list.push(tx);
+			} else {
+				txsBySetupId.set(tx.setup_id, [tx]);
+			}
 		}
 
 		const txsToProcess: FinalizedTxRow[] = [];
@@ -506,16 +503,8 @@ export class Indexer {
 							msg: "Front-run detected: Transaction already minted",
 							txId: tx.tx_id,
 						});
-						await this.storage.batchUpdateNbtcMintTxs(
-							[
-								{
-									txId: tx.tx_id,
-									vout: tx.vout,
-									status: MintTxStatus.Minted,
-								},
-							],
-							setupId,
-						);
+						const t = { txId: tx.tx_id, vout: tx.vout, status: MintTxStatus.Minted };
+						await this.storage.batchUpdateNbtcMintTxs([t], setupId);
 					} else {
 						txsToProcess.push(tx);
 					}

@@ -729,7 +729,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			suite.mockSuiClient.verifyBlocks,
 			"Verify that verifyBlocks was called with the correct block hash",
 		).toHaveBeenCalledWith([block329.hash]);
-		await suite.expectTxStatus(tx329.id, "reorg");
+		await suite.expectTxStatus(tx329.id, "reorg", 1);
 	});
 
 	it("should verify confirming blocks and not update status if blocks are still valid", async () => {
@@ -752,7 +752,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		).toHaveBeenCalledWith([block329.hash]);
 
 		// Check that the transaction status remains 'confirming' since block is still valid
-		await suite.expectTxStatus(tx329.id, "confirming");
+		await suite.expectTxStatus(tx329.id, "confirming", 1);
 	});
 
 	it("should handle empty confirming blocks list", async () => {
@@ -775,7 +775,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		await indexer.verifyConfirmingBlocks();
 
 		expect(suite.mockSuiClient.verifyBlocks).toHaveBeenCalledWith([block329.hash]);
-		await suite.expectTxStatus(tx329.id, "confirming");
+		await suite.expectTxStatus(tx329.id, "confirming", 1);
 	});
 });
 

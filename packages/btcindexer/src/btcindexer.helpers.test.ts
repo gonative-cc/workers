@@ -349,7 +349,7 @@ export async function setupTestIndexerSuite(
 			.bind(txId, setupId);
 
 		const { results } = await query.all<{ status: string }>();
-		expect(results.length).toBeGreaterThanOrEqual(1);
+		expect(results.length).toEqual(1);
 		expect(results[0]).toBeDefined();
 		expect(results[0]!.status).toEqual(expectedStatus);
 	};

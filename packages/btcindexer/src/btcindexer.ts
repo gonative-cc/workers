@@ -715,6 +715,7 @@ export class Indexer {
 				},
 				e,
 			);
+			throw e;
 		}
 	}
 

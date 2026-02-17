@@ -343,30 +343,32 @@ export class RedeemService {
 			nbtcContract: req.nbtc_contract,
 		};
 
-		const wouldSucceed = await client.dryRunProposeUtxos(proposalArgs);
-		if (!wouldSucceed) {
-			logger.info({
-				msg: "Dry-run failed, existing proposal is better or equal",
-				redeemId: req.redeem_id,
-				ourUtxoCount: selectedUtxos.length,
-			});
-			return;
-		}
-
 		try {
-			const txDigest = await client.proposeRedeemUtxos(proposalArgs);
+			const result = await client.proposeRedeemUtxos(proposalArgs);
 
-			logger.info({
-				msg: "Proposed UTXOs for redeem request",
-				redeemId: req.redeem_id,
-				txDigest: txDigest,
-			});
-			await this.storage.markRedeemProposed(
-				req.redeem_id,
-				selectedUtxos.map((u) => u.nbtc_utxo_id),
-				this.utxoLockTimeMs,
-			);
+			if (result.success) {
+				logger.info({
+					msg: "Proposed UTXOs for redeem request",
+					redeemId: req.redeem_id,
+					txDigest: result.digest,
+				});
+				await this.storage.markRedeemProposed(
+					req.redeem_id,
+					selectedUtxos.map((u) => u.nbtc_utxo_id),
+					this.utxoLockTimeMs,
+				);
+			} else {
+				// Contract abort: someone already proposed a better solution.
+				// Mark as proposed without locking UTXOs so the redeem continue.
+				logger.info({
+					msg: "Proposal rejected on-chain, another worker proposed a better solution",
+					redeemId: req.redeem_id,
+					txDigest: result.digest,
+				});
+				await this.storage.markRedeemProposed(req.redeem_id, [], 0);
+			}
 		} catch (e: unknown) {
+			// Network error: leave as pending so next cron retry.
 			logError(
 				{
 					msg: "Failed to propose UTXOs for redeem request",

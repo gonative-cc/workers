@@ -20,8 +20,9 @@ export interface SuiClientCfg {
 
 export interface SuiClient {
 	ikaClient(): IkaClient;
-	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
-	dryRunProposeUtxos(args: ProposeRedeemCall): Promise<boolean>;
+	proposeRedeemUtxos(
+		args: ProposeRedeemCall,
+	): Promise<{ success: boolean; digest: string | null }>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
 	finalizeRedeem(args: FinalizeRedeemCall): Promise<string>;
 	requestIkaPresigns(count: number): Promise<string[]>;
@@ -112,7 +113,9 @@ class SuiClientImp implements SuiClient {
 		return Buffer.from(decoded).toString("hex");
 	}
 
-	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {
+	async proposeRedeemUtxos(
+		args: ProposeRedeemCall,
+	): Promise<{ success: boolean; digest: string | null }> {
 		const tx = new Transaction();
 
 		tx.add(
@@ -136,33 +139,10 @@ class SuiClientImp implements SuiClient {
 			},
 		});
 
-		if (result.effects?.status.status !== "success") {
-			throw new Error(`Transaction failed: ${result.effects?.status.error}`);
-		}
-
-		return result.digest;
-	}
-
-	async dryRunProposeUtxos(args: ProposeRedeemCall): Promise<boolean> {
-		const tx = new Transaction();
-
-		tx.add(
-			nBTCContractModule.proposeUtxos({
-				package: args.nbtcPkg,
-				arguments: {
-					contract: args.nbtcContract,
-					redeemId: args.redeemId,
-					utxoIds: args.utxoIds.map((u) => BigInt(u)),
-				},
-			}),
-		);
-
-		const result = await this.#sui.devInspectTransactionBlock({
-			transactionBlock: tx,
-			sender: this.signer.toSuiAddress(),
-		});
-
-		return !result.error;
+		return {
+			success: result.effects?.status.status === "success",
+			digest: result.digest ?? null,
+		};
 	}
 
 	async solveRedeemRequest(args: SolveRedeemCall): Promise<string> {

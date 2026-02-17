@@ -46,8 +46,8 @@ import type { PutNbtcTxResponse } from "./rpc-interface";
 import { extractSenderAddresses } from "./btc-address-utils";
 import type { ComplianceRpc } from "@gonative-cc/compliance/rpc";
 
-interface ConfirmingTxCandidate<T> {
-	id: string | number;
+interface ConfirmingTxCandidate<T, ID = string | number> {
+	id: ID;
 	blockHeight: number;
 	blockHash: string;
 	network: BtcNet;
@@ -937,7 +937,7 @@ export class Indexer {
 			chainHeads: Object.fromEntries(chainHeads),
 		});
 
-		const confirmingTxs: ConfirmingTxCandidate<PendingTx>[] = [];
+		const confirmingTxs: ConfirmingTxCandidate<PendingTx, string>[] = [];
 		for (const tx of pendingTxs) {
 			if (tx.block_hash !== null) {
 				confirmingTxs.push({
@@ -963,13 +963,19 @@ export class Indexer {
 			// Group by setup_id to call updateNbtcTxsStatus with correct isolation
 			const reorgedBySetup = new Map<number, string[]>();
 			for (const r of reorged) {
-				const list = reorgedBySetup.get(r.original.setup_id) || [];
-				list.push(r.id as string);
-				reorgedBySetup.set(r.original.setup_id, list);
+				const list = reorgedBySetup.get(r.original.setup_id);
+				if (list) {
+					list.push(r.id);
+				} else {
+					reorgedBySetup.set(r.original.setup_id, [r.id]);
+				}
 			}
-			for (const [setupId, txIds] of reorgedBySetup) {
-				await this.storage.updateNbtcTxsStatus(txIds, setupId, MintTxStatus.Reorg);
-			}
+			const updates = Array.from(reorgedBySetup.entries()).map(([setupId, txIds]) => ({
+				txIds,
+				setupId,
+				status: MintTxStatus.Reorg,
+			}));
+			await this.storage.batchUpdateNbtcTxsStatus(updates);
 		}
 
 		const validFinalizedTxs = finalized.map((i) => i.original);
@@ -985,14 +991,19 @@ export class Indexer {
 			const activeBySetup = new Map<number, string[]>();
 			for (const tx of validFinalizedTxs) {
 				if (activeTxIds.includes(tx.tx_id)) {
-					const list = activeBySetup.get(tx.setup_id) || [];
-					list.push(tx.tx_id);
-					activeBySetup.set(tx.setup_id, list);
+					const list = activeBySetup.get(tx.setup_id);
+					if (list) {
+						list.push(tx.tx_id);
+					} else {
+						activeBySetup.set(tx.setup_id, [tx.tx_id]);
+					}
 				}
 			}
-			for (const [setupId, txIds] of activeBySetup) {
-				await this.storage.finalizeNbtcTxs(txIds, setupId);
-			}
+			const updates = Array.from(activeBySetup.entries()).map(([setupId, txIds]) => ({
+				txIds,
+				setupId,
+			}));
+			await this.storage.batchFinalizeNbtcTxs(updates);
 		}
 		if (inactiveTxIds.length > 0) {
 			logger.debug({
@@ -1004,18 +1015,20 @@ export class Indexer {
 			const inactiveBySetup = new Map<number, string[]>();
 			for (const tx of validFinalizedTxs) {
 				if (inactiveTxIds.includes(tx.tx_id)) {
-					const list = inactiveBySetup.get(tx.setup_id) || [];
-					list.push(tx.tx_id);
-					inactiveBySetup.set(tx.setup_id, list);
+					const list = inactiveBySetup.get(tx.setup_id);
+					if (list) {
+						list.push(tx.tx_id);
+					} else {
+						inactiveBySetup.set(tx.setup_id, [tx.tx_id]);
+					}
 				}
 			}
-			for (const [setupId, txIds] of inactiveBySetup) {
-				await this.storage.updateNbtcTxsStatus(
-					txIds,
-					setupId,
-					MintTxStatus.FinalizedNonActive,
-				);
-			}
+			const updates = Array.from(inactiveBySetup.entries()).map(([setupId, txIds]) => ({
+				txIds,
+				setupId,
+				status: MintTxStatus.FinalizedNonActive,
+			}));
+			await this.storage.batchUpdateNbtcTxsStatus(updates);
 		}
 	}
 
@@ -1056,15 +1069,14 @@ export class Indexer {
 
 		const chainHeads = new Map<BtcNet, number>([[net, chainHead]]);
 
-		const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] = confirmingRedeems.map(
-			(r) => ({
+		const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq, number>[] =
+			confirmingRedeems.map((r) => ({
 				id: r.redeem_id,
 				blockHeight: r.btc_block_height,
 				blockHash: r.btc_block_hash,
 				network: btcNetFromString(r.btc_network),
 				original: r,
-			}),
-		);
+			}));
 
 		const { reorged, finalized } = await this.categorizeConfirmingTxs(
 			confirmingTxs,
@@ -1168,12 +1180,15 @@ export class Indexer {
 	}
 
 	// breaks down transactions past the "finality confirmations" into confirmed and reorged.
-	private async categorizeConfirmingTxs<T>(
-		txs: ConfirmingTxCandidate<T>[],
+	private async categorizeConfirmingTxs<T, ID>(
+		txs: ConfirmingTxCandidate<T, ID>[],
 		chainHeads: Map<BtcNet, number>, // number is the latest block height (chain tip)
-	): Promise<{ reorged: ConfirmingTxCandidate<T>[]; finalized: ConfirmingTxCandidate<T>[] }> {
-		const reorged: ConfirmingTxCandidate<T>[] = [];
-		const finalized: ConfirmingTxCandidate<T>[] = [];
+	): Promise<{
+		reorged: ConfirmingTxCandidate<T, ID>[];
+		finalized: ConfirmingTxCandidate<T, ID>[];
+	}> {
+		const reorged: ConfirmingTxCandidate<T, ID>[] = [];
+		const finalized: ConfirmingTxCandidate<T, ID>[] = [];
 
 		for (const tx of txs) {
 			const tip = chainHeads.get(tx.network);

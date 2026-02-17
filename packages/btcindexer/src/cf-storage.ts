@@ -33,8 +33,8 @@ export class CFStorage implements Storage {
 				.prepare(
 					`SELECT a.deposit_address
 					 FROM nbtc_deposit_addresses a
-					 JOIN setups p ON a.setup_id = p.id
-					 WHERE p.btc_network = ? AND a.is_active = 1`,
+					 JOIN setups s ON a.setup_id = s.id
+					 WHERE s.btc_network = ? AND a.is_active = 1`,
 				)
 				.bind(btcNetwork)
 				.all<{ deposit_address: string }>();
@@ -228,10 +228,10 @@ export class CFStorage implements Storage {
 	async getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]> {
 		const finalizedTxs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network, p.id as setup_id
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, s.nbtc_pkg, s.sui_network, s.btc_network, s.id as setup_id
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN setups p ON a.setup_id = p.id
+				 JOIN setups s ON a.setup_id = s.id
 				 WHERE m.status = '${MintTxStatus.Finalized}' OR (m.status = '${MintTxStatus.MintFailed}' AND m.retry_count <= ?)`,
 			)
 			.bind(maxRetries)
@@ -243,11 +243,11 @@ export class CFStorage implements Storage {
 	async getMintedTxs(blockHeight: number, setupId: number): Promise<FinalizedTxRow[]> {
 		const txs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, p.nbtc_pkg, p.sui_network, p.btc_network, p.id as setup_id
+				`SELECT m.tx_id, m.vout, m.block_hash, m.block_height, s.nbtc_pkg, s.sui_network, s.btc_network, s.id as setup_id
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN setups p ON a.setup_id = p.id
-				 WHERE m.status = '${MintTxStatus.Minted}' AND m.block_height >= ? AND p.id = ?`,
+				 JOIN setups s ON a.setup_id = s.id
+				 WHERE m.status = '${MintTxStatus.Minted}' AND m.block_height >= ? AND s.id = ?`,
 			)
 			.bind(blockHeight, setupId)
 			.all<FinalizedTxRow>();
@@ -264,12 +264,12 @@ export class CFStorage implements Storage {
 					m.block_height
 				FROM nbtc_minting m
 				INNER JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				INNER JOIN setups p ON a.setup_id = p.id
-				INNER JOIN btc_blocks b ON m.block_height = b.height AND b.network = p.btc_network
+				INNER JOIN setups s ON a.setup_id = s.id
+				INNER JOIN btc_blocks b ON m.block_height = b.height AND b.network = s.btc_network
 				WHERE m.status = '${MintTxStatus.Minted}'
 					AND m.block_height >= ?
 					AND m.block_hash != b.hash
-					AND p.id = ?`,
+					AND s.id = ?`,
 			)
 			.bind(blockHeight, setupId)
 			.all<ReorgedMintedTx>();
@@ -309,6 +309,34 @@ export class CFStorage implements Storage {
 			)
 			.bind(status, now, ...txIds, setupId);
 		await updateStmt.run();
+	}
+
+	async batchUpdateNbtcTxsStatus(
+		updates: { txIds: string[]; setupId: number; status: MintTxStatus }[],
+	): Promise<void> {
+		if (updates.length === 0) {
+			return;
+		}
+		const now = Date.now();
+		const statements: D1PreparedStatement[] = [];
+
+		for (const update of updates) {
+			if (update.txIds.length === 0) continue;
+			const placeholders = update.txIds.map(() => "?").join(",");
+			const stmt = this.d1
+				.prepare(
+					`UPDATE nbtc_minting
+					 SET status = ?, updated_at = ?
+					 WHERE tx_id IN (${placeholders})
+					   AND address_id IN (SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ?)`,
+				)
+				.bind(update.status, now, ...update.txIds, update.setupId);
+			statements.push(stmt);
+		}
+
+		if (statements.length > 0) {
+			await this.d1.batch(statements);
+		}
 	}
 
 	async batchUpdateNbtcMintTxs(updates: NbtcTxUpdate[], setupId: number): Promise<void> {
@@ -363,10 +391,10 @@ export class CFStorage implements Storage {
 		// This ensures we only try to verify blocks we know about.
 		const blocksToVerify = await this.d1
 			.prepare(
-				`SELECT DISTINCT m.block_hash, p.btc_network as network
+				`SELECT DISTINCT m.block_hash, s.btc_network as network
 				FROM nbtc_minting m
 				JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				JOIN setups p ON a.setup_id = p.id
+				JOIN setups s ON a.setup_id = s.id
 				WHERE m.status = '${MintTxStatus.Confirming}' AND m.block_hash IS NOT NULL`,
 			)
 			.all<ConfirmingBlockInfo>();
@@ -391,10 +419,10 @@ export class CFStorage implements Storage {
 	async getConfirmingTxs(): Promise<PendingTx[]> {
 		const pendingTxs = await this.d1
 			.prepare(
-				`SELECT m.tx_id, m.block_hash, m.block_height, p.btc_network, a.deposit_address, p.id as setup_id
+				`SELECT m.tx_id, m.block_hash, m.block_height, s.btc_network, a.deposit_address, s.id as setup_id
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN setups p ON a.setup_id = p.id
+				 JOIN setups s ON a.setup_id = s.id
 				 WHERE m.status = '${MintTxStatus.Confirming}'`,
 			)
 			.all<PendingTx>();
@@ -416,13 +444,38 @@ export class CFStorage implements Storage {
 		await this.d1.batch(statements);
 	}
 
+	async batchFinalizeNbtcTxs(updates: { txIds: string[]; setupId: number }[]): Promise<void> {
+		if (updates.length === 0) {
+			return;
+		}
+		const now = Date.now();
+		const statements: D1PreparedStatement[] = [];
+
+		for (const update of updates) {
+			if (update.txIds.length === 0) continue;
+			const finalizeStmt = this.d1.prepare(
+				`UPDATE nbtc_minting
+				 SET status = '${MintTxStatus.Finalized}', updated_at = ?
+				 WHERE tx_id = ?
+				   AND address_id IN (SELECT id FROM nbtc_deposit_addresses WHERE setup_id = ?)`,
+			);
+			for (const txId of update.txIds) {
+				statements.push(finalizeStmt.bind(now, txId, update.setupId));
+			}
+		}
+
+		if (statements.length > 0) {
+			await this.d1.batch(statements);
+		}
+	}
+
 	async getNbtcMintTx(txId: string, setupId: number): Promise<NbtcTxRow | null> {
 		return this.d1
 			.prepare(
-				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
+				`SELECT m.*, s.nbtc_pkg, s.sui_network, s.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN setups p ON a.setup_id = p.id
+				 JOIN setups s ON a.setup_id = s.id
 				 WHERE m.tx_id = ? AND a.setup_id = ?`,
 			)
 			.bind(txId, setupId)
@@ -432,10 +485,10 @@ export class CFStorage implements Storage {
 	async getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]> {
 		const dbResult = await this.d1
 			.prepare(
-				`SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
+				`SELECT m.*, s.nbtc_pkg, s.sui_network, s.btc_network
 				 FROM nbtc_minting m
 				 JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-				 JOIN setups p ON a.setup_id = p.id
+				 JOIN setups s ON a.setup_id = s.id
 				 WHERE m.sui_recipient = ? ORDER BY m.created_at DESC`,
 			)
 			.bind(suiAddress)
@@ -481,11 +534,11 @@ export class CFStorage implements Storage {
 
 	async getNbtcMintTxsByBtcSender(btcAddress: string, setupId: number): Promise<NbtcTxRow[]> {
 		const query = this.d1.prepare(`
-            SELECT m.*, p.nbtc_pkg, p.sui_network, p.btc_network
+            SELECT m.*, s.nbtc_pkg, s.sui_network, s.btc_network
             FROM nbtc_minting m
             JOIN nbtc_deposit_addresses a ON m.address_id = a.id
-            JOIN setups p ON a.setup_id = p.id
-            WHERE m.sender = ? AND p.id = ?
+            JOIN setups s ON a.setup_id = s.id
+            WHERE m.sender = ? AND s.id = ?
             ORDER BY m.created_at DESC
         `);
 		const dbResult = await query.bind(btcAddress, setupId).all<NbtcTxRow>();

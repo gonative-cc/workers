@@ -5,18 +5,23 @@
 This is a Cloudflare Workers project that implements various services for [Go Native](https://github.com/gonative-cc).
 It uses [Bun](https://bun.com/) for JavaScript and Typescript runtime and package management (instead of Nodejs + npm).
 
-The content is organized into a Bun workspace in the root @package.json .
-Workspaces make it easy to develop complex software as a monorepo consisting of several independent packages.
-In the root @package.json , the "workspaces" key is used to indicate which subdirectories should be considered packages/workspaces within the monorepo.
-By convention, all packages in the workspace all in the `packages` directory.
-
-Check @README.md for more details.
+The content is organized into a Bun workspace. See @README.md for:
+- High-level architecture and component interactions
+- Detailed setup instructions
+- Functional flow documentation
+- Contributing guidelines
 
 ### Packages
 
-All packages are in the `./packages` directory. Each package, except `lib` is a service (Cloudflare worker). `lib` is a package with helper modules and functions shared between other packages.
+All packages are in the `./packages` directory:
 
-See @README.md file for details about packages.
+| Package | Type | Purpose |
+|---------|------|---------|
+| `btcindexer` | Service (Worker) | Bitcoin-to-Sui bridging and minting |
+| `sui-indexer` | Service (Worker) | Sui blockchain monitoring and redemption |
+| `block-ingestor` | Service (Worker) | Receives Bitcoin blocks via REST API |
+| `compliance` | Service (Worker) | Sanctions and geo-blocking data |
+| `lib` | Shared Library | Common utilities and types |
 
 ### Core Technologies
 
@@ -26,209 +31,268 @@ See @README.md file for details about packages.
 - Cloudflare D1 (SQL Database)
 - Cloudflare KV (Key-Value Storage)
 - Cloudflare Service Bindings
+- Cloudflare Queue
 - BitcoinJS Library
 - Sui Blockchain integration
+- IKA MPC integration
 
-Key components:
+## Build and Run
 
-- **Service Bindings**: Implements proper Cloudflare service-to-service communication using service bindings instead of direct HTTP calls
+See @README.md for full setup instructions.
 
-### Setup
-
-To install all dependencies, run this in the root directory:
+Quick commands:
 
 ```bash
+# Install dependencies
 bun install
-```
 
-### Build and run
-
-To run all tests:
-
-```bash
+# Run all tests
 bun run test
-```
 
-To enable verbose logging, run:
-
-```bash
+# Run with verbose logging
 ENABLE_LOGS=1 bun run test
-```
 
-To indicate that the tests are being run by an agent, run:
-
-```bash
-AGENT=1 bun run test
-```
-
-To run tests of a specific package, firstly enter into the package directory and then:
-
-```bash
-# Run tests
-bun run test
+# Run tests for a specific package
+cd packages/<package-name> && bun run test
 
 # Type checking
-bun run typecheck
+cd packages/<package-name> && bun run typecheck
+
+# Run a worker locally
+cd packages/<package-name> && bun run dev
 ```
 
-To run a worker, firstly enter into the package directory and run:
+## Service Bindings and RPC
 
-```bash
-bun run dev
+Workers communicate via Cloudflare Service Bindings using RPC interfaces. Each service exports:
+
+- `RPC` - Production RPC interface
+- `RPCMock` - Mock implementation for testing (where applicable)
+
+### Service Binding Configuration
+
+Service bindings are configured in `wrangler.jsonc` files:
+
+```jsonc
+"services": [
+  {
+    "binding": "SuiIndexer",
+    "service": "sui-indexer",
+    "entrypoint": "SuiIndexerRpc"
+  }
+]
 ```
+
+### RPC Usage Pattern
+
+```typescript
+// Access bound service from environment
+const result = await env.SuiIndexer.someMethod(params);
+```
+
+See @README.md for Cloudflare RPC documentation and examples.
 
 ## BTCIndexer
 
-The package is in `./packages/btcindexer`.
+**Location**: `./packages/btcindexer`
 
 ### Architecture
 
-The project consists of:
-
-1. A main worker (`src/index.ts`) that handles HTTP requests, Cloudflare RPC and scheduled cron jobs
-2. An indexer module (`src/btcindexer.ts`) that processes Bitcoin blocks and transactions
-3. A router module for handling API endpoints
-4. Sui client for interacting with the Sui blockchain
-5. Separate service for external API calls (Electrs API) using service bindings
-
-### Core Logic
-
-- `packages/btcindexer/src/index.ts` - Main worker entry point
-- `packages/btcindexer/src/btcindexer.ts` - Bitcoin indexing logic
-- `packages/btcindexer/src/electrs-service.ts` - Service binding implementation for external API calls
-- `packages/btcindexer/src/sui_client.ts` - Sui blockchain integration
-
-### Tests
-
-- `packages/btcindexer/src/btcindexer.test.ts` - Comprehensive tests for the indexer
-- `packages/btcindexer/src/bitcoin-merkle-tree.test.ts` - Tests for Merkle tree implementation
+- `src/index.ts` - Main entry with HTTP handlers and scheduled cron
+- `src/btcindexer.ts` - Bitcoin indexing and deposit detection logic
+- `src/router.ts` - HTTP API endpoints
+- `src/sui_client.ts` - Sui blockchain integration for minting
+- `src/cf-storage.ts` - Cloudflare D1/KV storage layer
+- `src/bitcoin-merkle-tree.ts` - Merkle proof generation
 
 ### Key Features
 
-#### 1. Bitcoin Block Processing
+1. **Bitcoin Block Processing**: Cron job runs every minute to scan blocks, identify nBTC deposits via OP_RETURN outputs
+2. **Cross-Chain Minting**: Tracks deposits and mints corresponding nBTC on Sui with Merkle proof validation
+3. **Data Storage**: Uses D1 for transaction data, KV for block storage
+4. **Queue Consumption**: Consumes blocks from `block-queue` populated by block-ingestor
 
-- Cron job runs every minute to scan new Bitcoin blocks
-- Identifies nBTC-related deposits using OP_RETURN outputs
-- Processes transaction confirmations and finalization
+### Configuration
 
-#### 2. Cross-Chain Communication
+- **Cron**: Every minute (`* * * * *`)
+- **D1 Database**: `btcindexer-dev`
+- **KV Namespaces**: `BtcBlocks`, `nbtc_txs`
+- **Queue Consumer**: `block-queue`
+- **Service Bindings**: `SuiIndexer`, `Compliance`
+- **Secrets**: `NBTC_MINTING_SIGNER_MNEMONIC` (via Secrets Store)
 
-- Tracks Bitcoin deposits and mints corresponding nBTC on Sui
-- Implements Merkle proof validation for cross-chain communication
-- Uses Sui light client for block verification
+### Database Schema
 
-#### 3. Service Bindings Implementation
+See migration files in `packages/btcindexer/db/migrations/`:
 
-- Replaced direct fetch calls to external APIs with proper service bindings
-- Created a dedicated Electrs API service worker for handling external API requests
-- Follows Cloudflare's recommended approach for worker-to-worker communication
-
-#### 4. Data Storage
-
-- Uses D1 database to store transaction details, confirmations, and minting status
-- Uses KV namespaces for block storage and nBTC transaction caching
-- Implements proper data persistence and querying
-
-Database access layer implemented `cf-storage.ts`. The D1 database tables are defined in SQL files in `packages/btcindexer/db/migrations/*` (follow the migration files to reconstruct the DB scheme).
-
-## Block Ingestor
-
-The package is in `./packages/block-ingestor`.
-See @packages/block-ingestor/README.md for information about key features and architecture.
-
-### Architecture
-
-The project consists of:
-
-1. A main worker (`src/index.ts`) that handles HTTP requests to receive new blocks
-2. An API module (`src/api/put-blocks.ts`) that handles msgpack encoding/decoding of block data
-3. An ingestion module (`src/ingest.ts`) that processes and queues the received blocks
-4. A client module (`src/api/client.ts`) for sending blocks to the worker
-
-## Lib
-
-The package is in `./packages/lib`.
-
-### Architecture
-
-A shared library package containing common utilities and types used across other packages:
-
-1. Logger module (`src/logger.ts`) for structured logging
-2. Bitcoin network utilities (`src/nbtc.ts`) with common types and functions
-3. Sui network utilities (`src/nsui.ts`) with configuration types
-
-### Core Components
-
-- `packages/lib/src/logger.ts` - Structured logging implementation
-- `packages/lib/src/nbtc.ts` - Bitcoin network types and utility functions
-- `packages/lib/src/nsui.ts` - Sui network configuration types
-
-### Key Features
-
-#### 1. Shared Types
-
-- BtcNet and SuiNet enums for network identification
-- Common interfaces for cross-package communication
-- Block queue record definitions
-
-#### 2. Utilities
-
-- Structured logging with JSON output
-- Utility functions for key generation and management
-- Delay function for async operations
+- `btc_blocks` - Block tracking
+- `nbtc_minting` - Deposit transactions
+- `nbtc_deposit_addresses` - Deposit addresses
+- `nbtc_utxos` - UTXO tracking (states: available, locked, spent)
+- `nbtc_redeem_requests` - Redemption requests
+- `nbtc_redeem_solutions` - Redemption solutions
+- `indexer_state` - Cursor state
+- `presign_objects` - IKA presign objects
 
 ## Sui Indexer
 
-The package is in `./packages/sui-indexer`. See @packages/sui-indexer/README.md for information about key features and architecture.
+**Location**: `./packages/sui-indexer`
 
 ### Architecture
 
-The project consists of:
+- `src/index.ts` - Entry point with scheduled task
+- `src/processor.ts` - Sui event indexing
+- `src/redeem-service.ts` - Redemption processing logic
+- `src/redeem-sui-client.ts` - Sui client for redemption
+- `src/ika_client.ts` - IKA MPC integration
+- `src/storage.ts` - D1 storage layer
+- `src/sighash.ts` - Bitcoin sighash calculations
 
-1. A main worker (`src/index.ts`) that serves as the entry point
-2. An RPC module (`src/rpc.ts`) that exposes service binding interface
-3. A Sui (`src/redeem_sui_client.ts`) for blockchain interactions
-4. Ika client for blockchain integrations related to MPC.
+### IKA Integration
 
-Database access layer implemented `storage.ts`. The D1 database tables are defined in SQL files in `packages/btcindexer/db/migrations/*` (follow the migration files to reconstruct the DB scheme).
+The Sui Indexer integrates with IKA (MPC service) for threshold signature operations:
 
-#### Service Bindings Implementation
+- Uses `@ika.xyz/sdk` for MPC communication
+- Manages presign objects for Bitcoin transaction signing
+- Implements coin selection logic for redemption transactions
 
-- Exposes Cloudflare RPC interface for inter-worker communication
-- Follows Cloudflare's recommended approach for worker-to-worker communication
-- Designed to integrate with the broader nBTC ecosystem
+### Key Features
+
+1. **Event Monitoring**: Indexes Sui events for nBTC redemption requests
+2. **Redemption Processing**: Handles burn-and-redeem flow with IKA MPC
+3. **UTXO Management**: Manages UTXO lifecycle (available → locked → spent)
+
+### Configuration
+
+- **Cron**: Every minute (`* * * * *`)
+- **D1 Database**: Shared `btcindexer-dev`
+- **Service Binding**: `BtcIndexer`
+- **Environment Variables**: `UTXO_LOCK_TIME` (1 hour), `REDEEM_DURATION_MS` (5 min)
+- **Secrets**: `NBTC_MINTING_SIGNER_MNEMONIC`
+
+## Block Ingestor
+
+**Location**: `./packages/block-ingestor`
+
+See @packages/block-ingestor/README.md for detailed architecture.
+
+### Architecture
+
+- `src/index.ts` - HTTP router and handlers
+- `src/ingest.ts` - Block ingestion logic
+- `src/api/put-blocks.ts` - msgpack encoding/decoding
+- `src/api/client.ts` - Client for sending blocks
+
+### Key Features
+
+Receives Bitcoin blocks via REST API, validates them, and enqueues to `block-queue` for processing by BTCIndexer.
+
+### Configuration
+
+- **KV Namespace**: `BtcBlocks` (shared with btcindexer)
+- **Queue Producer**: `block-queue`
+- **Service Binding**: `BtcIndexer`
+
+## Compliance
+
+**Location**: `./packages/compliance`
+
+### Architecture
+
+- `src/index.ts` - Scheduled worker entry point
+- `src/sanction.ts` - Sanctions list updating logic
+- `src/storage.ts` - D1 storage for sanctions
+- `src/rpc.ts` - RPC interface for other services to query compliance data
+
+### Key Features
+
+1. **Sanctions List Updates**: Daily cron job fetches and updates sanctions data
+2. **Compliance API**: Exposes RPC methods for other services to check addresses
+3. **Geo-blocking**: Supports geo-blocking rules
+
+### Configuration
+
+- **Cron**: Daily at 1am (`0 1 * * *`)
+- **D1 Database**: `compliance`
+
+### Database Schema
+
+See migration files in `packages/compliance/db/migrations/`.
+
+## Lib
+
+**Location**: `./packages/lib`
+
+### Architecture
+
+Shared library package containing utilities used across all services:
+
+- `src/logger.ts` - Structured JSON logging
+- `src/nbtc.ts` - Bitcoin network types (`BtcNet` enum, `BlockQueueRecord`, `BitcoinTxStatus`)
+- `src/nsui.ts` - Sui network types (`SuiNet`, `NbtcPkg`)
+- `src/setups.ts` - Environment-specific configurations
+- `src/coin-ops.ts` - IKA coin selection logic
+- `src/auth.ts` - Authorization utilities
+- `src/secrets.ts` - Secrets retrieval from Secrets Store
+- `src/rpc-types.ts` - Shared RPC type definitions
+- `src/test-helpers/` - Test utilities including D1 initialization
+
+### Key Features
+
+1. **Shared Types**: Network enums, block records, transaction status types
+2. **Testing Support**: Mock RPC implementations and D1 test helpers
+3. **Utilities**: Logging, delays, key generation
 
 ## Development Conventions
 
 ### Code Style
 
-- Uses TypeScript with strict type checking. When finalizing agent work run `bun run typecheck` to typecheck the code.
-- Follows ESLint and Prettier for consistent code (and Markdown) formatting. When finalizing agent work run `bun run format` to format the code.
-- Includes comprehensive type definitions
+- TypeScript with strict type checking - run `bun run typecheck`
+- ESLint and Prettier - run `bun run format`
+- Comprehensive type definitions required
 
 ### Testing
 
-- **Test Framework**: Bun's built-in test framework with Miniflare for mocking Workers and CF Env.
-- Tests cover critical functionality including:
-  - nBTC deposit detection
-  - Merkle tree proof generation
-  - Transaction finalization logic
-  - Cross-chain minting flow
-  - Mock environments for testing without external dependencies
-- **Integration Tests**: Full flow with mocked Sui and electrs
-- **Unit Tests**: Merkle tree, storage, API components
-- **Test Data**: Real Bitcoin regtest blocks (fetched from https://learnmeabitcoin.com/explorer/) in `btcindexer.test.ts`
+- **Framework**: Bun's built-in test framework with Miniflare for mocking Workers
+- **Mock RPC**: Each service provides `RPCMock` implementation for isolated testing
+- **Test Data**: Real Bitcoin regtest blocks from https://learnmeabitcoin.com/explorer/
+- **Test Helpers**: Located in `packages/lib/src/test-helpers/`
 
-### Configuration
+### Configuration Pattern
 
-- Uses wrangler.jsonc for Cloudflare Workers configuration
-- Separate configuration files for development and production
-- Environment variables for network settings, API URLs, and blockchain IDs
+- `wrangler.jsonc` - Development configuration
+- `wrangler-prod.jsonc` - Production configuration
+- `.dev.vars` - Local environment variables
+- Environment-specific setups in `packages/lib/src/setups.ts`
 
-### Service Bindings
+### Secrets Store
 
-- Proper implementation of service bindings following Cloudflare documentation
-- Secure communication between worker components
+Sensitive data (mnemonics, API keys) is stored using Cloudflare Secrets Store:
+
+```bash
+# Bind secrets store in wrangler.jsonc
+"secrets_store_stubs": [
+  {
+    "binding": "SECRETS_STORE",
+    "store_id": "your-store-id",
+    "preview_store_id": "your-preview-store-id"
+  }
+]
+```
+
+Access via `packages/lib/src/secrets.ts`.
+
+### UTXO Lifecycle
+
+UTXOs progress through states managed by the Sui Indexer:
+
+1. **Available** - UTXO is ready for use in redemption
+2. **Locked** - UTXO reserved for a pending redemption (time-limited via `UTXO_LOCK_TIME`)
+3. **Spent** - UTXO has been used in a redemption transaction
+
+### Git Hooks
+
+Run `make setup-hooks` to install pre-commit hooks for code quality.
 
 ## Project Structure
 
@@ -242,6 +306,11 @@ Regenerate using `tree --gitignore`.
 │   └── git-hooks/
 ├── node_modules/
 ├── packages/
+│   ├── btcindexer/
+│   ├── sui-indexer/
+│   ├── block-ingestor/
+│   ├── compliance/
+│   └── lib/
 ├── .editorconfig
 ├── .gitignore
 ├── .markdownlint.yml
@@ -255,6 +324,6 @@ Regenerate using `tree --gitignore`.
 ├── README.md
 ├── readme.org
 ├── tsconfig.json
-├── wrangler.jsonc  # Configuration for development environment
-└── wrangler-prod.jsonc  # Configuration for production environment
+├── wrangler.jsonc
+└── wrangler-prod.jsonc
 ```

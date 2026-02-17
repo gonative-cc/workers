@@ -4,7 +4,7 @@
 
 The Native Workers are services for a distributed system for cross-chain Bitcoin-to-Sui interoperability and BYield. The architecture consists of several specialized workers that communicate via service bindings to enable seamless nBTC operations.
 
-Workers are based on the Cloudflare Workers framework.
+Workers are based on the Cloudflare Workers framework, utilizing D1 databases, KV storage, Queues, and IKA MPC for threshold signatures.
 
 ## High-Level Architecture
 
@@ -29,16 +29,19 @@ Workers are based on the Cloudflare Workers framework.
 - Monitors Sui blockchain for nBTC-related events
 - Polls active packages for nBTC operations
 - Provides indexing capabilities for cross-chain activities
+- Integrates with IKA MPC for threshold signature operations
 - Implements RedeemSolver:
   - Handles nBTC redemption requests from users
-  - Tracks available UTXOs for redemptions
+  - Manages UTXO lifecycle (available → locked → spent)
   - Proposes appropriate UTXO sets for withdrawal transactions
   - Coordinates with BTCIndexer for consistent state
 
 #### [Compliance](./packages/compliance/)
 
-- Updates sanctions and geo-location data.
-- Providing API to block specific addresses or queries.
+- Runs daily scheduled updates for sanctions and geo-location data
+- Provides RPC API for other services to check if addresses are blocked
+- Supports geo-blocking rules for restricted jurisdictions
+- Used by BTCIndexer to validate deposits and redemptions
 
 #### [Shared Library](./packages/lib/) (`lib`)
 
@@ -203,6 +206,9 @@ Watch for changes and automatically test:
 bun run test
 # To test only some packages
 bun run --filter package_pattern test
+
+# By default, test logs are not consumed by the runner. To print all logs:
+ENABLE_LOGS=1 bun run test
 ```
 
 To enable logs during testing, use the `ENABLE_LOGS` environment variable:
@@ -252,6 +258,10 @@ export default {
 2. **Performance**: No HTTP overhead
 3. **Simplicity**: No need to serialize/deserialize HTTP requests
 4. **Direct Object Passing**: Can pass complex objects directly between workers
+
+### Testing with RPC
+
+Each service provides an `RPCMock` implementation for testing, allowing isolated unit tests without external dependencies. See `packages/lib/src/test-helpers/` for utilities to set up mock environments.
 
 ## Contributing
 

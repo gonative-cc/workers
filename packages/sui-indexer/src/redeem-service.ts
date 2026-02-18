@@ -364,6 +364,7 @@ export class RedeemService {
 					msg: "Proposal rejected on-chain, another worker proposed a better solution",
 					redeemId: req.redeem_id,
 					txDigest: result.digest,
+					error: result.error,
 				});
 				await this.storage.markRedeemProposed(req.redeem_id, [], 0);
 			}

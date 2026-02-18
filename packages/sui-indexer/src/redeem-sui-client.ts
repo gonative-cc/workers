@@ -22,7 +22,7 @@ export interface SuiClient {
 	ikaClient(): IkaClient;
 	proposeRedeemUtxos(
 		args: ProposeRedeemCall,
-	): Promise<{ success: boolean; digest: string | null }>;
+	): Promise<{ success: boolean; digest: string | null; error: string | null }>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
 	finalizeRedeem(args: FinalizeRedeemCall): Promise<string>;
 	requestIkaPresigns(count: number): Promise<string[]>;
@@ -115,7 +115,7 @@ class SuiClientImp implements SuiClient {
 
 	async proposeRedeemUtxos(
 		args: ProposeRedeemCall,
-	): Promise<{ success: boolean; digest: string | null }> {
+	): Promise<{ success: boolean; digest: string | null; error: string | null }> {
 		const tx = new Transaction();
 
 		tx.add(
@@ -142,6 +142,7 @@ class SuiClientImp implements SuiClient {
 		return {
 			success: result.effects?.status.status === "success",
 			digest: result.digest ?? null,
+			error: result.effects?.status.error ?? null,
 		};
 	}
 

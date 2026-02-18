@@ -6,7 +6,6 @@ This is a Cloudflare Workers project that implements various services for [Go Na
 It uses [Bun](https://bun.com/) for JavaScript and Typescript runtime and package management (instead of Nodejs + npm).
 
 The content is organized into a Bun workspace. See @README.md for:
-
 - High-level architecture and component interactions
 - Detailed setup instructions
 - Functional flow documentation
@@ -16,13 +15,13 @@ The content is organized into a Bun workspace. See @README.md for:
 
 All packages are in the `./packages` directory:
 
-| Package          | Type             | Purpose                                  |
-| ---------------- | ---------------- | ---------------------------------------- |
-| `btcindexer`     | Service (Worker) | Bitcoin-to-Sui bridging and minting      |
-| `sui-indexer`    | Service (Worker) | Sui blockchain monitoring and redemption |
-| `block-ingestor` | Service (Worker) | Receives Bitcoin blocks via REST API     |
-| `compliance`     | Service (Worker) | Sanctions and geo-blocking data          |
-| `lib`            | Shared Library   | Common utilities and types               |
+| Package | Type | Purpose |
+|---------|------|---------|
+| `btcindexer` | Service (Worker) | Bitcoin-to-Sui bridging and minting |
+| `sui-indexer` | Service (Worker) | Sui blockchain monitoring and redemption |
+| `block-ingestor` | Service (Worker) | Receives Bitcoin blocks via REST API |
+| `compliance` | Service (Worker) | Sanctions and geo-blocking data |
+| `lib` | Shared Library | Common utilities and types |
 
 ### Core Technologies
 

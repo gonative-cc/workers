@@ -229,6 +229,7 @@ describe("Indexer.splitActiveInactiveTxs", () => {
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
 			deposit_address: REGTEST_DATA[329]!.depositAddr,
+			setup_id: 1,
 		};
 		const { activeTxIds } = indexer.splitActiveInactiveTxs([pendingTx]);
 		expect(activeTxIds.length).toEqual(1);
@@ -247,6 +248,7 @@ describe("Indexer.splitActiveInactiveTxs (Inactive)", () => {
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
 			deposit_address: REGTEST_DATA[329]!.depositAddr,
+			setup_id: 1,
 		};
 		const result = indexer.splitActiveInactiveTxs([pendingTx]);
 
@@ -264,6 +266,7 @@ describe("Indexer.splitActiveInactiveTxs (Inactive)", () => {
 			block_height: 100,
 			btc_network: BtcNet.REGTEST,
 			deposit_address: "inactive_address",
+			setup_id: 1,
 		};
 
 		const originalMap = indexer.nbtcDepositAddrMap;
@@ -355,7 +358,7 @@ describe("Indexer.registerBroadcastedNbtcTx", () => {
 
 describe("Indexer.hasNbtcMintTx", () => {
 	it("should return false when transaction does not exist", async () => {
-		const result = await indexer.hasNbtcMintTx("nonexistent_tx_id");
+		const result = await indexer.hasNbtcMintTx("nonexistent_tx_id", 1);
 		expect(result).toBe(false);
 	});
 
@@ -365,7 +368,7 @@ describe("Indexer.hasNbtcMintTx", () => {
 
 		await indexer.registerBroadcastedNbtcTx(txHex, BtcNet.REGTEST);
 
-		const result = await indexer.hasNbtcMintTx(txInfo.id);
+		const result = await indexer.hasNbtcMintTx(txInfo.id, 1);
 		expect(result).toBe(true);
 	});
 });
@@ -579,9 +582,9 @@ describe("Indexer.detectMintedReorgs", () => {
 			.bind(blockData.hash, blockData.height, BtcNet.REGTEST, Date.now(), 1)
 			.run();
 
-		await indexer.detectMintedReorgs(blockData.height);
+		await indexer.detectMintedReorgs(blockData.height, 1);
 
-		const status = await indexer.storage.getTxStatus(txData.id);
+		const status = await indexer.storage.getTxStatus(txData.id, 1);
 		expect(status).toEqual(MintTxStatus.Minted);
 	});
 });
@@ -622,7 +625,7 @@ describe("Indexer.processBlock", () => {
 		await suite.setupBlock(327);
 		await indexer.processBlock(reorgBlockInfo);
 
-		const status = await indexer.storage.getTxStatus(txData.id);
+		const status = await indexer.storage.getTxStatus(txData.id, 1);
 		expect(status).toEqual(MintTxStatus.MintedReorg);
 	});
 });
@@ -726,7 +729,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 			suite.mockSuiClient.verifyBlocks,
 			"Verify that verifyBlocks was called with the correct block hash",
 		).toHaveBeenCalledWith([block329.hash]);
-		await suite.expectTxStatus(tx329.id, "reorg");
+		await suite.expectTxStatus(tx329.id, "reorg", 1);
 	});
 
 	it("should verify confirming blocks and not update status if blocks are still valid", async () => {
@@ -749,7 +752,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		).toHaveBeenCalledWith([block329.hash]);
 
 		// Check that the transaction status remains 'confirming' since block is still valid
-		await suite.expectTxStatus(tx329.id, "confirming");
+		await suite.expectTxStatus(tx329.id, "confirming", 1);
 	});
 
 	it("should handle empty confirming blocks list", async () => {
@@ -772,7 +775,7 @@ describe("Indexer.verifyConfirmingBlocks", () => {
 		await indexer.verifyConfirmingBlocks();
 
 		expect(suite.mockSuiClient.verifyBlocks).toHaveBeenCalledWith([block329.hash]);
-		await suite.expectTxStatus(tx329.id, "confirming");
+		await suite.expectTxStatus(tx329.id, "confirming", 1);
 	});
 });
 

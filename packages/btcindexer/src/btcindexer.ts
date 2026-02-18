@@ -33,6 +33,7 @@ import type {
 	ProcessedKey,
 	PreparedMintBatches,
 	ElectrsTxResponse,
+	NbtcBroadcastedDeposit,
 	NbtcPkgCfg,
 	NbtcDepositAddrsMap,
 } from "./models";
@@ -45,8 +46,8 @@ import type { PutNbtcTxResponse } from "./rpc-interface";
 import { extractSenderAddresses } from "./btc-address-utils";
 import type { ComplianceRpc } from "@gonative-cc/compliance/rpc";
 
-interface ConfirmingTxCandidate<T> {
-	id: string | number;
+interface ConfirmingTxCandidate<T, ID = string | number> {
+	id: ID;
 	blockHeight: number;
 	blockHash: string;
 	network: BtcNet;
@@ -155,8 +156,8 @@ export class Indexer {
 		this.compliance = compliance;
 	}
 
-	async hasNbtcMintTx(txId: string): Promise<boolean> {
-		const existingTx = await this.storage.getNbtcMintTx(txId);
+	async hasNbtcMintTx(txId: string, setupId: number): Promise<boolean> {
+		const existingTx = await this.storage.getNbtcMintTx(txId, setupId);
 		return existingTx !== null;
 	}
 
@@ -179,6 +180,10 @@ export class Indexer {
 		const c = this.#packageConfigs.get(nbtcPkgId);
 		if (c === undefined) throw new Error("No Nbtc pkg for pkg_id = " + nbtcPkgId);
 		return c;
+	}
+
+	get packageConfigs(): NbtcPkgCfg[] {
+		return Array.from(this.#packageConfigs.values());
 	}
 
 	// - extracts and processes nBTC deposit transactions in the block
@@ -240,12 +245,36 @@ export class Indexer {
 
 		if (result === InsertBlockStatus.Updated) {
 			logger.info({
-				msg: "Reorg detected, calling detectMintedReorgs",
+				msg: "Reorg detected, calling detectMintedReorgs for all active setups",
 				height: blockInfo.height,
 				hash: blockInfo.hash,
 				status: result,
 			});
-			await this.detectMintedReorgs(blockInfo.height);
+
+			// Reorg check needs to be performed for all setups associated with this network
+			const setups = this.packageConfigs.filter((p) => p.btc_network === blockInfo.network);
+
+			// Run reorg checks for all setups in parallel to reduce latency and avoid worker timeouts.
+			// Use allSettled to keep per-setup isolation: a failure in one setup should not prevent
+			// checks for other setups from running/completing.
+			const reorgCheckResults = await Promise.allSettled(
+				setups.map((setup) => this.detectMintedReorgs(blockInfo.height, setup.id)),
+			);
+
+			// Log any failed reorg checks without throwing, so other setups are unaffected.
+			reorgCheckResults.forEach((res, index) => {
+				if (res.status === "rejected") {
+					const failedSetup = setups[index];
+					logger.error({
+						msg: "detectMintedReorgs failed for setup during reorg handling",
+						height: blockInfo.height,
+						hash: blockInfo.hash,
+						setupId: failedSetup?.id,
+						error:
+							res.reason instanceof Error ? res.reason.message : String(res.reason),
+					});
+				}
+			});
 		}
 		return true;
 	}
@@ -307,19 +336,7 @@ export class Indexer {
 
 		const results: NbtcTxInsertion[] = [];
 		for (const deposit of foundDeposits) {
-			logger.info({
-				msg: "Found new nBTC deposit",
-				txId: tx.getId(),
-				vout: deposit.vout,
-				amount: deposit.amount,
-				suiRecipient: deposit.suiRecipient,
-				nbtcPkg: deposit.nbtcPkg,
-				suiNetwork: deposit.suiNetwork,
-				depositAddress: deposit.depositAddress,
-				sender,
-			});
-
-			results.push({
+			const t: NbtcTxInsertion = {
 				txId: tx.getId(),
 				vout: deposit.vout,
 				blockHash: blockInfo.hash,
@@ -331,7 +348,14 @@ export class Indexer {
 				suiNetwork: deposit.suiNetwork,
 				depositAddress: deposit.depositAddress,
 				sender,
+				setupId: deposit.setupId,
+			};
+			logger.info({
+				msg: "Found new nBTC deposit",
+				...t,
 			});
+
+			results.push(t);
 		}
 		return results;
 	}
@@ -424,6 +448,7 @@ export class Indexer {
 					nbtcPkg: config.nbtc_pkg,
 					suiNetwork: config.sui_network,
 					depositAddress: btcAddress,
+					setupId: depositInfo.setup_id,
 				});
 				// NOTE: "First Match Wins" policy.
 				// We stop scanning outputs after finding the first valid deposit.
@@ -464,9 +489,12 @@ export class Indexer {
 	private async filterAlreadyMinted(finalizedTxs: FinalizedTxRow[]): Promise<FinalizedTxRow[]> {
 		const txsBySetupId = new Map<number, FinalizedTxRow[]>();
 		for (const tx of finalizedTxs) {
-			const list = txsBySetupId.get(tx.setup_id) || [];
-			list.push(tx);
-			txsBySetupId.set(tx.setup_id, list);
+			const list = txsBySetupId.get(tx.setup_id);
+			if (list) {
+				list.push(tx);
+			} else {
+				txsBySetupId.set(tx.setup_id, [tx]);
+			}
 		}
 
 		const txsToProcess: FinalizedTxRow[] = [];
@@ -494,13 +522,8 @@ export class Indexer {
 							msg: "Front-run detected: Transaction already minted",
 							txId: tx.tx_id,
 						});
-						await this.storage.batchUpdateNbtcMintTxs([
-							{
-								txId: tx.tx_id,
-								vout: tx.vout,
-								status: MintTxStatus.Minted,
-							},
-						]);
+						const t = { txId: tx.tx_id, vout: tx.vout, status: MintTxStatus.Minted };
+						await this.storage.batchUpdateNbtcMintTxs([t], setupId);
 					} else {
 						txsToProcess.push(tx);
 					}
@@ -568,11 +591,14 @@ export class Indexer {
 				for (const txRow of txs) {
 					try {
 						const txId = txRow.tx_id;
+						const setupId = txRow.setup_id;
+						const config = this.getPackageConfig(setupId);
+
 						const transactions = block.transactions;
 						const txIndex = transactions?.findIndex((t) => t.getId() === txId) ?? -1;
 
 						if (txIndex < 0 || !transactions) {
-							await this.handleMissingFinalizedMintingTx(txId);
+							await this.handleMissingFinalizedMintingTx(txId, setupId);
 							continue;
 						}
 						const targetTx = transactions[txIndex];
@@ -584,9 +610,6 @@ export class Indexer {
 						if (!proof) {
 							throw new Error("Proof generation failed (returned null or undefined)");
 						}
-
-						const setupId = txRow.setup_id;
-						const config = this.getPackageConfig(setupId);
 
 						let batch = batches.get(setupId);
 						if (!batch) {
@@ -669,14 +692,15 @@ export class Indexer {
 	}
 
 	// Marks a transaction as reorged if it is missing from its expected block.
-	private async handleMissingFinalizedMintingTx(txId: string): Promise<void> {
+	private async handleMissingFinalizedMintingTx(txId: string, setupId: number): Promise<void> {
 		logger.error({
 			msg: "Minting: Could not find TX within its block. Detecting reorg.",
 			method: "handleMissingFinalizedMintingTx",
 			txId,
+			setupId,
 		});
 		try {
-			const currentStatus = await this.storage.getTxStatus(txId);
+			const currentStatus = await this.storage.getTxStatus(txId, setupId);
 			if (
 				currentStatus !== MintTxStatus.Finalized &&
 				currentStatus !== MintTxStatus.MintFailed
@@ -685,16 +709,18 @@ export class Indexer {
 					msg: "Minting: Unexpected status during reorg detection, skipping",
 					method: "handleMissingFinalizedMintingTx",
 					txId,
+					setupId,
 					currentStatus,
 				});
 				return;
 			}
 
-			await this.storage.updateNbtcTxsStatus([txId], MintTxStatus.FinalizedReorg);
+			await this.storage.updateNbtcTxsStatus([txId], setupId, MintTxStatus.FinalizedReorg);
 			logger.warn({
 				msg: "Minting: Transaction reorged",
 				method: "handleMissingFinalizedMintingTx",
 				txId,
+				setupId,
 				previousStatus: currentStatus,
 				newStatus: MintTxStatus.FinalizedReorg,
 			});
@@ -704,6 +730,7 @@ export class Indexer {
 					msg: "Minting: Failed to update reorg status",
 					method: "handleMissingFinalizedMintingTx",
 					txId,
+					setupId,
 				},
 				e,
 			);
@@ -745,6 +772,7 @@ export class Indexer {
 						vout: p.vout,
 						status: MintTxStatus.MintFailed,
 					})),
+					setupId,
 				);
 				continue;
 			}
@@ -764,6 +792,7 @@ export class Indexer {
 						status: MintTxStatus.Minted,
 						suiTxDigest,
 					})),
+					setupId,
 				);
 			} else {
 				// Transaction executed but failed on-chain
@@ -781,6 +810,7 @@ export class Indexer {
 						status: MintTxStatus.MintFailed,
 						suiTxDigest,
 					})),
+					setupId,
 				);
 			}
 		}
@@ -791,20 +821,21 @@ export class Indexer {
 		return this.compliance.isAnyBtcAddressSanctioned(senderAddresses);
 	}
 
-	async detectMintedReorgs(blockHeight: number): Promise<void> {
+	async detectMintedReorgs(blockHeight: number, setupId: number): Promise<void> {
 		logger.debug({
 			msg: "Checking for reorgs on minted transactions",
 			method: "detectMintedReorgs",
 			blockHeight,
+			setupId,
 		});
 
-		const reorgedTxs = await this.storage.getReorgedMintedTxs(blockHeight);
+		const reorgedTxs = await this.storage.getReorgedMintedTxs(blockHeight, setupId);
 		if (!reorgedTxs || reorgedTxs.length === 0) {
 			return;
 		}
 
 		const txIds = reorgedTxs.map((tx) => tx.tx_id);
-		await this.storage.updateNbtcTxsStatus(txIds, MintTxStatus.MintedReorg);
+		await this.storage.updateNbtcTxsStatus(txIds, setupId, MintTxStatus.MintedReorg);
 
 		logger.error({
 			msg: "CRITICAL: Deep reorg detected on minted transactions",
@@ -812,6 +843,7 @@ export class Indexer {
 			count: reorgedTxs.length,
 			txIds,
 			blockHeight,
+			setupId,
 		});
 	}
 
@@ -914,7 +946,7 @@ export class Indexer {
 			chainHeads: Object.fromEntries(chainHeads),
 		});
 
-		const confirmingTxs: ConfirmingTxCandidate<PendingTx>[] = [];
+		const confirmingTxs: ConfirmingTxCandidate<PendingTx, string>[] = [];
 		for (const tx of pendingTxs) {
 			if (tx.block_hash !== null) {
 				confirmingTxs.push({
@@ -933,12 +965,26 @@ export class Indexer {
 		);
 
 		if (reorged.length > 0) {
-			const reorgedTxIds = reorged.map((i) => i.id as string);
 			logger.debug({
 				msg: "Finalization: Updating reorged transactions",
-				count: reorgedTxIds.length,
+				count: reorged.length,
 			});
-			await this.storage.updateNbtcTxsStatus(reorgedTxIds, MintTxStatus.Reorg);
+			// Group by setup_id to call updateNbtcTxsStatus with correct isolation
+			const reorgedBySetup = new Map<number, string[]>();
+			for (const r of reorged) {
+				const list = reorgedBySetup.get(r.original.setup_id);
+				if (list) {
+					list.push(r.id);
+				} else {
+					reorgedBySetup.set(r.original.setup_id, [r.id]);
+				}
+			}
+			const updates = Array.from(reorgedBySetup.entries()).map(([setupId, txIds]) => ({
+				txIds,
+				setupId,
+				status: MintTxStatus.Reorg,
+			}));
+			await this.storage.batchUpdateNbtcTxsStatus(updates);
 		}
 
 		const validFinalizedTxs = finalized.map((i) => i.original);
@@ -950,7 +996,24 @@ export class Indexer {
 				method: "Indexer.processMintingFinalization",
 				count: activeTxIds.length,
 			});
-			await this.storage.finalizeNbtcTxs(activeTxIds);
+			// Group active by setup_id. Convert activeTxIds to a Set for O(1) lookups.
+			const activeIdSet = new Set(activeTxIds);
+			const activeBySetup = new Map<number, string[]>();
+			for (const tx of validFinalizedTxs) {
+				if (activeIdSet.has(tx.tx_id)) {
+					const list = activeBySetup.get(tx.setup_id);
+					if (list) {
+						list.push(tx.tx_id);
+					} else {
+						activeBySetup.set(tx.setup_id, [tx.tx_id]);
+					}
+				}
+			}
+			const updates = Array.from(activeBySetup.entries()).map(([setupId, txIds]) => ({
+				txIds,
+				setupId,
+			}));
+			await this.storage.batchFinalizeNbtcTxs(updates);
 		}
 		if (inactiveTxIds.length > 0) {
 			logger.debug({
@@ -958,7 +1021,25 @@ export class Indexer {
 				method: "Indexer.processMintingFinalization",
 				count: inactiveTxIds.length,
 			});
-			await this.storage.updateNbtcTxsStatus(inactiveTxIds, MintTxStatus.FinalizedNonActive);
+			// Group inactive by setup_id
+			const inactiveIdSet = new Set(inactiveTxIds);
+			const inactiveBySetup = new Map<number, string[]>();
+			for (const tx of validFinalizedTxs) {
+				if (inactiveIdSet.has(tx.tx_id)) {
+					const list = inactiveBySetup.get(tx.setup_id);
+					if (list) {
+						list.push(tx.tx_id);
+					} else {
+						inactiveBySetup.set(tx.setup_id, [tx.tx_id]);
+					}
+				}
+			}
+			const updates = Array.from(inactiveBySetup.entries()).map(([setupId, txIds]) => ({
+				txIds,
+				setupId,
+				status: MintTxStatus.FinalizedNonActive,
+			}));
+			await this.storage.batchUpdateNbtcTxsStatus(updates);
 		}
 	}
 
@@ -999,15 +1080,14 @@ export class Indexer {
 
 		const chainHeads = new Map<BtcNet, number>([[net, chainHead]]);
 
-		const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq>[] = confirmingRedeems.map(
-			(r) => ({
+		const confirmingTxs: ConfirmingTxCandidate<ConfirmingRedeemReq, number>[] =
+			confirmingRedeems.map((r) => ({
 				id: r.redeem_id,
 				blockHeight: r.btc_block_height,
 				blockHash: r.btc_block_hash,
 				network: btcNetFromString(r.btc_network),
 				original: r,
-			}),
-		);
+			}));
 
 		const { reorged, finalized } = await this.categorizeConfirmingTxs(
 			confirmingTxs,
@@ -1111,12 +1191,15 @@ export class Indexer {
 	}
 
 	// breaks down transactions past the "finality confirmations" into confirmed and reorged.
-	private async categorizeConfirmingTxs<T>(
-		txs: ConfirmingTxCandidate<T>[],
+	private async categorizeConfirmingTxs<T, ID>(
+		txs: ConfirmingTxCandidate<T, ID>[],
 		chainHeads: Map<BtcNet, number>, // number is the latest block height (chain tip)
-	): Promise<{ reorged: ConfirmingTxCandidate<T>[]; finalized: ConfirmingTxCandidate<T>[] }> {
-		const reorged: ConfirmingTxCandidate<T>[] = [];
-		const finalized: ConfirmingTxCandidate<T>[] = [];
+	): Promise<{
+		reorged: ConfirmingTxCandidate<T, ID>[];
+		finalized: ConfirmingTxCandidate<T, ID>[];
+	}> {
+		const reorged: ConfirmingTxCandidate<T, ID>[] = [];
+		const finalized: ConfirmingTxCandidate<T, ID>[] = [];
 
 		for (const tx of txs) {
 			const tip = chainHeads.get(tx.network);
@@ -1182,8 +1265,8 @@ export class Indexer {
 	}
 
 	// queries NbtcTxResp by BTC Tx ID
-	async getNbtcMintTx(txid: string): Promise<NbtcTxResp | null> {
-		const nbtMintRow = await this.storage.getNbtcMintTx(txid);
+	async getNbtcMintTx(txid: string, setupId: number): Promise<NbtcTxResp | null> {
+		const nbtMintRow = await this.storage.getNbtcMintTx(txid, setupId);
 		if (!nbtMintRow) return null;
 
 		const latestHeight = await this.storage.getChainTip(nbtMintRow.btc_network);
@@ -1218,7 +1301,7 @@ export class Indexer {
 			throw new Error("Transaction does not contain any valid nBTC deposits.");
 		}
 
-		if (await this.hasNbtcMintTx(txId)) {
+		if (deposits[0] && (await this.hasNbtcMintTx(txId, deposits[0].setupId))) {
 			logger.debug({
 				msg: "Transaction already exists, skipping registration",
 				method: "Indexer.registerBroadcastedNbtcTx",
@@ -1230,7 +1313,13 @@ export class Indexer {
 		const txSenders = await this.getSenderAddresses(tx, network);
 		const sender = txSenders[0] || "";
 
-		const depositData = deposits.map((d) => ({ ...d, txId, btcNetwork: network, sender }));
+		const depositData: NbtcBroadcastedDeposit[] = deposits.map((d) => ({
+			...d,
+			txId,
+			btcNetwork: network,
+			sender,
+			setupId: d.setupId,
+		}));
 		await this.storage.registerBroadcastedNbtcTx(depositData);
 		logger.info({
 			msg: "New nBTC minting deposit TX registered",
@@ -1278,8 +1367,11 @@ export class Indexer {
 		return { height };
 	}
 
-	async getDepositsBySender(btcAddress: string, network: BtcNet): Promise<NbtcTxResp[]> {
-		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress, network);
+	async getDepositsBySender(btcAddress: string, setupId: number): Promise<NbtcTxResp[]> {
+		const nbtcMintRows = await this.storage.getNbtcMintTxsByBtcSender(btcAddress, setupId);
+		if (nbtcMintRows.length === 0) return [];
+
+		const network = nbtcMintRows[0]!.btc_network;
 		const latestHeight = await this.storage.getChainTip(network);
 
 		return nbtcMintRows.map((r) => nbtcRowToResp(r, latestHeight));

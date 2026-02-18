@@ -88,8 +88,13 @@ export default class HttpRouter {
 		if (!setupIdStr || typeof setupIdStr !== "string") {
 			throw new Error("Missing or invalid setup_id query parameter.");
 		}
-		const setupId = parseInt(setupIdStr, 10);
-		if (isNaN(setupId)) {
+		// Strictly validate that setup_id is a positive integer string.
+		// This avoids cases like "1abc" parsing to 1, or accepting zero/negative IDs.
+		if (!/^[0-9]+$/.test(setupIdStr)) {
+			throw new Error("Invalid setup_id query parameter.");
+		}
+		const setupId = Number(setupIdStr);
+		if (!Number.isInteger(setupId) || setupId <= 0) {
 			throw new Error("Invalid setup_id query parameter.");
 		}
 		return setupId;

@@ -253,9 +253,28 @@ export class Indexer {
 
 			// Reorg check needs to be performed for all setups associated with this network
 			const setups = this.packageConfigs.filter((p) => p.btc_network === blockInfo.network);
-			for (const setup of setups) {
-				await this.detectMintedReorgs(blockInfo.height, setup.id);
-			}
+
+			// Run reorg checks for all setups in parallel to reduce latency and avoid worker timeouts.
+			// Use allSettled to keep per-setup isolation: a failure in one setup should not prevent
+			// checks for other setups from running/completing.
+			const reorgCheckResults = await Promise.allSettled(
+				setups.map((setup) => this.detectMintedReorgs(blockInfo.height, setup.id)),
+			);
+
+			// Log any failed reorg checks without throwing, so other setups are unaffected.
+			reorgCheckResults.forEach((res, index) => {
+				if (res.status === "rejected") {
+					const failedSetup = setups[index];
+					logger.error({
+						msg: "detectMintedReorgs failed for setup during reorg handling",
+						height: blockInfo.height,
+						hash: blockInfo.hash,
+						setupId: failedSetup?.id,
+						error:
+							res.reason instanceof Error ? res.reason.message : String(res.reason),
+					});
+				}
+			});
 		}
 		return true;
 	}
@@ -977,10 +996,11 @@ export class Indexer {
 				method: "Indexer.processMintingFinalization",
 				count: activeTxIds.length,
 			});
-			// Group active by setup_id
+			// Group active by setup_id. Convert activeTxIds to a Set for O(1) lookups.
+			const activeIdSet = new Set(activeTxIds);
 			const activeBySetup = new Map<number, string[]>();
 			for (const tx of validFinalizedTxs) {
-				if (activeTxIds.includes(tx.tx_id)) {
+				if (activeIdSet.has(tx.tx_id)) {
 					const list = activeBySetup.get(tx.setup_id);
 					if (list) {
 						list.push(tx.tx_id);
@@ -1002,9 +1022,10 @@ export class Indexer {
 				count: inactiveTxIds.length,
 			});
 			// Group inactive by setup_id
+			const inactiveIdSet = new Set(inactiveTxIds);
 			const inactiveBySetup = new Map<number, string[]>();
 			for (const tx of validFinalizedTxs) {
-				if (inactiveTxIds.includes(tx.tx_id)) {
+				if (inactiveIdSet.has(tx.tx_id)) {
 					const list = inactiveBySetup.get(tx.setup_id);
 					if (list) {
 						list.push(tx.tx_id);

@@ -14,7 +14,6 @@ import type {
 import { MintTxStatus, InsertBlockStatus } from "./models";
 import type { Storage } from "./storage";
 import type { BlockQueueRecord, BtcNet } from "@gonative-cc/lib/nbtc";
-import type { SuiNet } from "@gonative-cc/lib/nsui";
 
 export class CFStorage implements Storage {
 	private d1: D1Database;

@@ -872,15 +872,23 @@ export class D1Storage {
 			return result ?? null;
 		} catch (error) {
 			logError({ msg: "Failed to acquire lock", method: "acquireLock", lockName }, error);
-			return null;
+			throw error;
 		}
 	}
 
 	async releaseLock(lockName: string, acquiredAt: number): Promise<void> {
-		await this.db
-			.prepare(`DELETE FROM cron_locks WHERE lock_name = ? AND acquired_at = ?`)
-			.bind(lockName, acquiredAt)
-			.run();
+		try {
+			await this.db
+				.prepare(`DELETE FROM cron_locks WHERE lock_name = ? AND acquired_at = ?`)
+				.bind(lockName, acquiredAt)
+				.run();
+		} catch (error) {
+			logError(
+				{ msg: "Failed to release lock", method: "releaseLock", lockName, acquiredAt },
+				error,
+			);
+			throw error;
+		}
 	}
 }
 

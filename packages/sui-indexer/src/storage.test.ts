@@ -597,4 +597,180 @@ describe("IndexerStorage", () => {
 		expect(inputs[0]!.input_index).toBe(0);
 		expect(inputs[1]!.input_index).toBe(1);
 	});
+
+	it("getMultipleSuiGqlCursors should return cursors for multiple setups", async () => {
+		await db
+			.prepare(
+				"INSERT INTO indexer_state (setup_id, nbtc_cursor, updated_at) VALUES (?, ?, ?)",
+			)
+			.bind(1, "cursor1", Date.now())
+			.run();
+		const cursors = await storage.getMultipleSuiGqlCursors([1]);
+		expect(cursors[1]).toBe("cursor1");
+	});
+
+	it("saveMultipleSuiGqlCursors should save cursors", async () => {
+		await storage.saveMultipleSuiGqlCursors([{ setupId: 1, cursor: "newCursor" }]);
+		const cursor = await storage.getSuiGqlCursor(1);
+		expect(cursor).toBe("newCursor");
+	});
+
+	it("hasRedeemRequest should check if redeem exists", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		const exists = await storage.hasRedeemRequest(1);
+		const notExists = await storage.hasRedeemRequest(999);
+		expect(exists).toBe(true);
+		expect(notExists).toBe(false);
+	});
+
+	it("getRedeemUtxosWithDetails should return utxos with input_index", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		const utxos = await storage.getRedeemUtxosWithDetails(1);
+		expect(utxos.length).toBe(1);
+		expect(utxos[0]!.input_index).toBe(0);
+	});
+
+	it("getRedeemRequestData should return recipient_script and amount", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		const data = await storage.getRedeemRequestData(1);
+		expect(data).not.toBeNull();
+		expect(data!.amount).toBe(3000);
+	});
+
+	it("getSignedRedeems should return signed redeems", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await storage.updateRedeemStatus(1, RedeemRequestStatus.Signed);
+		const redeems = await storage.getSignedRedeems();
+		expect(redeems.length).toBe(1);
+		expect(redeems[0]!.status).toBe(RedeemRequestStatus.Signed);
+	});
+
+	it("getRedeemWithSetup should return redeem with setup info", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		const redeem = await storage.getRedeemWithSetup(1);
+		expect(redeem).not.toBeNull();
+		expect(redeem!.nbtc_pkg).toBe("0xPkg1");
+	});
+
+	it("clearRedeemInputSignId should clear sign_id", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		await storage.updateRedeemInputSig(1, 1, "signId123");
+		await storage.clearRedeemInputSignId(1, 1);
+		const inputs = await storage.getRedeemInputs(1);
+		expect(inputs[0]!.sign_id).toBeNull();
+	});
+
+	it("getRedeemInfoBySignId should return redeem info", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		await storage.updateRedeemInputSig(1, 1, "signId123");
+		const info = await storage.getRedeemInfoBySignId("signId123");
+		expect(info).not.toBeNull();
+		expect(info!.redeem_id).toBe(1);
+	});
+
+	it("markRedeemBroadcasted should update status and btc_tx", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await storage.markRedeemBroadcasted(1, "btcTxId123");
+		const redeem = await db
+			.prepare("SELECT status, btc_tx FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(1)
+			.first<{ status: string; btc_tx: string }>();
+		expect(redeem!.status).toBe(RedeemRequestStatus.Broadcasting);
+		expect(redeem!.btc_tx).toBe("btcTxId123");
+	});
+
+	it("setRedeemFinalized should update status and mark utxos as spent", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		await storage.setRedeemFinalized(1);
+		const redeem = await db
+			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(1)
+			.first<{ status: string }>();
+		const utxo = await db
+			.prepare("SELECT status FROM nbtc_utxos WHERE nbtc_utxo_id = ?")
+			.bind(1)
+			.first<{ status: string }>();
+		expect(redeem!.status).toBe(RedeemRequestStatus.Finalized);
+		expect(utxo!.status).toBe(UtxoStatus.Spent);
+	});
 });

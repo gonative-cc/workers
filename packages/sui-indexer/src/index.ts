@@ -25,11 +25,14 @@ export default {
 	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new D1Storage(env.DB);
-		const lockToken = await storage.acquireLock("sui-indexer-cron", 5 * 60 * 1000); // 5 minutes
+		// Distributed lock to prevent overlapping cron executions from selecting
+		// same Sui coins. Since CF Workers doesn't guarantee sequential cron running,
+		// if a run exceeds the 1-min interval, the next trigger starts concurrently.
+		const lockToken = await storage.acquireLock("cron-sui-indexer", 5 * 60 * 1000);
 		if (lockToken === null) {
 			logger.warn({
 				msg: "Cron job already running, skipping this execution",
-				lockName: "sui-indexer-cron",
+				lockName: "cron-sui-indexer",
 			});
 			return;
 		}
@@ -52,7 +55,7 @@ export default {
 				"RedeemSolver",
 			]);
 		} finally {
-			await storage.releaseLock("sui-indexer-cron");
+			await storage.releaseLock("cron-sui-indexer");
 		}
 	},
 } satisfies ExportedHandler<Env>;

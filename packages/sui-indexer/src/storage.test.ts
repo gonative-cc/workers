@@ -597,4 +597,53 @@ describe("IndexerStorage", () => {
 		expect(inputs[0]!.input_index).toBe(0);
 		expect(inputs[1]!.input_index).toBe(1);
 	});
+
+	describe("Distributed Lock", () => {
+		async function getLock(lockName: string) {
+			return db
+				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
+				.bind(lockName)
+				.first<{ lock_name: string; acquired_at: number; expires_at: number }>();
+		}
+
+		it("should acquire lock and reject duplicate", async () => {
+			const token = await storage.acquireLock("test-lock", 60000);
+			expect(token).not.toBeNull();
+
+			const lock = await getLock("test-lock");
+			expect(lock).not.toBeNull();
+			expect(lock!.lock_name).toBe("test-lock");
+
+			// second acquire should fail
+			const second = await storage.acquireLock("test-lock", 60000);
+			expect(second).toBeNull();
+		});
+
+		it("should acquire lock when existing lock is expired", async () => {
+			const expiredTime = Date.now() - 10000;
+			await db
+				.prepare(
+					"INSERT INTO cron_locks (lock_name, acquired_at, expires_at) VALUES (?, ?, ?)",
+				)
+				.bind("test-lock", expiredTime - 60000, expiredTime)
+				.run();
+
+			const token = await storage.acquireLock("test-lock", 60000);
+			expect(token).not.toBeNull();
+
+			const lock = await getLock("test-lock");
+			expect(lock!.expires_at).toBeGreaterThan(Date.now());
+		});
+
+		it("should release lock and allow reacquiring", async () => {
+			const token = await storage.acquireLock("test-lock", 60000);
+			expect(token).not.toBeNull();
+
+			await storage.releaseLock("test-lock");
+			expect(await getLock("test-lock")).toBeNull();
+
+			const second = await storage.acquireLock("test-lock", 60000);
+			expect(second).not.toBeNull();
+		});
+	});
 });

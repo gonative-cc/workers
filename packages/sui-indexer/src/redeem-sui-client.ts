@@ -123,7 +123,6 @@ class SuiClientImp implements SuiClient {
 		nbtcContract: string,
 	): Promise<number[]> {
 		const tx = new Transaction();
-
 		const redeem = tx.add(
 			nBTCContractModule.redeemRequest({
 				package: nbtcPkg,

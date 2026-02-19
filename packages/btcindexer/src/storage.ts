@@ -31,18 +31,22 @@ export interface Storage {
 	insertOrUpdateNbtcTxs(txs: NbtcTxInsertion[]): Promise<void>;
 
 	getNbtcMintCandidates(maxRetries: number): Promise<FinalizedTxRow[]>;
-	getMintedTxs(blockHeight: number): Promise<FinalizedTxRow[]>;
-	getTxStatus(txId: string): Promise<MintTxStatus | null>;
-	getReorgedMintedTxs(blockHeight: number): Promise<ReorgedMintedTx[]>;
-	updateNbtcTxsStatus(txIds: string[], status: MintTxStatus): Promise<void>;
-	batchUpdateNbtcMintTxs(updates: NbtcTxUpdate[]): Promise<void>;
+	getMintedTxs(blockHeight: number, setupId: number): Promise<FinalizedTxRow[]>;
+	getTxStatus(txId: string, setupId: number): Promise<MintTxStatus | null>;
+	getReorgedMintedTxs(blockHeight: number, setupId: number): Promise<ReorgedMintedTx[]>;
+	updateNbtcTxsStatus(txIds: string[], setupId: number, status: MintTxStatus): Promise<void>;
+	batchUpdateNbtcTxsStatus(
+		updates: { txIds: string[]; setupId: number; status: MintTxStatus }[],
+	): Promise<void>;
+	batchUpdateNbtcMintTxs(updates: NbtcTxUpdate[], setupId: number): Promise<void>;
 	updateConfirmingTxsToReorg(blockHashes: string[]): Promise<void>;
 	getConfirmingTxs(): Promise<PendingTx[]>;
-	finalizeNbtcTxs(txIds: string[]): Promise<void>;
-	getNbtcMintTx(txid: string): Promise<NbtcTxRow | null>;
+	finalizeNbtcTxs(txIds: string[], setupId: number): Promise<void>;
+	batchFinalizeNbtcTxs(updates: { txIds: string[]; setupId: number }[]): Promise<void>;
+	getNbtcMintTx(txid: string, setupId: number): Promise<NbtcTxRow | null>;
 	getNbtcMintTxsBySuiAddr(suiAddress: string): Promise<NbtcTxRow[]>;
 	registerBroadcastedNbtcTx(deposits: NbtcBroadcastedDeposit[]): Promise<void>;
-	getNbtcMintTxsByBtcSender(btcAddress: string, network: BtcNet): Promise<NbtcTxRow[]>;
+	getNbtcMintTxsByBtcSender(btcAddress: string, setupId: number): Promise<NbtcTxRow[]>;
 }
 
 // TODO: Add tests
@@ -58,8 +62,8 @@ export async function fetchNbtcAddresses(db: D1Database): Promise<NbtcDepositAdd
 		.prepare(
 			`SELECT a.setup_id, a.deposit_address as btc_address,  a.is_active
 			 FROM nbtc_deposit_addresses a
-			 JOIN setups p ON a.setup_id = p.id
-			 WHERE p.is_active = TRUE`,
+			 JOIN setups s ON a.setup_id = s.id
+			 WHERE s.is_active = TRUE`,
 		)
 		.all<{ setup_id: number; btc_address: string; is_active: boolean }>();
 	const addrMap: NbtcDepositAddrsMap = new Map();

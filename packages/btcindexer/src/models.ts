@@ -15,6 +15,7 @@ export interface Block {
 export interface Deposit extends NbtcPkg, NbtcDeposit {
 	vout: number;
 	depositAddress: string;
+	setupId: number;
 }
 
 export interface ProofResult {
@@ -28,6 +29,7 @@ export interface PendingTx {
 	block_height: number;
 	btc_network: BtcNet;
 	deposit_address: string;
+	setup_id: number;
 }
 
 export interface FinalizedTxRow {
@@ -126,6 +128,7 @@ export interface NbtcTxInsertion extends NbtcPkg, NbtcDeposit, Block {
 	btcNetwork: BtcNet;
 	depositAddress: string;
 	sender: string;
+	setupId: number;
 }
 
 export interface NbtcTxUpdate {
@@ -141,6 +144,7 @@ export interface NbtcBroadcastedDeposit extends NbtcPkg, NbtcDeposit {
 	btcNetwork: BtcNet;
 	depositAddress: string;
 	sender: string;
+	setupId: number;
 }
 
 export interface ElectrsTxVout {

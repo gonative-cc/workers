@@ -335,18 +335,16 @@ export class RedeemService {
 			return;
 		}
 
-		const client = this.getSuiClient(req.sui_network);
-		const proposalArgs = {
-			redeemId: req.redeem_id,
-			utxoIds: selectedUtxos.map((u) => u.nbtc_utxo_id),
-			nbtcPkg: req.nbtc_pkg,
-			nbtcContract: req.nbtc_contract,
-		};
-
 		try {
-			const result = await client.proposeRedeemUtxos(proposalArgs);
+			const client = this.getSuiClient(req.sui_network);
+			const result = await client.proposeRedeemUtxos({
+				redeemId: req.redeem_id,
+				utxoIds: selectedUtxos.map((u) => u.nbtc_utxo_id),
+				nbtcPkg: req.nbtc_pkg,
+				nbtcContract: req.nbtc_contract,
+			});
 
-			if (result.success) {
+			if (result.effects?.status.status === "success") {
 				logger.info({
 					msg: "Proposed UTXOs for redeem request",
 					redeemId: req.redeem_id,
@@ -358,15 +356,47 @@ export class RedeemService {
 					this.utxoLockTimeMs,
 				);
 			} else {
-				// Contract abort: someone already proposed a better solution.
-				// Mark as proposed without locking UTXOs so the redeem continue.
-				logger.info({
-					msg: "Proposal rejected on-chain, another worker proposed a better solution",
-					redeemId: req.redeem_id,
-					txDigest: result.digest,
-					error: result.error,
-				});
-				await this.storage.markRedeemProposed(req.redeem_id, [], 0);
+				const error = result.effects?.status.error ?? "";
+				if (isRedeemProgressed(error)) {
+					logger.info({
+						msg: "Redeem already progressed past proposal phase",
+						redeemId: req.redeem_id,
+						txDigest: result.digest,
+						error,
+					});
+					let onChainUtxoIds: number[] = [];
+					try {
+						onChainUtxoIds = await client.getRedeemUtxoIds(
+							req.redeem_id,
+							req.nbtc_pkg,
+							req.nbtc_contract,
+						);
+					} catch (e) {
+						logError(
+							{
+								msg: "Failed to fetch on-chain UTXO IDs",
+								method: "redeemReqProposeSolution",
+								redeemId: req.redeem_id,
+							},
+							e,
+						);
+					}
+					await this.storage.markRedeemProposed(
+						req.redeem_id,
+						onChainUtxoIds,
+						this.utxoLockTimeMs,
+					);
+				} else {
+					// TODO: Add specific error codes in the smart contract for
+					// better classification of contract aborts.
+					// For now, leave as pending to retry on next cron tick.
+					logger.warn({
+						msg: "Proposal failed on-chain, will retry",
+						redeemId: req.redeem_id,
+						txDigest: result.digest,
+						error,
+					});
+				}
 			}
 		} catch (e: unknown) {
 			// Network error: leave as pending so next cron retry.
@@ -414,6 +444,13 @@ export class RedeemService {
 			);
 		}
 	}
+}
+
+// Contract error messages indicating the redeem has progressed past the proposal phase.
+function isRedeemProgressed(error: string): boolean {
+	return (
+		error.includes("not in resolving status") || error.includes("resolving window has expired")
+	);
 }
 
 // V1 version

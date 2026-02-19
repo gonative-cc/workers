@@ -256,7 +256,7 @@ Shared library package containing utilities used across all services:
 
 - **Framework**: Bun's built-in test framework with Miniflare for mocking Workers
 - **Mock RPC**: Each service provides `RPCMock` implementation for isolated testing
-- **Test Data**: Real Bitcoin regtest blocks from [learnmeabitcoin.com](https://learnmeabitcoin.com/explorer/)
+- **Test Data**: Real Bitcoin regtest blocks from <https://learnmeabitcoin.com/explorer/>
 - **Test Helpers**: Located in `packages/lib/src/test-helpers/`
 
 ### Configuration Pattern

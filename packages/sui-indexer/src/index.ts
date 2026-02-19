@@ -25,19 +25,38 @@ export default {
 	},
 	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
 		const storage = new D1Storage(env.DB);
-		const activeNetworks = await storage.getActiveNetworks();
+		// Distributed lock to prevent overlapping cron executions from selecting
+		// same Sui coins. Since CF Workers doesn't guarantee sequential cron running,
+		// if a run exceeds the 1-min interval, the next trigger starts concurrently.
+		const lockToken = await storage.acquireLock("cron-sui-indexer", 5 * 60 * 1000);
+		if (lockToken === null) {
+			logger.warn({
+				msg: "Cron job already running, skipping this execution",
+				lockName: "cron-sui-indexer",
+			});
+			return;
+		}
 
-		const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
-		const suiClients = await createSuiClients(activeNetworks, mnemonic);
+		try {
+			const activeNetworks = await storage.getActiveNetworks();
 
-		// Run both indexer and redeem solver tasks in parallel
-		const results = await Promise.allSettled([
-			runSuiIndexer(storage, activeNetworks, suiClients),
-			runRedeemSolver(storage, env, suiClients, activeNetworks),
-		]);
+			const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
+			const suiClients = await createSuiClients(activeNetworks, mnemonic);
 
-		// Check for any rejected promises and log errors
-		reportErrors(results, "scheduled", "Scheduled task error", ["SuiIndexer", "RedeemSolver"]);
+			// Run both indexer and redeem solver tasks in parallel
+			const results = await Promise.allSettled([
+				runSuiIndexer(storage, activeNetworks, suiClients),
+				runRedeemSolver(storage, env, suiClients, activeNetworks),
+			]);
+
+			// Check for any rejected promises and log errors
+			reportErrors(results, "scheduled", "Scheduled task error", [
+				"SuiIndexer",
+				"RedeemSolver",
+			]);
+		} finally {
+			await storage.releaseLock("cron-sui-indexer");
+		}
 	},
 } satisfies ExportedHandler<Env>;
 

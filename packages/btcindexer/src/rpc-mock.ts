@@ -89,7 +89,7 @@ export class RPCMock extends WorkerEntrypoint<Env> implements BtcIndexerRpc {
 		});
 	}
 
-	async nbtcMintTx(_txid: string): Promise<NbtcTxResp | null> {
+	async nbtcMintTx(_txid: string, _setupId: number): Promise<NbtcTxResp | null> {
 		return Promise.resolve(null);
 	}
 
@@ -108,7 +108,7 @@ export class RPCMock extends WorkerEntrypoint<Env> implements BtcIndexerRpc {
 		return results;
 	}
 
-	async depositsBySender(_address: string): Promise<NbtcTxResp[]> {
+	async depositsBySender(_address: string, _setupId: number): Promise<NbtcTxResp[]> {
 		// Mock do not track sender addresses, it returns an  empty array
 		return [];
 	}

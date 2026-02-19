@@ -59,11 +59,12 @@ export class RPC extends WorkerEntrypoint<Env> implements BtcIndexerRpc {
 	/**
 	 * Get nBTC transaction status by Bitcoin transaction ID.
 	 * @param txid - Bitcoin transaction ID
+	 * @param setupId - The setup ID
 	 * @returns Transaction status or null if not found
 	 */
-	async nbtcMintTx(txid: string): Promise<NbtcTxResp | null> {
+	async nbtcMintTx(txid: string, setupId: number): Promise<NbtcTxResp | null> {
 		const indexer = await this.getIndexer();
-		return indexer.getNbtcMintTx(txid);
+		return indexer.getNbtcMintTx(txid, setupId);
 	}
 
 	/**
@@ -79,8 +80,8 @@ export class RPC extends WorkerEntrypoint<Env> implements BtcIndexerRpc {
 	/**
 	 * Returns deposit transaction statuses by Bitcoin sender address
 	 */
-	async depositsBySender(address: string, network: BtcNet): Promise<NbtcTxResp[]> {
+	async depositsBySender(address: string, setupId: number): Promise<NbtcTxResp[]> {
 		const indexer = await this.getIndexer();
-		return indexer.getDepositsBySender(address, network);
+		return indexer.getDepositsBySender(address, setupId);
 	}
 }

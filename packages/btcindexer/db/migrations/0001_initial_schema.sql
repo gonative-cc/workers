@@ -15,7 +15,7 @@ CREATE INDEX IF NOT EXISTS btc_blocks_is_scanned_height ON btc_blocks (is_scanne
 
 -- This table tracks the nBTC deposit txs (minting)
 CREATE TABLE IF NOT EXISTS nbtc_minting (
-	tx_id TEXT NOT NULL PRIMARY KEY,
+	tx_id TEXT NOT NULL,
 	address_id INTEGER NOT NULL,  -- nbtc pkg is linked through address_id -> nbtc_deposit_addresses.setup_id
 	sender TEXT NOT NULL,
 	vout INTEGER NOT NULL,
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS nbtc_minting (
 	updated_at INTEGER NOT NULL, -- timestamp_ms
 	sui_tx_id TEXT,
 	retry_count INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (tx_id, address_id),
 	FOREIGN KEY (address_id) REFERENCES nbtc_deposit_addresses(id)
 ) STRICT;
 

@@ -599,22 +599,22 @@ describe("IndexerStorage", () => {
 	});
 
 	describe("Distributed Lock", () => {
-		it("should acquire lock when none exists", async () => {
+		async function getLock(lockName: string) {
+			return db
+				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
+				.bind(lockName)
+				.first<{ lock_name: string; acquired_at: number; expires_at: number }>();
+		}
+
+		it("should acquire lock and reject duplicate", async () => {
 			const token = await storage.acquireLock("test-lock", 60000);
 			expect(token).not.toBeNull();
 
-			const lock = await db
-				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
-				.bind("test-lock")
-				.first<{ lock_name: string }>();
+			const lock = await getLock("test-lock");
 			expect(lock).not.toBeNull();
 			expect(lock!.lock_name).toBe("test-lock");
-		});
 
-		it("should fail to acquire lock when already held (not expired)", async () => {
-			const first = await storage.acquireLock("test-lock", 60000);
-			expect(first).not.toBeNull();
-
+			// second acquire should fail
 			const second = await storage.acquireLock("test-lock", 60000);
 			expect(second).toBeNull();
 		});
@@ -631,51 +631,19 @@ describe("IndexerStorage", () => {
 			const token = await storage.acquireLock("test-lock", 60000);
 			expect(token).not.toBeNull();
 
-			const lock = await db
-				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
-				.bind("test-lock")
-				.first<{ expires_at: number }>();
+			const lock = await getLock("test-lock");
 			expect(lock!.expires_at).toBeGreaterThan(Date.now());
 		});
 
-		it("should release lock with matching token", async () => {
+		it("should release lock and allow reacquiring", async () => {
 			const token = await storage.acquireLock("test-lock", 60000);
 			expect(token).not.toBeNull();
 
-			await storage.releaseLock("test-lock", token!);
-
-			const lock = await db
-				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
-				.bind("test-lock")
-				.first();
-			expect(lock).toBeNull();
-		});
-
-		it("should allow reacquiring lock after release", async () => {
-			const first = await storage.acquireLock("test-lock", 60000);
-			expect(first).not.toBeNull();
-
-			await storage.releaseLock("test-lock", first!);
+			await storage.releaseLock("test-lock");
+			expect(await getLock("test-lock")).toBeNull();
 
 			const second = await storage.acquireLock("test-lock", 60000);
 			expect(second).not.toBeNull();
-		});
-
-		it("should not release another instance's lock after expiry", async () => {
-			const tokenA = await storage.acquireLock("test-lock", 10);
-			expect(tokenA).not.toBeNull();
-			await new Promise((resolve) => setTimeout(resolve, 20));
-			const tokenB = await storage.acquireLock("test-lock", 60000);
-			expect(tokenB).not.toBeNull();
-
-			await storage.releaseLock("test-lock", tokenA!);
-
-			const lock = await db
-				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
-				.bind("test-lock")
-				.first<{ acquired_at: number }>();
-			expect(lock).not.toBeNull();
-			expect(lock!.acquired_at).toBe(tokenB!);
 		});
 	});
 });

@@ -876,17 +876,14 @@ export class D1Storage {
 		}
 	}
 
-	async releaseLock(lockName: string, acquiredAt: number): Promise<void> {
+	async releaseLock(lockName: string): Promise<void> {
 		try {
 			await this.db
-				.prepare(`DELETE FROM cron_locks WHERE lock_name = ? AND acquired_at = ?`)
-				.bind(lockName, acquiredAt)
+				.prepare(`DELETE FROM cron_locks WHERE lock_name = ?`)
+				.bind(lockName)
 				.run();
 		} catch (error) {
-			logError(
-				{ msg: "Failed to release lock", method: "releaseLock", lockName, acquiredAt },
-				error,
-			);
+			logError({ msg: "Failed to release lock", method: "releaseLock", lockName }, error);
 			throw error;
 		}
 	}

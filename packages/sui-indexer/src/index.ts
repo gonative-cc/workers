@@ -52,7 +52,7 @@ export default {
 				"RedeemSolver",
 			]);
 		} finally {
-			await storage.releaseLock("sui-indexer-cron", lockToken);
+			await storage.releaseLock("sui-indexer-cron");
 		}
 	},
 } satisfies ExportedHandler<Env>;

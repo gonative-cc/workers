@@ -856,43 +856,49 @@ export class D1Storage {
 	}
 
 	async acquireLocks(lockNames: string[], ttlMs: number): Promise<(number | null)[]> {
+		if (lockNames.length === 0) return [];
+
 		const now = Date.now();
-		const results: (number | null)[] = [];
+		const expiresAt = now + ttlMs;
 
-		for (const lockName of lockNames) {
-			try {
-				const result = await this.db
-					.prepare(
-						`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
-						 VALUES (?, ?, ?)
-						 ON CONFLICT(lock_name) DO UPDATE
-						 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
-						 WHERE cron_locks.expires_at <= excluded.acquired_at
-						 RETURNING acquired_at`,
-					)
-					.bind(lockName, now, now + ttlMs)
-					.first<number>("acquired_at");
-				results.push(result ?? null);
-			} catch (error) {
-				logError({ msg: "Failed to acquire lock", method: "acquireLock", lockName }, error);
-				throw error;
-			}
+		const stmt = this.db.prepare(
+			`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
+			 VALUES (?, ?, ?)
+			 ON CONFLICT(lock_name) DO UPDATE
+			 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
+			 WHERE cron_locks.expires_at <= excluded.acquired_at
+			 RETURNING acquired_at`,
+		);
+
+		const batch = lockNames.map((lockName) => stmt.bind(lockName, now, expiresAt));
+
+		try {
+			const results = await this.db.batch(batch);
+			return results.map((r) => {
+				if (!r.success || !r.results || r.results.length === 0) {
+					return null;
+				}
+				return (r.results[0] as unknown as { acquired_at: number }).acquired_at;
+			});
+		} catch (error) {
+			logError({ msg: "Failed to acquire locks", method: "acquireLocks" }, error);
+			throw error;
 		}
-
-		return results;
 	}
 
 	async releaseLocks(lockNames: string[]): Promise<void> {
-		for (const lockName of lockNames) {
-			try {
-				await this.db
-					.prepare(`DELETE FROM cron_locks WHERE lock_name = ?`)
-					.bind(lockName)
-					.run();
-			} catch (error) {
-				logError({ msg: "Failed to release lock", method: "releaseLock", lockName }, error);
-				throw error;
-			}
+		if (lockNames.length === 0) return;
+
+		const placeholders = lockNames.map(() => "?").join(", ");
+
+		try {
+			await this.db
+				.prepare(`DELETE FROM cron_locks WHERE lock_name IN (${placeholders})`)
+				.bind(...lockNames)
+				.run();
+		} catch (error) {
+			logError({ msg: "Failed to release locks", method: "releaseLocks" }, error);
+			throw error;
 		}
 	}
 }

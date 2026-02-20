@@ -34,42 +34,44 @@ async function startCronJobs(env: Env): Promise<void> {
 	const activeNetworks = await storage.getActiveNetworks();
 	const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
 	const suiClients = await createSuiClients(activeNetworks, mnemonic);
-	const lockIndexer = "cron-sui-indexer";
-	const lockRedeemSolver = "cron-sui-redeem-solver";
+	const lockNames = ["CronSuiIndexer", "CronRedeemSolver"];
 	const minute = 60_000;
 
+	const acquiredLocks: string[] = [];
+
 	try {
-		const lockTokens = await storage.acquireLocks([lockIndexer, lockRedeemSolver], 5 * minute);
-		const indexerLockToken = lockTokens[0];
-		const redeemSolverLockToken = lockTokens[1];
-
+		const lockTokens = await storage.acquireLocks(lockNames, 5 * minute);
 		const jobs: Promise<void>[] = [];
-		const jobNames: string[] = [];
 
-		if (indexerLockToken !== null) {
-			jobs.push(runSuiIndexer(storage, activeNetworks, suiClients));
-			jobNames.push("SuiIndexer");
-		} else {
-			logger.warn({
-				msg: "SuiIndexer lock is busy, skipping",
-			});
-		}
-
-		if (redeemSolverLockToken !== null) {
-			jobs.push(runRedeemSolver(storage, env, suiClients, activeNetworks));
-			jobNames.push("RedeemSolver");
-		} else {
-			logger.warn({
-				msg: "RedeemSolver lock is busy, skipping",
-			});
+		for (let i = 0; i < lockTokens.length; ++i) {
+			const name = lockNames[i]!;
+			if (lockTokens[i] === null) {
+				logger.warn({
+					msg: name + " lock is busy, skipping",
+				});
+				continue;
+			}
+			acquiredLocks.push(name);
+			switch (i) {
+				case 0:
+					jobs.push(runSuiIndexer(storage, activeNetworks, suiClients));
+					break;
+				case 1:
+					jobs.push(runRedeemSolver(storage, env, suiClients, activeNetworks));
+					break;
+				default:
+					logger.error({ msg: "unhandled job index: " + i });
+			}
 		}
 
 		if (jobs.length === 0) return;
 
 		const results = await Promise.allSettled(jobs);
-		reportErrors(results, "scheduled", "Scheduled task error", jobNames);
+		reportErrors(results, "scheduled", "Scheduled task error", acquiredLocks);
 	} finally {
-		await storage.releaseLocks([lockIndexer, lockRedeemSolver]);
+		if (acquiredLocks.length > 0) {
+			await storage.releaseLocks(acquiredLocks);
+		}
 	}
 }
 

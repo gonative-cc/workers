@@ -12,7 +12,6 @@ import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import HttpRouter from "./redeem-router";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
-import type { PipelinePromise } from "stream";
 
 const router = new HttpRouter();
 

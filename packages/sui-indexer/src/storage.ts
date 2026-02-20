@@ -855,35 +855,47 @@ export class D1Storage {
 		};
 	}
 
-	async acquireLock(lockName: string, ttlMs: number): Promise<number | null> {
+	async acquireLocks(lockNames: string[], ttlMs: number): Promise<(number | null)[]> {
+		if (lockNames.length === 0) return [];
+
 		const now = Date.now();
+		const expiresAt = now + ttlMs;
+		const valueRows = lockNames.map(() => "(?, ?, ?)").join(", ");
+		const params = lockNames.flatMap((name) => [name, now, expiresAt]);
+
 		try {
-			const result = await this.db
+			const { results } = await this.db
 				.prepare(
 					`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
-					 VALUES (?, ?, ?)
+					 VALUES ${valueRows}
 					 ON CONFLICT(lock_name) DO UPDATE
-					 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
-					 WHERE cron_locks.expires_at <= excluded.acquired_at
-					 RETURNING acquired_at`,
+					   SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
+					   WHERE cron_locks.expires_at <= excluded.acquired_at
+					   RETURNING lock_name, acquired_at`,
 				)
-				.bind(lockName, now, now + ttlMs)
-				.first<number>("acquired_at");
-			return result ?? null;
+				.bind(...params)
+				.all<{ lock_name: string; acquired_at: number }>();
+
+			const acquiredMap = new Map(results.map((r) => [r.lock_name, r.acquired_at]));
+			return lockNames.map((name) => acquiredMap.get(name) ?? null);
 		} catch (error) {
-			logError({ msg: "Failed to acquire lock", method: "acquireLock", lockName }, error);
+			logError({ msg: "Failed to acquire locks", method: "acquireLocks" }, error);
 			throw error;
 		}
 	}
 
-	async releaseLock(lockName: string): Promise<void> {
+	async releaseLocks(lockNames: string[]): Promise<void> {
+		if (lockNames.length === 0) return;
+
+		const placeholders = lockNames.map(() => "?").join(", ");
+
 		try {
 			await this.db
-				.prepare(`DELETE FROM cron_locks WHERE lock_name = ?`)
-				.bind(lockName)
+				.prepare(`DELETE FROM cron_locks WHERE lock_name IN (${placeholders})`)
+				.bind(...lockNames)
 				.run();
 		} catch (error) {
-			logError({ msg: "Failed to release lock", method: "releaseLock", lockName }, error);
+			logError({ msg: "Failed to release locks", method: "releaseLocks" }, error);
 			throw error;
 		}
 	}

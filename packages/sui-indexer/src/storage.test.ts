@@ -606,17 +606,28 @@ describe("IndexerStorage", () => {
 				.first<{ lock_name: string; acquired_at: number; expires_at: number }>();
 		}
 
+		it("should handle empty lock names array", async () => {
+			const tokens = await storage.acquireLocks([], 60000);
+			expect(tokens).toEqual([]);
+
+			await storage.releaseLocks([]);
+		});
+
 		it("should acquire lock and reject duplicate", async () => {
-			const token = await storage.acquireLock("test-lock", 60000);
-			expect(token).not.toBeNull();
+			const tokens = await storage.acquireLocks(["test-lock"], 60000);
+			expect(tokens[0]).not.toBeNull();
 
 			const lock = await getLock("test-lock");
 			expect(lock).not.toBeNull();
 			expect(lock!.lock_name).toBe("test-lock");
 
-			// second acquire should fail
-			const second = await storage.acquireLock("test-lock", 60000);
-			expect(second).toBeNull();
+			let second = await storage.acquireLocks(["test-lock"], 60000);
+			expect(second[0]).toBeNull();
+
+			await storage.releaseLocks(["test-lock"]);
+			expect(await getLock("test-lock")).toBeNull();
+			second = await storage.acquireLocks(["test-lock"], 60000);
+			expect(second[0]).not.toBeNull();
 		});
 
 		it("should acquire lock when existing lock is expired", async () => {
@@ -628,22 +639,41 @@ describe("IndexerStorage", () => {
 				.bind("test-lock", expiredTime - 60000, expiredTime)
 				.run();
 
-			const token = await storage.acquireLock("test-lock", 60000);
-			expect(token).not.toBeNull();
+			const tokens = await storage.acquireLocks(["test-lock"], 60000);
+			expect(tokens[0]).not.toBeNull();
 
 			const lock = await getLock("test-lock");
 			expect(lock!.expires_at).toBeGreaterThan(Date.now());
 		});
 
-		it("should release lock and allow reacquiring", async () => {
-			const token = await storage.acquireLock("test-lock", 60000);
-			expect(token).not.toBeNull();
+		it("should acquire multiple locks with partial success", async () => {
+			await storage.acquireLocks(["lock-x"], 60000);
 
-			await storage.releaseLock("test-lock");
-			expect(await getLock("test-lock")).toBeNull();
+			const tokens = await storage.acquireLocks(["lock-y", "lock-x", "lock-z"], 60000);
+			expect(tokens).toHaveLength(3);
+			expect(tokens[0]).not.toBeNull();
+			expect(tokens[1]).toBeNull();
+			expect(tokens[2]).not.toBeNull();
 
-			const second = await storage.acquireLock("test-lock", 60000);
-			expect(second).not.toBeNull();
+			const lockX = await getLock("lock-x");
+			expect(lockX).not.toBeNull();
+		});
+
+		it("should acquire all locks when existing locks are expired", async () => {
+			const now = Date.now();
+			const expiredTime = now - 10000;
+			await db
+				.prepare(
+					"INSERT INTO cron_locks (lock_name, acquired_at, expires_at) VALUES (?, ?, ?)",
+				)
+				.bind("lock-x", expiredTime - 60000, expiredTime)
+				.run();
+
+			const tokens = await storage.acquireLocks(["lock-y", "lock-x", "lock-z"], 60000);
+			expect(tokens).toHaveLength(3);
+			expect(tokens[0]).toBeGreaterThan(now);
+			expect(tokens[1]).toBeGreaterThan(now);
+			expect(tokens[2]).toBeGreaterThan(now);
 		});
 	});
 });

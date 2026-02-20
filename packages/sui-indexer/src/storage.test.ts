@@ -606,6 +606,13 @@ describe("IndexerStorage", () => {
 				.first<{ lock_name: string; acquired_at: number; expires_at: number }>();
 		}
 
+		it("should handle empty lock names array", async () => {
+			const tokens = await storage.acquireLocks([], 60000);
+			expect(tokens).toEqual([]);
+
+			await storage.releaseLocks([]);
+		});
+
 		it("should acquire lock and reject duplicate", async () => {
 			const tokens = await storage.acquireLocks(["test-lock"], 60000);
 			expect(tokens[0]).not.toBeNull();

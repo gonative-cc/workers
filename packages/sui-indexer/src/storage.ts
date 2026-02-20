@@ -860,26 +860,24 @@ export class D1Storage {
 
 		const now = Date.now();
 		const expiresAt = now + ttlMs;
-
-		const stmt = this.db.prepare(
-			`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
-			 VALUES (?, ?, ?)
-			 ON CONFLICT(lock_name) DO UPDATE
-			 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
-			 WHERE cron_locks.expires_at <= excluded.acquired_at
-			 RETURNING acquired_at`,
-		);
-
-		const batch = lockNames.map((lockName) => stmt.bind(lockName, now, expiresAt));
+		const valueRows = lockNames.map(() => "(?, ?, ?)").join(", ");
+		const params = lockNames.flatMap((name) => [name, now, expiresAt]);
 
 		try {
-			const results = await this.db.batch(batch);
-			return results.map((r) => {
-				if (!r.success || !r.results || r.results.length === 0) {
-					return null;
-				}
-				return (r.results[0] as unknown as { acquired_at: number }).acquired_at;
-			});
+			const { results } = await this.db
+				.prepare(
+					`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
+					 VALUES ${valueRows}
+					 ON CONFLICT(lock_name) DO UPDATE
+					   SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
+					   WHERE cron_locks.expires_at <= excluded.acquired_at
+					   RETURNING lock_name, acquired_at`,
+				)
+				.bind(...params)
+				.all<{ lock_name: string; acquired_at: number }>();
+
+			const acquiredMap = new Map(results.map((r) => [r.lock_name, r.acquired_at]));
+			return lockNames.map((name) => acquiredMap.get(name) ?? null);
 		} catch (error) {
 			logError({ msg: "Failed to acquire locks", method: "acquireLocks" }, error);
 			throw error;

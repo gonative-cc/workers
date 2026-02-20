@@ -13,11 +13,12 @@ import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import HttpRouter from "./redeem-router";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
 
-const router = new HttpRouter();
-
 // Export RPC entrypoints for service bindings
 export { RPC } from "./rpc";
 export { RPCMock } from "./rpc-mocks";
+
+const router = new HttpRouter();
+const CRON_LOCK_TTL_MS = 5 * 60_000; // 5 minutes
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -28,44 +29,52 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
+type JobRunner = () => Promise<void>;
+
+interface JobDefinition {
+	name: string;
+	run: JobRunner;
+}
+
 async function startCronJobs(env: Env): Promise<void> {
 	const storage = new D1Storage(env.DB);
 	const activeNetworks = await storage.getActiveNetworks();
 	const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
 	const suiClients = await createSuiClients(activeNetworks, mnemonic);
-	const lockNames = ["CronSuiIndexer", "CronRedeemSolver"];
-	const minute = 60_000;
+
+	const jobs: JobDefinition[] = [
+		{
+			name: "CronSuiIndexer",
+			run: () => runSuiIndexer(storage, activeNetworks, suiClients),
+		},
+		{
+			name: "CronRedeemSolver",
+			run: () => runRedeemSolver(storage, env, suiClients, activeNetworks),
+		},
+	];
 
 	const acquiredLocks: string[] = [];
 
 	try {
-		const lockTokens = await storage.acquireLocks(lockNames, 5 * minute);
-		const jobs: Promise<void>[] = [];
+		const lockNames = jobs.map((j) => j.name);
+		const lockTokens = await storage.acquireLocks(lockNames, CRON_LOCK_TTL_MS);
+		const tasks: Promise<void>[] = [];
 
 		for (let i = 0; i < lockTokens.length; ++i) {
-			const name = lockNames[i]!;
 			if (lockTokens[i] === null) {
 				logger.warn({
-					msg: name + " lock is busy, skipping",
+					msg: "Lock is busy, skipping",
+					lockName: lockNames[i],
 				});
 				continue;
 			}
-			acquiredLocks.push(name);
-			switch (i) {
-				case 0:
-					jobs.push(runSuiIndexer(storage, activeNetworks, suiClients));
-					break;
-				case 1:
-					jobs.push(runRedeemSolver(storage, env, suiClients, activeNetworks));
-					break;
-				default:
-					logger.error({ msg: "unhandled job index: " + i });
-			}
+			acquiredLocks.push(lockNames[i]!);
+			tasks.push(jobs[i]!.run());
 		}
 
-		if (jobs.length === 0) return;
+		if (tasks.length === 0) return;
 
-		const results = await Promise.allSettled(jobs);
+		const results = await Promise.allSettled(tasks);
 		reportErrors(results, "scheduled", "Scheduled task error", acquiredLocks);
 	} finally {
 		if (acquiredLocks.length > 0) {

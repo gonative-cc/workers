@@ -41,7 +41,6 @@ async function startCronJobs(env: Env): Promise<void> {
 	const activeNetworks = await storage.getActiveNetworks();
 	const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
 	const suiClients = await createSuiClients(activeNetworks, mnemonic);
-
 	const jobs: JobDefinition[] = [
 		{
 			name: "CronSuiIndexer",
@@ -49,7 +48,7 @@ async function startCronJobs(env: Env): Promise<void> {
 		},
 		{
 			name: "CronRedeemSolver",
-			run: () => runRedeemSolver(storage, env, suiClients, activeNetworks),
+			run: () => runRedeemSolver(storage, env, activeNetworks, suiClients),
 		},
 	];
 
@@ -162,8 +161,8 @@ async function poolAndProcessEvents(
 async function runRedeemSolver(
 	storage: D1Storage,
 	env: Env,
-	suiClients: Map<SuiNet, SuiClient>,
 	activeNetworks: SuiNet[],
+	suiClients: Map<SuiNet, SuiClient>,
 ) {
 	logger.info({ msg: "Running scheduled redeem solver task..." });
 	const service = new RedeemService(

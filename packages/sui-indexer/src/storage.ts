@@ -855,36 +855,44 @@ export class D1Storage {
 		};
 	}
 
-	async acquireLock(lockName: string, ttlMs: number): Promise<number | null> {
+	async acquireLocks(lockNames: string[], ttlMs: number): Promise<(number | null)[]> {
 		const now = Date.now();
-		try {
-			const result = await this.db
-				.prepare(
-					`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
-					 VALUES (?, ?, ?)
-					 ON CONFLICT(lock_name) DO UPDATE
-					 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
-					 WHERE cron_locks.expires_at <= excluded.acquired_at
-					 RETURNING acquired_at`,
-				)
-				.bind(lockName, now, now + ttlMs)
-				.first<number>("acquired_at");
-			return result ?? null;
-		} catch (error) {
-			logError({ msg: "Failed to acquire lock", method: "acquireLock", lockName }, error);
-			throw error;
+		const results: (number | null)[] = [];
+
+		for (const lockName of lockNames) {
+			try {
+				const result = await this.db
+					.prepare(
+						`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
+						 VALUES (?, ?, ?)
+						 ON CONFLICT(lock_name) DO UPDATE
+						 SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
+						 WHERE cron_locks.expires_at <= excluded.acquired_at
+						 RETURNING acquired_at`,
+					)
+					.bind(lockName, now, now + ttlMs)
+					.first<number>("acquired_at");
+				results.push(result ?? null);
+			} catch (error) {
+				logError({ msg: "Failed to acquire lock", method: "acquireLock", lockName }, error);
+				throw error;
+			}
 		}
+
+		return results;
 	}
 
-	async releaseLock(lockName: string): Promise<void> {
-		try {
-			await this.db
-				.prepare(`DELETE FROM cron_locks WHERE lock_name = ?`)
-				.bind(lockName)
-				.run();
-		} catch (error) {
-			logError({ msg: "Failed to release lock", method: "releaseLock", lockName }, error);
-			throw error;
+	async releaseLocks(lockNames: string[]): Promise<void> {
+		for (const lockName of lockNames) {
+			try {
+				await this.db
+					.prepare(`DELETE FROM cron_locks WHERE lock_name = ?`)
+					.bind(lockName)
+					.run();
+			} catch (error) {
+				logError({ msg: "Failed to release lock", method: "releaseLock", lockName }, error);
+				throw error;
+			}
 		}
 	}
 }

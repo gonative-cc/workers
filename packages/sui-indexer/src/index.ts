@@ -12,6 +12,7 @@ import type { WorkerEntrypoint } from "cloudflare:workers";
 import type { BtcIndexerRpc } from "@gonative-cc/btcindexer/rpc-interface";
 import HttpRouter from "./redeem-router";
 import type { SuiNet } from "@gonative-cc/lib/nsui";
+import type { PipelinePromise } from "stream";
 
 const router = new HttpRouter();
 
@@ -23,42 +24,54 @@ export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		return router.fetch(request, env, ctx);
 	},
-	async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-		const storage = new D1Storage(env.DB);
-		// Distributed lock to prevent overlapping cron executions from selecting
-		// same Sui coins. Since CF Workers doesn't guarantee sequential cron running,
-		// if a run exceeds the 1-min interval, the next trigger starts concurrently.
-		const lockToken = await storage.acquireLock("cron-sui-indexer", 5 * 60 * 1000);
-		if (lockToken === null) {
-			logger.warn({
-				msg: "Cron job already running, skipping this execution",
-				lockName: "cron-sui-indexer",
-			});
-			return;
-		}
-
-		try {
-			const activeNetworks = await storage.getActiveNetworks();
-
-			const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
-			const suiClients = await createSuiClients(activeNetworks, mnemonic);
-
-			// Run both indexer and redeem solver tasks in parallel
-			const results = await Promise.allSettled([
-				runSuiIndexer(storage, activeNetworks, suiClients),
-				runRedeemSolver(storage, env, suiClients, activeNetworks),
-			]);
-
-			// Check for any rejected promises and log errors
-			reportErrors(results, "scheduled", "Scheduled task error", [
-				"SuiIndexer",
-				"RedeemSolver",
-			]);
-		} finally {
-			await storage.releaseLock("cron-sui-indexer");
-		}
+	scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+		return startCronJobs(env);
 	},
 } satisfies ExportedHandler<Env>;
+
+async function startCronJobs(env: Env): Promise<void> {
+	const storage = new D1Storage(env.DB);
+	const activeNetworks = await storage.getActiveNetworks();
+	const mnemonic = await getSecret(env.NBTC_MINTING_SIGNER_MNEMONIC);
+	const suiClients = await createSuiClients(activeNetworks, mnemonic);
+	const lockIndexer = "cron-sui-indexer";
+	const lockRedeemSolver = "cron-sui-redeem-solver";
+	const minute = 60_000;
+
+	try {
+		const lockTokens = await storage.acquireLocks([lockIndexer, lockRedeemSolver], 5 * minute);
+		const indexerLockToken = lockTokens[0];
+		const redeemSolverLockToken = lockTokens[1];
+
+		const jobs: Promise<void>[] = [];
+		const jobNames: string[] = [];
+
+		if (indexerLockToken !== null) {
+			jobs.push(runSuiIndexer(storage, activeNetworks, suiClients));
+			jobNames.push("SuiIndexer");
+		} else {
+			logger.warn({
+				msg: "SuiIndexer lock is busy, skipping",
+			});
+		}
+
+		if (redeemSolverLockToken !== null) {
+			jobs.push(runRedeemSolver(storage, env, suiClients, activeNetworks));
+			jobNames.push("RedeemSolver");
+		} else {
+			logger.warn({
+				msg: "RedeemSolver lock is busy, skipping",
+			});
+		}
+
+		if (jobs.length === 0) return;
+
+		const results = await Promise.allSettled(jobs);
+		reportErrors(results, "scheduled", "Scheduled task error", jobNames);
+	} finally {
+		await storage.releaseLocks([lockIndexer, lockRedeemSolver]);
+	}
+}
 
 async function runSuiIndexer(
 	storage: D1Storage,

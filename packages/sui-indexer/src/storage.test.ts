@@ -601,7 +601,7 @@ describe("IndexerStorage", () => {
 	describe("Distributed Lock", () => {
 		async function getLock(lockName: string) {
 			return db
-				.prepare("SELECT * FROM cron_locks WHERE lock_name = ?")
+				.prepare("SELECT * FROM process_locks WHERE lock_name = ?")
 				.bind(lockName)
 				.first<{ lock_name: string; acquired_at: number; expires_at: number }>();
 		}
@@ -634,7 +634,7 @@ describe("IndexerStorage", () => {
 			const expiredTime = Date.now() - 10000;
 			await db
 				.prepare(
-					"INSERT INTO cron_locks (lock_name, acquired_at, expires_at) VALUES (?, ?, ?)",
+					"INSERT INTO process_locks (lock_name, acquired_at, expires_at) VALUES (?, ?, ?)",
 				)
 				.bind("test-lock", expiredTime - 60000, expiredTime)
 				.run();
@@ -664,7 +664,7 @@ describe("IndexerStorage", () => {
 			const expiredTime = now - 10000;
 			await db
 				.prepare(
-					"INSERT INTO cron_locks (lock_name, acquired_at, expires_at) VALUES (?, ?, ?)",
+					"INSERT INTO process_locks (lock_name, acquired_at, expires_at) VALUES (?, ?, ?)",
 				)
 				.bind("lock-x", expiredTime - 60000, expiredTime)
 				.run();

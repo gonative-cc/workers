@@ -866,11 +866,11 @@ export class D1Storage {
 		try {
 			const { results } = await this.db
 				.prepare(
-					`INSERT INTO cron_locks (lock_name, acquired_at, expires_at)
+					`INSERT INTO process_locks (lock_name, acquired_at, expires_at)
 					 VALUES ${valueRows}
 					 ON CONFLICT(lock_name) DO UPDATE
 					   SET acquired_at = excluded.acquired_at, expires_at = excluded.expires_at
-					   WHERE cron_locks.expires_at <= excluded.acquired_at
+					   WHERE process_locks.expires_at <= excluded.acquired_at
 					   RETURNING lock_name, acquired_at`,
 				)
 				.bind(...params)
@@ -891,7 +891,7 @@ export class D1Storage {
 
 		try {
 			await this.db
-				.prepare(`DELETE FROM cron_locks WHERE lock_name IN (${placeholders})`)
+				.prepare(`DELETE FROM process_locks WHERE lock_name IN (${placeholders})`)
 				.bind(...lockNames)
 				.run();
 		} catch (error) {

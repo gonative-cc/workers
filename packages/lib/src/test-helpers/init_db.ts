@@ -42,7 +42,7 @@ export const tables = [
 	"btc_blocks",
 	"indexer_state",
 	"presign_objects",
-	"cron_locks",
+	"process_locks",
 	"setups",
 ];
 

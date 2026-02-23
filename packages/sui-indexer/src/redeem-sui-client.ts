@@ -1,4 +1,9 @@
-import { SuiClient as Client, getFullnodeUrl } from "@mysten/sui/client";
+import {
+	type SuiTransactionBlockResponse,
+	SuiClient as Client,
+	getFullnodeUrl,
+} from "@mysten/sui/client";
+import { bcs } from "@mysten/bcs";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 
@@ -20,7 +25,7 @@ export interface SuiClientCfg {
 
 export interface SuiClient {
 	ikaClient(): IkaClient;
-	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string>;
+	proposeRedeemUtxos(args: ProposeRedeemCall): Promise<SuiTransactionBlockResponse>;
 	solveRedeemRequest(args: SolveRedeemCall): Promise<string>;
 	finalizeRedeem(args: FinalizeRedeemCall): Promise<string>;
 	requestIkaPresigns(count: number): Promise<string[]>;
@@ -39,6 +44,7 @@ export interface SuiClient {
 		nbtcContract: string,
 	): Promise<void>;
 	getRedeemBtcTx(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<string>;
+	getRedeemUtxoIds(redeemId: number, nbtcPkg: string, nbtcContract: string): Promise<number[]>;
 }
 
 class SuiClientImp implements SuiClient {
@@ -111,7 +117,50 @@ class SuiClientImp implements SuiClient {
 		return Buffer.from(decoded).toString("hex");
 	}
 
-	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<string> {
+	async getRedeemUtxoIds(
+		redeemId: number,
+		nbtcPkg: string,
+		nbtcContract: string,
+	): Promise<number[]> {
+		const tx = new Transaction();
+		const redeem = tx.add(
+			nBTCContractModule.redeemRequest({
+				package: nbtcPkg,
+				arguments: {
+					contract: nbtcContract,
+					redeemId: redeemId,
+				},
+			}),
+		);
+
+		tx.add(
+			RedeemRequestModule.utxoIds({
+				package: nbtcPkg,
+				arguments: {
+					r: redeem,
+				},
+			}),
+		);
+
+		const result = await this.#sui.devInspectTransactionBlock({
+			transactionBlock: tx,
+			sender: this.signer.toSuiAddress(),
+		});
+
+		if (result.error) {
+			throw new Error(`DevInspect failed: ${result.error}`);
+		}
+
+		const rawResult = result.results?.[1]?.returnValues?.[0]?.[0];
+		if (!rawResult) {
+			return [];
+		}
+
+		const utxoIds = bcs.vector(bcs.u64()).parse(Uint8Array.from(rawResult));
+		return utxoIds.map(Number);
+	}
+
+	async proposeRedeemUtxos(args: ProposeRedeemCall): Promise<SuiTransactionBlockResponse> {
 		const tx = new Transaction();
 
 		tx.add(
@@ -135,11 +184,7 @@ class SuiClientImp implements SuiClient {
 			},
 		});
 
-		if (result.effects?.status.status !== "success") {
-			throw new Error(`Transaction failed: ${result.effects?.status.error}`);
-		}
-
-		return result.digest;
+		return result;
 	}
 
 	async solveRedeemRequest(args: SolveRedeemCall): Promise<string> {

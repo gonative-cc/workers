@@ -31,11 +31,11 @@
 		"@gonative-cc/nbtc": "^0.1.1"
 	},
 	"lint-staged": {
-		"*.{js,cjs,mjs,jsx,ts,tsx}": [
+		"*.{js,cjs,mjs,jsx,ts,tsx,vue}": [
 			"prettier --write --ignore-unknown",
 			"eslint --cache --cache-location ./node_modules/.cache/eslint --fix"
 		],
-		"*.{json,html}": [
+		"*.{json,jsonc,html}": [
 			"prettier --write --ignore-unknown"
 		]
 	}

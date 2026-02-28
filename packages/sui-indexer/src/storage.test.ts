@@ -676,4 +676,98 @@ describe("IndexerStorage", () => {
 			expect(tokens[2]).toBeGreaterThan(now);
 		});
 	});
+
+	it("getMultipleSuiGqlCursors should return cursors for multiple setups", async () => {
+		await storage.saveMultipleSuiGqlCursors([{ cursor: "cursor1", setupId: 1 }]);
+		const cursors = await storage.getMultipleSuiGqlCursors([1, 2]);
+		expect(cursors[1]).toBe("cursor1");
+		expect(cursors[2]).toBeNull();
+	});
+
+	it("hasRedeemRequest should check if redeem exists", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		const exists = await storage.hasRedeemRequest(1);
+		const notExists = await storage.hasRedeemRequest(999);
+		expect(exists).toBe(true);
+		expect(notExists).toBe(false);
+	});
+
+	it("getRedeemUtxosWithDetails should return utxos with input_index", async () => {
+		await insertRedeemRequest(storage, 1, "redeemer1", recipientScript, 3000, 1000, "0xSuiTx1");
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: 1,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		const utxos = await storage.getRedeemUtxosWithDetails(1);
+		expect(utxos.length).toBe(1);
+		expect(utxos[0]!.input_index).toBe(0);
+	});
+
+	it("should transition redeem request from broadcasted to finalized and update UTXO status", async () => {
+		const redeemId = 1;
+		const btcTxId = "btcTxId123";
+		await insertRedeemRequest(
+			storage,
+			redeemId,
+			"redeemer1",
+			recipientScript,
+			3000,
+			1000,
+			"0xSuiTx1",
+		);
+		await insertUtxo(
+			storage,
+			1,
+			scriptPubkey1,
+			"dwallet1",
+			"tx1",
+			0,
+			2000,
+			UtxoStatus.Available,
+			null,
+		);
+		await storage.saveRedeemInputs([
+			{
+				redeem_id: redeemId,
+				utxo_id: 1,
+				input_index: 0,
+				dwallet_id: "dwallet1",
+				created_at: Date.now(),
+			},
+		]);
+		await storage.markRedeemBroadcasted(redeemId, btcTxId);
+		const broadcastedRedeem = await db
+			.prepare("SELECT status, btc_tx FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(redeemId)
+			.first<{ status: string; btc_tx: string }>();
+		expect(broadcastedRedeem!.status).toBe(RedeemRequestStatus.Broadcasting);
+		expect(broadcastedRedeem!.btc_tx).toBe(btcTxId);
+		await storage.setRedeemFinalized(redeemId);
+		const finalizedRedeem = await db
+			.prepare("SELECT status FROM nbtc_redeem_requests WHERE redeem_id = ?")
+			.bind(redeemId)
+			.first<{ status: string }>();
+		const utxo = await db
+			.prepare("SELECT status FROM nbtc_utxos WHERE nbtc_utxo_id = ?")
+			.bind(1)
+			.first<{ status: string }>();
+		expect(finalizedRedeem!.status).toBe(RedeemRequestStatus.Finalized);
+		expect(utxo!.status).toBe(UtxoStatus.Spent);
+	});
 });

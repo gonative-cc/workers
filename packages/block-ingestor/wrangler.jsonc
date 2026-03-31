@@ -2,7 +2,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "block-ingestor",
 	"main": "src/index.ts",
-	"compatibility_date": "2026-02-19",
+	"compatibility_date": "2026-03-31",
 	"compatibility_flags": ["nodejs_compat"],
 	"kv_namespaces": [
 		{

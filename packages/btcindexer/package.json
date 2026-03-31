@@ -22,11 +22,11 @@
 		"@gonative-cc/lib": "workspace:*",
 		"@gonative-cc/sui-indexer": "workspace:*",
 		"@gonative-cc/compliance": "workspace:*",
-		"@mysten/bcs": "^1.9.2",
-		"@mysten/sui": "^1.45.2",
-		"bitcoinjs-lib": "^6.1.7",
+		"@mysten/bcs": "catalog:",
+		"@mysten/sui": "catalog:",
+		"bitcoinjs-lib": "catalog:",
 		"crypto-js": "^4.2.0",
-		"itty-router": "^5.0.22",
+		"itty-router": "catalog:",
 		"merkletreejs": "^0.5.2"
 	},
 	"devDependencies": {}

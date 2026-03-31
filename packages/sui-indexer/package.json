@@ -15,18 +15,18 @@
 	"dependencies": {
 		"@gonative-cc/btcindexer": "workspace:*",
 		"@gonative-cc/lib": "workspace:*",
-		"@gonative-cc/nbtc": "0.1.1",
+		"@gonative-cc/nbtc": "catalog:",
 		"@ika.xyz/sdk": "^0.2.7",
-		"@mysten/bcs": "^1.9.2",
-		"@mysten/sui": "^1.45.2",
-		"bitcoinjs-lib": "^6.1.7",
+		"@mysten/bcs": "catalog:",
+		"@mysten/sui": "catalog:",
+		"bitcoinjs-lib": "catalog:",
 		"graphql": "^16.12.0",
 		"graphql-request": "^7.4.0",
-		"itty-router": "^5.0.22"
+		"itty-router": "catalog:"
 	},
 	"devDependencies": {
-		"@types/crypto-js": "^4.2.2",
+		"@types/crypto-js": "catalog:",
 		"bitcoinjs-lib": "^7.0.1",
-		"miniflare": "4.20251008.0"
+		"miniflare": "catalog:"
 	}
 }

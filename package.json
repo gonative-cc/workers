@@ -1,5 +1,27 @@
 {
-	"workspaces": ["packages/*"],
+	"workspaces": {
+		"packages": ["packages/*"],
+		"catalog": {
+			"@cloudflare/vitest-pool-workers": "^0.9.14",
+			"@cloudflare/workers-types": "^4.20260305.0",
+			"@eslint/js": "^9.39.3",
+			"@gonative-cc/nbtc": "^0.1.1",
+			"@mysten/bcs": "^1.9.2",
+			"@mysten/sui": "^1.45.2",
+			"@types/bun": "^1.3.9",
+			"@types/crypto-js": "^4.2.2",
+			"@types/node": "^24.10.14",
+			"bitcoinjs-lib": "^6.1.7",
+			"eslint": "^9.39.3",
+			"eslint-config-prettier": "^10.1.8",
+			"itty-router": "^5.0.22",
+			"lint-staged": "^16.2.7",
+			"miniflare": "^4.20260302.0",
+			"typescript": "^5.9.3",
+			"typescript-eslint": "^8.56.1",
+			"wrangler": "^4.68.1"
+		}
+	},
 	"name": "workers",
 	"license": "MPL-2.0",
 	"private": true,
@@ -16,19 +38,19 @@
 		"test": "bun run --filter '*' test"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.9.14",
-		"@cloudflare/workers-types": "^4.20260305.0",
-		"@eslint/js": "^9.39.3",
-		"@types/bun": "^1.3.9",
-		"@types/node": "^24.10.14",
-		"eslint": "^9.39.3",
-		"eslint-config-prettier": "^10.1.8",
-		"lint-staged": "^16.2.7",
-		"miniflare": "^4.20260302.0",
-		"typescript": "^5.9.3",
-		"typescript-eslint": "^8.56.1",
-		"wrangler": "^4.68.1",
-		"@gonative-cc/nbtc": "^0.1.1"
+		"@cloudflare/vitest-pool-workers": "catalog:",
+		"@cloudflare/workers-types": "catalog:",
+		"@eslint/js": "catalog:",
+		"@gonative-cc/nbtc": "catalog:",
+		"@types/bun": "catalog:",
+		"@types/node": "catalog:",
+		"eslint": "catalog:",
+		"eslint-config-prettier": "catalog:",
+		"lint-staged": "catalog:",
+		"miniflare": "catalog:",
+		"typescript": "catalog:",
+		"typescript-eslint": "catalog:",
+		"wrangler": "catalog:"
 	},
 	"lint-staged": {
 		"*.{js,cjs,mjs,jsx,ts,tsx,vue}": [

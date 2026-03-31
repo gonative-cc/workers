@@ -12,8 +12,8 @@
 	"dependencies": {
 		"@gonative-cc/btcindexer": "workspace:*",
 		"@gonative-cc/lib": "workspace:*",
-		"bitcoinjs-lib": "^6.1.7",
-		"itty-router": "^5.0.22",
+		"bitcoinjs-lib": "catalog:",
+		"itty-router": "catalog:",
 		"msgpackr": "^1.11.8"
 	}
 }
